@@ -249,6 +249,14 @@ const BOND_WIDTH = 5;
     // --- КЕТОНИ ---
     "C3_CO": { ua: "Пропанон (Ацетон)", en: "Propanone", class: "Кетони" },
     "C4_CO": { ua: "Бутанон", en: "Butanone", class: "Кетони" },
+	
+
+
+    // --- КЕТО- та АЛЬДЕГІДОКИСЛОТИ ---
+    "Acid_C2_CHO": { ua: "Гліоксалева кислота", en: "Glyoxylic acid", class: "Альдегідокислоти" },
+    "Acid_C3_CO": { ua: "Піровиноградна кислота", en: "Pyruvic acid", class: "Кетокислоти" },
+    "Acid_C4_CO": { ua: "Ацетооцтова кислота", en: "Acetoacetic acid", class: "Кетокислоти" },
+
 
     // --- КАРБОНОВІ КИСЛОТИ (Розширено) ---
     "Acid_C1": { ua: "Метанова (Мурашина) к-та", en: "Methanoic acid", class: "Карбонові кислоти" },
@@ -570,19 +578,34 @@ class App {
         // 3. GENERATE KEY
         let key = "";
 
+      // ... (початок блоку генерації key)
+
         // --- AMINO ACIDS ---
         if(f.COOH && f.NH2) {
-            if(f.Arom && counts.C >= 9) key = "AA_Phenylalanine"; // C6(ring) + C3(chain)
-            else if(f.OH) key = "AA_Serine";
-            else if(counts.C === 2) key = "AA_Glycine";
-            else if(counts.C === 3) key = "AA_Alanine";
-            else key = "AA_Generic";
+            // ... (код для амінокислот без змін) ...
+             if(f.Arom && counts.C >= 9) key = "AA_Phenylalanine";
+             else if(f.OH) key = "AA_Serine";
+             else if(counts.C === 2) key = "AA_Glycine";
+             else if(counts.C === 3) key = "AA_Alanine";
+             else key = "AA_Generic";
         }
-        // --- CARBOXYLIC ACIDS ---
+        
+        // --- HYBRID ACIDS  ---
+        // Якщо є і кислотна група, і кето-група -> Кетокислота
+        else if (f.COOH && f.CO) {
+            key = `Acid_C${counts.C}_CO`; 
+        }
+        // Якщо є і кислотна група, і альдегідна -> Альдегідокислота
+        else if (f.COOH && f.CHO) {
+            key = `Acid_C${counts.C}_CHO`;
+        }
+
+        // --- CARBOXYLIC ACIDS (Звичайні) ---
         else if(f.COOH) {
             if(f.Arom && counts.C >= 7) key = "Acid_Benzene";
-            else key = `Acid_C${counts.C}`; // Acid_C1, Acid_C2, Acid_C3...
+            else key = `Acid_C${counts.C}`; 
         }
+
         // --- ETHERS ---
         else if(f.Ether) {
             // Find the Ether Oxygen
