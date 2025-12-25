@@ -209,77 +209,74 @@ const ATOM_SPECS = {
 const BOND_LEN = 70;
 const BOND_WIDTH = 5;
 
-/**
- * БАЗА ЗНАНЬ
- */const KNOWLEDGE_BASE = {
+
+const KNOWLEDGE_BASE = {
     // --- АЛКАНИ ---
     "C1": { ua: "Метан", en: "Methane", class: "Алкани" },
     "C2": { ua: "Етан", en: "Ethane", class: "Алкани" },
     "C3": { ua: "Пропан", en: "Propane", class: "Алкани" },
     "C4_linear": { ua: "н-Бутан", en: "n-Butane", class: "Алкани" },
-    "C4_branched": { ua: "Ізобутан (2-метилпропан)", en: "Isobutane", class: "Алкани" },
+    "C4_branched": { ua: "Ізобутан", en: "Isobutane", class: "Алкани" },
     "C5_linear": { ua: "н-Пентан", en: "n-Pentane", class: "Алкани" },
 
-    // --- АРЕНИ ---
-    "benzene": { ua: "Бензол", en: "Benzene", class: "Арени" },
-    "benzene_methyl": { ua: "Толуен (Метилбензол)", en: "Toluene", class: "Арени" },
+    // --- АРЕНИ ТА ПОХІДНІ (Виправлено) ---
+    "Benzene_Pure": { ua: "Бензол", en: "Benzene", class: "Арени" },
+    "Benzene_Methyl": { ua: "Толуен (Метилбензол)", en: "Toluene", class: "Арени" },
+    "Benzene_Cl": { ua: "Хлорбензол", en: "Chlorobenzene", class: "Галогенарени" },
+    "Benzene_CHO": { ua: "Бензальдегід", en: "Benzaldehyde", class: "Ароматичні альдегіди" },
+    "Benzene_OH": { ua: "Фенол", en: "Phenol", class: "Феноли" },
+    "Benzene_NH2": { ua: "Анілін", en: "Aniline", class: "Ароматичні аміни" },
+    "Benzene_COOH": { ua: "Бензойна кислота", en: "Benzoic acid", class: "Карбонові кислоти" },
 
-    // --- АЛКЕНИ (спрощено) ---
-    "C2_d1": { ua: "Етен (Етилен)", en: "Ethene", class: "Алкени" },
+    // --- АЛКЕНИ ---
+    "C2_d1": { ua: "Етен", en: "Ethene", class: "Алкени" },
     "C3_d1": { ua: "Пропен", en: "Propene", class: "Алкени" },
 
     // --- СПИРТИ ---
     "C1_OH1": { ua: "Метанол", en: "Methanol", class: "Спирти" },
     "C2_OH1": { ua: "Етанол", en: "Ethanol", class: "Спирти" },
     "C3_OH1_pos1": { ua: "Пропан-1-ол", en: "Propan-1-ol", class: "Спирти" },
-    "C3_OH1_pos2": { ua: "Пропан-2-ол (Ізопропанол)", en: "Propan-2-ol", class: "Спирти" },
-    "C6_aromatic_OH1": { ua: "Фенол", en: "Phenol", class: "Феноли" },
+    "C3_OH1_pos2": { ua: "Пропан-2-ол", en: "Propan-2-ol", class: "Спирти" },
 
-    // --- ЕТЕРИ (Розширено) ---
+    // --- ЕТЕРИ ---
     "Ether_C1_C1": { ua: "Диметиловий етер", en: "Dimethyl ether", class: "Етери" },
-    "Ether_C1_C2": { ua: "Метилетиловий етер (Метоксіетан)", en: "Methoxyethane", class: "Етери" },
+    "Ether_C1_C2": { ua: "Метилетиловий етер", en: "Methoxyethane", class: "Етери" },
     "Ether_C2_C2": { ua: "Діетиловий етер", en: "Diethyl ether", class: "Етери" },
-    "Ether_C1_C3": { ua: "Метилпропіловий етер", en: "Methoxypropane", class: "Етери" },
 
     // --- АЛЬДЕГІДИ ---
-    "C1_CHO": { ua: "Метаналь (Формальдегід)", en: "Methanal", class: "Альдегіди" },
-    "C2_CHO": { ua: "Етаналь (Оцтовий альдегід)", en: "Ethanal", class: "Альдегіди" },
+    "C1_CHO": { ua: "Метаналь", en: "Methanal", class: "Альдегіди" },
+    "C2_CHO": { ua: "Етаналь", en: "Ethanal", class: "Альдегіди" },
     "C3_CHO": { ua: "Пропаналь", en: "Propanal", class: "Альдегіди" },
 
     // --- КЕТОНИ ---
     "C3_CO": { ua: "Пропанон (Ацетон)", en: "Propanone", class: "Кетони" },
     "C4_CO": { ua: "Бутанон", en: "Butanone", class: "Кетони" },
-	
 
-
-    // --- КЕТО- та АЛЬДЕГІДОКИСЛОТИ ---
+    // --- КИСЛОТИ (Гібридні) ---
     "Acid_C2_CHO": { ua: "Гліоксалева кислота", en: "Glyoxylic acid", class: "Альдегідокислоти" },
     "Acid_C3_CO": { ua: "Піровиноградна кислота", en: "Pyruvic acid", class: "Кетокислоти" },
-    "Acid_C4_CO": { ua: "Ацетооцтова кислота", en: "Acetoacetic acid", class: "Кетокислоти" },
 
-
-    // --- КАРБОНОВІ КИСЛОТИ (Розширено) ---
-    "Acid_C1": { ua: "Метанова (Мурашина) к-та", en: "Methanoic acid", class: "Карбонові кислоти" },
-    "Acid_C2": { ua: "Етанова (Оцтова) к-та", en: "Ethanoic acid", class: "Карбонові кислоти" },
+    // --- КИСЛОТИ (Звичайні) ---
+    "Acid_C1": { ua: "Метанова к-та", en: "Methanoic acid", class: "Карбонові кислоти" },
+    "Acid_C2": { ua: "Етанова к-та", en: "Ethanoic acid", class: "Карбонові кислоти" },
     "Acid_C3": { ua: "Пропанова к-та", en: "Propanoic acid", class: "Карбонові кислоти" },
-    "Acid_C4": { ua: "Бутанова (Масляна) к-та", en: "Butanoic acid", class: "Карбонові кислоти" },
-    "Acid_Benzene": { ua: "Бензойна кислота", en: "Benzoic acid", class: "Карбонові кислоти" },
+    "Acid_C4": { ua: "Бутанова к-та", en: "Butanoic acid", class: "Карбонові кислоти" },
 
-    // --- АМІНИ ---
+    // --- АМІНИ ТА АМІНОКИСЛОТИ ---
     "C1_NH2": { ua: "Метиламін", en: "Methylamine", class: "Аміни" },
     "C2_NH2": { ua: "Етиламін", en: "Ethylamine", class: "Аміни" },
-    "C6_aromatic_NH2": { ua: "Анілін", en: "Aniline", class: "Аміни" },
-
-    // --- АМІНОКИСЛОТИ (Розширено) ---
-    "AA_Glycine": { ua: "Гліцин (Аміноетанова к-та)", en: "Glycine", class: "Амінокислоти" },
-    "AA_Alanine": { ua: "Аланін (2-амінопропанова к-та)", en: "Alanine", class: "Амінокислоти" },
+    "AA_Glycine": { ua: "Гліцин", en: "Glycine", class: "Амінокислоти" },
+    "AA_Alanine": { ua: "Аланін", en: "Alanine", class: "Амінокислоти" },
     "AA_Serine": { ua: "Серин", en: "Serine", class: "Амінокислоти" },
     "AA_Phenylalanine": { ua: "Фенілаланін", en: "Phenylalanine", class: "Амінокислоти" },
 
     // --- ГАЛОГЕНИ ---
     "C1_Cl1": { ua: "Хлорметан", en: "Chloromethane", class: "Галогенопохідні" },
-    "C1_Cl3": { ua: "Хлороформ (Трихлорметан)", en: "Chloroform", class: "Галогенопохідні" }
+    "C1_Cl3": { ua: "Хлороформ", en: "Chloroform", class: "Галогенопохідні" }
 };
+
+
+
 class Atom {
     constructor(type, x, y) {
         this.id = Math.random().toString(36).substr(2, 9);
@@ -505,196 +502,159 @@ class App {
         this.analyze();
     }
 
-    /** АНАЛІЗ **/
-  analyze() {
-        // 1. Basic Counts
+analyze() {
+        // 1. ПІДРАХУНОК АТОМІВ (БРУТТО)
         const counts = { C:0, H:0, O:0, N:0, Cl:0 };
         this.atoms.forEach(a => counts[a.type] = (counts[a.type]||0) + 1);
 
-        // Build Formula
+        // Формування брутто-формули для відображення
         let formula = '';
         ['C','H','N','O','Cl'].forEach(el => { if(counts[el]) formula += el + (counts[el]>1?counts[el]:''); });
         document.getElementById('info-formula').innerText = formula || '-';
 
-        // 2. Identify Functional Groups & Structural Features
+        // 2. ПОШУК ФУНКЦІОНАЛЬНИХ ГРУП
         const f = { COOH:0, CHO:0, OH:0, NH2:0, CO:0, Ether:0, Dbl:0, Arom:0, Cl:counts.Cl };
         
-        // Helper: Is this C part of a benzene ring?
-        const isAromaticC = (atom) => {
-            if(atom.type !== 'C') return false;
-            return atom.bonds.some(bid => this.getBond(atom.id, bid).type === 1.5);
-        };
-
-        // Scan Atoms
+        // Скануємо атоми
         this.atoms.forEach(a => {
             if(a.type === 'C') {
                 const oxs = a.bonds.map(id=>this.getAtom(id)).filter(n => n.type==='O');
                 const dblO = oxs.find(o => this.getBond(a.id, o.id).type === 2);
                 const sglO = oxs.find(o => this.getBond(a.id, o.id).type === 1);
                 
-                // COOH detection
-                if(dblO && sglO && sglO.bonds.some(id => this.getAtom(id).type === 'H')) {
-                    f.COOH++;
-                } 
-                // Aldehyde CHO detection
-                else if(dblO && a.bonds.some(id => this.getAtom(id).type === 'H') && !sglO) {
-                    f.CHO++; 
-                } 
-                // Ketone CO detection
-                else if(dblO && !sglO) {
-                     const cNeighbors = a.bonds.filter(id => this.getAtom(id).type === 'C').length;
-                     if(cNeighbors >= 2) f.CO++;
-                }
+                if(dblO && sglO && sglO.bonds.some(id => this.getAtom(id).type === 'H')) f.COOH++;
+                else if(dblO && a.bonds.some(id => this.getAtom(id).type === 'H') && !sglO) f.CHO++;
+                else if(dblO && !sglO && a.bonds.filter(id => this.getAtom(id).type === 'C').length >= 2) f.CO++;
             } else if (a.type === 'O') {
-                 // Check neighbors to distinguish Alcohol vs Ether
                  const neighbors = a.bonds.map(id => this.getAtom(id));
-                 const cNeighbors = neighbors.filter(n => n.type === 'C').length;
-                 const hNeighbors = neighbors.filter(n => n.type === 'H').length;
-
-                 // Make sure this O is not part of a Carboxyl group (COOH)
-                 const isCOOHPart = neighbors.some(n => 
-                     n.type === 'C' && n.bonds.some(nid => {
-                         const nn = this.getAtom(nid);
-                         return nn.type === 'O' && this.getBond(n.id, nid).type === 2;
-                     })
-                 );
-
-                 if(!isCOOHPart) {
-                     if(cNeighbors === 1 && hNeighbors === 1) f.OH++;
-                     if(cNeighbors === 2) f.Ether++;
+                 const cN = neighbors.filter(n => n.type === 'C').length;
+                 const hN = neighbors.filter(n => n.type === 'H').length;
+                 // Виключаємо кисень, що є частиною COOH
+                 const isCOOH = neighbors.some(n => n.type === 'C' && n.bonds.some(nid => {
+                         const nn = this.getAtom(nid); return nn.type === 'O' && this.getBond(n.id, nid).type === 2;
+                 }));
+                 if(!isCOOH) {
+                     if(cN === 1 && hN === 1) f.OH++;
+                     if(cN === 2) f.Ether++;
                  }
-            } else if (a.type === 'N') {
-                const hNeighbors = a.bonds.filter(id => this.getAtom(id).type === 'H').length;
-                if(hNeighbors === 2) f.NH2++;
+            } else if (a.type === 'N' && a.bonds.filter(id => this.getAtom(id).type === 'H').length === 2) {
+                f.NH2++;
             }
         });
 
-        // Scan Bonds for Aromatic/Double
         this.bonds.forEach(b => {
             if(b.type === 2 && this.getAtom(b.a1).type==='C' && this.getAtom(b.a2).type==='C') f.Dbl++;
             if(b.type === 1.5) f.Arom = 1;
         });
 
-        // 3. GENERATE KEY
-        let key = "";
+        // 3. ВИЗНАЧЕННЯ КЛЮЧА (Strict Mode)
+        let key = null;
 
-      // ... (початок блоку генерації key)
-
-        // --- AMINO ACIDS ---
-        if(f.COOH && f.NH2) {
-            // ... (код для амінокислот без змін) ...
-             if(f.Arom && counts.C >= 9) key = "AA_Phenylalanine";
-             else if(f.OH) key = "AA_Serine";
-             else if(counts.C === 2) key = "AA_Glycine";
-             else if(counts.C === 3) key = "AA_Alanine";
-             else key = "AA_Generic";
+        // --- ЛОГІКА ДЛЯ БЕНЗОЛУ ТА ЙОГО ПОХІДНИХ (Strict) ---
+        if (f.Arom) {
+            // Перевіряємо пріоритетні групи на кільці
+            if (f.COOH && f.NH2 && counts.C >= 9) key = "AA_Phenylalanine";
+            else if (f.COOH) key = "Benzene_COOH";    // Бензойна к-та
+            else if (f.CHO) key = "Benzene_CHO";      // Бензальдегід (C7H6O)
+            else if (f.OH) key = "Benzene_OH";        // Фенол
+            else if (f.NH2) key = "Benzene_NH2";      // Анілін
+            else if (f.Cl) key = "Benzene_Cl";        // Хлорбензол
+            
+            // Толуен: C7, H8, і жодних O, N, Cl
+            else if (counts.C === 7 && counts.O === 0 && counts.N === 0 && counts.Cl === 0) key = "Benzene_Methyl";
+            
+            // Чистий бензол: C6, H6, і жодних гетероатомів
+            else if (counts.C === 6 && counts.O === 0 && counts.N === 0 && counts.Cl === 0) key = "Benzene_Pure";
+            
+            // Якщо не підійшло нічого з вищевказаного, залишаємо key = null
+            // Система видасть "Ароматична сполука" + Формулу, не брехатиме про назву.
         }
         
-        // --- HYBRID ACIDS  ---
-        // Якщо є і кислотна група, і кето-група -> Кетокислота
-        else if (f.COOH && f.CO) {
-            key = `Acid_C${counts.C}_CO`; 
+        // --- АМІНОКИСЛОТИ (Аліфатичні) ---
+        else if(f.COOH && f.NH2) {
+            if(f.OH) key = "AA_Serine";
+            else if(counts.C === 2) key = "AA_Glycine";
+            else if(counts.C === 3) key = "AA_Alanine";
         }
-        // Якщо є і кислотна група, і альдегідна -> Альдегідокислота
-        else if (f.COOH && f.CHO) {
-            key = `Acid_C${counts.C}_CHO`;
-        }
+        
+        // --- СКЛАДНІ КИСЛОТИ (Кето/Альдегідо) ---
+        else if (f.COOH && f.CO) key = `Acid_C${counts.C}_CO`;
+        else if (f.COOH && f.CHO) key = `Acid_C${counts.C}_CHO`;
 
-        // --- CARBOXYLIC ACIDS (Звичайні) ---
-        else if(f.COOH) {
-            if(f.Arom && counts.C >= 7) key = "Acid_Benzene";
-            else key = `Acid_C${counts.C}`; 
-        }
+        // --- ПРОСТІ КИСЛОТИ ---
+        else if(f.COOH) key = `Acid_C${counts.C}`;
 
-        // --- ETHERS ---
+        // --- ЕТЕРИ ---
         else if(f.Ether) {
-            // Find the Ether Oxygen
             const etherO = this.atoms.find(a => a.type === 'O' && a.bonds.filter(bid => this.getAtom(bid).type === 'C').length === 2);
             if(etherO) {
-                // Count Carbons on Left and Right
+                // ... (Логіка підрахунку гілок залишається та сама) ...
                 const branches = etherO.bonds.map(startCId => {
-                    const visited = new Set([etherO.id]);
-                    const queue = [startCId];
-                    let cCount = 0;
-                    while(queue.length > 0) {
-                        const currId = queue.shift();
-                        if(visited.has(currId)) continue;
-                        visited.add(currId);
-                        const atom = this.getAtom(currId);
-                        if(atom.type === 'C') cCount++;
-                        // Add neighbors
-                        atom.bonds.forEach(bid => {
-                            if(!visited.has(bid)) queue.push(bid);
-                        });
-                    }
-                    return cCount;
+                    const visited = new Set([etherO.id]); const queue = [startCId]; let cCount = 0;
+                    while(queue.length){ const curr=queue.shift(); if(visited.has(curr))continue; visited.add(curr);
+                    if(this.getAtom(curr).type==='C')cCount++;
+                    this.getAtom(curr).bonds.forEach(b=>{if(!visited.has(b))queue.push(b)}); } return cCount;
                 });
-                branches.sort((a,b) => a-b); // Sort to ensure C1_C2 same as C2_C1
+                branches.sort((a,b)=>a-b);
                 key = `Ether_C${branches[0]}_C${branches[1]}`;
-            } else {
-                key = "Ether_Generic";
             }
         }
-        // --- AROMATIC + OTHERS ---
-        else if (f.Arom) {
-            if(f.OH) key = "C6_aromatic_OH1";
-            else if(f.NH2) key = "C6_aromatic_NH2";
-            else if(counts.C === 7) key = "benzene_methyl"; // Toluene
-            else key = "benzene";
-        }
-        // --- ALCOHOLS ---
-        else if (f.OH) {
-            key = `C${counts.C}_OH${f.OH}`;
-            if(counts.C === 3 && f.OH === 1) {
-                // Check position
-                const cWithOH = this.atoms.find(a => a.type==='C' && a.bonds.some(id => {
-                    const n = this.getAtom(id); 
-                    return n.type==='O' && n.bonds.some(nid=>this.getAtom(nid).type==='H');
-                }));
-                const cNeighbors = cWithOH.bonds.filter(id => this.getAtom(id).type==='C').length;
-                key += (cNeighbors === 2) ? "_pos2" : "_pos1";
-            }
-        }
-        // --- STANDARD GROUPS ---
+
+        // --- ІНШІ ГРУПИ ---
         else if(f.CHO) key = `C${counts.C}_CHO`;
         else if(f.CO) key = `C${counts.C}_CO`;
+        else if(f.OH) {
+            key = `C${counts.C}_OH${f.OH}`;
+            if(counts.C===3 && f.OH===1) {
+                const cOH = this.atoms.find(a=>a.type==='C'&&a.bonds.some(id=>this.getAtom(id).type==='O'));
+                key += (cOH.bonds.filter(id=>this.getAtom(id).type==='C').length===2)?"_pos2":"_pos1";
+            }
+        }
         else if(f.NH2) key = `C${counts.C}_NH2`;
         else if(f.Cl) key = `C${counts.C}_Cl${f.Cl}`;
         else if(f.Dbl) key = `C${counts.C}_d${f.Dbl}`;
         
-        // --- ALKANES ---
-        else {
+        // --- АЛКАНИ ---
+        else if (counts.O === 0 && counts.N === 0 && counts.Cl === 0) {
              key = `C${counts.C}`;
              if(counts.C === 4 || counts.C === 5) {
-                 // Branch check
-                 const maxDegree = Math.max(...this.atoms.filter(a=>a.type==='C').map(c => c.bonds.filter(id => this.getAtom(id).type==='C').length));
-                 key += (maxDegree > 2) ? "_branched" : "_linear";
+                 const maxD = Math.max(...this.atoms.filter(a=>a.type==='C').map(c=>c.bonds.filter(id=>this.getAtom(id).type==='C').length));
+                 key += (maxD > 2) ? "_branched" : "_linear";
              }
         }
 
-        // 4. LOOKUP
+        // 4. ФІНАЛЬНИЙ ВИВІД
         const data = KNOWLEDGE_BASE[key];
         
         if(data) {
+            // Якщо знайшли точний збіг
             document.getElementById('info-name').innerText = data.ua;
             document.getElementById('info-name-en').innerText = data.en;
             document.getElementById('info-class').innerText = data.class;
         } else {
-            // Smart Fallback
-            let detectedClass = "Невідома сполука";
-            if(f.COOH && f.NH2) detectedClass = "Амінокислоти";
-            else if(f.COOH) detectedClass = "Карбонові кислоти";
-            else if(f.Ether) detectedClass = "Етери";
-            else if(f.CHO) detectedClass = "Альдегіди";
-            else if(f.CO) detectedClass = "Кетони";
-            else if(f.OH) detectedClass = (f.Arom ? "Феноли" : "Спирти");
-            else if(f.NH2) detectedClass = "Аміни";
-            else if(f.Arom) detectedClass = "Арени";
-            else if(f.Dbl) detectedClass = "Алкени";
-            else if(counts.C > 0 && !counts.O && !counts.N) detectedClass = "Алкани";
+            // ЯКЩО НЕ ЗНАЙШЛИ - НЕ ВИГАДУЄМО!
+            // Просто пишемо клас речовини на основі груп
+            let detectedClass = "Невідома органічна сполука";
+            
+            if(f.COOH && f.NH2) detectedClass = "Амінокислота (інша)";
+            else if(f.COOH && f.CO) detectedClass = "Кетокислота";
+            else if(f.COOH) detectedClass = "Карбонова кислота";
+            else if(f.Ether) detectedClass = "Етер";
+            else if(f.CHO && f.Arom) detectedClass = "Ароматичний альдегід";
+            else if(f.CHO) detectedClass = "Альдегід";
+            else if(f.CO) detectedClass = "Кетон";
+            else if(f.OH && f.Arom) detectedClass = "Фенол (похідна)";
+            else if(f.OH) detectedClass = "Спирт";
+            else if(f.NH2 && f.Arom) detectedClass = "Ароматичний амін";
+            else if(f.NH2) detectedClass = "Амін";
+            else if(f.Arom && f.Cl) detectedClass = "Галогенарен";
+            else if(f.Arom) detectedClass = "Ароматична сполука (Арен)";
+            else if(f.Dbl) detectedClass = "Алкен";
+            else if(f.Cl) detectedClass = "Галогенопохідна";
+            else if(counts.C > 0 && counts.O === 0 && counts.N === 0) detectedClass = "Алкан (ізомер)";
 
-            document.getElementById('info-name').innerText = formula;
-            document.getElementById('info-name-en').innerText = "Custom Structure";
+            document.getElementById('info-name').innerText = formula; // Замість помилкової назви - формула
+            document.getElementById('info-name-en').innerText = " ";
             document.getElementById('info-class').innerText = detectedClass;
         }
     }
