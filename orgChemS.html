@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organic Builder 4.1 (Cyclic Sugars)</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --accent-color: #2196F3;
+            --danger-color: #ff4d4d;
+            --text-main: #2c3e50;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+        }
+
+        /* SIDEBAR */
+        #sidebar {
+            width: 280px;
+            background: var(--panel-bg);
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        h3 { 
+            margin: 15px 0 5px 0; 
+            color: var(--text-main); 
+            font-size: 0.95em; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .drawer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+
+        .component-btn {
+            padding: 8px;
+            background: #fff;
+            border: 1px solid #dfe6e9;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.85em;
+            transition: all 0.2s;
+            color: #444;
+        }
+
+        .component-btn:hover { background: #e3f2fd; border-color: #2196F3; }
+        .component-btn.active { background: var(--accent-color); color: white; border-color: #1565C0; }
+        
+        .btn-full { grid-column: span 2; }
+
+        /* PRESET CONTROLS */
+        .preset-container {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        #preset-select {
+            flex-grow: 1;
+            padding: 5px;
+            border: 1px solid #dfe6e9;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        #btn-load-preset {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+
+        /* CANVAS */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            cursor: default;
+            background: radial-gradient(circle, #ffffff 10%, #f0f2f5 90%);
+        }
+
+        canvas { display: block; }
+
+        /* INFO PANEL */
+        #info-panel {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 260px;
+            pointer-events: none;
+            border-left: 4px solid var(--accent-color);
+            font-size: 0.9em;
+        }
+
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: baseline;}
+        .label { font-weight: bold; color: #7f8c8d; font-size: 0.85em; }
+        .value { color: #2c3e50; font-weight: 600; text-align: right;}
+        .english { display: block; text-align: right; color: #95a5a6; font-style: italic; font-size: 0.8em; margin-top: -2px;}
+
+        /* TOP CONTROLS */
+        #controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-btn:hover { background: #f8f9fa; }
+        .action-btn.active { background: #ffe0b2; border-color: #ff9800; }
+
+        #message-box {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h3>📚 Бібліотека (Пресет)</h3>
+        <div class="preset-container">
+            <select id="preset-select">
+                <optgroup label="Вуглеводні">
+                    <option value="methane">Метан (C1)</option>
+                    <option value="propane">Пропан (C3)</option>
+                    <option value="benzene">Бензол (C6H6)</option>
+                    <option value="toluene">Толуен (C7H8)</option>
+                </optgroup>
+                <optgroup label="Спирти та Феноли">
+                    <option value="ethanol">Етанол</option>
+                    <option value="glycerol">Гліцерол (C3H8O3)</option>
+                    <option value="phenol">Фенол</option>
+                </optgroup>
+                <optgroup label="Кислоти та Аміни">
+                    <option value="acetic_acid">Оцтова к-та</option>
+                    <option value="pyruvic_acid">Піровиноградна к-та</option>
+                    <option value="alanine">Аланін (Амінокислота)</option>
+                </optgroup>
+                <optgroup label="Вуглеводи (Циклічні)">
+                    <option value="glucose">Глюкопіраноза (Глюкоза)</option>
+                    <option value="fructose">Фруктофураноза (Фруктоза)</option>
+                    <option value="ribose">Рибофураноза (Рибоза)</option>
+                </optgroup>
+            </select>
+            <button id="btn-load-preset" onclick="app.loadPreset()">Завантажити</button>
+        </div>
+
+        <h3>🏗️ Конструктор</h3>
+        <div class="drawer-grid">
+            <button class="component-btn" onclick="app.spawnMolecule('methane')">Метан CH₄</button>
+            <button class="component-btn" onclick="app.spawnMolecule('ethane')">Етан C₂H₆</button>
+            <button class="component-btn" onclick="app.spawnMolecule('propane')">Пропан C₃H₈</button>
+            <button class="component-btn" onclick="app.spawnMolecule('benzene')">Бензол C₆H₆</button>
+        </div>
+
+        <h3>🧩 Функціональні групи</h3>
+        <p style="font-size:0.75em; color:#7f8c8d; margin-top:0;">Клікніть на червоний зв'язок, щоб додати. Клікніть на порожнє місце, щоб створити фрагмент.</p>
+        
+        <div class="drawer-grid">
+            <button class="component-btn group-selector" data-group="OH" onclick="app.selectGroup('OH', this)">-OH<br><small>Гідроксил</small></button>
+            <button class="component-btn group-selector" data-group="NH2" onclick="app.selectGroup('NH2', this)">-NH₂<br><small>Аміно</small></button>
+            <button class="component-btn group-selector" data-group="COOH" onclick="app.selectGroup('COOH', this)">-COOH<br><small>Карбоксил</small></button>
+            <button class="component-btn group-selector" data-group="CHO" onclick="app.selectGroup('CHO', this)">-CHO<br><small>Альдегід</small></button>
+            <button class="component-btn group-selector" data-group="CO" onclick="app.selectGroup('CO', this)">>C=O<br><small>Кето</small></button>
+            <button class="component-btn group-selector" data-group="O_ether" onclick="app.selectGroup('O_ether', this)">-O-<br><small>Етер</small></button>
+            <button class="component-btn group-selector" data-group="Cl" onclick="app.selectGroup('Cl', this)">-Cl<br><small>Хлор</small></button>
+            <button class="component-btn group-selector" data-group="CH3" onclick="app.selectGroup('CH3', this)">-CH₃<br><small>Метил</small></button>
+        </div>
+
+        <h3>🔗 Зв'язки</h3>
+        <div class="drawer-grid">
+            <button id="btn-connect" class="component-btn btn-full" onclick="app.toggleConnectMode()">🔗 З'єднати / Кратний<br><small>Клікніть 2 радікали</small></button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div id="message-box">Повідомлення</div>
+        <canvas id="chemCanvas"></canvas>
+    </div>
+
+    <div id="controls">
+        <button class="action-btn" onclick="app.resetView()">Центр</button>
+        <button class="action-btn" onclick="app.clear()">Очистити все</button>
+    </div>
+
+    <div id="info-panel">
+        <div class="info-row">
+            <span class="label">Формула:</span>
+            <span class="value" id="info-formula">-</span>
+        </div>
+        <div class="info-row">
+            <span class="label">Клас:</span>
+            <span class="value" id="info-class">-</span>
+        </div>
+        <div style="margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;">
+            <div class="value" id="info-name" style="font-size: 1.1em; color: var(--accent-color);"></div>
+            <span class="english" id="info-name-en"></span>
+        </div>
+    </div>
+
+<script>
+/**
+ * СИСТЕМА КОНСТАНТ 
+ */
+const ATOM_SPECS = {
+    C: { color: '#333333', radius: 20, valence: 4, symbol: 'C', fontColor: '#fff' },
+    H: { color: '#E0E0E0', radius: 12, valence: 1, symbol: 'H', fontColor: '#555' },
+    O: { color: '#F44336', radius: 18, valence: 2, symbol: 'O', fontColor: '#fff' },
+    N: { color: '#2196F3', radius: 18, valence: 3, symbol: 'N', fontColor: '#fff' },
+    Cl: { color: '#4CAF50', radius: 19, valence: 1, symbol: 'Cl', fontColor: '#fff' }
+};
+
+const BOND_LEN = 70;
+const BOND_WIDTH = 5;
+
+/**
+ * БАЗА ЗНАНЬ
+ */
+const KNOWLEDGE_BASE = {
+    // --- АЛКАНИ ---
+    "C1": { ua: "Метан", en: "Methane", class: "Алкани" },
+    "C2": { ua: "Етан", en: "Ethane", class: "Алкани" },
+    "C3": { ua: "Пропан", en: "Propane", class: "Алкани" },
+    "C4_linear": { ua: "н-Бутан", en: "n-Butane", class: "Алкани" },
+    "C4_branched": { ua: "Ізобутан", en: "Isobutane", class: "Алкани" },
+    "C5_linear": { ua: "н-Пентан", en: "n-Pentane", class: "Алкани" },
+
+    // --- АРЕНИ ТА ПОХІДНІ (Strict) ---
+    "Benzene_Pure": { ua: "Бензол", en: "Benzene", class: "Арени" },
+    "Benzene_Methyl": { ua: "Толуен (Метилбензол)", en: "Toluene", class: "Арени" },
+    "Benzene_Cl": { ua: "Хлорбензол", en: "Chlorobenzene", class: "Галогенарени" },
+    "Benzene_CHO": { ua: "Бензальдегід", en: "Benzaldehyde", class: "Ароматичні альдегіди" },
+    "Benzene_OH": { ua: "Фенол", en: "Phenol", class: "Феноли" },
+    "Benzene_NH2": { ua: "Анілін", en: "Aniline", class: "Ароматичні аміни" },
+    "Benzene_COOH": { ua: "Бензойна кислота", en: "Benzoic acid", class: "Карбонові кислоти" },
+
+    // --- АЛКЕНИ ---
+    "C2_d1": { ua: "Етен", en: "Ethene", class: "Алкени" },
+    "C3_d1": { ua: "Пропен", en: "Propene", class: "Алкени" },
+
+    // --- СПИРТИ ТА ПОЛІОЛИ ---
+    "C1_OH1": { ua: "Метанол", en: "Methanol", class: "Спирти" },
+    "C2_OH1": { ua: "Етанол", en: "Ethanol", class: "Спирти" },
+    "C3_OH1_pos1": { ua: "Пропан-1-ол", en: "Propan-1-ol", class: "Спирти" },
+    "C3_OH1_pos2": { ua: "Пропан-2-ол", en: "Propan-2-ol", class: "Спирти" },
+    "C3_OH3": { ua: "Гліцерол (Гліцерин)", en: "Glycerol", class: "Багатоатомні спирти" },
+
+    // --- ЕТЕРИ ---
+    "Ether_C1_C1": { ua: "Диметиловий етер", en: "Dimethyl ether", class: "Етери" },
+    "Ether_C1_C2": { ua: "Метилетиловий етер", en: "Methoxyethane", class: "Етери" },
+    "Ether_C2_C2": { ua: "Діетиловий етер", en: "Diethyl ether", class: "Етери" },
+
+    // --- АЛЬДЕГІДИ ---
+    "C1_CHO": { ua: "Метаналь", en: "Methanal", class: "Альдегіди" },
+    "C2_CHO": { ua: "Етаналь", en: "Ethanal", class: "Альдегіди" },
+    "C3_CHO": { ua: "Пропаналь", en: "Propanal", class: "Альдегіди" },
+
+    // --- КЕТОНИ ---
+    "C3_CO": { ua: "Пропанон (Ацетон)", en: "Propanone", class: "Кетони" },
+    "C4_CO": { ua: "Бутанон", en: "Butanone", class: "Кетони" },
+
+    // --- КИСЛОТИ ---
+    "Acid_C2_CHO": { ua: "Гліоксалева кислота", en: "Glyoxylic acid", class: "Альдегідокислоти" },
+    "Acid_C3_CO": { ua: "Піровиноградна кислота", en: "Pyruvic acid", class: "Кетокислоти" },
+    "Acid_C1": { ua: "Метанова к-та", en: "Methanoic acid", class: "Карбонові кислоти" },
+    "Acid_C2": { ua: "Етанова к-та", en: "Ethanoic acid", class: "Карбонові кислоти" },
+    "Acid_C3": { ua: "Пропанова к-та", en: "Propanoic acid", class: "Карбонові кислоти" },
+    "Acid_C4": { ua: "Бутанова к-та", en: "Butanoic acid", class: "Карбонові кислоти" },
+
+    // --- АМІНИ ТА АМІНОКИСЛОТИ ---
+    "C1_NH2": { ua: "Метиламін", en: "Methylamine", class: "Аміни" },
+    "C2_NH2": { ua: "Етиламін", en: "Ethylamine", class: "Аміни" },
+    "AA_Glycine": { ua: "Гліцин", en: "Glycine", class: "Амінокислоти" },
+    "AA_Alanine": { ua: "Аланін", en: "Alanine", class: "Амінокислоти" },
+    "AA_Serine": { ua: "Серин", en: "Serine", class: "Амінокислоти" },
+    "AA_Phenylalanine": { ua: "Фенілаланін", en: "Phenylalanine", class: "Амінокислоти" },
+
+    // --- ГАЛОГЕНИ ---
+    "C1_Cl1": { ua: "Хлорметан", en: "Chloromethane", class: "Галогенопохідні" },
+    "C1_Cl3": { ua: "Хлороформ", en: "Chloroform", class: "Галогенопохідні" }
+};
+
+class Atom {
+    constructor(type, x, y) {
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.type = type;
+        this.x = x; this.y = y;
+        this.vx = 0; this.vy = 0;
+        this.bonds = [];
+        this.radicals = 0;
+    }
+    get spec() { return ATOM_SPECS[this.type]; }
+}
+
+class Bond {
+    constructor(a1, a2, type=1) {
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.a1 = a1; this.a2 = a2;
+        this.type = type; // 1, 2, 1.5 (aromatic)
+    }
+}
+
+class App {
+    constructor() {
+        this.canvas = document.getElementById('chemCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.atoms = [];
+        this.bonds = [];
+        this.scale = 1;
+        this.offsetX = 0; this.offsetY = 0;
+        this.selectedGroup = null;
+        this.connectMode = false;
+        this.selectedForConnection = [];
+        this.isDragging = false;
+        this.lastMouse = {x:0, y:0};
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.initInput();
+        this.spawnMolecule('methane');
+        this.loop();
+    }
+
+    resize() {
+        this.canvas.width = this.canvas.parentElement.clientWidth;
+        this.canvas.height = this.canvas.parentElement.clientHeight;
+        this.cx = this.canvas.width / 2;
+        this.cy = this.canvas.height / 2;
+    }
+
+    loadPreset() {
+        const val = document.getElementById('preset-select').value;
+        this.spawnMolecule(val);
+    }
+
+    /** ГЕНЕРАЦІЯ МОЛЕКУЛ **/
+    spawnMolecule(type) {
+        this.clear(); // Очищаємо перед спавном
+        const px = 0; const py = 0;
+        
+        // Helper: Create Chain
+        const createChain = (n, startX, startY) => {
+            let ids = [];
+            for(let i=0; i<n; i++) ids.push(this.addAtom('C', startX + i*60, startY));
+            for(let i=0; i<n-1; i++) this.addBond(ids[i], ids[i+1]);
+            return ids;
+        };
+
+        if (['methane','ethane','propane','butane','pentane'].includes(type) || type.startsWith('C')) {
+            const map = {methane:1, ethane:2, propane:3};
+            const n = map[type] || (type==='methane'?1:3); 
+            const chain = createChain(n, px-((n-1)*30), py);
+            chain.forEach(id => this.saturate(id));
+        }
+        else if (type === 'benzene' || type === 'phenol' || type === 'toluene' || type === 'aniline' || type === 'benzoic_acid') {
+            const ids = [];
+            for(let i=0; i<6; i++) {
+                let ang = i*60*Math.PI/180; ids.push(this.addAtom('C', px+Math.cos(ang)*75, py+Math.sin(ang)*75));
+            }
+            for(let i=0; i<6; i++) {
+                this.addBond(ids[i], ids[(i+1)%6], 1.5);
+                if(i===0) {
+                    if(type==='phenol') { const o=this.addAtom('O', px+140, py); this.addBond(ids[i], o); this.saturate(o); }
+                    else if(type==='toluene') { const c=this.addAtom('C', px+140, py); this.addBond(ids[i], c); this.saturate(c); }
+                    else if(type==='aniline') { const n=this.addAtom('N', px+140, py); this.addBond(ids[i], n); this.saturate(n); }
+                    else if(type==='benzoic_acid') {
+                         const c=this.addAtom('C', px+140, py); this.addBond(ids[i], c);
+                         const o1=this.addAtom('O', px+160, py-30); this.addBond(c, o1, 2);
+                         const o2=this.addAtom('O', px+160, py+30); this.addBond(c, o2); this.saturate(o2);
+                    }
+                    else { const h=this.addAtom('H', this.getAtom(ids[i]).x*1.4, this.getAtom(ids[i]).y*1.4); this.addBond(ids[i], h); }
+                } else {
+                    const h=this.addAtom('H', this.getAtom(ids[i]).x*1.4, this.getAtom(ids[i]).y*1.4); this.addBond(ids[i], h);
+                }
+            }
+        }
+        else if (type === 'ethanol') {
+            const c1=this.addAtom('C', -30, 0); const c2=this.addAtom('C', 30, 0); this.addBond(c1,c2);
+            const o=this.addAtom('O', 80, 0); this.addBond(c2,o); this.saturate(c1); this.saturate(c2); this.saturate(o);
+        }
+        else if (type === 'glycerol') {
+            const c = createChain(3, -50, 0);
+            c.forEach((id, i) => {
+                const o = this.addAtom('O', this.getAtom(id).x, this.getAtom(id).y+50);
+                this.addBond(id, o); this.saturate(o); this.saturate(id);
+            });
+        }
+        else if (type === 'acetic_acid') {
+            const c1=this.addAtom('C', -30, 0); const c2=this.addAtom('C', 30, 0); this.addBond(c1,c2);
+            const o1=this.addAtom('O', 60, -30); this.addBond(c2,o1,2);
+            const o2=this.addAtom('O', 60, 30); this.addBond(c2,o2); this.saturate(o2); this.saturate(c1);
+        }
+        else if (type === 'pyruvic_acid') {
+            const c1=this.addAtom('C', -60, 0); const c2=this.addAtom('C', 0, 0); const c3=this.addAtom('C', 60, 0);
+            this.addBond(c1,c2); this.addBond(c2,c3);
+            const ok=this.addAtom('O', 0, -50); this.addBond(c2, ok, 2);
+            const oa=this.addAtom('O', 90, -30); this.addBond(c3, oa, 2);
+            const ob=this.addAtom('O', 90, 30); this.addBond(c3, ob); this.saturate(ob);
+            this.saturate(c1);
+        }
+        else if (type === 'alanine') {
+            const c1=this.addAtom('C', -30, 0); const c2=this.addAtom('C', 30, 0); const c3=this.addAtom('C', 90, 0);
+            this.addBond(c1,c2); this.addBond(c2,c3);
+            const n=this.addAtom('N', 30, -50); this.addBond(c2,n); this.saturate(n);
+            const o1=this.addAtom('O', 120, -30); this.addBond(c3,o1,2);
+            const o2=this.addAtom('O', 120, 30); this.addBond(c3,o2); this.saturate(o2);
+            this.saturate(c1); this.saturate(c2);
+        }
+        // --- ЦИКЛІЧНІ ЦУКРИ (НОВЕ) ---
+        else if (type === 'glucose') { // Glucopyranose
+            const ids = [];
+            // O is index 0. C1..C5 are 1..5. Hexagon layout.
+            const coords = [[50,-40], [100,0], [100,60], [50,100], [0,60], [0,0]]; // relative offsets
+            const o = this.addAtom('O', px+coords[0][0], py+coords[0][1]);
+            const c1 = this.addAtom('C', px+coords[1][0], py+coords[1][1]);
+            const c2 = this.addAtom('C', px+coords[2][0], py+coords[2][1]);
+            const c3 = this.addAtom('C', px+coords[3][0], py+coords[3][1]);
+            const c4 = this.addAtom('C', px+coords[4][0], py+coords[4][1]);
+            const c5 = this.addAtom('C', px+coords[5][0], py+coords[5][1]);
+
+            this.addBond(o, c1); this.addBond(c1, c2); this.addBond(c2, c3);
+            this.addBond(c3, c4); this.addBond(c4, c5); this.addBond(c5, o);
+
+            // C6 attached to C5
+            const c6 = this.addAtom('C', px-50, py-30); this.addBond(c5, c6);
+            const o6 = this.addAtom('O', px-80, py-60); this.addBond(c6, o6); this.saturate(o6);
+            
+            // OH Groups
+            const addOH = (cId, dx, dy) => { const a=this.getAtom(cId); const o=this.addAtom('O', a.x+dx, a.y+dy); this.addBond(cId, o); this.saturate(o); };
+            addOH(c1, 40, 0); addOH(c2, 40, 20); addOH(c3, 0, 40); addOH(c4, -40, 0);
+
+            [c1,c2,c3,c4,c5,c6].forEach(id => this.saturate(id));
+        }
+        else if (type === 'fructose') { // Fructofuranose
+            // O top, C2 right, C3 bottom right, C4 bottom left, C5 left.
+            const o = this.addAtom('O', px, py-50);
+            const c2 = this.addAtom('C', px+50, py-20);
+            const c3 = this.addAtom('C', px+30, py+40);
+            const c4 = this.addAtom('C', px-30, py+40);
+            const c5 = this.addAtom('C', px-50, py-20);
+
+            this.addBond(o, c2); this.addBond(c2, c3); this.addBond(c3, c4); this.addBond(c4, c5); this.addBond(c5, o);
+
+            // Substituents
+            // C1 on C2
+            const c1 = this.addAtom('C', px+90, py-40); this.addBond(c2, c1); 
+            const o1 = this.addAtom('O', px+120, py-20); this.addBond(c1, o1); this.saturate(o1);
+
+            // C6 on C5
+            const c6 = this.addAtom('C', px-90, py-40); this.addBond(c5, c6);
+            const o6 = this.addAtom('O', px-120, py-20); this.addBond(c6, o6); this.saturate(o6);
+
+            // OH on C3, C4
+            const addOH = (cId, dx, dy) => { const a=this.getAtom(cId); const oh=this.addAtom('O', a.x+dx, a.y+dy); this.addBond(cId, oh); this.saturate(oh); };
+            addOH(c3, 0, 40); addOH(c4, 0, 40);
+            // OH on C2 (Hemiketal)
+            addOH(c2, 20, 30);
+
+            [c1,c2,c3,c4,c5,c6].forEach(id => this.saturate(id));
+        }
+        else if (type === 'ribose') { // Ribofuranose
+            const o = this.addAtom('O', px, py-50);
+            const c1 = this.addAtom('C', px+50, py-20);
+            const c2 = this.addAtom('C', px+30, py+40);
+            const c3 = this.addAtom('C', px-30, py+40);
+            const c4 = this.addAtom('C', px-50, py-20);
+
+            this.addBond(o, c1); this.addBond(c1, c2); this.addBond(c2, c3); this.addBond(c3, c4); this.addBond(c4, o);
+
+            // C5 on C4
+            const c5 = this.addAtom('C', px-90, py-40); this.addBond(c4, c5);
+            const o5 = this.addAtom('O', px-120, py-20); this.addBond(c5, o5); this.saturate(o5);
+
+            const addOH = (cId, dx, dy) => { const a=this.getAtom(cId); const oh=this.addAtom('O', a.x+dx, a.y+dy); this.addBond(cId, oh); this.saturate(oh); };
+            addOH(c1, 40, 0); addOH(c2, 20, 30); addOH(c3, -20, 30);
+
+            [c1,c2,c3,c4,c5].forEach(id => this.saturate(id));
+        }
+
+        this.analyze();
+    }
+
+    addAtom(type, x, y) {
+        const a = new Atom(type, x, y); this.atoms.push(a); return a.id;
+    }
+
+    addBond(id1, id2, type=1) {
+        if(id1 === id2 || this.getBond(id1, id2)) return;
+        this.bonds.push(new Bond(id1, id2, type));
+        this.getAtom(id1).bonds.push(id2); this.getAtom(id2).bonds.push(id1);
+    }
+
+    removeAtom(id) {
+        const atom = this.getAtom(id); if(!atom) return;
+        const connectedBonds = this.bonds.filter(b => b.a1 === id || b.a2 === id);
+        connectedBonds.forEach(b => {
+            const neighborId = b.a1 === id ? b.a2 : b.a1;
+            const neighbor = this.getAtom(neighborId);
+            neighbor.bonds = neighbor.bonds.filter(bid => bid !== id);
+            if(atom.type === 'H') neighbor.radicals += b.type;
+            else {
+                if(neighbor.type === 'C') { const hId = this.addAtom('H', atom.x, atom.y); this.addBond(neighborId, hId); }
+                else neighbor.radicals += b.type;
+            }
+        });
+        this.atoms = this.atoms.filter(a => a.id !== id);
+        this.bonds = this.bonds.filter(b => b.a1 !== id && b.a2 !== id);
+        this.analyze();
+    }
+
+    saturate(atomOrId) {
+        const atom = typeof atomOrId==='string' ? this.getAtom(atomOrId) : atomOrId;
+        const currentValence = atom.bonds.reduce((acc, bid) => acc + this.getBond(atom.id, bid).type, 0);
+        const needed = atom.spec.valence - currentValence;
+        for(let i=0; i<needed; i++) {
+            const ang = Math.random()*6.28;
+            const h = this.addAtom('H', atom.x+Math.cos(ang)*BOND_LEN, atom.y+Math.sin(ang)*BOND_LEN);
+            this.addBond(atom.id, h);
+        }
+    }
+
+    spawnFragment(group, x, y) {
+        if(group === 'CH3') { const c = this.addAtom('C', x, y); this.saturate(c); this.removeAtom(this.getAtom(c).bonds[0]); }
+        else if(group === 'NH2') { const n = this.addAtom('N', x, y); this.saturate(n); this.removeAtom(this.getAtom(n).bonds[0]); }
+        else if(group === 'OH') { const o = this.addAtom('O', x, y); this.saturate(o); this.removeAtom(this.getAtom(o).bonds[0]); }
+        else if(group === 'COOH') {
+             const c = this.addAtom('C', x, y);
+             const o1 = this.addAtom('O', x+20, y-25); this.addBond(c, o1, 2);
+             const o2 = this.addAtom('O', x+20, y+25); this.addBond(c, o2);
+             const h = this.addAtom('H', x+40, y+25); this.addBond(o2, h);
+             this.getAtom(c).radicals = 1; 
+        } else if(group === 'CO') { 
+             const c = this.addAtom('C', x, y);
+             const o = this.addAtom('O', x, y-35); this.addBond(c, o, 2);
+             this.getAtom(c).radicals = 2; 
+        } else if(group === 'CHO') { 
+             const c = this.addAtom('C', x, y);
+             const o = this.addAtom('O', x+20, y-25); this.addBond(c, o, 2);
+             const h = this.addAtom('H', x+20, y+25); this.addBond(c, h);
+             this.getAtom(c).radicals = 1;
+        } else if(group === 'O_ether') { const o = this.addAtom('O', x, y); this.getAtom(o).radicals = 2; }
+        else if(group === 'Cl') { const cl = this.addAtom('Cl', x, y); this.getAtom(cl).radicals = 1; }
+        this.showMessage("Створено фрагмент"); this.analyze();
+    }
+
+    attachGroupToAtom(target) {
+        const type = this.selectedGroup; target.radicals--;
+        const bx = target.x+40; const by = target.y+40;
+        if (type==='OH') { const o=this.addAtom('O',bx,by); this.addBond(target.id,o); this.saturate(o); }
+        else if (type==='NH2') { const n=this.addAtom('N',bx,by); this.addBond(target.id,n); this.saturate(n); }
+        else if (type==='COOH') { 
+            const c=this.addAtom('C',bx,by); this.addBond(target.id,c);
+            this.addBond(c, this.addAtom('O',bx+10,by-20), 2);
+            const o2=this.addAtom('O',bx+10,by+20); this.addBond(c,o2); this.addBond(o2, this.addAtom('H',bx+30,by+25));
+        }
+        else if (type==='Cl') { this.addBond(target.id, this.addAtom('Cl',bx,by)); }
+        else if (type==='CH3') { const c=this.addAtom('C',bx,by); this.addBond(target.id,c); this.saturate(c); }
+        else if (type==='CHO') {
+            const c=this.addAtom('C',bx,by); this.addBond(target.id,c);
+            this.addBond(c, this.addAtom('O',bx+10,by-20), 2); this.addBond(c, this.addAtom('H',bx+10,by+20));
+        }
+        else if (type==='CO') { const c=this.addAtom('C',bx,by); this.addBond(target.id,c); this.addBond(c, this.addAtom('O',bx,by-25), 2); this.getAtom(c).radicals = 1; } 
+        else if (type==='O_ether') { const o=this.addAtom('O',bx,by); this.addBond(target.id,o); this.getAtom(o).radicals = 1; }
+        this.analyze();
+    }
+
+    selectGroup(group, el) {
+        this.selectedGroup = group;
+        document.querySelectorAll('.component-btn').forEach(b => b.classList.remove('active'));
+        if(el) el.classList.add('active');
+        this.connectMode = false; this.selectedForConnection = [];
+        this.showMessage(`Обрано: ${group}. Клікніть червоний зв'язок.`);
+        document.getElementById('btn-connect').classList.remove('active');
+    }
+
+    toggleConnectMode() {
+        this.connectMode = !this.connectMode;
+        this.selectedGroup = null; this.selectedForConnection = [];
+        document.querySelectorAll('.component-btn').forEach(b => b.classList.remove('active'));
+        const btn = document.getElementById('btn-connect');
+        btn.classList.toggle('active', this.connectMode);
+        this.showMessage(this.connectMode ? "Оберіть два радикали для з'єднання." : "Режим з'єднання вимкнено.");
+    }
+
+    handleCanvasClick(x, y) {
+        const atom = this.atoms.find(a => Math.hypot(a.x-x, a.y-y) < a.spec.radius+10);
+        if (atom) {
+            if (this.connectMode) {
+                if (atom.radicals > 0) {
+                    if(this.selectedForConnection.includes(atom.id)) this.selectedForConnection = [];
+                    else {
+                        this.selectedForConnection.push(atom.id);
+                        if(this.selectedForConnection.length === 2) this.performConnection();
+                    }
+                } else this.showMessage("Цей атом не має вільних зв'язків!");
+                return;
+            }
+            if (atom.type === 'H') this.removeAtom(atom.id); 
+            else if (!this.selectedGroup && (atom.type !== 'C' || (atom.type==='C' && atom.bonds.length===1))) {
+                 if(confirm("Видалити цю групу/атом?")) this.removeAtom(atom.id);
+            }
+            else if (this.selectedGroup && atom.radicals > 0) this.attachGroupToAtom(atom);
+        } else if (this.selectedGroup) this.spawnFragment(this.selectedGroup, x, y);
+    }
+
+    performConnection() {
+        const a1 = this.getAtom(this.selectedForConnection[0]);
+        const a2 = this.getAtom(this.selectedForConnection[1]);
+        const bond = this.getBond(a1.id, a2.id);
+        if (bond) { bond.type += 1; a1.radicals--; a2.radicals--; this.showMessage("Створено кратний зв'язок!"); } 
+        else { this.addBond(a1.id, a2.id); a1.radicals--; a2.radicals--; this.showMessage("Фрагменти з'єднано!"); }
+        this.selectedForConnection = []; this.connectMode = false;
+        document.getElementById('btn-connect').classList.remove('active');
+        this.analyze();
+    }
+
+    /** АНАЛІЗ (ВИДАЛЕНО РОЗПІЗНАВАННЯ ЦУКРІВ) **/
+    analyze() {
+        const counts = { C:0, H:0, O:0, N:0, Cl:0 };
+        this.atoms.forEach(a => counts[a.type] = (counts[a.type]||0) + 1);
+
+        let formula = '';
+        ['C','H','N','O','Cl'].forEach(el => { if(counts[el]) formula += el + (counts[el]>1?counts[el]:''); });
+        document.getElementById('info-formula').innerText = formula || '-';
+
+        const f = { COOH:0, CHO:0, OH:0, NH2:0, CO:0, Ether:0, Dbl:0, Arom:0, Cl:counts.Cl };
+        
+        this.atoms.forEach(a => {
+            if(a.type === 'C') {
+                const oxs = a.bonds.map(id=>this.getAtom(id)).filter(n => n.type==='O');
+                const dblO = oxs.find(o => this.getBond(a.id, o.id).type === 2);
+                const sglO = oxs.find(o => this.getBond(a.id, o.id).type === 1);
+                
+                if(dblO && sglO && sglO.bonds.some(id => this.getAtom(id).type === 'H')) f.COOH++;
+                else if(dblO && a.bonds.some(id => this.getAtom(id).type === 'H') && !sglO) f.CHO++;
+                else if(dblO && !sglO) {
+                     const cNeighbors = a.bonds.filter(id => this.getAtom(id).type === 'C').length;
+                     if(cNeighbors >= 2) f.CO++;
+                }
+            } else if (a.type === 'O') {
+                 const neighbors = a.bonds.map(id => this.getAtom(id));
+                 const cN = neighbors.filter(n => n.type === 'C').length;
+                 const hN = neighbors.filter(n => n.type === 'H').length;
+                 const isCOOH = neighbors.some(n => n.type === 'C' && n.bonds.some(nid => {
+                         const nn = this.getAtom(nid); return nn.type === 'O' && this.getBond(n.id, nid).type === 2;
+                 }));
+                 if(!isCOOH) {
+                     if(cN === 1 && hN === 1) f.OH++;
+                     if(cN === 2) f.Ether++;
+                 }
+            } else if (a.type === 'N' && a.bonds.filter(id => this.getAtom(id).type === 'H').length === 2) f.NH2++;
+        });
+
+        this.bonds.forEach(b => {
+            if(b.type === 2 && this.getAtom(b.a1).type==='C' && this.getAtom(b.a2).type==='C') f.Dbl++;
+            if(b.type === 1.5) f.Arom = 1;
+        });
+
+        let key = null;
+
+        // --- СТАНДАРТНА ЛОГІКА ---
+        if (f.Arom) {
+            if (f.COOH && f.NH2 && counts.C >= 9) key = "AA_Phenylalanine";
+            else if (f.COOH) key = "Benzene_COOH";
+            else if (f.CHO) key = "Benzene_CHO";
+            else if (f.OH) key = "Benzene_OH";
+            else if (f.NH2) key = "Benzene_NH2";
+            else if (f.Cl) key = "Benzene_Cl";
+            else if (counts.C === 7 && counts.O === 0 && counts.N === 0) key = "Benzene_Methyl";
+            else if (counts.C === 6 && counts.O === 0 && counts.N === 0) key = "Benzene_Pure";
+        }
+        else if(f.COOH && f.NH2) {
+            if(f.OH) key = "AA_Serine"; else if(counts.C === 2) key = "AA_Glycine"; else if(counts.C === 3) key = "AA_Alanine";
+        }
+        else if (f.COOH && f.CO) key = `Acid_C${counts.C}_CO`;
+        else if (f.COOH && f.CHO) key = `Acid_C${counts.C}_CHO`;
+        else if(f.COOH) key = `Acid_C${counts.C}`;
+        else if(f.Ether) {
+            const etherO = this.atoms.find(a => a.type === 'O' && a.bonds.filter(bid => this.getAtom(bid).type === 'C').length === 2);
+            if(etherO) {
+                const branches = etherO.bonds.map(startCId => {
+                    const visited = new Set([etherO.id]); const queue = [startCId]; let cCount = 0;
+                    while(queue.length){ const curr=queue.shift(); if(visited.has(curr))continue; visited.add(curr);
+                    if(this.getAtom(curr).type==='C')cCount++;
+                    this.getAtom(curr).bonds.forEach(b=>{if(!visited.has(b))queue.push(b)}); } return cCount;
+                });
+                branches.sort((a,b)=>a-b); key = `Ether_C${branches[0]}_C${branches[1]}`;
+            }
+        }
+        else if(f.CHO) key = `C${counts.C}_CHO`;
+        else if(f.CO) key = `C${counts.C}_CO`;
+        else if(f.OH) {
+            if(counts.C === 3 && f.OH === 3) key = "C3_OH3"; // Гліцерол
+            else {
+                key = `C${counts.C}_OH${f.OH}`;
+                if(counts.C===3 && f.OH===1) {
+                    const cOH = this.atoms.find(a=>a.type==='C'&&a.bonds.some(id=>this.getAtom(id).type==='O'));
+                    key += (cOH.bonds.filter(id=>this.getAtom(id).type==='C').length===2)?"_pos2":"_pos1";
+                }
+            }
+        }
+        else if(f.NH2) key = `C${counts.C}_NH2`;
+        else if(f.Cl) key = `C${counts.C}_Cl${f.Cl}`;
+        else if(f.Dbl) key = `C${counts.C}_d${f.Dbl}`;
+        else if (counts.O === 0 && counts.N === 0 && counts.Cl === 0) {
+             key = `C${counts.C}`;
+             if(counts.C === 4 || counts.C === 5) {
+                 const maxD = Math.max(...this.atoms.filter(a=>a.type==='C').map(c=>c.bonds.filter(id=>this.getAtom(id).type==='C').length));
+                 key += (maxD > 2) ? "_branched" : "_linear";
+             }
+        }
+
+        const data = KNOWLEDGE_BASE[key];
+        
+        if(data) {
+            document.getElementById('info-name').innerText = data.ua;
+            document.getElementById('info-name-en').innerText = data.en;
+            document.getElementById('info-class').innerText = data.class;
+        } else {
+            let detectedClass = "Невідома органічна сполука";
+            if(f.COOH && f.NH2) detectedClass = "Амінокислота (інша)";
+            else if(f.COOH && f.CO) detectedClass = "Кетокислота";
+            else if(f.COOH) detectedClass = "Карбонова кислота";
+            else if(f.Ether && f.OH) detectedClass = "Циклічний етер / Напівацеталь"; // Цукри сюди потраплять
+            else if(f.Ether) detectedClass = "Етер";
+            else if(f.CHO) detectedClass = "Альдегід";
+            else if(f.CO) detectedClass = "Кетон";
+            else if(f.OH > 1) detectedClass = "Багатоатомний спирт";
+            else if(f.OH) detectedClass = (f.Arom ? "Фенол (похідна)" : "Спирт");
+            else if(f.NH2) detectedClass = "Амін";
+            else if(f.Arom) detectedClass = "Ароматична сполука";
+            else if(f.Dbl) detectedClass = "Алкен";
+            else if(f.Cl) detectedClass = "Галогенопохідна";
+            else if(counts.C > 0 && !counts.O && !counts.N) detectedClass = "Алкан (ізомер)";
+
+            document.getElementById('info-name').innerText = formula; 
+            document.getElementById('info-name-en').innerText = "Unknown Structure";
+            document.getElementById('info-class').innerText = detectedClass;
+        }
+    }
+
+    getAtom(id) { return this.atoms.find(a => a.id === id); }
+    getBond(a1, a2) { return this.bonds.find(b => (b.a1==a1 && b.a2==a2) || (b.a1==a2 && b.a2==a1)); }
+    showMessage(msg) { const b=document.getElementById('message-box'); b.innerText=msg; b.style.opacity=1; clearTimeout(this.t); this.t=setTimeout(()=>b.style.opacity=0,3000); }
+    clear() { this.atoms=[]; this.bonds=[]; this.analyze(); this.connectMode=false; document.getElementById('btn-connect').classList.remove('active'); }
+    resetView() { this.scale=1; this.offsetX=0; this.offsetY=0; }
+
+    /** DRAG & DROP + INPUT **/
+    initInput() {
+        this.draggedAtom = null;
+        this.isCameraPan = false;
+        this.clickStartX = 0;
+        this.clickStartY = 0;
+
+        this.canvas.addEventListener('mousedown', e => {
+            const mouseWorld = this.toWorld(e.offsetX, e.offsetY);
+            const clickedAtom = this.atoms.find(a => Math.hypot(a.x - mouseWorld.x, a.y - mouseWorld.y) < a.spec.radius + 10);
+            this.clickStartX = e.offsetX; this.clickStartY = e.offsetY;
+
+            if (clickedAtom) {
+                this.draggedAtom = clickedAtom;
+                clickedAtom.vx = 0; clickedAtom.vy = 0;
+            } else {
+                this.isCameraPan = true;
+            }
+            this.lastMouse = { x: e.offsetX, y: e.offsetY };
+        });
+
+        window.addEventListener('mousemove', e => {
+            const dx = e.offsetX - this.lastMouse.x;
+            const dy = e.offsetY - this.lastMouse.y;
+            if (this.draggedAtom) {
+                const mouseWorld = this.toWorld(e.offsetX, e.offsetY);
+                this.draggedAtom.x = mouseWorld.x; this.draggedAtom.y = mouseWorld.y;
+                this.draggedAtom.vx = 0; this.draggedAtom.vy = 0;
+            } else if (this.isCameraPan) {
+                this.offsetX += dx; this.offsetY += dy;
+            }
+            this.lastMouse = { x: e.offsetX, y: e.offsetY };
+            if(this.draggedAtom) this.canvas.style.cursor = 'grabbing';
+            else if(this.isCameraPan) this.canvas.style.cursor = 'move';
+            else this.canvas.style.cursor = 'default';
+        });
+
+        window.addEventListener('mouseup', e => {
+            const dist = Math.hypot(e.offsetX - this.clickStartX, e.offsetY - this.clickStartY);
+            if (dist < 5) {
+                const worldPos = this.toWorld(e.offsetX, e.offsetY);
+                this.handleCanvasClick(worldPos.x, worldPos.y);
+            }
+            this.draggedAtom = null; this.isCameraPan = false;
+            this.canvas.style.cursor = 'default';
+        });
+
+        this.canvas.addEventListener('wheel', e => { e.preventDefault(); this.scale *= Math.exp(e.deltaY * -0.001); });
+    }
+    toWorld(sx, sy) { return { x:(sx-this.cx-this.offsetX)/this.scale, y:(sy-this.cy-this.offsetY)/this.scale }; }
+
+    /** PHYSICS & RENDER LOOP **/
+    loop() {
+        for(let i=0; i<this.atoms.length; i++){
+            for(let j=i+1; j<this.atoms.length; j++){
+                const a=this.atoms[i], b=this.atoms[j]; const dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy+1, f=2500/d2, fx=(dx/Math.sqrt(d2))*f, fy=(dy/Math.sqrt(d2))*f;
+                a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+            }
+            this.atoms[i].vx -= this.atoms[i].x * 0.003;
+            this.atoms[i].vy -= this.atoms[i].y * 0.003;
+        }
+        this.bonds.forEach(b => {
+            const a1=this.getAtom(b.a1), a2=this.getAtom(b.a2); const dx=a2.x-a1.x, dy=a2.y-a1.y, dist=Math.sqrt(dx*dx+dy*dy);
+            const target=(b.type===2)?BOND_LEN*0.88:(b.type===1.5?BOND_LEN*0.95:BOND_LEN);
+            const f=(dist-target)*0.08, fx=(dx/dist)*f, fy=(dy/dist)*f;
+            a1.vx+=fx; a1.vy+=fy; a2.vx-=fx; a2.vy-=fy;
+        });
+        this.atoms.forEach(a => { if(a!==this.draggedAtom){ a.vx*=0.55; a.vy*=0.55; a.x+=a.vx; a.y+=a.vy; } });
+
+        this.ctx.clearRect(0,0,this.canvas.width, this.canvas.height);
+        this.ctx.save(); this.ctx.translate(this.cx+this.offsetX, this.cy+this.offsetY); this.ctx.scale(this.scale, this.scale);
+        this.bonds.forEach(b => this.drawBond(b));
+        this.atoms.forEach(a => this.drawAtom(a));
+        this.ctx.restore(); requestAnimationFrame(()=>this.loop());
+    }
+
+    drawAtom(a) {
+        const spec = a.spec;
+        if(this.selectedForConnection.includes(a.id)) {
+            this.ctx.beginPath(); this.ctx.arc(a.x, a.y, spec.radius+5, 0, 6.28);
+            this.ctx.fillStyle='rgba(255,235,59,0.6)'; this.ctx.fill();
+        }
+        const grad = this.ctx.createRadialGradient(a.x-spec.radius/3, a.y-spec.radius/3, spec.radius/10, a.x, a.y, spec.radius);
+        grad.addColorStop(0, '#fff'); grad.addColorStop(0.3, spec.color); grad.addColorStop(1, '#222');
+        this.ctx.beginPath(); this.ctx.arc(a.x, a.y, spec.radius, 0, 6.28);
+        this.ctx.fillStyle = grad; this.ctx.fill();
+        this.ctx.fillStyle = spec.fontColor; this.ctx.font=`bold ${spec.radius}px Arial`;
+        this.ctx.textAlign='center'; this.ctx.textBaseline='middle';
+        this.ctx.fillText(spec.symbol, a.x, a.y+2);
+        if(a.radicals > 0) {
+             for(let r=0; r<a.radicals; r++) {
+                 const baseAngle = (parseInt(a.id, 36) % 100); const ang = baseAngle + r * (Math.PI/2);
+                 const rx=a.x+Math.cos(ang)*24, ry=a.y+Math.sin(ang)*24;
+                 this.ctx.strokeStyle='#ff4d4d'; this.ctx.lineWidth=4;
+                 this.ctx.beginPath(); this.ctx.moveTo(a.x, a.y); this.ctx.lineTo(rx, ry); this.ctx.stroke();
+                 this.ctx.beginPath(); this.ctx.arc(rx, ry, 4, 0, 6.28); this.ctx.fillStyle='#ff4d4d'; this.ctx.fill();
+             }
+        }
+    }
+
+    drawBond(b) {
+        const a1=this.getAtom(b.a1), a2=this.getAtom(b.a2);
+        this.ctx.strokeStyle='#888'; this.ctx.lineWidth=BOND_WIDTH; this.ctx.lineCap='round';
+        if(b.type===1) { this.ctx.beginPath(); this.ctx.moveTo(a1.x,a1.y); this.ctx.lineTo(a2.x,a2.y); this.ctx.stroke(); }
+        else if(b.type===2) {
+            const ang=Math.atan2(a2.y-a1.y, a2.x-a1.x), nx=Math.cos(ang+1.57)*4, ny=Math.sin(ang+1.57)*4;
+            this.ctx.beginPath(); this.ctx.moveTo(a1.x+nx,a1.y+ny); this.ctx.lineTo(a2.x+nx,a2.y+ny); this.ctx.stroke();
+            this.ctx.beginPath(); this.ctx.moveTo(a1.x-nx,a1.y-ny); this.ctx.lineTo(a2.x-nx,a2.y-ny); this.ctx.stroke();
+        } else if(b.type===1.5) {
+             this.ctx.beginPath(); this.ctx.moveTo(a1.x,a1.y); this.ctx.lineTo(a2.x,a2.y); this.ctx.stroke();
+             this.ctx.save(); this.ctx.strokeStyle='#aaa'; this.ctx.lineWidth=3; this.ctx.setLineDash([6,4]);
+             const ang=Math.atan2(a2.y-a1.y, a2.x-a1.x), nx=Math.cos(ang+1.57)*5, ny=Math.sin(ang+1.57)*5;
+             this.ctx.beginPath(); this.ctx.moveTo(a1.x+nx,a1.y+ny); this.ctx.lineTo(a2.x+nx,a2.y+ny); this.ctx.stroke();
+             this.ctx.restore();
+        }
+    }
+}
+const app = new App();
+</script>
+</body>
+</html>
