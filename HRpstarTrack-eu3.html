@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Diagram Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            font-size: 13px; 
+        }
+
+        /* Layout */
+        #container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000000 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* Sidebar Structure */
+        #sidebar {
+            width: 400px;
+            background-color: #0a0a0a;
+            border-left: 1px solid #333;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+            z-index: 10;
+            box-sizing: border-box;
+            overflow: hidden; 
+            position: relative;
+        }
+
+        /* Language Switcher */
+        .lang-switch {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            display: flex;
+            gap: 5px;
+            z-index: 20;
+        }
+        .lang-btn {
+            background: #222;
+            color: #666;
+            border: 1px solid #444;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 11px;
+            border-radius: 3px;
+        }
+        .lang-btn.active {
+            background: #4db8ff;
+            color: #000;
+            font-weight: bold;
+            border-color: #4db8ff;
+        }
+
+        /* Container for selected info */
+        #selected-star-info {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 10px;
+            margin-top: 25px; /* Space for lang switch */
+        }
+
+        /* 1. Блок Описания (Теория) */
+        .theory-static-box {
+            background: #111820;
+            border-left: 3px solid #ffcc00;
+            padding: 12px;
+            font-size: 0.85rem;
+            line-height: 1.45;
+            color: #d8d8d8;
+            text-align: justify;
+            height: 140px; 
+            flex-shrink: 0;
+            overflow: hidden; 
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+
+        /* 2. Объединенная панель */
+        .combined-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px;
+            background: #141414;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #2a2a2a;
+            flex-grow: 1; 
+            align-content: start;
+        }
+
+        .col-header {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #4db8ff;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .data-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-row {
+            display: flex;
+            flex-direction: column; 
+            margin-bottom: 4px;
+        }
+        
+        .stat-label { 
+            color: #777; 
+            font-size: 0.75rem; 
+        }
+        
+        .stat-value { 
+            font-weight: bold; 
+            color: #fff; 
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+
+        #stage-display {
+            color: #fff;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+        #duration-display {
+            color: #aaa;
+            font-style: italic;
+            font-size: 0.75rem;
+            margin-bottom: 10px;
+        }
+
+        /* Заглушка (стартовый экран) */
+        #default-msg {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            text-align: center; 
+            color: #666; 
+            border: 1px dashed #333;
+            padding: 20px;
+            margin-bottom: auto;
+            margin-top: 30px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: auto; 
+            padding-top: 10px;
+            border-top: 1px solid #222;
+        }
+
+        button {
+            flex: 1;
+            background: #2a5298;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        button:hover { background: #3a62a8; }
+        button#pause-btn { background: #d4a017; color: #000; }
+        button#pause-btn:hover { background: #e5b020; }
+        button:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+        /* Overlay labels on canvas */
+        .axis-label {
+            position: absolute;
+            color: #888;
+            font-weight: bold;
+            font-size: 0.8rem;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+        sup { vertical-align: super; font-size: smaller; }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <div id="canvas-wrapper">
+        <canvas id="hrDiagram"></canvas>
+        <div class="axis-label" style="bottom: 10px; left: 50%; transform: translateX(-50%);">
+            <span data-lang-key="xAxis">Surface Temperature (K)</span> <span style="font-weight:normal; opacity:0.5;" data-lang-key="xDir">← Hot | Cold →</span>
+        </div>
+        <div class="axis-label" style="top: 50%; left: 15px; transform: translateY(-50%) rotate(-90deg); transform-origin: left center;">
+            <span data-lang-key="yAxis">Luminosity (L/L☉)</span>
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <div class="lang-switch">
+            <button class="lang-btn active" onclick="setLang('en')">EN</button>
+            <button class="lang-btn" onclick="setLang('uk')">UA</button>
+        </div>
+        
+        <div id="default-msg">
+            <strong style="color: #fff; font-size: 1.2rem; margin-bottom: 15px;" data-lang-key="appTitle">HR Diagram Simulator</strong>
+            <p data-lang-key="appSubtitle">Click on a star to visualize its life cycle.</p>
+        </div>
+        
+        <div id="selected-star-info" style="display: none;">
+            
+            <div class="theory-static-box" id="theory-text">
+            </div>
+
+            <div class="combined-panel">
+                
+                <div class="col-left">
+                    <div class="col-header" data-lang-key="colStatus">Current Status</div>
+                    
+                    <div id="stage-display">--</div>
+                    <div id="duration-display">Time: --</div>
+
+                    <div class="data-group">
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblTemp">Temperature</span>
+                            <span class="stat-value" id="c-temp">-- K</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblLum">Luminosity</span>
+                            <span class="stat-value" id="c-lum">-- L☉</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblRad">Radius</span>
+                            <span class="stat-value" id="c-rad">-- R☉</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-right">
+                    <div class="col-header" data-lang-key="colParams">Parameters</div>
+                    
+                    <div class="data-group">
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblName">Name</span>
+                            <span class="stat-value" id="s-name">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblMass">Mass</span>
+                            <span class="stat-value" id="s-mass">-- M☉</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblType">Type</span>
+                            <span class="stat-value" id="s-class">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label" data-lang-key="lblFate">Fate</span>
+                            <span class="stat-value" id="s-end" style="color: #ff9999;">--</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="pause-btn" onclick="togglePause()" disabled data-lang-key="btnPause">Pause</button>
+            <button id="reset-btn" onclick="resetSimulation()" data-lang-key="btnReset">Reset</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('hrDiagram');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+
+    // -- Localization System --
+    let curLang = 'en';
+
+    const uiText = {
+        en: {
+            appTitle: "HR Diagram Simulator",
+            appSubtitle: "Click on a star to visualize its life cycle.",
+            xAxis: "Surface Temperature (K)",
+            xDir: "← Hot | Cold →",
+            yAxis: "Luminosity (L/L☉)",
+            colStatus: "Current Status",
+            colParams: "Parameters",
+            lblTemp: "Temperature",
+            lblLum: "Luminosity",
+            lblRad: "Radius",
+            lblName: "Name",
+            lblMass: "Mass",
+            lblType: "Type",
+            lblFate: "Fate",
+            btnPause: "Pause",
+            btnResume: "Resume",
+            btnFinished: "Finished",
+            btnReset: "Reset",
+            timePrefix: "Duration: ",
+            zoneMS: "MAIN SEQUENCE",
+            zoneGiants: "GIANTS",
+            zoneSuper: "SUPERGIANTS",
+            zoneWD: "WHITE DWARFS"
+        },
+        uk: {
+            appTitle: "Симулятор діаграми ГР",
+            appSubtitle: "Натисніть на зірку, щоб побачити її життєвий цикл.",
+            xAxis: "Температура поверхні (K)",
+            xDir: "← Гарячі | Холодні →",
+            yAxis: "Світність (L/L☉)",
+            colStatus: "Поточний статус",
+            colParams: "Параметри",
+            lblTemp: "Температура",
+            lblLum: "Світність",
+            lblRad: "Радіус",
+            lblName: "Назва",
+            lblMass: "Маса",
+            lblType: "Тип",
+            lblFate: "Доля",
+            btnPause: "Пауза",
+            btnResume: "Продовжити",
+            btnFinished: "Завершено",
+            btnReset: "Скидання",
+            timePrefix: "Тривалість: ",
+            zoneMS: "ГОЛОВНА ПОСЛІДОВНІСТЬ",
+            zoneGiants: "ГІГАНТИ",
+            zoneSuper: "НАДГІГАНТИ",
+            zoneWD: "БІЛІ КАРЛИКИ"
+        }
+    };
+
+    function setLang(lang) {
+        curLang = lang;
+        
+        // Switch buttons state
+        document.querySelectorAll('.lang-btn').forEach(b => {
+            b.classList.remove('active');
+            if(b.innerText.toLowerCase() === lang || (b.innerText === 'UA' && lang === 'uk')) b.classList.add('active');
+        });
+
+        // Update static text
+        document.querySelectorAll('[data-lang-key]').forEach(el => {
+            const key = el.getAttribute('data-lang-key');
+            if(uiText[lang][key]) {
+                el.innerText = uiText[lang][key];
+            }
+        });
+
+        // Update Button Logic for Pause/Resume
+        const pBtn = document.getElementById('pause-btn');
+        if (!pBtn.disabled) {
+             if (pBtn.innerText === uiText['en'].btnFinished || pBtn.innerText === uiText['uk'].btnFinished) {
+                 pBtn.innerText = uiText[lang].btnFinished;
+             } else {
+                 pBtn.innerText = isPaused ? uiText[lang].btnResume : uiText[lang].btnPause;
+             }
+        }
+
+        // Update Dynamic UI if active
+        if (activeStarIndex !== -1) updateUI();
+        
+        // Redraw canvas for zone labels
+        if (!isAnimating) requestAnimationFrame(animate); 
+    }
+
+    // -- Constants & Scales --
+    const MIN_TEMP = 1500;
+    const MAX_TEMP = 50000; 
+    const MIN_LUM = 0.00001; 
+    const MAX_LUM = 1000000; 
+
+    let width, height;
+
+    // Simulation State
+    let stars = [];
+    let activeStarIndex = -1;
+    let isAnimating = false;
+    let isPaused = false;
+    let animationProgress = 0;
+
+    const SUN_RADIUS_PX = 5; 
+    
+    // -- Coordinate Math --
+    function mapTempToX(temp) {
+        let t = Math.max(100, temp); 
+        const logMin = Math.log10(MIN_TEMP);
+        const logMax = Math.log10(MAX_TEMP);
+        const logVal = Math.log10(t);
+        const norm = (logVal - logMin) / (logMax - logMin);
+        let x = width * (0.05 + (1 - norm) * 0.9);
+        return Math.max(20, Math.min(width - 20, x));
+    }
+
+    function mapLumToY(lum) {
+        let l = Math.max(1e-10, lum);
+        const logMin = Math.log10(MIN_LUM);
+        const logMax = Math.log10(MAX_LUM);
+        const logVal = Math.log10(l);
+        const norm = (logVal - logMin) / (logMax - logMin);
+        let y = height * (0.95 - norm * 0.9);
+        return Math.max(20, Math.min(height - 20, y));
+    }
+
+    function getStarColor(temp) {
+        if (temp < 3000) return '#ff4d4d'; 
+        if (temp < 4500) return '#ffad33'; 
+        if (temp < 6000) return '#fff2a8'; 
+        if (temp < 7500) return '#fcfcfc'; 
+        if (temp < 10000) return '#e3e3ff'; 
+        if (temp < 30000) return '#cad8ff'; 
+        return '#9db4ff'; 
+    }
+
+    // -- Star Data (Bilingual) --
+    const starData = [
+        {
+            name: { en: "Wolf 359 (Red Dwarf)", uk: "Wolf 359 (Червоний карлик)" },
+            mass: 0.09,
+            type: "M6 V",
+            end: { en: "White Dwarf (Helium)", uk: "Білий карлик (Гелієвий)" },
+            path: [
+                {
+                    t: 2800, l: 0.001, 
+                    stage: { en: "Main Sequence", uk: "Головна послідовність" }, 
+                    dur: { en: "Trillions of years", uk: "Трильйони років" }, 
+                    desc: { en: "The star is fully convective. Hydrogen converts to Helium very slowly due to low core pressure. Since the entire stellar material is mixed, it uses almost all its fuel supply.", uk: "Зірка повністю конвективна. Водень перетворюється на гелій дуже повільно через низький тиск у ядрі. Оскільки вся речовина зірки перемішується, вона використовує майже весь запас палива." }
+                },
+                {
+                    t: 3500, l: 0.005, 
+                    stage: { en: "Blue Dwarf (Theoretical)", uk: "Блакитний карлик (Теоретично)" }, 
+                    dur: { en: "End of Star Era", uk: "Кінець епохи зірок" }, 
+                    desc: { en: "When Hydrogen supplies run low, the star becomes hotter due to increased opacity in the interior, but lacks the mass to become a red giant and fuse elements heavier than Helium.", uk: "Коли запаси водню вичерпуються, зірка стає гарячішою через збільшення непрозорості надр, але їй бракує маси, щоб стати червоним гігантом і синтезувати елементи, важчі за гелій." }
+                },
+                {
+                    t: 8000, l: 0.0005, 
+                    stage: { en: "White Dwarf", uk: "Білий карлик" }, 
+                    dur: { en: "Cooling", uk: "Остигання" }, 
+                    desc: { en: "Nuclear reactions have ceased. The star contracts under gravity until degenerate electron pressure halts the collapse. Composed mostly of Helium.", uk: "Ядерні реакції припинилися. Зірка стискається під дією гравітації, доки тиск вироджених електронів не зупинить колапс. Складається переважно з гелію." }
+                },
+                {
+                    t: 2500, l: 0.00001, 
+                    stage: { en: "Black Dwarf", uk: "Чорний карлик" }, 
+                    dur: { en: "Eternity", uk: "Вічність" }, 
+                    desc: { en: "Hypothetical final state where the white dwarf has radiated all its heat and equilibrated with the cosmic microwave background.", uk: "Гіпотетичний кінцевий стан, коли білий карлик випромінив усе своє тепло і зрівноважився з космічним мікрохвильовим фоном." }
+                }
+            ]
+        },
+        {
+            name: { en: "Sun (Yellow Dwarf)", uk: "Сонце (Жовтий карлик)" },
+            mass: 1.0,
+            type: "G2 V",
+            end: { en: "White Dwarf (Carbon)", uk: "Білий карлик (Вуглецевий)" },
+            path: [
+                {
+                    t: 5778, l: 1, 
+                    stage: { en: "Main Sequence", uk: "Головна послідовність" }, 
+                    dur: { en: "10 billion years", uk: "10 мільярдів років" }, 
+                    desc: { en: "Hydrostatic equilibrium. Thermonuclear fusion occurs in the core: the proton-proton chain converts Hydrogen to Helium, releasing energy that counteracts gravitational collapse.", uk: "Гідростатична рівновага. У ядрі відбувається термоядерний синтез: протон-протонний ланцюжок перетворює водень на гелій, вивільняючи енергію, що протидіє гравітаційному колапсу." }
+                },
+                {
+                    t: 5000, l: 2.5, 
+                    stage: { en: "Subgiant", uk: "Субгігант" }, 
+                    dur: { en: "Several billion years", uk: "Кілька мільярдів років" }, 
+                    desc: { en: "Hydrogen in the core is exhausted. The core, composed of inert Helium, begins to contract and heat up, while Hydrogen burning moves to a shell surrounding the core.", uk: "Водень у ядрі вичерпано. Ядро, що складається з інертного гелію, починає стискатися і нагріватися, тоді як горіння водню переміщується в оболонку навколо ядра." }
+                },
+                {
+                    t: 3100, l: 2500, 
+                    stage: { en: "Red Giant", uk: "Червоний гігант" }, 
+                    dur: { en: "1 billion years", uk: "1 мільярд років" }, 
+                    desc: { en: "The outer shell expands drastically and cools. Convection brings fusion products to the surface. The core becomes hot enough for a Helium flash.", uk: "Зовнішня оболонка різко розширюється і охолоджується. Конвекція виносить продукти синтезу на поверхню. Ядро стає достатньо гарячим для гелієвого спалаху." }
+                },
+                {
+                    t: 4800, l: 60, 
+                    stage: { en: "Horizontal Branch", uk: "Горизонтальна гілка" }, 
+                    dur: { en: "100 million years", uk: "100 мільйонів років" }, 
+                    desc: { en: "Triple-alpha process: Helium fuses into Carbon in the core. The star is temporarily stable and decreases in size.", uk: "Потрійний альфа-процес: гелій перетворюється на вуглець у ядрі. Зірка тимчасово стабільна і зменшується в розмірах." }
+                },
+                {
+                    t: 3000, l: 4000, 
+                    stage: { en: "Asymptotic Giant Branch", uk: "Асимптотична гілка гігантів" }, 
+                    dur: { en: "20 million years", uk: "20 мільйонів років" }, 
+                    desc: { en: "Helium in the core is exhausted. A layered structure forms: inert carbon-oxygen core, helium burning shell, and hydrogen burning shell. Thermal pulses eject the envelope.", uk: "Гелій у ядрі вичерпано. Формується шарувата структура: інертне вуглецево-кисневе ядро, шари горіння гелію та водню. Теплові пульсації скидають оболонку." }
+                },
+                {
+                    t: 120000, l: 3000, 
+                    stage: { en: "Planetary Nebula", uk: "Планетарна туманність" }, 
+                    dur: { en: "10-20k years", uk: "10-20 тис. років" }, 
+                    effect: "nebula", 
+                    desc: { en: "The hot exposed core ionizes the ejected gas, creating a glow. This is a primary mechanism for enriching the Universe with Carbon and Nitrogen.", uk: "Гаряче оголене ядро іонізує скинутий газ, створюючи світіння. Це основний механізм збагачення Всесвіту вуглецем і азотом." }
+                },
+                {
+                    t: 30000, l: 0.01, 
+                    stage: { en: "White Dwarf", uk: "Білий карлик" }, 
+                    dur: { en: "Billions of years", uk: "Мільярди років" }, 
+                    desc: { en: "Core remnant ~0.6 M☉ size of Earth. Matter is in a degenerate gas state. Gravity is balanced by quantum electron pressure.", uk: "Залишок ядра ~0.6 M☉ розміром із Землю. Матерія перебуває у стані виродженого газу. Гравітація врівноважується квантовим тиском електронів." }
+                },
+                {
+                    t: 4000, l: 0.0001, 
+                    stage: { en: "Cooling", uk: "Остигання" }, 
+                    dur: { en: ">10¹⁵ years", uk: ">10¹⁵ років" }, 
+                    desc: { en: "Slow crystallization of the ionic lattice inside the dwarf.", uk: "Повільна кристалізація іонної решітки всередині карлика." }
+                }
+            ]
+        },
+       {
+            name: { en: "Sirius A (White Star)", uk: "Сіріус А (Біла зірка)" },
+            mass: 2.02,
+            type: "A1 V",
+            end: { en: "White Dwarf", uk: "Білий карлик" },
+            path: [
+                {
+                    t: 9940, l: 25.4, 
+                    stage: { en: "Main Sequence", uk: "Головна послідовність" }, 
+                    dur: { en: "1 billion years", uk: "1 мільярд років" }, 
+                    desc: { en: "Due to higher mass, core temperature is higher, so the CNO cycle dominates Hydrogen-to-Helium conversion (using Carbon, Nitrogen, Oxygen as catalysts).", uk: "Через більшу масу температура ядра вища, тому CNO-цикл домінує у перетворенні водню на гелій (використовуючи вуглець, азот, кисень як каталізатори)." }
+                },
+                {
+                    t: 8500, l: 80, 
+                    stage: { en: "Subgiant", uk: "Субгігант" }, 
+                    dur: { en: "50 million years", uk: "50 мільйонів років" }, 
+                    desc: { en: "Rapid fuel exhaustion. The star leaves the main sequence faster than the Sun.", uk: "Швидке вичерпання палива. Зірка залишає головну послідовність швидше за Сонце." }
+                },
+                {
+                    t: 4000, l: 500, 
+                    stage: { en: "Red Giant", uk: "Червоний гігант" }, 
+                    dur: { en: "100 million years", uk: "100 мільйонів років" }, 
+                    desc: { en: "Envelope expansion. Helium flash occurs less distinctly due to lower core degeneracy.", uk: "Розширення оболонки. Гелієвий спалах відбувається менш виразно через менше виродження ядра." }
+                },
+                {
+                    t: 25000, l: 0.05, 
+                    stage: { en: "Hot White Dwarf", uk: "Гарячий білий карлик" }, 
+                    dur: { en: "100 million years", uk: "100 мільйонів років" }, 
+                    desc: { en: "The exposed core is extremely hot (UV radiation). No fusion occurs; the star shines only by residual heat.", uk: "Оголене ядро надзвичайно гаряче (УФ-випромінювання). Синтез не відбувається; зірка світить лише залишковим теплом." }
+                },
+                {
+                    t: 9000, l: 0.002, 
+                    stage: { en: "Cooling White Dwarf", uk: "Остигаючий білий карлик" }, 
+                    dur: { en: "Billions of years", uk: "Мільярди років" }, 
+                    desc: { en: "The star slowly radiates its thermal energy into space, becoming dimmer and redder over eons.", uk: "Зірка повільно випромінює свою теплову енергію в космос, стаючи тьмянішою і червонішою протягом еонів." }
+                },
+                {
+                    t: 3000, l: 0.00005, 
+                    stage: { en: "Black Dwarf (Hypothetical)", uk: "Чорний карлик (Гіпотетично)" }, 
+                    dur: { en: "> 10^15 years", uk: "> 10^15 років" }, 
+                    desc: { en: "Ultimately, the star will cool to the temperature of the cosmic background, becoming invisible.", uk: "Зрештою зірка охолоне до температури космічного фону, ставши невидимою." }
+                }
+            ]
+        },
+       {
+            name: { en: "Betelgeuse (Red Supergiant)", uk: "Бетельгейзе (Червоний надгігант)" },
+            mass: 16.5,
+            type: "M1-M2 Ia",
+            end: { en: "Type II Supernova", uk: "Наднома типу II" },
+            path: [
+                {
+                    t: 30000, l: 100000, 
+                    stage: { en: "Main Sequence (O-B)", uk: "Головна послідовність (O-B)" }, 
+                    dur: { en: "8-10 million years", uk: "8-10 мільйонів років" }, 
+                    desc: { en: "Massive star burning Hydrogen furiously via intense CNO cycle. Immense radiation pressure.", uk: "Масивна зірка шалено спалює водень через інтенсивний CNO-цикл. Величезний радіаційний тиск." }
+                },
+                {
+                    t: 3500, l: 120000, 
+                    stage: { en: "Red Supergiant", uk: "Червоний надгігант" }, 
+                    dur: { en: "Current", uk: "Поточний" }, 
+                    desc: { en: "Star has swelled to Jupiter's orbit. Core successively fuses Helium, Carbon, Neon, Oxygen, Silicon.", uk: "Зірка роздулася до орбіти Юпітера. Ядро послідовно синтезує гелій, вуглець, неону, кисень, кремній." }
+                },
+                {
+                    t: 3500, l: 130000, 
+                    stage: { en: "End of Nucleosynthesis", uk: "Кінець нуклеосинтезу" }, 
+                    dur: { en: "1 day", uk: "1 день" }, 
+                    desc: { en: "Iron (Fe) formation in the core. Iron fusion does not release energy but absorbs it. Hydrostatic equilibrium is lost instantly.", uk: "Утворення заліза (Fe) в ядрі. Синтез заліза не виділяє енергію, а поглинає її. Гідростатична рівновага миттєво втрачається." }
+                },
+                {
+                    t: 100000, l: 10000000, 
+                    stage: { en: "Supernova Explosion", uk: "Вибух наднової" }, 
+                    dur: { en: "Months", uk: "Місяці" }, 
+                    effect: "supernova", 
+                    desc: { en: "Core collapses, envelope rebounds in a shockwave. Synthesis of heavy elements (gold, uranium) during explosion.", uk: "Ядро колапсує, оболонка відскакує ударною хвилею. Синтез важких елементів (золото, уран) під час вибуху." }
+                },
+                {
+                    t: 600000, l: 0.005, 
+                    stage: { en: "Young Pulsar", uk: "Молодий пульсар" }, 
+                    dur: { en: "10,000 - 100,000 years", uk: "10 000 - 100 000 років" }, 
+                    effect: "pulsar", 
+                    desc: { en: "The remnant is an incredibly hot (X-ray), rapidly spinning neutron star emitting powerful jets.", uk: "Залишок — це неймовірно гаряча (рентген), швидко обертова нейтронна зірка, що випускає потужні джети." }
+                },
+                {
+                    t: 150000, l: 0.0002, 
+                    stage: { en: "Cooling Neutron Star", uk: "Остигаюча нейтронна зірка" }, 
+                    dur: { en: "Millions of years", uk: "Мільйони років" }, 
+                    desc: { en: "Neutrino cooling dominates. Rotation slows down, the pulsar mechanism eventually switches off.", uk: "Домінує нейтринне охолодження. Обертання сповільнюється, механізм пульсара з часом вимикається." }
+                },
+                {
+                    t: 30000, l: 0.00005, 
+                    stage: { en: "Old Neutron Star", uk: "Стара нейтронна зірка" }, 
+                    dur: { en: "Billions of years", uk: "Мільярди років" }, 
+                    desc: { en: "Photon cooling phase. The star is still hot but extremely dim due to its tiny size (10km), becoming invisible.", uk: "Фаза фотонного охолодження. Зірка все ще гаряча, але надзвичайно тьмяна через крихітний розмір (10 км), стає невидимою." }
+                }
+            ]
+        },
+        {
+            name: { en: "Eta Carinae (Hypergiant)", uk: "Ета Кіля (Гіпергігант)" },
+            mass: 100,
+            type: "LBV",
+            end: { en: "Hypernova / Black Hole", uk: "Гіпернова / Чорна діра" },
+            path: [
+                {
+                    t: 40000, l: 1000000, 
+                    stage: { en: "Main Sequence (O)", uk: "Головна послідовність (O)" }, 
+                    dur: { en: "3 million years", uk: "3 мільйони років" }, 
+                    desc: { en: "Proximity to Eddington limit: radiation pressure almost exceeds gravity. Star is unstable and loses mass via stellar wind.", uk: "Близькість до межі Еддінгтона: радіаційний тиск майже перевищує гравітацію. Зірка нестабільна і втрачає масу через зоряний вітер." }
+                },
+                {
+                    t: 25000, l: 2000000, 
+                    stage: { en: "Wolf-Rayet Variable", uk: "Змінна Вольфа-Райє" }, 
+                    dur: { en: "100k years", uk: "100 тис. років" }, 
+                    desc: { en: "Hydrogen envelope completely lost. Exposed core rich in Helium and Carbon. Surface temperature reaches 100,000 K.", uk: "Воднева оболонка повністю втрачена. Оголене ядро багате на гелій та вуглець. Температура поверхні досягає 100 000 К." }
+                },
+                {
+                    t: 100000, l: 5000000, 
+                    stage: { en: "Pre-explosion", uk: "Перед вибухом" }, 
+                    dur: { en: "Days", uk: "Дні" }, 
+                    effect: "supernova", 
+                    desc: { en: "Gravitational collapse of iron core >3 solar masses.", uk: "Гравітаційний колапс залізного ядра >3 сонячних мас." }
+                },
+                {
+                    t: 0, l: 0, 
+                    stage: { en: "Black Hole", uk: "Чорна діра" }, 
+                    dur: { en: ">10⁶⁷ years", uk: ">10⁶⁷ років" }, 
+                    effect: "blackhole", 
+                    desc: { en: "Gravity is so strong that escape velocity exceeds speed of light. Eventually evaporates via Hawking radiation.", uk: "Гравітація настільки сильна, що друга космічна швидкість перевищує швидкість світла. З часом випаровується через випромінювання Гокінга." }
+                }
+            ]
+        }
+    ];
+
+    // Initialize Stars
+    function initStars() {
+        stars = starData.map(data => {
+            const first = data.path[0];
+            return {
+                ...data,
+                // Start position
+                x: mapTempToX(first.t),
+                y: mapLumToY(first.l),
+                // Current simulation values
+                currentTemp: first.t,
+                currentLum: first.l,
+                currentRadius: 1, 
+                // We store the full bilingual objects here
+                stageObj: first.stage,
+                durObj: first.dur,
+                descObj: first.desc,
+                effect: null,
+                activeExplosion: false
+            };
+        });
+    }
+
+    // -- Physics & Rendering --
+
+    // Calculate Radius: R ~ sqrt(L) / T^2
+    function calculateVisualRadius(lum, temp) {
+        // Normalize to Sun
+        const rSun = Math.sqrt(1) / (5778 * 5778);
+        const rStar = Math.sqrt(lum) / (temp * temp);
+        
+        let relativeR = rStar / rSun; 
+        
+        // Visual scaling (power function for better screen representation)
+        let visualR = Math.pow(relativeR, 0.35) * SUN_RADIUS_PX;
+        
+        // Limits for extreme objects
+        if (temp > 50000 && lum < 1) visualR = Math.max(2, visualR); // White dwarfs
+        if (lum === 0) visualR = 4; // Black Hole
+        
+        return { visual: visualR, real: relativeR };
+    }
+
+    // Helper for Canvas Superscripts (Unicode)
+    function formatPowerCanvas(num) {
+        const superscripts = {
+            '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+            '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻'
+        };
+        const exp = Math.log10(num);
+        if (exp === 0) return "1 (Sun)";
+        
+        const expStr = exp.toString();
+        let result = "10";
+        for (let char of expStr) {
+            result += superscripts[char] || char;
+        }
+        return result;
+    }
+
+    function drawGrid() {
+        ctx.save();
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        
+        // Temp lines (Vertical)
+        const temps = [40000, 20000, 10000, 6000, 4000, 2500];
+        temps.forEach(t => {
+            let x = mapTempToX(t);
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+            ctx.fillStyle = '#666';
+            ctx.font = '10px sans-serif';
+            ctx.fillText(t + "K", x + 2, height - 5);
+        });
+
+        // Lum lines (Horizontal)
+        const lums = [100000, 1000, 1, 0.01, 0.0001];
+        lums.forEach(l => {
+            let y = mapLumToY(l);
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+            ctx.fillStyle = '#666';
+            ctx.font = '10px sans-serif';
+            ctx.fillText(formatPowerCanvas(l), 5, y - 2);
+        });
+        ctx.restore();
+    }
+
+    function drawZones() {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        function drawCloud(x, y, w, h, rotation, colorBase) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            ctx.scale(w / 100, h / 100); 
+
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+            grad.addColorStop(0, colorBase.replace('INT', '0.18'));
+            grad.addColorStop(0.5, colorBase.replace('INT', '0.09'));
+            grad.addColorStop(1, colorBase.replace('INT', '0'));     
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 100, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        const msColor = 'rgba(80, 150, 255, INT)';
+
+        drawCloud(mapTempToX(38000), mapLumToY(500000), 100, 220, -0.2, msColor);
+        drawCloud(mapTempToX(18000), mapLumToY(2000), 180, 80, 0.8, msColor);
+        drawCloud(mapTempToX(9000), mapLumToY(50), 150, 60, 0.6, msColor);
+        drawCloud(mapTempToX(5800), mapLumToY(1.2), 120, 50, 0.5, msColor);
+        drawCloud(mapTempToX(3500), mapLumToY(0.01), 200, 50, 0.3, msColor);
+        drawCloud(mapTempToX(2400), mapLumToY(0.0005), 100, 40, 0.2, msColor);
+
+        // Text
+        ctx.save();
+        ctx.translate(mapTempToX(7500), mapLumToY(4));
+        ctx.rotate(Math.PI / 5.5);
+        ctx.fillStyle = 'rgba(160, 210, 255, 0.4)';
+        ctx.font = "italic 700 16px Segoe UI";
+        ctx.fillText(uiText[curLang].zoneMS, 0, 0); // Localized
+        ctx.restore();
+
+        // Giants
+        drawCloud(mapTempToX(4800), mapLumToY(120), 160, 70, 0, 'rgba(255, 140, 50, INT)');
+        ctx.fillStyle = 'rgba(255, 160, 80, 0.4)';
+        ctx.font = "bold 12px sans-serif";
+        ctx.fillText(uiText[curLang].zoneGiants, mapTempToX(4800), mapLumToY(120)); // Localized
+
+        // Supergiants
+        drawCloud(width / 2, mapLumToY(200000), width * 0.55, 60, 0, 'rgba(220, 60, 220, INT)');
+        ctx.fillStyle = 'rgba(230, 100, 230, 0.4)';
+        ctx.fillText(uiText[curLang].zoneSuper, width / 2, mapLumToY(200000)); // Localized
+
+        // White Dwarfs
+        const wdX = mapTempToX(16000);
+        const wdY = mapLumToY(0.008);
+        drawCloud(wdX, wdY, 110, 45, 0.5, 'rgba(180, 180, 200, INT)');
+        ctx.fillStyle = 'rgba(180, 180, 200, 0.4)';
+        ctx.fillText(uiText[curLang].zoneWD, wdX, wdY); // Localized
+
+        ctx.restore();
+    }	
+	
+    function drawStar(star, isSelected) {
+        ctx.save();
+        let screenX = mapTempToX(star.currentTemp);
+        let screenY = mapLumToY(star.currentLum);
+        
+        const rData = calculateVisualRadius(star.currentLum, star.currentTemp);
+        let visRadius = rData.visual;
+
+        // -- Effects --
+
+        // Black Hole
+        if (star.effect === 'blackhole') {
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 5, 0, Math.PI*2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.stroke();
+            
+            // Accretion disk
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#9000ff'; 
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(screenX, screenY, 14, 4, Math.PI/6, 0, Math.PI*2);
+            ctx.stroke();
+            
+            if (isSelected) {
+                ctx.fillStyle = 'white';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(star.name[curLang], screenX + 15, screenY);
+            }
+            ctx.restore();
+            return;
+        }
+
+        // Nebula
+        if (star.effect === 'nebula') {
+            let grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 50);
+            grad.addColorStop(0, `rgba(255, 255, 255, 0.9)`); 
+            grad.addColorStop(0.3, `rgba(50, 255, 200, 0.3)`); // O-III
+            grad.addColorStop(0.8, `rgba(255, 50, 50, 0.1)`); // H-alpha
+            grad.addColorStop(1, `rgba(0,0,0,0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 50, 0, Math.PI*2);
+            ctx.fill();
+        }
+        
+        // Supernova
+        if (star.activeExplosion) {
+            let grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 200);
+            grad.addColorStop(0, '#fff');
+            grad.addColorStop(0.1, '#fffab3');
+            grad.addColorStop(0.4, 'rgba(255, 150, 50, 0.6)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 200, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // Pulsar
+        if (star.effect === 'pulsar') {
+             const pulse = Math.sin(Date.now() / 40) * 2;
+             visRadius = 3 + pulse;
+             ctx.shadowColor = '#88ccff';
+             ctx.shadowBlur = 15;
+             
+             // Jet
+             ctx.strokeStyle = 'rgba(200, 220, 255, 0.6)';
+             ctx.lineWidth = 2;
+             ctx.beginPath();
+             ctx.moveTo(screenX, screenY - 25);
+             ctx.lineTo(screenX, screenY + 25);
+             ctx.stroke();
+        }
+
+        // Star Body
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, visRadius, 0, Math.PI * 2);
+        ctx.fillStyle = getStarColor(star.currentTemp);
+        
+        if (star.effect !== 'pulsar' && star.effect !== 'blackhole') {
+            ctx.shadowBlur = isSelected ? 20 : 10;
+            ctx.shadowColor = ctx.fillStyle;
+        }
+        
+        ctx.fill();
+
+        // Selection ring
+        if (isSelected) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, visRadius + 6, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillText(star.name[curLang], screenX + visRadius + 10, screenY + 4);
+        } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = '11px sans-serif';
+            ctx.fillText(star.name[curLang], screenX + visRadius + 4, screenY + 3);
+        }
+
+        ctx.restore();
+    }
+
+    // -- Animation --
+
+    function animate() {
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, width, height);
+
+        drawZones();
+        drawGrid();
+
+        stars.forEach((s, i) => {
+            if (i !== activeStarIndex) {
+                drawStar(s, false);
+            }
+        });
+
+        if (activeStarIndex !== -1) {
+            let s = stars[activeStarIndex];
+            
+            if (isAnimating && !isPaused) {
+                animationProgress += 0.003;
+
+                if (animationProgress >= s.path.length - 1) {
+                    animationProgress = s.path.length - 1;
+                    isAnimating = false;
+                    document.getElementById('pause-btn').innerText = uiText[curLang].btnFinished;
+                    document.getElementById('pause-btn').disabled = true;
+                }
+
+                let idx = Math.floor(animationProgress);
+                let nextIdx = Math.min(idx + 1, s.path.length - 1);
+                let t = animationProgress - idx; 
+
+                let p1 = s.path[idx];
+                let p2 = s.path[nextIdx];
+
+                s.currentTemp = p1.t + (p2.t - p1.t) * t;
+                s.currentLum = p1.l + (p2.l - p1.l) * t;
+                
+                // Update references to bilingual objects
+                s.stageObj = p1.stage;
+                s.durObj = p1.dur;
+                s.descObj = p1.desc;
+                s.effect = p1.effect || null;
+                
+                if(p2.effect === 'supernova' && t > 0.85) s.activeExplosion = true;
+                else s.activeExplosion = false;
+                
+                if(p2.effect === 'blackhole' && t > 0.95) { 
+                    s.currentLum = 0; 
+                    s.effect = 'blackhole'; 
+                }
+
+                updateUI();
+            }
+            
+            drawStar(s, true);
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // -- UI Helper Functions --
+
+    function formatNumberHTML(val, isLum = false) {
+        if (val === 0) return "0";
+        if (Math.abs(val) >= 10000 || (Math.abs(val) < 0.001 && val !== 0)) {
+            let exp = Math.floor(Math.log10(val));
+            let mant = val / Math.pow(10, exp);
+            return `${mant.toFixed(1)}×10<sup>${exp}</sup>`;
+        }
+        return parseFloat(val.toFixed(2)).toString();
+    }
+
+    function updateUI() {
+        if (activeStarIndex === -1) return;
+        const s = stars[activeStarIndex];
+        
+        document.getElementById('c-temp').innerHTML = Math.round(s.currentTemp) + " K";
+        
+        let lumText = "";
+        if (s.currentLum === 0) lumText = "0";
+        else lumText = formatNumberHTML(s.currentLum, true);
+        
+        document.getElementById('c-lum').innerHTML = lumText + " L☉";
+        
+        const rData = calculateVisualRadius(s.currentLum, s.currentTemp);
+        let realR = rData.real;
+        let radText = formatNumberHTML(realR);
+        
+        if (s.effect === 'blackhole') radText = "R_Sch (km)";
+        if (s.effect === 'pulsar') radText = "~10-20 km";
+
+        document.getElementById('c-rad').innerHTML = radText;
+        
+        // Use Bilingual Objects
+        document.getElementById('stage-display').innerText = s.stageObj[curLang];
+        document.getElementById('duration-display').innerText = uiText[curLang].timePrefix + s.durObj[curLang];
+        
+        const theoryBox = document.getElementById('theory-text');
+        // Always update text to ensure language change is reflected
+        theoryBox.innerText = s.descObj[curLang];
+        
+        // Also update sidebar static info in case language changed while paused
+        document.getElementById('s-name').innerText = s.name[curLang];
+        document.getElementById('s-mass').innerText = s.mass;
+        document.getElementById('s-class').innerText = s.type;
+        document.getElementById('s-end').innerText = s.end[curLang];
+    }
+
+    function loadStarInfo(index) {
+        const s = stars[index];
+        document.getElementById('default-msg').style.display = 'none';
+        document.getElementById('selected-star-info').style.display = 'block';
+        
+        // Bilingual update
+        updateUI();
+        
+        const pBtn = document.getElementById('pause-btn');
+        pBtn.disabled = false;
+        pBtn.innerText = uiText[curLang].btnPause;
+        isPaused = false;
+    }
+
+    function togglePause() {
+        if (!isAnimating && animationProgress >= stars[activeStarIndex].path.length - 1) return;
+        
+        isPaused = !isPaused;
+        const btn = document.getElementById('pause-btn');
+        btn.innerText = isPaused ? uiText[curLang].btnResume : uiText[curLang].btnPause;
+        btn.style.background = isPaused ? "#2a5298" : "#d4a017";
+        btn.style.color = isPaused ? "#fff" : "#000";
+    }
+
+    function resetSimulation() {
+        isAnimating = false;
+        isPaused = false;
+        animationProgress = 0;
+        initStars(); 
+        
+        const pBtn = document.getElementById('pause-btn');
+        pBtn.innerText = uiText[curLang].btnPause;
+        pBtn.style.background = "#d4a017";
+        pBtn.style.color = "#000";
+
+        if (activeStarIndex !== -1) {
+            isAnimating = true; 
+            pBtn.disabled = false;
+            updateUI();
+        } else {
+            pBtn.disabled = true;
+        }
+    }
+
+    // -- Events --
+
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        let clickedIndex = -1;
+        
+        stars.forEach((s, i) => {
+            let x = mapTempToX(s.currentTemp);
+            let y = mapLumToY(s.currentLum);
+            let dist = Math.sqrt((mouseX - x)**2 + (mouseY - y)**2);
+            if (dist < 30) { 
+                clickedIndex = i;
+            }
+        });
+
+        if (clickedIndex !== -1) {
+            resetSimulation();
+            activeStarIndex = clickedIndex;
+            loadStarInfo(activeStarIndex);
+            isAnimating = true; 
+        }
+    });
+
+    function resize() {
+        width = wrapper.clientWidth;
+        height = wrapper.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    window.addEventListener('resize', resize);
+    
+    // Start
+    resize();
+    initStars();
+    animate();
+
+</script>
+
+</body>
+</html>
