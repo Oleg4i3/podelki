@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>4 seasons</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; user-select: none; }
+        canvas { display: block; }
+
+        h1 {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px black;
+            pointer-events: none;
+            opacity: 0.9;
+            margin: 0;
+            z-index: 10;
+        }
+
+        #date-display {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 15px;
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        #ui-container {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 30, 0.9);
+            padding: 8px 20px;
+            border-radius: 50px;
+            border: 1px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            width: auto;
+            white-space: nowrap;
+            backdrop-filter: blur(5px);
+            z-index: 20;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-right: 1px solid #444;
+            padding-right: 15px;
+        }
+        .control-group:last-child { border-right: none; padding-right: 0; }
+
+        label { font-size: 13px; font-weight: bold; }
+        input[type=range] { cursor: pointer; height: 6px; }
+        
+        #month-slider { width: 200px; }
+        #speed-slider { width: 80px; }
+
+        button {
+            padding: 5px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            font-size: 13px;
+        }
+        button:hover { background: #45a049; transform: scale(1.05); }
+
+        .legend {
+            position: absolute;
+            top: 50px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px;
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 12px;
+            border-left: 3px solid #777;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .color-box { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; }
+
+        #side-panel {
+            position: absolute;
+            top: 250px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(20, 20, 30, 0.8);
+            padding: 15px 10px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            width: 60px;
+        }
+
+        .vertical-slider-wrapper {
+            height: 150px;
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        #tilt-slider {
+            width: 150px;
+            transform: rotate(-90deg);
+        }
+        
+        .side-label {
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 5px;
+            color: #ffaaaa;
+            line-height: 1.2;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <h1>Орбітальний рух Землі та зміна пір року</h1>
+    
+    <div id="date-display">21 Березня</div>
+
+    <div class="legend">
+        <div style="margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid #555; padding-bottom:4px;">Легенда:</div>
+        <div class="legend-item"><div class="color-box" style="background: cyan;"></div>Екватор</div>
+        <div class="legend-item"><div class="color-box" style="background: orange;"></div>Тропіки</div>
+        <div class="legend-item"><div class="color-box" style="background: magenta;"></div>Полярні кола</div>
+        <div class="legend-item"><div class="color-box" style="border: 1px dashed white;"></div>Межі поточниого полярного дня і ночі</div>
+        <div class="legend-item"><div class="color-box" style="background: red;"></div>Зеніт Сонця</div>
+        </div>
+
+    <div id="side-panel">
+        <div class="side-label">Нахил<br>осі</div>
+        <div class="side-label" id="tilt-val" style="font-family: monospace; font-size: 14px; font-weight: bold;">23.5°</div>
+        <div class="vertical-slider-wrapper">
+            <input type="range" id="tilt-slider" min="0" max="90" step="0.5" value="23.5">
+        </div>
+    </div>
+
+    <div id="ui-container">
+        <button id="anim-btn">Старт</button>
+        
+        <div class="control-group">
+            <label>Швидкість року:</label>
+            <input type="range" id="speed-slider" min="0.005" max="0.1" step="0.005" value="0.02">
+        </div>
+
+        <div class="control-group">
+            <label>Місяць:</label>
+            <input type="range" id="month-slider" min="0" max="11.99" step="0.01" value="2.8"> 
+        </div>
+
+        <div class="control-group" style="border:none;">
+            <label>Добове обертання:</label>
+            <input type="checkbox" id="spin-check" checked>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Ініціалізація Сцени ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000); 
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        //camera.position.set(0, 40, 70); 
+		 camera.position.set(-40, 40, 70); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Корекція кольору та тонів
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 7.3; // Трохи яскравіше
+        renderer.shadowMap.enabled = true;
+        //renderer.shadowMap.type = THREE.PCFShadowMap; 
+		renderer.shadowMap.type = THREE.BasicShadowMap; // BasicShadowMap дає найрізкішу, "схематичну" тінь
+        
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enablePan = false;
+        controls.minDistance = 20;
+        controls.maxDistance = 200;
+
+        // --- 2. Світло (Сонце) ---
+        // Сфера сонця (візуальна, в центрі орбіти)
+        const sunGeo = new THREE.SphereGeometry(2.5, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFFFDD }); 
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        scene.add(sunMesh);
+
+
+		// --- Додаємо ГАЛО (світіння) ---
+        const haloTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/lensflare/lensflare0.png');
+        const haloMaterial = new THREE.SpriteMaterial({ 
+            map: haloTexture, 
+            color: 0xFFDD44,   // Теплий жовто-гарячий колір
+            blending: THREE.AdditiveBlending, // Режим змішування для "світіння"
+            transparent: true,
+            opacity: 0.9       // Прозорість
+        });
+        const halo = new THREE.Sprite(haloMaterial);
+        halo.scale.set(15, 15, 1); // Розмір гало (має бути більшим за діаметр сонця, який = 5)
+        sunMesh.add(halo); // Прикріплюємо гало до самого сонця
+		
+		
+        // Джерело світла: DirectionalLight (Паралельні промені)
+        // Ми будемо рухати його разом із землею в циклі updateSimulation, щоб тіні були чіткими
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        
+        // Налаштування тіней
+        sunLight.castShadow = true;
+        const d = 15; // Розмір коробки тіней (достатньо для Землі радіусом 9)
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 100;
+        
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        // Bias встановлюємо дуже малим, щоб не обрізати освітлену частину
+        sunLight.shadow.bias = -0.00001; 
+        
+        scene.add(sunLight);
+        scene.add(sunLight.target); // Важливо додати ціль в сцену
+
+        // Фонове світло
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.02); // Майже чорна тінь
+        scene.add(ambientLight);
+
+        // --- 3. Система Землі ---
+        
+        const earthOrbitContainer = new THREE.Object3D();
+        scene.add(earthOrbitContainer);
+
+        const earthTiltContainer = new THREE.Object3D();
+        earthOrbitContainer.add(earthTiltContainer);
+
+        const earthRadius = 9;
+        const orbitRadius = 45;
+
+        // Лінія Орбіти
+        const orbitLineGeo = new THREE.RingGeometry(orbitRadius - 0.2, orbitRadius + 0.2, 128);
+        const orbitLineMat = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide });
+        const orbitLineMesh = new THREE.Mesh(orbitLineGeo, orbitLineMat);
+        orbitLineMesh.rotation.x = Math.PI / 2; 
+        scene.add(orbitLineMesh);
+
+        const textureLoader = new THREE.TextureLoader();
+        const earthTexture = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg');
+        const earthBump = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_normal_2048.jpg');
+        
+        earthTexture.encoding = THREE.sRGBEncoding;
+
+        const earthGeo = new THREE.SphereGeometry(earthRadius, 64, 64);
+       /* const earthMat = new THREE.MeshPhongMaterial({
+            map: earthTexture,
+            bumpMap: earthBump,
+            bumpScale: 0.05,
+            specular: new THREE.Color(0x222222),
+            shininess: 10,
+        });*/
+		
+		const earthMat = new THREE.MeshPhongMaterial({
+            map: earthTexture,
+            bumpMap: earthBump,
+            bumpScale: 0.05,
+            specular: new THREE.Color(0x000000), // Чорний колір прибирає білий блік
+            shininess: 0.2,                        // Робить поверхню матовою
+            // Ми прибрали emissive, тепер тінь буде ідеально чорною
+        });
+
+        const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+        earthMesh.castShadow = true;
+        earthMesh.receiveShadow = true;
+        earthTiltContainer.add(earthMesh);
+        
+        earthTiltContainer.position.set(orbitRadius, 0, 0);
+
+        // --- 4. Лінії та Геометрія ---
+
+        function createLatLine(latitude, color, isDashed = false) {
+            const material = isDashed 
+                // Додаємо toneMapped: false
+                ? new THREE.LineDashedMaterial({ color: color, dashSize: 0.5, gapSize: 0.3, scale: 1, toneMapped: false }) 
+                // Додаємо toneMapped: false
+                : new THREE.LineBasicMaterial({ color: color, toneMapped: false });
+				
+            const geometry = getLatGeometry(latitude);
+            const line = new THREE.Line(geometry, material);
+            if (isDashed) line.computeLineDistances();
+            return line;
+        }
+
+        function getLatGeometry(latitude) {
+            if (latitude > 90) latitude = 90;
+            if (latitude < -90) latitude = -90;
+
+            const rad = latitude * (Math.PI / 180);
+            const radius = earthRadius * Math.cos(rad) + 0.08; 
+            const y = earthRadius * Math.sin(rad);
+            
+            const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, 2 * Math.PI, false, 0);
+            const points = curve.getPoints(128);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            geometry.rotateX(Math.PI / 2);
+            geometry.translate(0, y, 0);
+            return geometry;
+        }
+
+        const linesGroup = new THREE.Group();
+        earthMesh.add(linesGroup);
+
+        linesGroup.add(createLatLine(0, 0x00FFFF)); // Екватор
+
+        let tropicN, tropicS, polarN, polarS;
+        tropicN = createLatLine(23.5, 0xFFA500); linesGroup.add(tropicN);
+        tropicS = createLatLine(-23.5, 0xFFA500); linesGroup.add(tropicS);
+        polarN = createLatLine(66.5, 0xFF00FF); linesGroup.add(polarN);
+        polarS = createLatLine(-66.5, 0xFF00FF); linesGroup.add(polarS);
+
+        let dayLimitN, dayLimitS;
+        dayLimitN = createLatLine(80, 0xFFFFFF, true); linesGroup.add(dayLimitN);
+        dayLimitS = createLatLine(-80, 0xFFFFFF, true); linesGroup.add(dayLimitS);
+
+        const axisGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, earthRadius + 6, 0),
+            new THREE.Vector3(0, -(earthRadius + 6), 0)
+        ]);
+        const axisLine = new THREE.Line(axisGeo, new THREE.LineBasicMaterial({ color: 0x888888 }));
+        earthMesh.add(axisLine);
+
+        // Зеніт
+        const zenithMarkerGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        const zenithMarkerMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, toneMapped: false });
+        const zenithMarker = new THREE.Mesh(zenithMarkerGeo, zenithMarkerMat);
+		earthTiltContainer.add(zenithMarker);
+
+        const zenithLineGeo = new THREE.BufferGeometry();
+        const zenithLine = new THREE.Line(zenithLineGeo, new THREE.LineBasicMaterial({ color: 0x090100 }));
+        earthTiltContainer.add(zenithLine);
+
+        // Зірки
+        const starsGeo = new THREE.BufferGeometry();
+        const starCount = 1000;
+        const starPos = new Float32Array(starCount * 3);
+        for(let i=0; i<starCount*3; i++) {
+            starPos[i] = (Math.random() - 0.5) * 600;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starsMat = new THREE.PointsMaterial({color: 0xAAAAAA, size: 0.4});
+        const starField = new THREE.Points(starsGeo, starsMat);
+        scene.add(starField);
+
+
+        // --- 5. Логіка ---
+        
+        const monthNames = [
+            "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+            "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"
+        ];
+        const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+        const monthSlider = document.getElementById('month-slider');
+        const speedSlider = document.getElementById('speed-slider');
+        const tiltSlider = document.getElementById('tilt-slider');
+        const tiltVal = document.getElementById('tilt-val');
+        const animBtn = document.getElementById('anim-btn');
+        const spinCheck = document.getElementById('spin-check');
+        const dateDisplay = document.getElementById('date-display');
+		
+		// --- ДОДАЄМО МУЗИКУ ---
+        const bgMusic = new Audio('4seasons.mp3'); // Файл має бути в тій самій папці
+        bgMusic.loop = true;  // Зациклити музику
+        bgMusic.volume = 0.3; // Гучність (від 0.0 до 1.0)
+
+        let isAnimating = false;
+
+        function updateSimulation() {
+            // 1. Час
+            const rawValue = parseFloat(monthSlider.value);
+            const monthIndex = Math.floor(rawValue) % 12;
+            const fraction = rawValue % 1;
+            
+            const totalDays = daysInMonth[monthIndex];
+            const currentDay = Math.floor(fraction * totalDays) + 1;
+            dateDisplay.textContent = `${currentDay} ${monthNames[monthIndex]}`;
+
+            // 2. Орбіта
+            // ДОДАНО: +6 місяців (PI) зсув, щоб Січень (0) був зимою для північної півкулі (Земля зліва, вісь вліво)
+            const orbitRotationAngle = ((rawValue + 6) / 12) * Math.PI * 2;
+            earthOrbitContainer.rotation.y = orbitRotationAngle;
+
+            // 3. Нахил
+            const tiltDeg = parseFloat(tiltSlider.value);
+            tiltVal.textContent = tiltDeg.toFixed(1) + '°';
+            const tiltRad = tiltDeg * (Math.PI / 180);
+
+            earthTiltContainer.position.set(orbitRadius, 0, 0); 
+            // Компенсація обертання, щоб вісь дивилася в одну точку простору
+            earthTiltContainer.rotation.y = -orbitRotationAngle; 
+            // Нахил
+            earthTiltContainer.rotation.z = tiltRad;
+
+            // 4. Оновлення СВІТЛА (Критично для правильних тіней)
+            const earthWorldPos = new THREE.Vector3();
+            earthTiltContainer.getWorldPosition(earthWorldPos);
+            
+            // Вектор на сонце (від землі до центру)
+            const toSun = new THREE.Vector3(0,0,0).sub(earthWorldPos).normalize();
+            
+            // Переміщуємо джерело світла близько до землі, вздовж лінії сонця.
+            // Це гарантує, що Земля потрапляє в "коробку" тіней (shadow camera frustum).
+            sunLight.position.copy(earthWorldPos).add(toSun.multiplyScalar(30)); 
+            sunLight.target.position.copy(earthWorldPos);
+
+
+            // 5. Зеніт
+            // Вектор від центру Землі до Сонця в глобальних координатах - це toSun
+            // Переводимо цей вектор в ЛОКАЛЬНУ систему координат earthTiltContainer
+            const sunPointWorld = earthWorldPos.clone().add(toSun);
+            const sunPointLocal = earthTiltContainer.worldToLocal(sunPointWorld.clone());
+            sunPointLocal.normalize();
+
+            // Розрахунок кута схилення
+            const declinationRad = Math.asin(sunPointLocal.y);
+            const declinationDeg = declinationRad * (180 / Math.PI);
+
+            // Позиціонування маркера
+            zenithMarker.position.copy(sunPointLocal.multiplyScalar(earthRadius));
+            zenithLine.geometry.setFromPoints([new THREE.Vector3(0,0,0), sunPointLocal.multiplyScalar(earthRadius)]);
+
+            // 6. Геометрія ліній
+            tropicN.geometry.dispose(); tropicN.geometry = getLatGeometry(tiltDeg);
+            tropicS.geometry.dispose(); tropicS.geometry = getLatGeometry(-tiltDeg);
+
+            const polarLat = 90 - tiltDeg;
+            polarN.geometry.dispose(); polarN.geometry = getLatGeometry(polarLat);
+            polarS.geometry.dispose(); polarS.geometry = getLatGeometry(-polarLat);
+
+            let currentPolarLimit = 90 - Math.abs(declinationDeg);
+            dayLimitN.geometry.dispose(); dayLimitN.geometry = getLatGeometry(currentPolarLimit);
+            dayLimitS.geometry.dispose(); dayLimitS.geometry = getLatGeometry(-currentPolarLimit);
+            dayLimitN.computeLineDistances();
+            dayLimitS.computeLineDistances();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isAnimating) {
+                let m = parseFloat(monthSlider.value);
+                let speed = parseFloat(speedSlider.value);
+                m += speed; 
+                if (m >= 12) m = 0;
+                monthSlider.value = m;
+                updateSimulation(); 
+            }
+
+            // Добове обертання
+            if (spinCheck.checked) {
+                // Базова швидкість збільшена (було 0.02, стало 0.08)
+                let spinSpeed = 0.08; 
+                
+                // Якщо йде авто-анімація, додаємо швидкість залежно від слайдера
+                if (isAnimating) {
+                    const speedVal = parseFloat(speedSlider.value);
+                    spinSpeed += speedVal * 5; 
+                }
+                
+                earthMesh.rotation.y += spinSpeed;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Listeners
+        monthSlider.addEventListener('input', updateSimulation);
+        tiltSlider.addEventListener('input', updateSimulation);
+        
+        animBtn.addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            animBtn.style.background = isAnimating ? '#d32f2f' : '#4CAF50';
+            animBtn.textContent = isAnimating ? 'Стоп' : 'Старт';
+			
+			// Логіка музики
+            if (isAnimating) {
+                // Якщо натиснули "Старт" -> граємо
+                bgMusic.play().catch(e => console.log("Браузер заблокував автоплей:", e));
+            } //else { bgMusic.pause(); }
+			
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Init
+        updateSimulation();
+        animate();
+
+    </script>
+</body>
+</html>
