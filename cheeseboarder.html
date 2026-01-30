@@ -117,10 +117,10 @@
         <div class="divider"></div>
 
         <div class="bar-section" style="position: relative;">
-            <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">🡔</button>
+            <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">↖</button>
             
             <div style="position: relative;">
-                <button class="tool-btn" id="btn-pen" onclick="toggleSubmenu('pen-menu'); activateTool('pen', true)" title="Pen (P)">🖉</button>
+                <button class="tool-btn" id="btn-pen" onclick="toggleSubmenu('pen-menu'); activateTool('pen', true)" title="Pen (P)">✎</button>
               
 			  <div class="submenu" id="pen-menu">
                     <h4>Pen Color</h4>
@@ -131,7 +131,7 @@
             </div>
 
             <div style="position: relative;">
-                <button class="tool-btn" id="btn-highlighter" onclick="toggleSubmenu('highlighter-menu'); activateTool('highlighter', true)" title="Highlighter (H)">✑</button>
+                <button class="tool-btn" id="btn-highlighter" onclick="toggleSubmenu('highlighter-menu'); activateTool('highlighter', true)" title="Highlighter (H)">✒</button>
                 <div class="submenu" id="highlighter-menu">
                     <h4>Highlight Color</h4>
                     <div class="color-row" id="highlighter-colors"></div>
@@ -174,8 +174,8 @@
 
         <div class="bar-section">
             <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
-			<button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">🖈</button>
-            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✖</button>
+			<button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">📌</button>
+            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
 			
 			<button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
             <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
@@ -184,8 +184,8 @@
 		
 
         <div class="bar-section">
-            <button class="tool-btn" onclick="saveBoard()" title="Save Board">🖫</button>
-            <button class="tool-btn" onclick="document.getElementById('file-input').click()" title="Open Board">🗁</button>
+            <button class="tool-btn" onclick="saveBoard()" title="Save Board">💾</button>
+            <button class="tool-btn" onclick="document.getElementById('file-input').click()" title="Open Board">📁</button>
             <input type="file" id="file-input" style="display: none;" accept=".json" onchange="openBoard(this)">
         </div>
 
