@@ -174,6 +174,7 @@
 
         <div class="bar-section">
             <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
+			<button class="tool-btn" onclick="duplicateSelected()" title="Duplicate secected">❐</button>
 			<button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">📌</button>
             <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
 			
@@ -299,7 +300,7 @@
         for (let i = startX; i < startX + width + gridSize; i += gridSize) {
             const isMajor = (Math.round(i / gridSize) % 5 === 0);
             ctx.strokeStyle = isMajor ? "#ccc" : "#eee";
-            ctx.lineWidth = isMajor ? 1 : 0.5; 
+            ctx.lineWidth = isMajor ? 0.4 : 0.5; 
             
             const screenX = i * zoom + vpt[4];
             ctx.beginPath();
@@ -311,7 +312,7 @@
         for (let i = startY; i < startY + height + gridSize; i += gridSize) {
             const isMajor = (Math.round(i / gridSize) % 5 === 0);
             ctx.strokeStyle = isMajor ? "#ccc" : "#eee";
-            ctx.lineWidth = isMajor ? 1 : 0.5; 
+            ctx.lineWidth = isMajor ? 0.4 : 0.5; 
 
             const screenY = i * zoom + vpt[5];
             ctx.beginPath();
@@ -463,8 +464,86 @@ function undo() {
             canvas.requestRenderAll();
         }
     }
+		
 
-    // Настройка цветов UI
+		function duplicateSelected() {
+        const active = canvas.getActiveObject();
+        if (!active) return;
+
+        // Вспомогательная функция для сброса блокировок у копии
+        const unlockObj = (obj) => {
+            obj.set({
+                isPinned: false,
+                lockMovementX: false, lockMovementY: false,
+                lockRotation: false,
+                lockScalingX: false, lockScalingY: false,
+                lockSkewingX: false, lockSkewingY: false,
+                hasControls: true,
+                borderColor: '#2563eb',
+                hoverCursor: 'move'
+            });
+        };
+
+        active.clone((cloned) => {
+            canvas.discardActiveObject(); // Снимаем выделение с оригинала
+
+            if (cloned.type === 'activeSelection') {
+                // === ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ ГРУПП ===
+                
+                // 1. Привязываем клон к канвасу (важно для математики координат)
+                cloned.canvas = canvas;
+
+                // 2. Сдвигаем ВСЮ ГРУППУ
+                cloned.left += 20;
+                cloned.top += 20;
+                cloned.setCoords();
+
+                // 3. ВАЖНО: Сначала вызываем destroy(). 
+                // Это "взрывает" группу и пересчитывает координаты каждого объекта 
+                // из относительных в абсолютные (на канвасе).
+                // Теперь у каждого объекта правильные left/top.
+                cloned.destroy(); 
+
+                // 4. Получаем массив объектов (они уже имеют правильные координаты)
+                const newObjects = cloned.getObjects();
+
+                newObjects.forEach((obj) => {
+                    // Генерируем уникальный ID
+                    obj.id = Math.random().toString(36).substr(2, 9);
+                    
+                    unlockObj(obj);
+                    canvas.add(obj); // Добавляем на сцену
+                    
+                    // Синхронизация и история
+                    // Теперь toObject вернет правильные абсолютные координаты
+                    addToHistory(obj);
+                    broadcast('draw', { data: obj.toObject(['id']) });
+                });
+
+                // 5. Создаем новое выделение для удобства пользователя
+                const sel = new fabric.ActiveSelection(newObjects, { canvas: canvas });
+                canvas.setActiveObject(sel);
+
+            } else {
+                // === ОБЫЧНАЯ ЛОГИКА (Одиночный объект) ===
+                cloned.id = Math.random().toString(36).substr(2, 9);
+                cloned.left += 20;
+                cloned.top += 20;
+                unlockObj(cloned);
+                
+                canvas.add(cloned);
+                canvas.setActiveObject(cloned);
+                
+                addToHistory(cloned);
+                broadcast('draw', { data: cloned.toObject(['id']) });
+            }
+
+            canvas.requestRenderAll();
+        });
+    }
+
+
+ // Настройка цветов UI
     const palette = ['#000000', '#ff0000', '#0000ff', '#008000', '#ffa500', '#ffffff','#800080'];
     const hlPalette = ['#ffeb3b', '#00ff00', '#00ffff', '#ff00ff', '#ff0011', '#0000ff', '#116600', '#555555'];
 
