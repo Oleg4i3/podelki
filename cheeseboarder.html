@@ -952,6 +952,49 @@ function createArrowHead(line) {
         broadcast('modified', { data: target.toObject(syncProps) });
     }
 });
+
+
+		//////////
+		// ==========================================
+    // LIVE SYNC (ПЛАВНОЕ ДВИЖЕНИЕ)
+    // ==========================================
+    
+    let lastMoveSend = 0;
+    const MOVE_THROTTLE_MS = 40; // ~25 кадров в секунду (можно уменьшить до 20 для 50 FPS)
+
+    function handleLiveSync(e) {
+        const target = e.target;
+        if (!target) return;
+
+        // Ограничение частоты отправки (чтобы не забить канал и не вешать браузер)
+        const now = Date.now();
+        if (now - lastMoveSend < MOVE_THROTTLE_MS) return;
+
+        const syncProps = [
+            'id', 'isPinned', 
+            'lockMovementX', 'lockMovementY', 
+            'lockRotation', 
+            'lockScalingX', 'lockScalingY', 
+            'hasControls', 'borderColor', 'hoverCursor'
+        ];
+
+        // Используем тот же тип 'modified', так как логика обновления на клиенте одинаковая
+        // Если объект группа - отправляем данные каждого объекта внутри
+        if (target.type === 'activeSelection') {
+             target.getObjects().forEach(obj => {
+                broadcast('modified', { data: obj.toObject(syncProps) });
+            });
+        } else {
+            broadcast('modified', { data: target.toObject(syncProps) });
+        }
+
+        lastMoveSend = now;
+    }
+
+    // Подключаем слушатели "живых" событий
+    canvas.on('object:moving', handleLiveSync);
+    canvas.on('object:scaling', handleLiveSync);
+    canvas.on('object:rotating', handleLiveSync);
 	
     // ==========================================
     // 4. TOUCH PAN & ZOOM (CUSTOM LOGIC)
