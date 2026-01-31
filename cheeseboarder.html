@@ -1752,6 +1752,153 @@ window.addEventListener('keydown', (e) => {
     }
 });
 		
+		// ==========================================
+// 4. COPY / PASTE SYSTEM (Clipboard API)
+// ==========================================
+
+// 1. Обработка COPY (Ctrl+C)
+window.addEventListener('keydown', (e) => {
+    // Проверяем нажатие Ctrl+C (или Cmd+C для Mac)
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyC')) {
+        const active = canvas.getActiveObject();
+        // Копируем только если есть выделение и мы не в режиме ввода текста
+        if (active && !canvas.isEditing && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            
+            // Клонируем объект, чтобы получить чистые данные
+            active.clone((cloned) => {
+                // Преобразуем в JSON. Важно включить кастомные поля, если они есть.
+                // В вашем коде используется 'id', его не копируем, чтобы создать новый при вставке.
+                const jsonStr = JSON.stringify(cloned.toObject(['type', 'stroke', 'strokeWidth', 'fill', 'isPinned']));
+                
+                // Записываем в буфер обмена как текст
+                navigator.clipboard.writeText(jsonStr).then(() => {
+                    console.log('Object copied to clipboard');
+                    // Визуальный фидбек (опционально)
+                    const prevBorder = active.borderColor;
+                    active.set('borderColor', '#00ff00'); // Мигнуть зеленым
+                    canvas.requestRenderAll();
+                    setTimeout(() => { 
+                        active.set('borderColor', prevBorder); 
+                        canvas.requestRenderAll(); 
+                    }, 300);
+                }).catch(err => {
+                    console.error('Copy failed:', err);
+                });
+            });
+        }
+    }
+});
+
+// 2. Обработка PASTE (Ctrl+V)
+window.addEventListener('paste', async (e) => {
+    // Не вставляем, если фокус в поле ввода (например, ID партнера)
+    if (document.activeElement.tagName === 'INPUT') return;
+
+    e.preventDefault();
+
+    // --- СЦЕНАРИЙ А: Вставка КАРТИНКИ (скриншот из буфера) ---
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.includes('image/')) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgObj = new Image();
+                imgObj.src = event.target.result;
+                imgObj.onload = () => {
+                    const imgInstance = new fabric.Image(imgObj);
+                    // Если картинка огромная, уменьшаем ее под размер экрана
+                    if (imgInstance.width > canvas.width / 2) {
+                        imgInstance.scaleToWidth(canvas.width / 2);
+                    }
+                    finalizePaste(imgInstance);
+                };
+            };
+            reader.readAsDataURL(blob);
+            return; // Прерываем, так как нашли картинку
+        }
+    }
+
+    // --- СЦЕНАРИЙ Б: Вставка ОБЪЕКТА (JSON из нашего борда) ---
+    try {
+        const text = await navigator.clipboard.readText();
+        // Пытаемся распарсить JSON
+        const data = JSON.parse(text);
+
+        // Проверяем, похоже ли это на объект Fabric (есть type или objects)
+        if (data.type || data.objects) {
+            fabric.util.enlivenObjects([data], (objects) => {
+                objects.forEach((obj) => {
+                    // Если это группа (ActiveSelection), разбираем её на части,
+                    // так как синхронизировать группу целиком сложно.
+                    if (obj.type === 'activeSelection') {
+                        obj.canvas = canvas; // Привязываем к канвасу для расчетов
+                        obj.destroy(); // "Взрываем" группу, координаты пересчитываются в абсолютные
+                        const kids = obj.getObjects();
+                        kids.forEach(kid => finalizePaste(kid));
+                        
+                        // Сразу выделяем вставленное
+                        const sel = new fabric.ActiveSelection(kids, { canvas: canvas });
+                        canvas.setActiveObject(sel);
+                    } else {
+                        finalizePaste(obj);
+                        canvas.setActiveObject(obj);
+                    }
+                    canvas.requestRenderAll();
+                });
+            });
+        }
+    } catch (err) {
+        // Если это не JSON, значит просто текст или мусор — игнорируем
+        // console.log('Clipboard content is not a valid board object');
+    }
+});
+
+// Вспомогательная функция для регистрации объекта (Sync + History)
+function finalizePaste(obj) {
+    // 1. Генерируем НОВЫЙ ID (критично для P2P)
+    obj.id = Math.random().toString(36).substr(2, 9);
+
+    // 2. Смещаем позицию, чтобы не накладывалось 1-в-1
+    // Пытаемся поместить в центр видимой области экрана
+    const vpt = canvas.viewportTransform;
+    const centerX = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
+    const centerY = (canvas.getHeight() / 2 - vpt[5]) / vpt[3];
+    
+    // Добавляем случайный разброс, чтобы при многократной вставке была "стопка"
+    const offset = (Math.random() * 40) - 20;
+    
+    // Если у объекта были координаты (copy/paste), смещаем их относительно центра
+    // Но проще просто поставить в центр:
+    obj.set({
+        left: centerX + offset,
+        top: centerY + offset,
+        evented: true
+    });
+    
+    // Снимаем блокировки (если копировали закрепленный объект)
+    if (obj.isPinned) {
+        obj.set({
+            isPinned: false,
+            lockMovementX: false, lockMovementY: false,
+            lockRotation: false, lockScalingX: false, lockScalingY: false,
+            hasControls: true, borderColor: '#2563eb'
+        });
+    }
+
+    // 3. Добавляем на канву
+    canvas.add(obj);
+    obj.setCoords();
+
+    // 4. ИНТЕГРАЦИЯ: История и Синхронизация
+    // Используем ваши существующие функции
+    addToHistory(obj);
+    if (typeof broadcast === 'function') {
+        broadcast('draw', { data: obj.toObject(['id']) });
+    }
+}
 		
 </script>
 </body>
