@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>P2P Whiteboard</title>
+    <style>
+        /* --- CSS STYLES --- */
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background-color: #ffffff; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            touch-action: none; /* Запрет нативного скролла браузера */
+        }
+        
+        #app-container {
+            width: 100%; height: 100%; position: relative;
+        }
+
+        /* Верхняя панель */
+        .top-bar {
+            position: absolute; top: 0; left: 0; right: 0; height: 35px;
+            background: white; border-bottom: 1px solid #ddd;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 10px; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .bar-section { display: flex; align-items: center; gap: 8px; height: 100%; }
+        .divider { width: 1px; height: 24px; background: #ddd; margin: 0 5px; }
+        .brand { font-weight: bold; color: #333; display: flex; align-items: center; font-size: 14px; gap: 5px; margin-right: 10px;}
+        
+        /* Кнопки инструментов */
+        .tool-btn {
+            width: 36px; height: 36px; border-radius: 6px; border: 1px solid transparent;
+            background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: 0.2s; position: relative;
+        }
+        .tool-btn:hover { background: #f0f0f0; }
+        .tool-btn.active { background: #e0eaff; border-color: #2563eb; color: #2563eb; }
+        
+        /* Выпадающие меню */
+        .submenu {
+            position: absolute; top: 55px; left: 50%; transform: translateX(-50%);
+            background: white; border: 1px solid #ddd; padding: 10px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); width: 280px;
+            display: none; flex-direction: column; gap: 8px; z-index: 101;
+        }
+        .submenu.show { display: flex; }
+        .submenu::before {
+            content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+            width: 10px; height: 10px; background: white; border-left: 1px solid #ddd; border-top: 1px solid #ddd;
+            transform: rotate(45deg) translateX(-50%);
+        }
+
+        .submenu h4 { margin: 0 0 5px 0; font-size: 11px; color: #666; text-transform: uppercase; }
+        .color-row { display: flex; gap: 5px; margin-bottom: 5px; flex-wrap: wrap; }
+        .color-swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid #eee; }
+        .color-swatch.selected { border-color: #333; transform: scale(1.1); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .width-slider { width: 100%; cursor: pointer; }
+        
+        .shape-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 4px; }
+        .shape-item { 
+            border: 1px solid #eee; background: #fff; padding: 6px 2px; cursor: pointer; 
+            text-align: center; font-size: 10px; border-radius: 4px; display: flex; flex-direction: column; align-items: center;
+        }
+        .shape-item:hover { background: #f5f5f5; }
+        .shape-item.active { background: #e0eaff; border-color: #2563eb; color: #2563eb; }
+        .shape-icon { font-size: 14px; margin-bottom: 2px; }
+
+        /* Inputs P2P */
+        input.id-box { 
+            padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; 
+            width: 80px; font-family: monospace; font-size: 11px; transition: 0.2s;
+        }
+        input.id-box:focus { width: 140px; border-color: #2563eb; outline: none; }
+        
+        .btn { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; color: white; transition: 0.2s; }
+        .btn-host { background: #2563eb; } .btn-host:hover { background: #1d4ed8; }
+        .btn-join { background: #059669; } .btn-join:hover { background: #047857; }
+        .btn-copy { background: #f3f4f6; color: #333; border: 1px solid #ddd;} .btn-copy:hover { background: #e5e7eb; }
+
+        /* Канва на всю высоту */
+        #canvas-wrapper { 
+            position: absolute; 
+            top: 35px; bottom: 0; left: 0; right: 0;
+            overflow: hidden; 
+            z-index: 1;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="top-bar">
+        
+        <div class="bar-section">
+            <div class="brand">
+                <span>🧀 cheeseboard</span>
+                <span id="status-indicator" style="font-size: 9px; padding: 2px 4px; border-radius: 3px; background: #eee;">Offline</span>
+            </div>
+            
+            <div id="host-controls">
+                <button class="btn btn-host" onclick="startHost()">Host</button>
+            </div>
+            <div id="join-controls">
+                <input type="text" id="remote-id-input" class="id-box" placeholder="Or enter ID">
+                <button class="btn btn-join" onclick="joinPeer()">Connect</button>
+            </div>
+            <div id="session-info" class="hidden" style="display: flex; gap:5px;">
+                <input type="text" id="my-id-display" class="id-box" readonly title="Click to copy" onclick="copyId()">
+                <button class="btn btn-copy" onclick="copyId()">Copy</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="bar-section" style="position: relative;">
+            <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">↖</button>
+            
+            <div style="position: relative;">
+                <button class="tool-btn" id="btn-pen" onclick="toggleSubmenu('pen-menu'); activateTool('pen', true)" title="Pen (P)">✎</button>
+              
+			  <div class="submenu" id="pen-menu">
+                    <h4>Pen Color</h4>
+                    <div class="color-row" id="pen-colors"></div>
+                    
+<h4>Width</h4>
+<input type="range" min="1" max="20" value="2" class="width-slider" oninput="updatePenWidth(this.value)" list="pen-ticks">
+
+<datalist id="pen-ticks">
+    <option value="1"></option>
+    <option value="5"></option>
+    <option value="10"></option>
+    <option value="15"></option>
+    <option value="20"></option>
+</datalist>
+
+					</div>
+            </div>
+
+            <div style="position: relative;">
+                <button class="tool-btn" id="btn-highlighter" onclick="toggleSubmenu('highlighter-menu'); activateTool('highlighter', true)" title="Highlighter (H)">✒</button>
+                <div class="submenu" id="highlighter-menu">
+                    <h4>Highlight Color</h4>
+                    <div class="color-row" id="highlighter-colors"></div>
+                    <h4>Width</h4>
+                    <input type="range" min="2" max="60" value="25" class="width-slider" oninput="updateHighlighterWidth(this.value)">
+                </div>
+            </div>
+			  <button class="tool-btn" id="btn-eraser" onclick="activateTool('eraser')" title="Eraser (E)">▧</button>
+          
+            <div style="position: relative;">
+                <button class="tool-btn" id="btn-shape" onclick="toggleSubmenu('shapes-menu'); activateTool('shape', true)" title="Shapes & Lines">⦳</button>
+                <div class="submenu" id="shapes-menu">
+                    <h4>Shape Type</h4>
+               <div class="shape-grid">
+                        <div class="shape-item active" onclick="setShapeType('rect')" title="Rectangle (R)"><span class="shape-icon">⌷</span>Rect</div>
+                        <div class="shape-item" onclick="setShapeType('circle')" title="Circle (C)"><span class="shape-icon">○</span>Elips</div>
+                        <div class="shape-item" onclick="setShapeType('triangle')" title="Isosceles Triangle"><span class="shape-icon">△</span>Isos</div>
+                        <div class="shape-item" onclick="setShapeType('rightTriangle')" title="Right Triangle"><span class="shape-icon">◢</span>Right</div>
+                        <div class="shape-item" onclick="setShapeType('scalene')" title="Scalene Triangle"><span class="shape-icon">▻</span>Scalene</div>
+                        <div class="shape-item" onclick="setShapeType('trapezoid')" title="Trapezoid"><span class="shape-icon">⏢</span>Trap</div>
+                        <div class="shape-item" onclick="setShapeType('rhombus')" title="Rhombus"><span class="shape-icon">◇</span>Rhom</div>
+                        <div class="shape-item" onclick="setShapeType('parallelogram')" title="Parallelogram"><span class="shape-icon">▱</span>Para</div>
+                        <div class="shape-item" onclick="setShapeType('pentagon')" title="Pentagon"><span class="shape-icon">⬠</span>Pent</div>
+                        <div class="shape-item" onclick="setShapeType('hexagon')" title="Hexagon"><span class="shape-icon">⬡</span>Hex</div>
+                        <div class="shape-item" onclick="setShapeType('outlineArrow')" title="Outline Arrow"><span class="shape-icon">⇨</span>O-Arr</div>
+                        <div class="shape-item" onclick="setShapeType('line')" title="Line (L)"><span class="shape-icon">╱</span>Line</div>
+                        <div class="shape-item" onclick="setShapeType('arrow')" title="Line Arrow (A)"><span class="shape-icon">↗</span>L-Arr</div>
+                        <div class="shape-item" onclick="setShapeType('dashed')" title="Dashed"><span class="shape-icon">---</span>Dash</div>
+                    </div>
+                    <br>
+                    <h4>Color & Border</h4>
+                    <div class="color-row" id="shape-colors"></div>
+               
+			   <input type="range" min="1" max="20" value="2" class="width-slider" oninput="updateShapeBorder(this.value)" list="pen-ticks">
+              
+				<datalist id="pen-ticks">
+    <option value="1"></option>
+    <option value="5"></option>
+    <option value="10"></option>
+    <option value="15"></option>
+    <option value="20"></option>
+</datalist>
+			  </div>
+            </div>
+
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="bar-section">
+            <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
+			<button class="tool-btn" onclick="duplicateSelected()" title="Duplicate secected">❐</button>
+			<button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">📌</button>
+            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
+			
+			<button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
+            <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
+        </div>
+		
+		
+
+        <div class="bar-section">
+            <button class="tool-btn" onclick="saveBoard()" title="Save Board">💾</button>
+            <button class="tool-btn" onclick="document.getElementById('file-input').click()" title="Open Board">📁</button>
+            <input type="file" id="file-input" style="display: none;" accept=".json" onchange="openBoard(this)">
+        </div>
+
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="c"></canvas>
+    </div>
+</div>
+
+<script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+    // Настройка воркера для PDF.js (обязательно)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+</script>
+
+<script>
+
+// ==========================================
+// CUSTOM CLASS: ARROW (Умная отрисовка)
+// ==========================================
+fabric.Arrow = fabric.util.createClass(fabric.Line, {
+    type: 'arrow',
+
+    initialize: function(element, options) {
+        options || (options = {});
+        this.callSuper('initialize', element, options);
+    },
+
+    toObject: function() {
+        return fabric.util.object.extend(this.callSuper('toObject'), {
+            type: 'arrow'
+        });
+    },
+
+    _render: function(ctx) {
+        // 1. Считаем геометрию
+        const p = this.calcLinePoints();
+        const xDiff = p.x2 - p.x1;
+        const yDiff = p.y2 - p.y1;
+        const angle = Math.atan2(yDiff, xDiff);
+        const length = Math.sqrt(xDiff * xDiff + yDiff * yDiff);
+        
+        // Размер наконечника (зависит от толщины)
+        const arrowSize = Math.max(5, this.strokeWidth * 3);
+
+        // 2. Рисуем НАКОНЕЧНИК (треугольник)
+        ctx.save();
+        ctx.translate(p.x2, p.y2);
+        ctx.rotate(angle);
+        
+        ctx.beginPath();
+        // Треугольник начинается от (0,0) и идет назад
+        ctx.moveTo(0, 0); 
+        ctx.lineTo(-arrowSize, arrowSize / 2);
+        ctx.lineTo(-arrowSize, -arrowSize / 2);
+        ctx.closePath();
+        
+        ctx.fillStyle = this.stroke; 
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Рисуем ЛИНИЮ (укороченную)
+        // Если линия слишком короткая (меньше наконечника), не рисуем её вообще, только треугольник
+        if (length > arrowSize) {
+            // Вычисляем коэффициент укорачивания
+            // Нам нужно "откусить" arrowSize от конца линии
+            // Делаем отступ чуть меньше (arrowSize - 1), чтобы линия зашла внутрь треугольника и не было щели
+            const shortenAmount = arrowSize - 1; 
+            const ratio = (length - shortenAmount) / length;
+
+            // Новые координаты конца линии
+            const newX = p.x1 + (xDiff * ratio);
+            const newY = p.y1 + (yDiff * ratio);
+
+            ctx.beginPath();
+            ctx.moveTo(p.x1, p.y1);
+            ctx.lineTo(newX, newY);
+            
+            // Используем встроенный метод для отрисовки штриха (сохраняет стиль, пунктир, тени)
+            this._renderStroke(ctx);
+        }
+    }
+});
+
+// Регистрация класса
+fabric.Arrow.fromObject = function(object, callback) {
+    callback && callback(new fabric.Arrow([object.x1, object.y1, object.x2, object.y2], object));
+};
+    // ==========================================
+    // 1. INIT & GRID
+    // ==========================================
+    const wrapper = document.getElementById('canvas-wrapper');
+  const canvas = new fabric.Canvas('c', {
+    isDrawingMode: false,
+    selection: true, // Это включает выделение "рамкой" (drag to select)
+    preserveObjectStacking: true,
+    stopContextMenu: true,
+    fireRightClick: true,
+  
+    perPixelTargetFind: true, // Выделение только при клике на саму линию
+    targetFindTolerance: 10   // Допуск в пикселях (чтобы было легче попасть по тонкой линии)
+});
+
+// --- НАЧАЛО НАСТРОЕК ВЫДЕЛЕНИЯ ---
+    
+    // 1. Делаем узелки маленькими, круглыми и белыми
+    fabric.Object.prototype.set({
+        transparentCorners: false, // Узелки залиты цветом, не прозрачные
+        cornerColor: '#ffffff',    // Белый цвет внутри
+        cornerStrokeColor: '#666', // Тонкая серая обводка узелка
+        borderColor: '#2563eb',    // Синяя рамка вокруг объекта
+        cornerSize: 8,             // Размер узелка 
+        cornerStyle: 'circle',     // Форма: круг вместо квадрата
+        padding: 5,                // Отступ рамки от самого рисунка
+        rotatingPointOffset: 20,   // Рычаг вращения чуть ближе к объекту
+        borderDashArray: [6, 4]    // (Опционально) Пунктирная линия рамки для чистоты
+    });
+
+    // 2. Рисуем красивую иконку "Круговая стрелка" для вращения
+    // Проверяем, существует ли контроль mtr (на случай старых версий fabric)
+    if (fabric.Object.prototype.controls && fabric.Object.prototype.controls.mtr) {
+        fabric.Object.prototype.controls.mtr.render = function(ctx, left, top, styleOverride, fabricObject) {
+            // Настраиваем стиль стрелки
+            const size = 16; // Визуальный размер значка
+            ctx.save();
+            ctx.translate(left, top);
+            ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle));
+            
+            // Рисуем кружок-подложку (белый фон)
+            ctx.beginPath();
+            ctx.arc(0, 0, 7, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#666';
+            ctx.stroke();
+
+            // Рисуем саму стрелку (дуга)
+            ctx.beginPath();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#2563eb'; // Синий цвет стрелки
+            ctx.lineCap = 'round';
+            // Дуга от 45 градусов до 300 градусов
+            ctx.arc(0, 0, 4, 0.8, -2, true); 
+            ctx.stroke();
+
+         
+            ctx.restore();
+        };
+    }
+    // --- КОНЕЦ НАСТРОЕК ВЫДЕЛЕНИЯ ---
+
+    // Ресайз на все доступное место (минус хедер)
+    function resizeCanvas() {
+        canvas.setWidth(wrapper.clientWidth);
+        canvas.setHeight(wrapper.clientHeight);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 10);
+
+    // Сетка (с фиксом толщины линий при зуме)
+    const gridSize = 20;
+    canvas.on('before:render', function() {
+        const ctx = canvas.getContext();
+        const vpt = canvas.viewportTransform;
+        const zoom = canvas.getZoom();
+        
+        const width = canvas.width / zoom;
+        const height = canvas.height / zoom;
+        const offX = -vpt[4] / zoom;
+        const offY = -vpt[5] / zoom;
+
+        ctx.save();
+        
+        const startX = Math.floor(offX / gridSize) * gridSize;
+        const startY = Math.floor(offY / gridSize) * gridSize;
+
+        // Линии не зависят от зума (всегда тонкие)
+        for (let i = startX; i < startX + width + gridSize; i += gridSize) {
+            const isMajor = (Math.round(i / gridSize) % 5 === 0);
+            ctx.strokeStyle = isMajor ? "#ccc" : "#eee";
+            ctx.lineWidth = isMajor ? 0.4 : 0.5; 
+            
+            const screenX = i * zoom + vpt[4];
+            ctx.beginPath();
+            ctx.moveTo(screenX, 0);
+            ctx.lineTo(screenX, canvas.height);
+            ctx.stroke();
+        }
+
+        for (let i = startY; i < startY + height + gridSize; i += gridSize) {
+            const isMajor = (Math.round(i / gridSize) % 5 === 0);
+            ctx.strokeStyle = isMajor ? "#ccc" : "#eee";
+            ctx.lineWidth = isMajor ? 0.4 : 0.5; 
+
+            const screenY = i * zoom + vpt[5];
+            ctx.beginPath();
+            ctx.moveTo(0, screenY);
+            ctx.lineTo(canvas.width, screenY);
+            ctx.stroke();
+        }
+        ctx.restore();
+    });
+
+    // ==========================================
+    // 2. TOOLS & UNDO SYSTEM
+    // ==========================================
+    let currentTool = 'select';
+    const undoStack = []; // История моих действий
+    
+    const settings = {
+        pen: { color: '#000000', width: 2 },
+        highlighter: { color: '#ffeb3b', width: 25 },
+        shape: { type: 'rect', color: 'transparent', stroke: '#000000', width: 2 }
+    };
+
+ function activateTool(tool, keepMenu = false) {
+    currentTool = tool;
+    if (!keepMenu) closeAllMenus();
+
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    
+   
+    const btnMap = {
+        'select': 'btn-select',
+        'pen': 'btn-pen',
+        'highlighter': 'btn-highlighter',
+        'shape': 'btn-shape',
+        'eraser': 'btn-eraser' 
+    };
+    
+    if(btnMap[tool]) document.getElementById(btnMap[tool]).classList.add('active');
+
+    // Сброс режимов
+    canvas.isDrawingMode = false;
+    canvas.selection = (tool === 'select');
+    
+    // Управление кликабельностью
+    canvas.forEachObject(o => {
+        // В режиме ластика объекты не должны быть выделяемыми (чтобы не появлялась рамка), 
+        // но они должны быть "evented", чтобы findTarget их нашел.
+        o.selectable = (tool === 'select'); 
+        o.evented = (tool === 'select' || tool === 'eraser'); 
+    });
+
+    if (tool === 'pen') {
+        canvas.isDrawingMode = true;
+        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+        canvas.freeDrawingBrush.color = settings.pen.color;
+        canvas.freeDrawingBrush.width = parseInt(settings.pen.width);
+        canvas.defaultCursor = 'default';
+    } else if (tool === 'highlighter') {
+        canvas.isDrawingMode = true;
+        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+        const col = new fabric.Color(settings.highlighter.color);
+        col.setAlpha(0.5);
+        canvas.freeDrawingBrush.color = col.toRgba();
+        canvas.freeDrawingBrush.width = parseInt(settings.highlighter.width);
+        canvas.defaultCursor = 'default';
+    } else if (tool === 'shape') {
+        canvas.defaultCursor = 'crosshair';
+    } else if (tool === 'eraser') {
+        // === ДОБАВЛЕНО: Курсор для ластика ===
+        canvas.defaultCursor = 'not-allowed'; // Или можно использовать url картинки
+        canvas.discardActiveObject(); // Сбросить текущее выделение
+        canvas.requestRenderAll();
+    } else {
+        canvas.defaultCursor = 'default';
+    }
+}
+	
+    function toggleSubmenu(id) {
+        const menu = document.getElementById(id);
+        const wasVisible = menu.classList.contains('show');
+        closeAllMenus();
+        if (!wasVisible) menu.classList.add('show');
+    }
+
+    function closeAllMenus() {
+        document.querySelectorAll('.submenu').forEach(m => m.classList.remove('show'));
+    }
+
+    // История (UNDO)
+    function addToHistory(obj) {
+        if(obj && obj.id) undoStack.push(obj.id);
+    }
+
+function undo() {
+        const lastAction = undoStack.pop();
+        if (!lastAction) return;
+
+        // Сценарий 1: В истории лежит строка (ID). 
+        // Значит, действие было "Рисование". Undo должно УДАЛИТЬ объект.
+        if (typeof lastAction === 'string') {
+            const obj = canvas.getObjects().find(o => o.id === lastAction);
+            if (obj) {
+                canvas.remove(obj);
+                broadcast('delete', { id: lastAction });
+            }
+        }
+        // Сценарий 2: В истории лежит объект с пометкой 'deletion'.
+        // Значит, действие было "Стирание". Undo должно ВОССТАНОВИТЬ объект.
+        else if (typeof lastAction === 'object' && lastAction.type === 'deletion') {
+            fabric.util.enlivenObjects([lastAction.data], (objs) => {
+                objs.forEach((o) => {
+                    canvas.add(o);
+                    // Отправляем партнеру сигнал, что объект снова появился
+                    broadcast('draw', { data: o.toObject(['id']) });
+                });
+                canvas.requestRenderAll();
+            });
+        }
+    }
+
+		// Обновленная функция удаления (с поддержкой Undo и проверкой на Pin)
+    function deleteSelected() {
+        const active = canvas.getActiveObjects();
+        if (active.length) {
+            // Фильтруем: оставляем только НЕ закрепленные
+            const toDelete = active.filter(o => !o.isPinned);
+            
+            // Список свойств для сохранения в историю
+            const syncProps = [
+                'id', 'isPinned', 
+                'lockMovementX', 'lockMovementY', 
+                'lockRotation', 
+                'lockScalingX', 'lockScalingY', 
+                'hasControls', 'borderColor', 'hoverCursor'
+            ];
+
+            toDelete.forEach(o => {
+                // Сохраняем каждое удаление в историю
+                undoStack.push({
+                    type: 'deletion',
+                    data: o.toObject(syncProps)
+                });
+
+                broadcast('delete', { id: o.id });
+                canvas.remove(o);
+            });
+            
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+        }
+    }
+		
+
+		function duplicateSelected() {
+        const active = canvas.getActiveObject();
+        if (!active) return;
+
+        // Вспомогательная функция для сброса блокировок у копии
+        const unlockObj = (obj) => {
+            obj.set({
+                isPinned: false,
+                lockMovementX: false, lockMovementY: false,
+                lockRotation: false,
+                lockScalingX: false, lockScalingY: false,
+                lockSkewingX: false, lockSkewingY: false,
+                hasControls: true,
+                borderColor: '#2563eb',
+                hoverCursor: 'move'
+            });
+        };
+
+        active.clone((cloned) => {
+            canvas.discardActiveObject(); // Снимаем выделение с оригинала
+
+            if (cloned.type === 'activeSelection') {
+                // === ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ ГРУПП ===
+                
+                // 1. Привязываем клон к канвасу (важно для математики координат)
+                cloned.canvas = canvas;
+
+                // 2. Сдвигаем ВСЮ ГРУППУ
+                cloned.left += 20;
+                cloned.top += 20;
+                cloned.setCoords();
+
+                // 3. ВАЖНО: Сначала вызываем destroy(). 
+                // Это "взрывает" группу и пересчитывает координаты каждого объекта 
+                // из относительных в абсолютные (на канвасе).
+                // Теперь у каждого объекта правильные left/top.
+                cloned.destroy(); 
+
+                // 4. Получаем массив объектов (они уже имеют правильные координаты)
+                const newObjects = cloned.getObjects();
+
+                newObjects.forEach((obj) => {
+                    // Генерируем уникальный ID
+                    obj.id = Math.random().toString(36).substr(2, 9);
+                    
+                    unlockObj(obj);
+                    canvas.add(obj); // Добавляем на сцену
+                    
+                    // Синхронизация и история
+                    // Теперь toObject вернет правильные абсолютные координаты
+                    addToHistory(obj);
+                    broadcast('draw', { data: obj.toObject(['id']) });
+                });
+
+                // 5. Создаем новое выделение для удобства пользователя
+                const sel = new fabric.ActiveSelection(newObjects, { canvas: canvas });
+                canvas.setActiveObject(sel);
+
+            } else {
+                // === ОБЫЧНАЯ ЛОГИКА (Одиночный объект) ===
+                cloned.id = Math.random().toString(36).substr(2, 9);
+                cloned.left += 20;
+                cloned.top += 20;
+                unlockObj(cloned);
+                
+                canvas.add(cloned);
+                canvas.setActiveObject(cloned);
+                
+                addToHistory(cloned);
+                broadcast('draw', { data: cloned.toObject(['id']) });
+            }
+
+            canvas.requestRenderAll();
+        });
+    }
+
+
+ // Настройка цветов UI
+    const palette = ['#000000', '#ff0000', '#0000ff', '#008000', '#ffa500', '#ffffff','#800080'];
+    const hlPalette = ['#ffeb3b', '#00ff00', '#00ffff', '#ff00ff', '#ff0011', '#0000ff', '#116600', '#555555'];
+
+   function renderPalette(id, colors, type) {
+        const el = document.getElementById(id);
+        el.innerHTML = '';
+        colors.forEach(c => {
+            const d = document.createElement('div');
+            d.className = 'color-swatch';
+            d.style.backgroundColor = c;
+            d.onclick = () => {
+                if(type === 'pen') settings.pen.color = c;
+                if(type === 'hl') settings.highlighter.color = c;
+                if(type === 'shape') settings.shape.stroke = c;
+                
+                // ИЗМЕНЕНИЕ: добавлено ', true' чтобы меню не закрывалось
+                activateTool(currentTool, true); 
+                
+                Array.from(el.children).forEach(k => k.classList.remove('selected'));
+                d.classList.add('selected');
+            };
+            el.appendChild(d);
+        });
+    }
+    renderPalette('pen-colors', palette, 'pen');
+    renderPalette('highlighter-colors', hlPalette, 'hl');
+    renderPalette('shape-colors', palette, 'shape');
+
+    window.updatePenWidth = (v) => { settings.pen.width = v; activateTool('pen', true); };
+    window.updateHighlighterWidth = (v) => { settings.highlighter.width = v; activateTool('highlighter', true); };
+    window.updateShapeBorder = (v) => { settings.shape.width = parseInt(v); };
+  window.setShapeType = (t) => { 
+        settings.shape.type = t; 
+        document.querySelectorAll('.shape-item').forEach(i => i.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        // ИЗМЕНЕНИЕ: добавлено ', true'
+        activateTool('shape', true);
+    };
+
+// ==========================================
+    // ЛОГИКА PIN / UNPIN
+    // ==========================================
+function togglePin() {
+    const activeObjects = canvas.getActiveObjects();
+    if (!activeObjects.length) return;
+
+    // Определяем состояние по первому объекту
+    const isCurrentlyPinned = activeObjects[0].isPinned === true;
+    const newState = !isCurrentlyPinned;
+
+    // Свойства для синхронизации
+    const syncProps = [
+        'id', 'isPinned', 
+        'lockMovementX', 'lockMovementY', 
+        'lockRotation', 
+        'lockScalingX', 'lockScalingY', 
+        'hasControls', 'borderColor', 'hoverCursor'
+    ];
+
+    activeObjects.forEach(obj => {
+        obj.set({
+            // Блокировка перемещения
+            lockMovementX: newState,
+            lockMovementY: newState,
+            // Блокировка поворота
+            lockRotation: newState,
+            // Блокировка масштабирования (деформации)
+            lockScalingX: newState,
+            lockScalingY: newState,
+            // Блокировка искажения (сдвига)
+            lockSkewingX: newState,
+            lockSkewingY: newState,
+            
+            // Скрываем контролы, если объект закреплен
+            hasControls: !newState,   
+            hoverCursor: newState ? 'not-allowed' : 'move',
+            isPinned: newState, 
+            borderColor: newState ? '#ef4444' : '#2563eb' 
+        });
+
+        // Отправляем изменения партнеру
+        broadcast('modified', { 
+            data: obj.toObject(syncProps) 
+        });
+    });
+
+    // Сбрасываем выделение, чтобы обновилась рамка
+    canvas.discardActiveObject();
+    canvas.requestRenderAll();
+}
+
+    // Обновленная функция удаления (с проверкой на Pin)
+    function deleteSelected() {
+        const active = canvas.getActiveObjects();
+        if (active.length) {
+            // Фильтруем: оставляем для удаления только НЕ закрепленные объекты
+            const toDelete = active.filter(o => !o.isPinned);
+            const pinnedCount = active.length - toDelete.length;
+
+            if (pinnedCount > 0) {
+                // Можно добавить визуальный сигнал, что что-то не удалилось
+                console.log(`Пропущено ${pinnedCount} закрепленных объектов.`);
+            }
+
+            toDelete.forEach(o => {
+                broadcast('delete', { id: o.id });
+                canvas.remove(o);
+            });
+            
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+        }
+    }
+	
+	
+	// ==========================================
+// ЛОГИКА ЛАСТИКА (ERASER)
+// ==========================================
+let isErasing = false;
+
+// Функция проверки попадания и удаления
+function handleEraser(e) {
+    const target = canvas.findTarget(e, false);
+    
+    if (target) {
+        // Проверяем, не закреплен ли объект
+        if (!target.isPinned) {
+          
+            // Сохраняем объект в историю перед удалением
+            // Важно сохранить ID и все флаги блокировки
+            const syncProps = [
+                'id', 'isPinned', 
+                'lockMovementX', 'lockMovementY', 
+                'lockRotation', 
+                'lockScalingX', 'lockScalingY', 
+                'hasControls', 'borderColor', 'hoverCursor'
+            ];
+
+            undoStack.push({
+                type: 'deletion',
+                data: target.toObject(syncProps)
+            });
+          
+
+            canvas.remove(target);
+            broadcast('delete', { id: target.id });
+        }
+    }
+}
+
+	// ==========================================
+// PANNING (SPACEBAR) LOGIC
+// ==========================================
+let isSpacePressed = false;
+let isPanning = false;
+let lastPosX = 0;
+let lastPosY = 0;
+
+// Слушаем нажатие Пробела
+window.addEventListener('keydown', (e) => {
+    // Если нажали пробел и он еще не был нажат (защита от автоповтора)
+    if (e.code === 'Space' && !isSpacePressed) {
+        isSpacePressed = true;
+        canvas.selection = false; // Отключаем выделение рамкой
+        canvas.defaultCursor = 'grab'; // Меняем курсор на "руку"
+        canvas.discardActiveObject(); // Сбрасываем текущее выделение
+        canvas.requestRenderAll();
+    }
+});
+
+// Слушаем отпускание Пробела
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        isSpacePressed = false;
+        isPanning = false;
+        canvas.selection = true; // Возвращаем возможность выделения
+        
+        // Возвращаем курсор в зависимости от инструмента
+        if (currentTool === 'pen' || currentTool === 'highlighter') {
+            canvas.defaultCursor = 'default'; // или 'crosshair' если хотите
+        } else if (currentTool === 'shape') {
+            canvas.defaultCursor = 'crosshair';
+        } else {
+            canvas.defaultCursor = 'default';
+        }
+        canvas.requestRenderAll();
+    }
+});
+
+		
+    // ==========================================
+    // 3. DRAWING & MULTITOUCH PROTECTION
+    // ==========================================
+    let isDrawingShape = false;
+    let shapeOrigX, shapeOrigY;
+    let activeShape = null;
+    let isMultitouch = false; // Глобальный флаг мультитача
+
+    // Глобальный перехват мультитача для защиты рисования
+    canvas.upperCanvasEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) {
+            isMultitouch = true;
+            canvas.isDrawingMode = false; // Отключаем кисть
+            
+            // Если мы тянули фигуру и коснулись вторым пальцем - отменяем
+            if (isDrawingShape && activeShape) {
+                canvas.remove(activeShape);
+                activeShape = null;
+                isDrawingShape = false;
+            }
+        } else {
+            isMultitouch = false;
+        }
+    }, { passive: false });
+
+    // Создание фигур
+    canvas.on('mouse:down', (o) => {
+	
+	closeAllMenus(); //
+	
+	// --- ПАНОРАМИРОВАНИЕ: СТАРТ ---
+    if (isSpacePressed) {
+        isPanning = true;
+        canvas.setCursor('grabbing'); // Курсор "сжатая рука"
+        lastPosX = o.e.clientX;
+        lastPosY = o.e.clientY;
+        return; // Прерываем, чтобы не начало рисовать
+    }
+    // ------------------------------
+        if (isMultitouch) return; // Защита
+		
+		// === ЛОГИКА ЛАСТИКА ===
+    if (currentTool === 'eraser') {
+        isErasing = true;
+        handleEraser(o.e);
+        return; // Прерываем, чтобы не сработала логика рисования фигур
+    }
+        
+	if (currentTool === 'shape') {
+            const pointer = canvas.getPointer(o.e);
+            isDrawingShape = true;
+            shapeOrigX = pointer.x;
+            shapeOrigY = pointer.y;
+
+            const opts = {
+                left: shapeOrigX, top: shapeOrigY,
+                originX: 'left', originY: 'top',
+                fill: 'transparent',
+                stroke: settings.shape.stroke,
+                strokeWidth: settings.shape.width,
+                selectable: false,
+                objectCaching: false, // Важно для динамического обновления
+                id: Math.random().toString(36).substr(2, 9)
+            };
+
+            if (settings.shape.type === 'rect') {
+                activeShape = new fabric.Rect({ ...opts, width: 0, height: 0 });
+            } else if (settings.shape.type === 'circle') {
+                activeShape = new fabric.Ellipse({ ...opts, rx: 0, ry: 0 });
+            } else if (settings.shape.type === 'triangle') {
+                activeShape = new fabric.Triangle({ ...opts, width: 0, height: 0 });
+         // Разделяем: обычные линии отдельно, стрелка отдельно
+} else if (['line', 'dashed'].includes(settings.shape.type)) {
+    activeShape = new fabric.Line([shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY], {
+        ...opts,
+        strokeDashArray: settings.shape.type === 'dashed' ? [10, 5] : null
+    });
+} else if (settings.shape.type === 'arrow') {
+    // Используем наш новый класс Arrow
+    activeShape = new fabric.Arrow([shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY], {
+        ...opts,
+        // Опционально: убедимся, что нет пунктира, если не нужно
+        strokeDashArray: null 
+    });
+} else {
+                // Создаем полигон. Начальные точки не важны, они обновятся в move
+                activeShape = new fabric.Polygon([{x:0, y:0}, {x:1, y:1}], opts);
+            }
+            canvas.add(activeShape);
+        }
+		
+    });
+
+ // Рисование фигур
+    canvas.on('mouse:move', (o) => {
+	// --- ПАНОРАМИРОВАНИЕ: ДВИЖЕНИЕ ---
+    if (isPanning && isSpacePressed) {
+        const e = o.e;
+        const vpt = canvas.viewportTransform;
+        
+        // Сдвигаем вьюпорт на разницу координат мыши
+        vpt[4] += e.clientX - lastPosX;
+        vpt[5] += e.clientY - lastPosY;
+        
+        canvas.requestRenderAll();
+        
+        lastPosX = e.clientX;
+        lastPosY = e.clientY;
+        return; // Важно: выходим, чтобы не рисовать линии
+    }
+    // ---------------------------------
+	// === ЛОГИКА ЛАСТИКА ===
+    if (isErasing && currentTool === 'eraser') {
+        handleEraser(o.e);
+        broadcastCursor(o.e); // Чтобы партнер видел курсор
+        return;
+    }
+        
+		if (isDrawingShape && activeShape) {
+            if (isMultitouch) {
+                canvas.remove(activeShape);
+                activeShape = null;
+                isDrawingShape = false;
+                return;
+            }
+
+            const pointer = canvas.getPointer(o.e);
+            let w = pointer.x - shapeOrigX;
+            let h = pointer.y - shapeOrigY;
+            let left = shapeOrigX;
+            let top = shapeOrigY;
+
+            const type = settings.shape.type;
+
+            if (['rect', 'triangle'].includes(type)) {
+                if (w < 0) { left = shapeOrigX + w; w = Math.abs(w); }
+                if (h < 0) { top = shapeOrigY + h; h = Math.abs(h); }
+                activeShape.set({ left, top, width: w, height: h });
+            } 
+            else if (type === 'circle') {
+                let rx = w / 2;
+                let ry = h / 2;
+                activeShape.set({ 
+                    left: shapeOrigX + (rx < 0 ? rx * 2 : 0), 
+                    top: shapeOrigY + (ry < 0 ? ry * 2 : 0), 
+                    rx: Math.abs(rx), ry: Math.abs(ry) 
+                });
+            }
+			else if (['line', 'dashed', 'arrow'].includes(type)) {
+    let targetX = pointer.x;
+    let targetY = pointer.y;
+
+    // --- ЛОГИКА SHIFT (ПРЯМЫЕ ЛИНИИ) ---
+    if (o.e.shiftKey) {
+        // Считаем разницу между начальной и текущей точкой
+        const dx = Math.abs(targetX - shapeOrigX);
+        const dy = Math.abs(targetY - shapeOrigY);
+
+        // Если движение по горизонтали больше, чем по вертикали -> выравниваем Y
+        if (dx > dy) {
+            targetY = shapeOrigY; 
+        } else {
+            // Иначе выравниваем X
+            targetX = shapeOrigX; 
+        }
+    }
+    // ------------------------------------
+
+    activeShape.set({ x2: targetX, y2: targetY });
+}
+			
+            else {
+                // --- РАСЧЕТ ТОЧЕК ДЛЯ ПОЛИГОНОВ ---
+                let points = [];
+                // Рисуем от 0,0 до w,h. Инверсия w и h работает корректно внутри массива.
+                if (type === 'rightTriangle') {
+                    points = [{ x: 0, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+                } else if (type === 'scalene') {
+                    points = [{ x: w * 0.3, y: 0 }, { x: w, y: h }, { x: 0, y: h * 0.8 }];
+                } else if (type === 'trapezoid') {
+                    points = [{ x: w * 0.2, y: 0 }, { x: w * 0.8, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+                } else if (type === 'rhombus') {
+                    points = [{ x: w / 2, y: 0 }, { x: w, y: h / 2 }, { x: w / 2, y: h }, { x: 0, y: h / 2 }];
+                } else if (type === 'parallelogram') {
+                    points = [{ x: w * 0.2, y: 0 }, { x: w, y: 0 }, { x: w * 0.8, y: h }, { x: 0, y: h }];
+                } else if (type === 'pentagon') {
+                    points = [{ x: w/2, y:0 }, { x: w, y: h*0.38 }, { x: w*0.81, y: h }, { x: w*0.19, y: h }, { x: 0, y: h*0.38 }];
+                } else if (type === 'hexagon') {
+                    points = [{ x: w*0.25, y:0 }, { x: w*0.75, y:0 }, { x: w, y: h*0.5 }, { x: w*0.75, y: h }, { x: w*0.25, y: h }, { x: 0, y: h*0.5 }];
+                } else if (type === 'outlineArrow') {
+                    points = [
+                        { x: 0, y: h*0.35 }, { x: w*0.6, y: h*0.35 }, { x: w*0.6, y: 0 }, 
+                        { x: w, y: h*0.5 }, { x: w*0.6, y: h }, { x: w*0.6, y: h*0.65 }, { x: 0, y: h*0.65 }
+                    ];
+                }
+
+                // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ:
+                // 1. Обновляем массив точек
+                activeShape.points = points;
+                // 2. Вызываем внутренний метод Fabric для пересчета размеров и центра (pathOffset)
+                activeShape._setPositionDimensions({});
+                // 3. Принудительно ставим левый верхний угол в точку старта
+                // (При инверсии w/h метод _setPositionDimensions сам найдет верный Left/Top)
+                activeShape.set({ left: shapeOrigX, top: shapeOrigY });
+            }
+            canvas.requestRenderAll();
+        }
+		
+        broadcastCursor(o.e);
+    });
+    // Завершение рисования фигур
+    canvas.on('mouse:up', () => {
+	// --- ПАНОРАМИРОВАНИЕ: КОНЕЦ ---
+    if (isPanning) {
+        isPanning = false;
+        canvas.setCursor('grab'); // Возвращаем "раскрытую руку", так как пробел еще нажат
+        return; 
+    }
+    // -------
+	// === ЛОГИКА ЛАСТИКА ===
+    if (currentTool === 'eraser') {
+        isErasing = false;
+    }
+        if (isDrawingShape && activeShape) {
+            isDrawingShape = false;
+            activeShape.setCoords();
+
+       addToHistory(activeShape);
+broadcast('draw', { data: activeShape.toObject(['id']) });
+            activeShape = null;
+        }
+    });
+
+
+
+    // Сохранение карандашных линий
+    canvas.on('path:created', (e) => {
+        if (isMultitouch) { canvas.remove(e.path); return; } // Защита
+        e.path.id = Math.random().toString(36).substr(2, 9);
+        addToHistory(e.path);
+        broadcast('draw', { data: e.path.toObject(['id']) });
+    });
+
+	
+	canvas.on('object:modified', (e) => {
+    const target = e.target;
+    if (!target) return;
+
+    const syncProps = [
+        'id', 'isPinned', 
+        'lockMovementX', 'lockMovementY', 
+        'lockRotation', 
+        'lockScalingX', 'lockScalingY', 
+        'hasControls', 'borderColor', 'hoverCursor'
+    ];
+
+    if (target.type === 'activeSelection') {
+        const objects = target.getObjects();
+        canvas.discardActiveObject(); 
+        
+        objects.forEach(obj => {
+            broadcast('modified', { data: obj.toObject(syncProps) });
+        });
+
+        const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
+        canvas.setActiveObject(sel);
+        canvas.requestRenderAll();
+        
+    } else {
+        broadcast('modified', { data: target.toObject(syncProps) });
+    }
+});
+
+
+		//////////
+		// ==========================================
+    // LIVE SYNC (ПЛАВНОЕ ДВИЖЕНИЕ)
+    // ==========================================
+    
+    let lastMoveSend = 0;
+    const MOVE_THROTTLE_MS = 40; // ~25 кадров в секунду (можно уменьшить до 20 для 50 FPS)
+
+    function handleLiveSync(e) {
+        const target = e.target;
+        if (!target) return;
+
+        // Ограничение частоты отправки (чтобы не забить канал и не вешать браузер)
+        const now = Date.now();
+        if (now - lastMoveSend < MOVE_THROTTLE_MS) return;
+
+        const syncProps = [
+            'id', 'isPinned', 
+            'lockMovementX', 'lockMovementY', 
+            'lockRotation', 
+            'lockScalingX', 'lockScalingY', 
+            'hasControls', 'borderColor', 'hoverCursor'
+        ];
+
+        // Используем тот же тип 'modified', так как логика обновления на клиенте одинаковая
+        // Если объект группа - отправляем данные каждого объекта внутри
+        if (target.type === 'activeSelection') {
+             target.getObjects().forEach(obj => {
+                broadcast('modified', { data: obj.toObject(syncProps) });
+            });
+        } else {
+            broadcast('modified', { data: target.toObject(syncProps) });
+        }
+
+        lastMoveSend = now;
+    }
+
+    // Подключаем слушатели "живых" событий
+    canvas.on('object:moving', handleLiveSync);
+    canvas.on('object:scaling', handleLiveSync);
+    canvas.on('object:rotating', handleLiveSync);
+	
+    // ==========================================
+    // 4. TOUCH PAN & ZOOM (CUSTOM LOGIC)
+    // ==========================================
+    
+    // Переменные для расчета жестов
+    let touchStartScale = 1;
+    let touchStartDist = 0;
+    let touchStartPoint = { x: 0, y: 0 };
+    let isGesturing = false;
+
+    // 1. Начало жеста
+    canvas.upperCanvasEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            isGesturing = true;
+            isMultitouch = true;
+            
+            // Расчет дистанции для зума
+            touchStartDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            touchStartScale = canvas.getZoom();
+            
+            // Расчет центра для панорамирования
+            touchStartPoint = {
+                x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+            };
+            
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    // 2. Движение (Зум + Сдвиг)
+    canvas.upperCanvasEl.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && isGesturing) {
+            e.preventDefault();
+
+            // --- ZOOM ---
+            const dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            let zoom = touchStartScale * (dist / touchStartDist);
+            if(zoom > 10) zoom = 10;
+            if(zoom < 0.1) zoom = 0.1;
+
+            // --- PAN ---
+            // Текущий центр пальцев
+            const currentPoint = {
+                x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+            };
+            
+            // Сдвиг относительно прошлого кадра (здесь упрощенно - относительно старта и пересчет)
+            // Но лучше считать дельту от последнего движения. 
+            // Реализуем через дельту:
+            const deltaX = currentPoint.x - touchStartPoint.x;
+            const deltaY = currentPoint.y - touchStartPoint.y;
+
+            // Применяем зум к точке центра пальцев
+            canvas.zoomToPoint({ x: currentPoint.x, y: currentPoint.y }, zoom);
+
+            // Применяем сдвиг
+            const vpt = canvas.viewportTransform;
+            vpt[4] += deltaX;
+            vpt[5] += deltaY;
+            
+            canvas.requestRenderAll();
+
+            // Обновляем "старт" для следующего микро-сдвига, чтобы движение было плавным
+            touchStartPoint = currentPoint;
+            touchStartScale = zoom; 
+            touchStartDist = dist; 
+        }
+    }, { passive: false });
+
+    // 3. Конец жеста
+    canvas.upperCanvasEl.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) {
+            isGesturing = false;
+            // Небольшая задержка перед возвратом инструмента, чтобы не поставить точку
+            setTimeout(() => {
+                isMultitouch = false;
+                if (currentTool === 'pen' || currentTool === 'highlighter') {
+                    canvas.isDrawingMode = true;
+                }
+            }, 100);
+        }
+    });
+
+    // Mouse Wheel Zoom
+    canvas.on('mouse:wheel', function(opt) {
+        if(opt.e.ctrlKey) return;
+        const delta = opt.e.deltaY;
+        let zoom = canvas.getZoom();
+        zoom *= 0.999 ** delta;
+        if (zoom > 10) zoom = 10; if (zoom < 0.1) zoom = 0.1;
+        canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+        opt.e.preventDefault(); opt.e.stopPropagation();
+    });
+
+
+		    // ==========================================
+    // 5. P2P NETWORKING WITH SERVER FALLBACK
+    // ==========================================
+    const apiKey = "697dc400a54586b969788cd2";
+    const domain = "4i3.metered.live";
+    
+    let peer = null;
+    let conn = null;
+    let myId = null;
+    let connectionMode = "offline"; // "direct", "server", "offline", "connecting", "hosting", "connected"
+    let connectionAttempts = 0;
+    const MAX_ATTEMPTS = 2;
+    let isHost = false;
+    let reconnectTimeout = null;
+
+    function initPeer(useServer = false) {
+        if (peer) {
+            peer.destroy();
+            peer = null;
+        }
+
+        const options = useServer ? {
+            host: domain,
+            port: 443,
+            path: '/peerjs',
+            key: apiKey,
+            secure: true,
+            config: {
+                'iceServers': [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' }
+                ]
+            }
+        } : {
+            config: {
+                'iceServers': [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            }
+        };
+
+        peer = new Peer(options);
+        setupPeerEvents(useServer);
+    }
+
+    function setupPeerEvents(isServerMode) {
+        peer.on('open', (id) => {
+            myId = id;
+            connectionMode = isServerMode ? "server" : "direct";
+            const modeText = isServerMode ? "Server Relay" : "Direct P2P";
+            
+            // Если мы хост, показываем "Ready to connect"
+            if (isHost) {
+                setStatus(`Hosting (${modeText})`, 'ok');
+            } else {
+                setStatus(`Ready (${modeText})`, 'ok');
+            }
+            
+            document.getElementById('my-id-display').value = id;
+            connectionAttempts = 0;
+            
+            console.log(`Peer opened: ${id}, mode: ${connectionMode}, isHost: ${isHost}`);
+        });
+
+        peer.on('error', (err) => {
+            console.error('PeerJS Error:', err.type, err.message);
+            
+            if (err.type === 'unavailable-id' || err.type === 'server-error') {
+                if (!isServerMode && connectionAttempts < MAX_ATTEMPTS) {
+                    connectionAttempts++;
+                    setStatus('Trying server relay...', 'err');
+                    setTimeout(() => initPeer(true), 1000);
+                } else if (isServerMode && connectionAttempts < MAX_ATTEMPTS) {
+                    connectionAttempts++;
+                    setStatus('Trying direct P2P...', 'err');
+                    setTimeout(() => initPeer(false), 1000);
+                } else {
+                    connectionMode = "offline";
+                    setStatus('Offline', 'err');
+                }
+            } else if (err.type === 'peer-unavailable') {
+                setStatus('Peer unavailable', 'err');
+            } else if (err.type === 'network') {
+                setStatus('Network error', 'err');
+            } else {
+                setStatus('Connection error', 'err');
+            }
+        });
+
+        peer.on('connection', (c) => {
+            console.log('Incoming connection received');
+            
+            // Если у нас уже есть соединение, закрываем старое
+            if (conn && conn.open) {
+                conn.close();
+            }
+            
+            conn = c;
+            setupConn();
+            
+            // Когда соединение открывается, отправляем синхронизацию
+            c.on('open', () => {
+                console.log('Incoming connection opened');
+                setTimeout(() => {
+                    const syncProps = [
+                        'id', 'isPinned', 
+                        'lockMovementX', 'lockMovementY', 
+                        'lockRotation', 
+                        'lockScalingX', 'lockScalingY', 
+                        'hasControls', 'borderColor', 'hoverCursor'
+                    ];
+                    if (conn && conn.open) {
+                        conn.send({ type: 'sync', data: JSON.stringify(canvas.toJSON(syncProps)) });
+                    }
+                }, 500);
+            });
+        });
+    }
+
+    // Инициализируем сначала прямое соединение
+    initPeer(false);
+
+    function setStatus(msg, type) {
+        const el = document.getElementById('status-indicator');
+        el.innerText = msg;
+        
+        if (type === 'ok') {
+            el.style.background = '#d1fae5';
+            el.style.color = '#065f46';
+        } else {
+            el.style.background = '#fee2e2';
+            el.style.color = '#991b1b';
+        }
+        
+        // Добавляем иконку режима подключения
+        let icon = "";
+        if (msg.includes("Direct P2P") || connectionMode === "direct") {
+            icon = "🔗";
+        } else if (msg.includes("Server Relay") || connectionMode === "server") {
+            icon = "🔄";
+        } else if (msg.includes("Offline") || connectionMode === "offline") {
+            icon = "🔴";
+        } else if (msg.includes("Hosting") || isHost) {
+            icon = "👑";
+        } else if (msg.includes("Ready") || connectionMode === "ready") {
+            icon = "🟢";
+        } else if (msg.includes("Connecting") || connectionMode === "connecting") {
+            icon = "⏳";
+        } else if (msg.includes("Connected") || connectionMode === "connected") {
+            icon = "✅";
+        }
+        
+        // Обновляем заголовок для подсказки
+        el.title = `Connection mode: ${connectionMode.toUpperCase()}`;
+        
+        // Вставляем иконку перед текстом
+        if (icon && !el.innerHTML.includes(icon)) {
+            el.innerHTML = `${icon} ${msg}`;
+        }
+    }
+
+    window.startHost = () => {
+        isHost = true;
+        document.getElementById('host-controls').classList.add('hidden');
+        document.getElementById('join-controls').classList.add('hidden');
+        document.getElementById('session-info').classList.remove('hidden');
+        
+        if (myId) {
+            const modeText = connectionMode === "direct" ? "Direct P2P" : "Server Relay";
+            setStatus(`Hosting (${modeText})`, 'ok');
+        } else {
+            setStatus('Initializing connection...', 'err');
+        }
+    };
+
+    window.copyId = () => {
+        const el = document.getElementById('my-id-display');
+        el.select();
+        navigator.clipboard.writeText(el.value);
+        const btn = document.querySelector('.btn-copy');
+        btn.innerText = 'Copied!';
+        setTimeout(() => btn.innerText = 'Copy', 1500);
+    };
+
+    window.joinPeer = () => {
+        const id = document.getElementById('remote-id-input').value.trim();
+        if (!id) return;
+        
+        // Проверяем, что у нас есть собственный ID
+        if (!myId) {
+            setStatus('Not ready yet, initializing...', 'err');
+            return;
+        }
+        
+        let attemptDirect = true;
+        let connectionAttempt = 0;
+        
+        function tryConnect() {
+            if (connectionAttempt >= 2) {
+                setStatus('Connection failed', 'err');
+                connectionMode = "offline";
+                return;
+            }
+            
+            // Очищаем предыдущее соединение
+            if (conn) {
+                conn.close();
+                conn = null;
+            }
+            
+            if (attemptDirect) {
+                setStatus('Connecting (Direct P2P)...', 'err');
+                connectionMode = "connecting";
+                conn = peer.connect(id, { 
+                    reliable: true,
+                    serialization: 'json'
+                });
+            } else {
+                setStatus('Connecting (Server Relay)...', 'err');
+                connectionMode = "connecting";
+                conn = peer.connect(id, { 
+                    reliable: true,
+                    serialization: 'json'
+                });
+            }
+            
+            setupConn();
+            
+            conn.on('open', () => {
+                console.log('Outgoing connection opened successfully');
+                const modeText = attemptDirect ? "Direct P2P" : "Server Relay";
+                setStatus(`Connected (${modeText})`, 'ok');
+                connectionMode = "connected";
+                
+                // Убираем поле ввода и показываем только статус (без дублирования)
+                const joinControls = document.getElementById('join-controls');
+                joinControls.classList.add('hidden');
+                
+                document.getElementById('session-info').classList.remove('hidden');
+                document.getElementById('host-controls').classList.add('hidden');
+                
+                // Сбрасываем счетчик попыток
+                connectionAttempt = 0;
+            });
+            
+            conn.on('error', (err) => {
+                console.error('Connection error:', err);
+                if (attemptDirect) {
+                    attemptDirect = false;
+                    connectionAttempt++;
+                    setTimeout(tryConnect, 1000);
+                } else {
+                    connectionAttempt++;
+                    setTimeout(tryConnect, 1000);
+                }
+            });
+        }
+        
+        tryConnect();
+    };
+
+    function setupConn() {
+        if (!conn) return;
+        
+        conn.on('open', () => {
+            console.log('Connection opened in setupConn');
+            const modeText = connectionMode === "direct" ? "Direct P2P" : "Server Relay";
+            setStatus(`Connected (${modeText})`, 'ok');
+            connectionMode = "connected";
+        });
+        
+        conn.on('error', (err) => {
+            console.error('Data connection error:', err);
+            
+            // Не показываем "Connection lost" сразу, пытаемся восстановить
+            if (connectionMode === "connected") {
+                setStatus('Connection interrupted, reconnecting...', 'err');
+                
+                // Пытаемся переподключиться через 2 секунды
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(() => {
+                    if (isHost && myId) {
+                        // Хост ждет повторного подключения
+                        setStatus('Hosting (Waiting for connection...)', 'ok');
+                    } else if (!isHost && myId) {
+                        // Партнер пытается переподключиться
+                        const remoteId = document.getElementById('remote-id-input').value.trim();
+                        if (remoteId) {
+                            window.joinPeer();
+                        }
+                    }
+                }, 2000);
+            } else {
+                setStatus('Connection failed', 'err');
+            }
+            
+            connectionMode = "offline";
+        });
+        
+        conn.on('close', () => {
+            console.log('Connection closed');
+            if (connectionMode === "connected") {
+                setStatus('Disconnected', 'err');
+                connectionMode = "offline";
+            }
+        });
+        
+        conn.on('data', (msg) => {
+            console.log('Data received:', msg.type);
+            
+            if (msg.type === 'cursor') updatePartnerCursor(msg.x, msg.y);
+            else if (msg.type === 'draw') {
+                fabric.util.enlivenObjects([msg.data], (objs) => {
+                    objs.forEach(o => canvas.add(o));
+                    canvas.requestRenderAll();
+                });
+            }
+            else if (msg.type === 'sync') {
+                canvas.loadFromJSON(JSON.parse(msg.data), () => {
+                    canvas.requestRenderAll();
+                    console.log('Canvas synchronized');
+                });
+            }
+            else if (msg.type === 'delete') {
+                const obj = canvas.getObjects().find(o => o.id === msg.id);
+                if (obj) {
+                    if (obj.isPinned) return;
+                    canvas.remove(obj);
+                    canvas.requestRenderAll();
+                }
+            }
+            else if (msg.type === 'modified') {
+                const obj = canvas.getObjects().find(o => o.id === msg.data.id);
+                if (obj) { 
+                    const active = canvas.getActiveObject();
+                    if (active && (active === obj || (active.type === 'activeSelection' && active.getObjects().includes(obj)))) {
+                        canvas.discardActiveObject();
+                    }
+                    obj.set(msg.data); 
+                    obj.setCoords(); 
+                    canvas.requestRenderAll(); 
+                }
+            }
+        });
+    }
+    
+    function broadcast(type, payload) {
+        if (conn && conn.open) {
+            try {
+                conn.send({ type, ...payload });
+            } catch (err) {
+                console.error('Broadcast failed:', err);
+            }
+        }
+    }
+	
+	/////////////////конец блока peer
+    let partnerCursor;
+ 
+function updatePartnerCursor(x, y) {
+        // 1. Создание курсора (Стрелка + Текст), если его нет
+        if (!partnerCursor) {
+            const cursorArrow = new fabric.Path('M0 0L0 20L5 16L16 16Z', { 
+                fill: '#fa3f5e', 
+                stroke: '#fff', 
+                strokeWidth: 1,
+                originX: 'left', 
+                originY: 'top'
+            });
+
+            const cursorLabel = new fabric.Text("   I'm here", { 
+                fontSize: 6, 
+                left: 12, 
+                top: 12, 
+                fill: '#f43f5e', 
+                fontFamily: 'sans-serif' 
+            });
+
+            partnerCursor = new fabric.Group([cursorArrow, cursorLabel], { 
+                selectable: false, 
+                evented: false, 
+                excludeFromExport: true 
+            });
+            canvas.add(partnerCursor);
+        }
+
+        // 2. Расчет границ экрана для "прилипания"
+        const vpt = canvas.viewportTransform;
+        const zoom = canvas.getZoom();
+        const padding = 20; 
+
+        // Границы видимой области
+        const minX = (-vpt[4] / zoom) + padding;
+        const maxX = ((canvas.width - vpt[4]) / zoom) - padding;
+        const minY = (-vpt[5] / zoom) + padding;
+        const maxY = ((canvas.height - vpt[5]) / zoom) - padding;
+
+        // "Прижимаем" координаты к краям, если они вышли за пределы
+        const clampedX = Math.max(minX, Math.min(maxX, x));
+        const clampedY = Math.max(minY, Math.min(maxY, y));
+
+        // Обновляем позицию
+        partnerCursor.set({ left: clampedX, top: clampedY });
+
+        // Если курсор реально за экраном - делаем его полупрозрачным
+        if (x < minX || x > maxX || y < minY || y > maxY) {
+            partnerCursor.set('opacity', 0.5);
+        } else {
+            partnerCursor.set('opacity', 1.0);
+        }
+
+        partnerCursor.bringToFront();
+        canvas.requestRenderAll();
+    }
+
+    let lastCursorSend = 0;
+    function broadcastCursor(e) {
+        const now = Date.now();
+        if (now - lastCursorSend > 50 && conn && conn.open) {
+            const pointer = canvas.getPointer(e);
+            conn.send({ type: 'cursor', x: pointer.x, y: pointer.y });
+            lastCursorSend = now;
+        }
+    }
+
+   // ГОРЯЧИЕ КЛАВИШИ (С поддержкой любой раскладки)
+    window.addEventListener('keydown', (e) => {
+        // Если печатаем в поле ввода (например, ID), горячие клавиши не должны срабатывать
+        if (e.target.tagName === 'INPUT') return;
+
+        // Undo: Ctrl + Z (или Cmd + Z на Mac)
+        // Используем e.code === 'KeyZ', чтобы работало и на русской раскладке (Я)
+        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+            e.preventDefault();
+            undo();
+            return;
+        }
+
+        // Delete / Backspace для удаления
+        if (e.code === 'Delete' || e.code === 'Backspace') {
+            deleteSelected();
+            return;
+        }
+
+        // Инструменты (используем физические коды клавиш)
+        switch (e.code) {
+            case 'KeyV': // Клавиша V (М)
+                activateTool('select');
+                break;
+            case 'KeyP': // Клавиша P (З)
+                activateTool('pen', true);
+                break;
+            case 'KeyH': // Клавиша H (Р)
+                activateTool('highlighter', true);
+                break;
+            case 'KeyE': // Клавиша E (У)
+                activateTool('eraser');
+                break;
+            case 'KeyR': // Клавиша R (К) - Прямоугольник
+                setShapeType('rect');
+                activateTool('shape', true);
+                break;
+            case 'KeyC': // Клавиша C (С) - Круг
+                setShapeType('circle');
+                activateTool('shape', true);
+                break;
+            case 'KeyL': // Клавиша L (Д) - Линия
+                setShapeType('line');
+                activateTool('shape', true);
+                break;
+            case 'KeyA': // Клавиша A (Ф) - Стрелка
+                setShapeType('arrow');
+                activateTool('shape', true);
+                break;
+        }
+    });
+	
+	
+	// ==========================================
+    // НОВАЯ ЛОГИКА ЗАЩИТЫ (БЕЗ РЫВКОВ)
+    // ==========================================
+
+    // Проверка: содержит ли объект (или группа) закрепленные элементы
+    function hasPinnedObjects(target) {
+        if (!target) return false;
+        // Если это группа или мульти-выделение
+        if (target.type === 'activeSelection' || target.type === 'group') {
+            return target.getObjects().some(o => o.isPinned === true);
+        }
+        // Если это одиночный объект
+        return target.isPinned === true;
+    }
+
+    // Главная функция: Применяет блокировку СРАЗУ при выделении
+    function applySelectionLocks(e) {
+        const target = e.target;
+        if (!target) return;
+
+        // Проверяем, есть ли внутри "мина"
+        const isLocked = hasPinnedObjects(target);
+
+        // Применяем свойства блокировки к самой рамке выделения
+        // FabricJS увидит эти флаги ДО начала перетаскивания
+        target.set({
+            lockMovementX: isLocked,
+            lockMovementY: isLocked,
+            lockRotation: isLocked,
+            lockScalingX: isLocked,
+            lockScalingY: isLocked,
+            lockSkewingX: isLocked,
+            lockSkewingY: isLocked,
+            
+            // Убираем ручки управления, если заблокировано
+            hasControls: !isLocked,
+            
+            // Визуальная индикация (Красный = стоп)
+            borderColor: isLocked ? '#ef4444' : '#2563eb',
+            hoverCursor: isLocked ? 'not-allowed' : 'move'
+        });
+        
+        // Если это группа, принудительно обновляем её состояние
+        if (isLocked && (target.type === 'activeSelection' || target.type === 'group')) {
+             target.setCoords();
+        }
+        
+        canvas.requestRenderAll();
+    }
+
+    // 1. Срабатывает при создании нового выделения
+    canvas.on('selection:created', applySelectionLocks);
+
+    // 2. Срабатывает при добавлении объекта в выделение (Shift+Click)
+    canvas.on('selection:updated', applySelectionLocks);
+
+    // 3. Страховка: before:transform срабатывает ровно в момент нажатия мыши,
+    // но ДО того, как начались вычисления движения.
+    canvas.on('before:transform', (e) => {
+        const target = e.transform.target;
+        if (hasPinnedObjects(target)) {
+            // Если вдруг свойства слетели, восстанавливаем их жестко
+            target.lockMovementX = true;
+            target.lockMovementY = true;
+            target.lockRotation = true;
+            target.lockScalingX = true;
+            target.lockScalingY = true;
+        }
+    });
+	
+// ==========================================
+    // 6. SAVE & LOAD SYSTEM
+    // ==========================================
+
+    // Функция сохранения (Скачивание JSON файла)
+   function saveBoard() {
+        // Сохраняем ID и статус Pin
+        const syncProps = [
+            'id', 'isPinned', 
+            'lockMovementX', 'lockMovementY', 
+            'lockRotation', 
+            'lockScalingX', 'lockScalingY', 
+            'hasControls', 'borderColor', 'hoverCursor'
+        ];
+        const json = JSON.stringify(canvas.toJSON(syncProps));
+        
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `board-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    // Функция открытия (Чтение файла и отрисовка)
+    
+	
+	function openBoard(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const contents = e.target.result;
+            try {
+                const json = JSON.parse(contents);
+                
+                canvas.loadFromJSON(json, () => {
+                    canvas.renderAll();
+                    
+                    if (conn && conn.open) {
+                        const syncProps = [
+                            'id', 'isPinned', 
+                            'lockMovementX', 'lockMovementY', 
+                            'lockRotation', 
+                            'lockScalingX', 'lockScalingY', 
+                            'hasControls', 'borderColor', 'hoverCursor'
+                        ];
+                        // Отправляем полную структуру с ID и блокировками
+                        conn.send({ type: 'sync', data: JSON.stringify(canvas.toJSON(syncProps)) });
+                    }
+                    input.value = ''; 
+                });
+                
+            } catch (err) {
+                console.error("Error parsing JSON:", err);
+                alert("Не удалось прочитать файл доски.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+
+		// ==========================================
+    // 7. IMPORT SYSTEM (Images & PDF)
+    // ==========================================
+
+    async function handleImport(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // Сброс инпута, чтобы можно было выбрать тот же файл снова
+        input.value = '';
+
+        if (file.type.includes('image')) {
+            // === ОБРАБОТКА КАРТИНОК (JPG, PNG) ===
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                fabric.Image.fromURL(f.target.result, (img) => {
+                    setupImportedImage(img);
+                });
+            };
+            reader.readAsDataURL(file);
+
+        } else if (file.type === 'application/pdf') {
+            // === ОБРАБОТКА PDF ===
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const typedarray = new Uint8Array(e.target.result);
+                
+                try {
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    
+                    // Предупреждение, если страниц много (например, больше 5)
+                    if (pdf.numPages > 5) {
+                        const doLoad = confirm(`PDF содержит ${pdf.numPages} страниц. Это может занять время. Загрузить все?`);
+                        if (!doLoad) return;
+                    }
+
+                    // Читаем страницы по очереди
+                    let currentTop = 100; // Начальная позиция по Y
+                    
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: 1.5 }); // Масштаб качества (1.5 для четкости)
+                        
+                        // Создаем временный канвас для рендера PDF
+                        const canvasTmp = document.createElement('canvas');
+                        const context = canvasTmp.getContext('2d');
+                        canvasTmp.height = viewport.height;
+                        canvasTmp.width = viewport.width;
+
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                        // Конвертируем в fabric.Image
+                        const imgData = canvasTmp.toDataURL('image/png');
+                        fabric.Image.fromURL(imgData, (img) => {
+                            img.set({ top: currentTop, left: 100 });
+                            setupImportedImage(img);
+                            
+                            // Сдвигаем следующую страницу вниз
+                            currentTop += (img.height * img.scaleY) + 20; 
+                        });
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Ошибка при чтении PDF. Возможно файл поврежден.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    }
+
+    // Общая функция настройки импортированного объекта
+    function setupImportedImage(img) {
+        // Ограничиваем размер, если картинка гигантская
+        if (img.width > 800) {
+            img.scaleToWidth(800);
+        }
+
+        img.set({
+            id: 'img-' + Math.random().toString(36).substr(2, 9), // ID для синхронизации
+            left: img.left || 100,
+            top: img.top || 100
+        });
+
+        canvas.add(img);
+        canvas.setActiveObject(img);
+        
+        // Отправляем партнеру
+        if (conn && conn.open) {
+            broadcast('draw', { data: img.toObject(['id']) });
+        }
+        
+        // Сохраняем в историю для Ctrl+Z
+        addToHistory(img);
+    }
+
+		// ==========================================
+// ПАНОРАМИРОВАНИЕ СТРЕЛКАМИ (ARROWS)
+// ==========================================
+window.addEventListener('keydown', (e) => {
+    // 1. Если активен режим ввода текста (IText), ничего не делаем (пусть курсор бегает по тексту)
+    if (canvas.getActiveObject() && canvas.getActiveObject().isEditing) {
+        return;
+    }
+
+    // 2. Если выбран какой-то объект, ничего не делаем (пусть стрелки двигают объект)
+    // Если вы хотите, чтобы холст двигался ВСЕГДА, удалите этот блок if
+    if (canvas.getActiveObject()) {
+        return;
+    }
+
+    const step = 20; // На сколько пикселей сдвигать за одно нажатие
+    const vpt = canvas.viewportTransform;
+    let changed = false;
+
+    switch (e.code) {
+        case 'ArrowUp':
+            // Двигаем камеру вверх -> контент смещается вниз
+            vpt[5] += step;
+            changed = true;
+            break;
+        case 'ArrowDown':
+            // Двигаем камеру вниз -> контент смещается вверх
+            vpt[5] -= step;
+            changed = true;
+            break;
+        case 'ArrowLeft':
+            // Двигаем камеру влево -> контент смещается вправо
+            vpt[4] += step;
+            changed = true;
+            break;
+        case 'ArrowRight':
+            // Двигаем камеру вправо -> контент смещается влево
+            vpt[4] -= step;
+            changed = true;
+            break;
+    }
+
+    if (changed) {
+        e.preventDefault(); // Блокируем прокрутку самой веб-страницы
+        canvas.requestRenderAll();
+    }
+});
+		
+		// ==========================================
+// 4. COPY / PASTE SYSTEM (Clipboard API)
+// ==========================================
+
+// 1. Обработка COPY (Ctrl+C)
+window.addEventListener('keydown', (e) => {
+    // Проверяем нажатие Ctrl+C (или Cmd+C для Mac)
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyC')) {
+        const active = canvas.getActiveObject();
+        // Копируем только если есть выделение и мы не в режиме ввода текста
+        if (active && !canvas.isEditing && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            
+            // Клонируем объект, чтобы получить чистые данные
+            active.clone((cloned) => {
+                // Преобразуем в JSON. Важно включить кастомные поля, если они есть.
+                // В вашем коде используется 'id', его не копируем, чтобы создать новый при вставке.
+                const jsonStr = JSON.stringify(cloned.toObject(['type', 'stroke', 'strokeWidth', 'fill', 'isPinned']));
+                
+                // Записываем в буфер обмена как текст
+                navigator.clipboard.writeText(jsonStr).then(() => {
+                    console.log('Object copied to clipboard');
+                    // Визуальный фидбек (опционально)
+                    const prevBorder = active.borderColor;
+                    active.set('borderColor', '#00ff00'); // Мигнуть зеленым
+                    canvas.requestRenderAll();
+                    setTimeout(() => { 
+                        active.set('borderColor', prevBorder); 
+                        canvas.requestRenderAll(); 
+                    }, 300);
+                }).catch(err => {
+                    console.error('Copy failed:', err);
+                });
+            });
+        }
+    }
+});
+
+// 2. Обработка PASTE (Ctrl+V)
+window.addEventListener('paste', async (e) => {
+    // Не вставляем, если фокус в поле ввода (например, ID партнера)
+    if (document.activeElement.tagName === 'INPUT') return;
+
+    e.preventDefault();
+
+    // --- СЦЕНАРИЙ А: Вставка КАРТИНКИ (скриншот из буфера) ---
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.includes('image/')) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgObj = new Image();
+                imgObj.src = event.target.result;
+                imgObj.onload = () => {
+                    const imgInstance = new fabric.Image(imgObj);
+                    // Если картинка огромная, уменьшаем ее под размер экрана
+                    if (imgInstance.width > canvas.width / 2) {
+                        imgInstance.scaleToWidth(canvas.width / 2);
+                    }
+                    finalizePaste(imgInstance);
+                };
+            };
+            reader.readAsDataURL(blob);
+            return; // Прерываем, так как нашли картинку
+        }
+    }
+
+    // --- СЦЕНАРИЙ Б: Вставка ОБЪЕКТА (JSON из нашего борда) ---
+    try {
+        const text = await navigator.clipboard.readText();
+        // Пытаемся распарсить JSON
+        const data = JSON.parse(text);
+
+        // Проверяем, похоже ли это на объект Fabric (есть type или objects)
+        if (data.type || data.objects) {
+            fabric.util.enlivenObjects([data], (objects) => {
+                objects.forEach((obj) => {
+                    // Если это группа (ActiveSelection), разбираем её на части,
+                    // так как синхронизировать группу целиком сложно.
+                    if (obj.type === 'activeSelection') {
+                        obj.canvas = canvas; // Привязываем к канвасу для расчетов
+                        obj.destroy(); // "Взрываем" группу, координаты пересчитываются в абсолютные
+                        const kids = obj.getObjects();
+                        kids.forEach(kid => finalizePaste(kid));
+                        
+                        // Сразу выделяем вставленное
+                        const sel = new fabric.ActiveSelection(kids, { canvas: canvas });
+                        canvas.setActiveObject(sel);
+                    } else {
+                        finalizePaste(obj);
+                        canvas.setActiveObject(obj);
+                    }
+                    canvas.requestRenderAll();
+                });
+            });
+        }
+    } catch (err) {
+        // Если это не JSON, значит просто текст или мусор — игнорируем
+        // console.log('Clipboard content is not a valid board object');
+    }
+});
+
+// Вспомогательная функция для регистрации объекта (Sync + History)
+function finalizePaste(obj) {
+    // 1. Генерируем НОВЫЙ ID (критично для P2P)
+    obj.id = Math.random().toString(36).substr(2, 9);
+
+    // 2. Смещаем позицию, чтобы не накладывалось 1-в-1
+    // Пытаемся поместить в центр видимой области экрана
+    const vpt = canvas.viewportTransform;
+    const centerX = (canvas.getWidth() / 2 - vpt[4]) / vpt[0];
+    const centerY = (canvas.getHeight() / 2 - vpt[5]) / vpt[3];
+    
+    // Добавляем случайный разброс, чтобы при многократной вставке была "стопка"
+    const offset = (Math.random() * 40) - 20;
+    
+    // Если у объекта были координаты (copy/paste), смещаем их относительно центра
+    // Но проще просто поставить в центр:
+    obj.set({
+        left: centerX + offset,
+        top: centerY + offset,
+        evented: true
+    });
+    
+    // Снимаем блокировки (если копировали закрепленный объект)
+    if (obj.isPinned) {
+        obj.set({
+            isPinned: false,
+            lockMovementX: false, lockMovementY: false,
+            lockRotation: false, lockScalingX: false, lockScalingY: false,
+            hasControls: true, borderColor: '#2563eb'
+        });
+    }
+
+    // 3. Добавляем на канву
+    canvas.add(obj);
+    obj.setCoords();
+
+    // 4. ИНТЕГРАЦИЯ: История и Синхронизация
+    // Используем ваши существующие функции
+    addToHistory(obj);
+    if (typeof broadcast === 'function') {
+        broadcast('draw', { data: obj.toObject(['id']) });
+    }
+}
+		
+</script>
+</body>
+</html>
