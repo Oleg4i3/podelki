@@ -125,9 +125,19 @@
 			  <div class="submenu" id="pen-menu">
                     <h4>Pen Color</h4>
                     <div class="color-row" id="pen-colors"></div>
-                    <h4>Width</h4>
-                    <input type="range" min="1" max="20" value="2" class="width-slider" oninput="updatePenWidth(this.value)">
-                </div>
+                    
+<h4>Width</h4>
+<input type="range" min="1" max="20" value="2" class="width-slider" oninput="updatePenWidth(this.value)" list="pen-ticks">
+
+<datalist id="pen-ticks">
+    <option value="1"></option>
+    <option value="5"></option>
+    <option value="10"></option>
+    <option value="15"></option>
+    <option value="20"></option>
+</datalist>
+
+					</div>
             </div>
 
             <div style="position: relative;">
@@ -164,8 +174,17 @@
                     <br>
                     <h4>Color & Border</h4>
                     <div class="color-row" id="shape-colors"></div>
-                    <input type="range" min="1" max="5" value="2" class="width-slider" oninput="updateShapeBorder(this.value)">
-                </div>
+               
+			   <input type="range" min="1" max="20" value="2" class="width-slider" oninput="updateShapeBorder(this.value)" list="pen-ticks">
+              
+				<datalist id="pen-ticks">
+    <option value="1"></option>
+    <option value="5"></option>
+    <option value="10"></option>
+    <option value="15"></option>
+    <option value="20"></option>
+</datalist>
+			  </div>
             </div>
 
         </div>
@@ -207,6 +226,78 @@
 </script>
 
 <script>
+
+// ==========================================
+// CUSTOM CLASS: ARROW (Умная отрисовка)
+// ==========================================
+fabric.Arrow = fabric.util.createClass(fabric.Line, {
+    type: 'arrow',
+
+    initialize: function(element, options) {
+        options || (options = {});
+        this.callSuper('initialize', element, options);
+    },
+
+    toObject: function() {
+        return fabric.util.object.extend(this.callSuper('toObject'), {
+            type: 'arrow'
+        });
+    },
+
+    _render: function(ctx) {
+        // 1. Считаем геометрию
+        const p = this.calcLinePoints();
+        const xDiff = p.x2 - p.x1;
+        const yDiff = p.y2 - p.y1;
+        const angle = Math.atan2(yDiff, xDiff);
+        const length = Math.sqrt(xDiff * xDiff + yDiff * yDiff);
+        
+        // Размер наконечника (зависит от толщины)
+        const arrowSize = Math.max(5, this.strokeWidth * 3);
+
+        // 2. Рисуем НАКОНЕЧНИК (треугольник)
+        ctx.save();
+        ctx.translate(p.x2, p.y2);
+        ctx.rotate(angle);
+        
+        ctx.beginPath();
+        // Треугольник начинается от (0,0) и идет назад
+        ctx.moveTo(0, 0); 
+        ctx.lineTo(-arrowSize, arrowSize / 2);
+        ctx.lineTo(-arrowSize, -arrowSize / 2);
+        ctx.closePath();
+        
+        ctx.fillStyle = this.stroke; 
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Рисуем ЛИНИЮ (укороченную)
+        // Если линия слишком короткая (меньше наконечника), не рисуем её вообще, только треугольник
+        if (length > arrowSize) {
+            // Вычисляем коэффициент укорачивания
+            // Нам нужно "откусить" arrowSize от конца линии
+            // Делаем отступ чуть меньше (arrowSize - 1), чтобы линия зашла внутрь треугольника и не было щели
+            const shortenAmount = arrowSize - 1; 
+            const ratio = (length - shortenAmount) / length;
+
+            // Новые координаты конца линии
+            const newX = p.x1 + (xDiff * ratio);
+            const newY = p.y1 + (yDiff * ratio);
+
+            ctx.beginPath();
+            ctx.moveTo(p.x1, p.y1);
+            ctx.lineTo(newX, newY);
+            
+            // Используем встроенный метод для отрисовки штриха (сохраняет стиль, пунктир, тени)
+            this._renderStroke(ctx);
+        }
+    }
+});
+
+// Регистрация класса
+fabric.Arrow.fromObject = function(object, callback) {
+    callback && callback(new fabric.Arrow([object.x1, object.y1, object.x2, object.y2], object));
+};
     // ==========================================
     // 1. INIT & GRID
     // ==========================================
@@ -694,6 +785,47 @@ function handleEraser(e) {
         }
     }
 }
+
+	// ==========================================
+// PANNING (SPACEBAR) LOGIC
+// ==========================================
+let isSpacePressed = false;
+let isPanning = false;
+let lastPosX = 0;
+let lastPosY = 0;
+
+// Слушаем нажатие Пробела
+window.addEventListener('keydown', (e) => {
+    // Если нажали пробел и он еще не был нажат (защита от автоповтора)
+    if (e.code === 'Space' && !isSpacePressed) {
+        isSpacePressed = true;
+        canvas.selection = false; // Отключаем выделение рамкой
+        canvas.defaultCursor = 'grab'; // Меняем курсор на "руку"
+        canvas.discardActiveObject(); // Сбрасываем текущее выделение
+        canvas.requestRenderAll();
+    }
+});
+
+// Слушаем отпускание Пробела
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        isSpacePressed = false;
+        isPanning = false;
+        canvas.selection = true; // Возвращаем возможность выделения
+        
+        // Возвращаем курсор в зависимости от инструмента
+        if (currentTool === 'pen' || currentTool === 'highlighter') {
+            canvas.defaultCursor = 'default'; // или 'crosshair' если хотите
+        } else if (currentTool === 'shape') {
+            canvas.defaultCursor = 'crosshair';
+        } else {
+            canvas.defaultCursor = 'default';
+        }
+        canvas.requestRenderAll();
+    }
+});
+
+		
     // ==========================================
     // 3. DRAWING & MULTITOUCH PROTECTION
     // ==========================================
@@ -723,6 +855,16 @@ function handleEraser(e) {
     canvas.on('mouse:down', (o) => {
 	
 	closeAllMenus(); //
+	
+	// --- ПАНОРАМИРОВАНИЕ: СТАРТ ---
+    if (isSpacePressed) {
+        isPanning = true;
+        canvas.setCursor('grabbing'); // Курсор "сжатая рука"
+        lastPosX = o.e.clientX;
+        lastPosY = o.e.clientY;
+        return; // Прерываем, чтобы не начало рисовать
+    }
+    // ------------------------------
         if (isMultitouch) return; // Защита
 		
 		// === ЛОГИКА ЛАСТИКА ===
@@ -755,12 +897,20 @@ function handleEraser(e) {
                 activeShape = new fabric.Ellipse({ ...opts, rx: 0, ry: 0 });
             } else if (settings.shape.type === 'triangle') {
                 activeShape = new fabric.Triangle({ ...opts, width: 0, height: 0 });
-            } else if (['line', 'dashed', 'arrow'].includes(settings.shape.type)) {
-                activeShape = new fabric.Line([shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY], {
-                    ...opts,
-                    strokeDashArray: settings.shape.type === 'dashed' ? [10, 5] : null
-                });
-            } else {
+         // Разделяем: обычные линии отдельно, стрелка отдельно
+} else if (['line', 'dashed'].includes(settings.shape.type)) {
+    activeShape = new fabric.Line([shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY], {
+        ...opts,
+        strokeDashArray: settings.shape.type === 'dashed' ? [10, 5] : null
+    });
+} else if (settings.shape.type === 'arrow') {
+    // Используем наш новый класс Arrow
+    activeShape = new fabric.Arrow([shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY], {
+        ...opts,
+        // Опционально: убедимся, что нет пунктира, если не нужно
+        strokeDashArray: null 
+    });
+} else {
                 // Создаем полигон. Начальные точки не важны, они обновятся в move
                 activeShape = new fabric.Polygon([{x:0, y:0}, {x:1, y:1}], opts);
             }
@@ -771,7 +921,22 @@ function handleEraser(e) {
 
  // Рисование фигур
     canvas.on('mouse:move', (o) => {
-	
+	// --- ПАНОРАМИРОВАНИЕ: ДВИЖЕНИЕ ---
+    if (isPanning && isSpacePressed) {
+        const e = o.e;
+        const vpt = canvas.viewportTransform;
+        
+        // Сдвигаем вьюпорт на разницу координат мыши
+        vpt[4] += e.clientX - lastPosX;
+        vpt[5] += e.clientY - lastPosY;
+        
+        canvas.requestRenderAll();
+        
+        lastPosX = e.clientX;
+        lastPosY = e.clientY;
+        return; // Важно: выходим, чтобы не рисовать линии
+    }
+    // ---------------------------------
 	// === ЛОГИКА ЛАСТИКА ===
     if (isErasing && currentTool === 'eraser') {
         handleEraser(o.e);
@@ -809,9 +974,29 @@ function handleEraser(e) {
                     rx: Math.abs(rx), ry: Math.abs(ry) 
                 });
             }
-            else if (['line', 'dashed', 'arrow'].includes(type)) {
-                activeShape.set({ x2: pointer.x, y2: pointer.y });
-            }
+			else if (['line', 'dashed', 'arrow'].includes(type)) {
+    let targetX = pointer.x;
+    let targetY = pointer.y;
+
+    // --- ЛОГИКА SHIFT (ПРЯМЫЕ ЛИНИИ) ---
+    if (o.e.shiftKey) {
+        // Считаем разницу между начальной и текущей точкой
+        const dx = Math.abs(targetX - shapeOrigX);
+        const dy = Math.abs(targetY - shapeOrigY);
+
+        // Если движение по горизонтали больше, чем по вертикали -> выравниваем Y
+        if (dx > dy) {
+            targetY = shapeOrigY; 
+        } else {
+            // Иначе выравниваем X
+            targetX = shapeOrigX; 
+        }
+    }
+    // ------------------------------------
+
+    activeShape.set({ x2: targetX, y2: targetY });
+}
+			
             else {
                 // --- РАСЧЕТ ТОЧЕК ДЛЯ ПОЛИГОНОВ ---
                 let points = [];
@@ -853,7 +1038,13 @@ function handleEraser(e) {
     });
     // Завершение рисования фигур
     canvas.on('mouse:up', () => {
-	
+	// --- ПАНОРАМИРОВАНИЕ: КОНЕЦ ---
+    if (isPanning) {
+        isPanning = false;
+        canvas.setCursor('grab'); // Возвращаем "раскрытую руку", так как пробел еще нажат
+        return; 
+    }
+    // -------
 	// === ЛОГИКА ЛАСТИКА ===
     if (currentTool === 'eraser') {
         isErasing = false;
@@ -862,57 +1053,12 @@ function handleEraser(e) {
             isDrawingShape = false;
             activeShape.setCoords();
 
-            // Обработка стрелки (добавляем наконечник)
-            if (settings.shape.type === 'arrow') {
-                const head = createArrowHead(activeShape);
-                const group = new fabric.Group([activeShape, head], {
-                    id: activeShape.id, selectable: true
-                });
-                canvas.remove(activeShape);
-                canvas.add(group);
-                addToHistory(group);
-                broadcast('draw', { data: group.toObject(['id']) });
-            } else {
-                addToHistory(activeShape);
-                broadcast('draw', { data: activeShape.toObject(['id']) });
-            }
+       addToHistory(activeShape);
+broadcast('draw', { data: activeShape.toObject(['id']) });
             activeShape = null;
         }
     });
 
-function createArrowHead(line) {
-        // 1. Считаем угол и радианы
-        const dx = line.x2 - line.x1;
-        const dy = line.y2 - line.y1;
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        const radians = Math.atan2(dy, dx); 
-
-        // 2. Размер стрелки (пропорционально линии)
-        // Можно менять коэффициент 3 на 2.5 или 4 по вкусу
-        const headSize = Math.max(15, line.strokeWidth * 3);
-        
-        // 3. Расчет позиции
-        // Мы используем origin: 'center', поэтому нужно сдвинуть треугольник так,
-        // чтобы его основание "наделось" на конец линии.
-        // (headSize / 2) - это половина высоты треугольника.
-        // Мы отнимаем line.strokeWidth, чтобы создать небольшой нахлест (чтобы не было щелей)
-        const offset = (headSize / 2) - (line.strokeWidth); 
-        
-        const x = line.x2 + Math.cos(radians) * offset;
-        const y = line.y2 + Math.sin(radians) * offset;
-
-        return new fabric.Triangle({
-            left: x,
-            top: y,
-            originX: 'center',
-            originY: 'center',
-            angle: angle + 90, // +90 так как стандартный треугольник смотрит вверх
-            width: headSize, 
-            height: headSize, 
-            fill: line.stroke,
-            selectable: false
-        });
-    }
 
 
     // Сохранение карандашных линий
@@ -1212,15 +1358,15 @@ function updatePartnerCursor(x, y) {
         // 1. Создание курсора (Стрелка + Текст), если его нет
         if (!partnerCursor) {
             const cursorArrow = new fabric.Path('M0 0L0 20L5 16L16 16Z', { 
-                fill: '#f43f5e', 
+                fill: '#fa3f5e', 
                 stroke: '#fff', 
                 strokeWidth: 1,
                 originX: 'left', 
                 originY: 'top'
             });
 
-            const cursorLabel = new fabric.Text(" I'm here", { 
-                fontSize: 10, 
+            const cursorLabel = new fabric.Text("   I'm here", { 
+                fontSize: 6, 
                 left: 12, 
                 top: 12, 
                 fill: '#f43f5e', 
@@ -1558,7 +1704,53 @@ function updatePartnerCursor(x, y) {
         addToHistory(img);
     }
 
-		
+		// ==========================================
+// ПАНОРАМИРОВАНИЕ СТРЕЛКАМИ (ARROWS)
+// ==========================================
+window.addEventListener('keydown', (e) => {
+    // 1. Если активен режим ввода текста (IText), ничего не делаем (пусть курсор бегает по тексту)
+    if (canvas.getActiveObject() && canvas.getActiveObject().isEditing) {
+        return;
+    }
+
+    // 2. Если выбран какой-то объект, ничего не делаем (пусть стрелки двигают объект)
+    // Если вы хотите, чтобы холст двигался ВСЕГДА, удалите этот блок if
+    if (canvas.getActiveObject()) {
+        return;
+    }
+
+    const step = 20; // На сколько пикселей сдвигать за одно нажатие
+    const vpt = canvas.viewportTransform;
+    let changed = false;
+
+    switch (e.code) {
+        case 'ArrowUp':
+            // Двигаем камеру вверх -> контент смещается вниз
+            vpt[5] += step;
+            changed = true;
+            break;
+        case 'ArrowDown':
+            // Двигаем камеру вниз -> контент смещается вверх
+            vpt[5] -= step;
+            changed = true;
+            break;
+        case 'ArrowLeft':
+            // Двигаем камеру влево -> контент смещается вправо
+            vpt[4] += step;
+            changed = true;
+            break;
+        case 'ArrowRight':
+            // Двигаем камеру вправо -> контент смещается влево
+            vpt[4] -= step;
+            changed = true;
+            break;
+    }
+
+    if (changed) {
+        e.preventDefault(); // Блокируем прокрутку самой веб-страницы
+        canvas.requestRenderAll();
+    }
+});
 		
 		
 </script>
