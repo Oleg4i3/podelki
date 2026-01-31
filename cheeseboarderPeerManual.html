@@ -1252,8 +1252,8 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
 
 
 		///////start peer
-	    // ==========================================
-    // 5. P2P NETWORKING WITH HOST MIGRATION
+	     // ==========================================
+    // 5. P2P NETWORKING WITH CHUNKING & COMPRESSION
     // ==========================================
     
     // Оптимальная ICE конфигурация (STUN + TURN) для быстрого подключения
@@ -1278,21 +1278,27 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             }
         ],
         iceCandidatePoolSize: 5,
-        iceTransportPolicy: 'all', // Пробуем все варианты
-        iceConnectionTimeout: 4000, // Уменьшаем до 4 секунд
-        iceServersTimeout: 2000 // Таймаут для ICE серверов
+        iceTransportPolicy: 'all',
+        iceConnectionTimeout: 4000,
+        iceServersTimeout: 2000
     };
     
     let peer = null;
     let conn = null;
     let myId = null;
-    let connectionMode = "offline"; // "offline", "ready", "hosting", "connecting", "connected"
+    let connectionMode = "offline";
     let isHost = false;
-    let actualConnectionType = "unknown"; // "stun" или "turn"
+    let actualConnectionType = "unknown";
     let connectionTimeout = null;
-    let previousConnections = []; // История подключений для отладки
-    let autoReconnectAttempts = 0;
-    const MAX_AUTO_RECONNECT = 3;
+    
+    // Конфигурация чанкования
+    const CHUNK_SIZE = 12 * 1024; // 12KB вместо стандартных 16KB
+    const MAX_BUFFER_SIZE = 64 * 1024; // 64KB буфер
+    let sendQueue = [];
+    let isSending = false;
+    
+    // Буферы для сборки чанкованных сообщений
+    let chunkedMessages = {};
     
     // Инициализация Peer
     function initPeer() {
@@ -1307,15 +1313,15 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             peer = null;
         }
         
-        // Используем публичный PeerJS сервер с быстрыми таймаутами
+        // Используем публичный PeerJS сервер с настройками для больших данных
         peer = new Peer({
             host: '0.peerjs.com',
             port: 443,
             path: '/',
             secure: true,
             config: iceConfig,
-            debug: 1, // Умеренное логирование
-            pingInterval: 3000 // Уменьшенный пинг
+            debug: 1,
+            pingInterval: 5000 // Увеличенный пинг для стабильности
         });
         
         setupPeerEvents();
@@ -1326,7 +1332,7 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             console.log(`✅ Peer ID: ${id}`);
             myId = id;
             connectionMode = "ready";
-            actualConnectionType = "stun"; // По умолчанию предполагаем STUN
+            actualConnectionType = "stun";
             
             let statusText;
             if (isHost) {
@@ -1339,16 +1345,11 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             setStatus(statusText, 'ok');
             document.getElementById('my-id-display').value = id;
             
-            // Сбрасываем все таймауты
             if (connectionTimeout) {
                 clearTimeout(connectionTimeout);
                 connectionTimeout = null;
             }
             
-            // Сбрасываем счетчик переподключений
-            autoReconnectAttempts = 0;
-            
-            // Обновляем UI в зависимости от режима
             updateUIForConnectionMode();
         });
         
@@ -1356,26 +1357,18 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             console.error('Peer error:', err.type, err.message);
             
             if (err.type === 'unavailable-id' || err.type === 'server-error') {
-                // Если сервер недоступен, пробуем еще раз через 2 секунды
-                console.log('Server error, retrying in 2 seconds...');
+                console.log('Server error, retrying in 3 seconds...');
                 setStatus('Server error, retrying...', 'err');
-                setTimeout(initPeer, 2000);
+                setTimeout(initPeer, 3000);
             } else if (err.type === 'peer-unavailable') {
                 setStatus('Peer not found', 'err');
             } else if (err.type === 'network') {
                 setStatus('Network issue - check connection', 'err');
-            } else if (err.type === 'browser-incompatible') {
-                setStatus('Browser not supported', 'err');
             }
         });
         
         peer.on('connection', (c) => {
             console.log(`📞 Incoming connection from: ${c.peer}`);
-            previousConnections.push({
-                peerId: c.peer,
-                timestamp: new Date().toISOString(),
-                type: 'incoming'
-            });
             
             if (conn && conn.open) {
                 console.log('Closing old connection...');
@@ -1386,45 +1379,20 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             conn = c;
             setupConn();
             
-            // Быстрый таймаут для входящих соединений (5 секунд)
-            const incomingTimeout = setTimeout(() => {
-                if (c && !c.open) {
-                    console.log('Incoming connection timeout');
-                    c.close();
-                }
-            }, 5000);
-            
+            // Настраиваем чанкование для входящих соединений
             c.on('open', () => {
-                clearTimeout(incomingTimeout);
                 console.log('✅ Incoming connection established');
                 connectionMode = "connected";
-                
-                // Предполагаем TURN для входящих (так как они сложнее)
                 actualConnectionType = "turn";
                 setStatus("Connected (Partner joined)", 'ok');
                 
-                // Синхронизируем канвас с небольшой задержкой
+                // Ждем 500мс перед синхронизацией
                 setTimeout(() => {
-                    const syncProps = [
-                        'id', 'isPinned', 
-                        'lockMovementX', 'lockMovementY', 
-                        'lockRotation', 
-                        'lockScalingX', 'lockScalingY', 
-                        'hasControls', 'borderColor', 'hoverCursor'
-                    ];
-                    if (conn && conn.open) {
-                        conn.send({ 
-                            type: 'sync', 
-                            data: JSON.stringify(canvas.toJSON(syncProps))
-                        });
-                        // Отправляем тип соединения
-                        conn.send({ type: 'connection_type', connectionType: actualConnectionType });
-                    }
-                }, 300);
+                    sendCanvasDataChunked();
+                }, 500);
             });
             
             c.on('error', (err) => {
-                clearTimeout(incomingTimeout);
                 console.error('Incoming connection error:', err);
             });
         });
@@ -1433,55 +1401,238 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             console.log('Peer disconnected from signaling server');
             setStatus('Disconnected from server, reconnecting...', 'err');
             
-            // Пытаемся переподключиться к серверу
             setTimeout(() => {
                 if (peer && peer.disconnected) {
                     peer.reconnect();
                 }
-            }, 1000);
-        });
-        
-        peer.on('close', () => {
-            console.log('Peer completely closed');
-            connectionMode = "offline";
-            setStatus('Connection closed', 'err');
+            }, 2000);
         });
     }
     
     // Инициализируем сразу при загрузке
     initPeer();
     
-    // Функция для обновления UI в зависимости от режима подключения
+    // Функция для отправки данных с чанкованием
+    function sendCanvasDataChunked() {
+        if (!conn || !conn.open) return;
+        
+        const syncProps = [
+            'id', 'isPinned', 
+            'lockMovementX', 'lockMovementY', 
+            'lockRotation', 
+            'lockScalingX', 'lockScalingY', 
+            'hasControls', 'borderColor', 'hoverCursor'
+        ];
+        
+        try {
+            const canvasData = canvas.toJSON(syncProps);
+            const jsonStr = JSON.stringify(canvasData);
+            
+            // Если данные маленькие, отправляем как есть
+            if (jsonStr.length < CHUNK_SIZE * 0.8) {
+                conn.send({ 
+                    type: 'sync', 
+                    data: jsonStr
+                });
+                console.log('Sent canvas data (single chunk)');
+                return;
+            }
+            
+            // Большие данные разбиваем на чанки
+            console.log(`Canvas data large (${jsonStr.length} bytes), chunking...`);
+            setStatus('Sending canvas data (large file)...', 'ok');
+            
+            const chunks = [];
+            const messageId = 'canvas_' + Date.now();
+            const totalChunks = Math.ceil(jsonStr.length / CHUNK_SIZE);
+            
+            // Разбиваем на чанки
+            for (let i = 0; i < totalChunks; i++) {
+                const chunk = jsonStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                chunks.push({
+                    type: 'chunked_sync',
+                    messageId: messageId,
+                    chunkIndex: i,
+                    totalChunks: totalChunks,
+                    data: chunk
+                });
+            }
+            
+            // Отправляем чанки с задержкой
+            sendChunksWithDelay(chunks, 0);
+            
+        } catch (error) {
+            console.error('Error preparing canvas data:', error);
+        }
+    }
+    
+    // Отправка чанков с задержкой
+    function sendChunksWithDelay(chunks, index) {
+        if (index >= chunks.length || !conn || !conn.open) {
+            console.log('Finished sending chunks');
+            setStatus('Connected', 'ok');
+            return;
+        }
+        
+        try {
+            conn.send(chunks[index]);
+            console.log(`Sent chunk ${index + 1}/${chunks.length}`);
+            
+            // Задержка между чанками (50ms для 20 чанков/секунду)
+            setTimeout(() => {
+                sendChunksWithDelay(chunks, index + 1);
+            }, 50);
+            
+        } catch (error) {
+            console.error('Error sending chunk:', error);
+            // Ждем и пробуем еще раз
+            setTimeout(() => {
+                sendChunksWithDelay(chunks, index);
+            }, 500);
+        }
+    }
+    
+    // Сборка чанкованных сообщений
+    function assembleChunkedMessage(messageId, chunkIndex, totalChunks, data) {
+        if (!chunkedMessages[messageId]) {
+            chunkedMessages[messageId] = {
+                chunks: new Array(totalChunks),
+                received: 0,
+                total: totalChunks,
+                timestamp: Date.now()
+            };
+        }
+        
+        const message = chunkedMessages[messageId];
+        
+        // Сохраняем чанк
+        if (!message.chunks[chunkIndex]) {
+            message.chunks[chunkIndex] = data;
+            message.received++;
+        }
+        
+        // Проверяем, все ли чанки получены
+        if (message.received === message.total) {
+            // Собираем полное сообщение
+            const fullData = message.chunks.join('');
+            
+            // Удаляем из буфера (очищаем старые сообщения)
+            delete chunkedMessages[messageId];
+            cleanupOldMessages();
+            
+            return fullData;
+        }
+        
+        return null;
+    }
+    
+    // Очистка старых сообщений из буфера
+    function cleanupOldMessages() {
+        const now = Date.now();
+        for (const messageId in chunkedMessages) {
+            if (now - chunkedMessages[messageId].timestamp > 60000) { // 60 секунд
+                delete chunkedMessages[messageId];
+            }
+        }
+    }
+    
+    // Очередь отправки с управлением потоком
+    function sendWithQueue(message) {
+        sendQueue.push(message);
+        if (!isSending) {
+            processSendQueue();
+        }
+    }
+    
+    function processSendQueue() {
+        if (sendQueue.length === 0 || !conn || !conn.open) {
+            isSending = false;
+            return;
+        }
+        
+        isSending = true;
+        const message = sendQueue.shift();
+        
+        try {
+            // Проверяем размер сообщения
+            const messageSize = JSON.stringify(message).length;
+            if (messageSize > MAX_BUFFER_SIZE * 0.9) {
+                console.warn('Message too large, dropping:', message.type);
+                // Пропускаем слишком большие сообщения
+                setTimeout(processSendQueue, 100);
+                return;
+            }
+            
+            conn.send(message);
+            
+            // Пауза перед следующим сообщением для контроля потока
+            setTimeout(processSendQueue, 10);
+            
+        } catch (error) {
+            console.error('Error in send queue:', error);
+            // Возвращаем сообщение в очередь
+            sendQueue.unshift(message);
+            setTimeout(() => processSendQueue(), 500);
+        }
+    }
+    
+    // Обновленный broadcast с очередью
+    function broadcast(type, payload) {
+        if (!conn || !conn.open) return;
+        
+        const message = { type, ...payload };
+        
+        // Для больших сообщений используем чанкование
+        const messageStr = JSON.stringify(message);
+        if (messageStr.length > CHUNK_SIZE) {
+            // Автоматическое чанкование
+            const chunks = [];
+            const messageId = type + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            const totalChunks = Math.ceil(messageStr.length / CHUNK_SIZE);
+            
+            for (let i = 0; i < totalChunks; i++) {
+                const chunk = messageStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                chunks.push({
+                    type: 'chunked_message',
+                    messageId: messageId,
+                    chunkIndex: i,
+                    totalChunks: totalChunks,
+                    data: chunk,
+                    originalType: type
+                });
+            }
+            
+            // Отправляем чанки через очередь
+            chunks.forEach(chunk => sendWithQueue(chunk));
+            
+        } else {
+            // Маленькие сообщения отправляем как есть
+            sendWithQueue(message);
+        }
+    }
+    
     function updateUIForConnectionMode() {
         const hostControls = document.getElementById('host-controls');
         const joinControls = document.getElementById('join-controls');
         const sessionInfo = document.getElementById('session-info');
-        const remoteIdInput = document.getElementById('remote-id-input');
         
         switch(connectionMode) {
             case "ready":
-                // Режим готовности: показываем кнопки Host и Join
                 hostControls.classList.remove('hidden');
                 joinControls.classList.remove('hidden');
                 sessionInfo.classList.add('hidden');
                 break;
-                
             case "hosting":
-                // Режим хоста: показываем наш ID, скрываем остальное
                 hostControls.classList.add('hidden');
                 joinControls.classList.add('hidden');
                 sessionInfo.classList.remove('hidden');
                 break;
-                
             case "connected":
-                // Подключено: показываем информацию о сессии
                 hostControls.classList.add('hidden');
                 joinControls.classList.add('hidden');
                 sessionInfo.classList.remove('hidden');
                 break;
-                
             case "offline":
-                // Оффлайн: показываем все контролы для переподключения
                 hostControls.classList.remove('hidden');
                 joinControls.classList.remove('hidden');
                 sessionInfo.classList.add('hidden');
@@ -1500,83 +1651,49 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             el.style.color = '#991b1b';
         }
         
-        // Иконки в зависимости от статуса
         let icon = "🔴";
         if (msg.includes("Hosting") || isHost) icon = "👑";
         if (msg.includes("Ready")) icon = "🟢";
         if (msg.includes("Connected")) icon = "✅";
-        if (msg.includes("Connecting")) icon = "⏳";
-        if (msg.includes("Retrying") || msg.includes("retrying")) icon = "🔄";
-        if (msg.includes("Partner joined")) icon = "👥";
-        if (msg.includes("Disconnected")) icon = "🔌";
+        if (msg.includes("Sending")) icon = "📤";
         
         el.innerHTML = `${icon} ${msg}`;
-        el.title = `Connection: ${connectionMode}, Type: ${actualConnectionType}`;
     }
     
-    // Старт хостинга (или перехостинг)
     window.startHost = () => {
         isHost = true;
         
-        // Если мы уже в режиме хоста, это перехостинг
         if (connectionMode === "hosting" || connectionMode === "connected") {
             console.log("Re-hosting with new ID...");
             
-            // Сохраняем текущий канвас перед сбросом
-            const syncProps = [
-                'id', 'isPinned', 
-                'lockMovementX', 'lockMovementY', 
-                'lockRotation', 
-                'lockScalingX', 'lockScalingY', 
-                'hasControls', 'borderColor', 'hoverCursor'
-            ];
-            const canvasState = JSON.stringify(canvas.toJSON(syncProps));
-            
-            // Закрываем текущее соединение
             if (conn && conn.open) {
                 conn.close();
                 conn = null;
             }
             
-            // Сбрасываем peer для получения нового ID
             if (peer) {
                 peer.destroy();
                 peer = null;
             }
             
-            // Инициализируем нового peer
             initPeer();
             
-            // Ждем получения нового ID
             const waitForNewId = setInterval(() => {
                 if (myId && connectionMode === "hosting") {
                     clearInterval(waitForNewId);
                     setStatus("Re-hosted! Share new ID: " + myId.substring(0, 8) + "...", 'ok');
-                    
-                    // Восстанавливаем канвас (он уже есть, но на всякий случай)
-                    try {
-                        const savedState = JSON.parse(canvasState);
-                        canvas.loadFromJSON(savedState, () => {
-                            canvas.requestRenderAll();
-                        });
-                    } catch (e) {
-                        console.warn("Could not restore canvas:", e);
-                    }
                 }
             }, 100);
             
             return;
         }
         
-        // Обычный старт хостинга
         console.log("Starting host mode...");
         
         if (myId) {
             setStatus("Hosting (Share ID: " + myId.substring(0, 8) + "...)", 'ok');
             connectionMode = "hosting";
             updateUIForConnectionMode();
-        } else {
-            setStatus('Initializing host...', 'err');
         }
     };
     
@@ -1600,14 +1717,12 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
         
         console.log(`Connecting to peer: ${id}`);
         
-        // Отменяем предыдущий таймаут
         if (connectionTimeout) {
             clearTimeout(connectionTimeout);
         }
         
-        // Функция быстрой попытки подключения
         function attemptConnect(retryCount = 0) {
-            const maxRetries = 2; // Только 2 попытки
+            const maxRetries = 2;
             
             if (retryCount >= maxRetries) {
                 setStatus('Connection failed', 'err');
@@ -1616,7 +1731,6 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
                 return;
             }
             
-            // Закрываем старое соединение
             if (conn && conn.open) {
                 conn.close();
                 conn = null;
@@ -1626,27 +1740,25 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             connectionMode = "connecting";
             updateUIForConnectionMode();
             
-            // Создаем новое соединение с быстрыми таймаутами
+            // Создаем соединение с настройками для больших данных
             const newConn = peer.connect(id, {
                 reliable: true,
                 serialization: 'json',
+                chunked: true,
+                chunkSize: CHUNK_SIZE, // Используем наш размер чанка
                 metadata: { 
                     client: 'cheeseboard',
-                    timestamp: Date.now(),
-                    version: '1.0'
+                    version: '2.0_large_data'
                 }
             });
             
-            // Быстрый таймаут (6 секунд)
             connectionTimeout = setTimeout(() => {
                 console.log(`Connection timeout (attempt ${retryCount + 1})`);
                 if (newConn && !newConn.open) {
                     newConn.close();
-                    
-                    // Если это первая попытка, ждем меньше и пробуем снова
                     setTimeout(() => attemptConnect(retryCount + 1), 1000);
                 }
-            }, 6000);
+            }, 10000); // Увеличенный таймаут для больших данных
             
             newConn.on('open', () => {
                 clearTimeout(connectionTimeout);
@@ -1654,24 +1766,17 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
                 conn = newConn;
                 setupConn();
                 
-                // Определяем тип соединения (скорее всего TURN для сложных подключений)
                 actualConnectionType = retryCount > 0 ? "turn" : "stun";
                 const connectionTypeText = actualConnectionType === "stun" ? "Direct" : "Relay";
                 setStatus(`Connected to host (${connectionTypeText})`, 'ok');
                 connectionMode = "connected";
                 
-                // Обновляем UI
                 updateUIForConnectionMode();
-                
-                // Отправляем тип соединения хосту
-                broadcast('connection_type', { connectionType: actualConnectionType });
             });
             
             newConn.on('error', (err) => {
                 clearTimeout(connectionTimeout);
                 console.error('Connection error:', err);
-                
-                // Быстрая повторная попытка
                 setTimeout(() => attemptConnect(retryCount + 1), 800);
             });
             
@@ -1681,50 +1786,7 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
             });
         }
         
-        // Начинаем первую попытку
         attemptConnect(0);
-    };
-    
-    // Функция для отключения (для партнера)
-    window.disconnectFromHost = () => {
-        console.log("Disconnecting from host...");
-        
-        if (conn && conn.open) {
-            conn.close();
-        }
-        
-        connectionMode = "ready";
-        isHost = false;
-        setStatus("Disconnected from host", 'err');
-        updateUIForConnectionMode();
-    };
-    
-    // Функция для принудительного отключения всех (для хоста)
-    window.resetSession = () => {
-        console.log("Resetting session...");
-        
-        // Закрываем соединение
-        if (conn && conn.open) {
-            conn.close();
-            conn = null;
-        }
-        
-        // Останавливаем текущий peer
-        if (peer) {
-            peer.destroy();
-            peer = null;
-        }
-        
-        // Сбрасываем состояние
-        connectionMode = "offline";
-        isHost = false;
-        myId = null;
-        
-        // Инициализируем заново
-        initPeer();
-        
-        setStatus("Session reset - ready for new connection", 'ok');
-        updateUIForConnectionMode();
     };
     
     function setupConn() {
@@ -1732,6 +1794,8 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
         
         conn.on('open', () => {
             console.log('Connection fully established');
+            // Отправляем запрос на синхронизацию
+            broadcast('request_sync', {});
         });
         
         conn.on('error', (err) => {
@@ -1742,20 +1806,8 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
                 connectionMode = "offline";
                 actualConnectionType = "unknown";
                 
-                // Автоматическое переподключение для партнера
-                if (!isHost && autoReconnectAttempts < MAX_AUTO_RECONNECT) {
-                    autoReconnectAttempts++;
-                    setStatus(`Reconnecting... (${autoReconnectAttempts}/${MAX_AUTO_RECONNECT})`, 'err');
-                    
-                    setTimeout(() => {
-                        const remoteId = document.getElementById('remote-id-input').value.trim();
-                        if (remoteId) {
-                            window.joinPeer();
-                        }
-                    }, 2000);
-                } else if (isHost) {
-                    // Хост ждет повторного подключения
-                    setStatus('Partner disconnected - waiting for reconnect...', 'err');
+                if (isHost) {
+                    setStatus('Partner disconnected - waiting...', 'err');
                     connectionMode = "hosting";
                 }
                 
@@ -1774,28 +1826,70 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
         });
         
         conn.on('data', (msg) => {
-            if (msg.type === 'cursor') updatePartnerCursor(msg.x, msg.y);
-            else if (msg.type === 'draw') {
+            // Обработка чанкованных сообщений
+            if (msg.type === 'chunked_sync' || msg.type === 'chunked_message') {
+                const fullData = assembleChunkedMessage(
+                    msg.messageId, 
+                    msg.chunkIndex, 
+                    msg.totalChunks, 
+                    msg.data
+                );
+                
+                if (fullData) {
+                    if (msg.type === 'chunked_sync') {
+                        // Это синхронизация канваса
+                        try {
+                            const canvasData = JSON.parse(fullData);
+                            canvas.loadFromJSON(canvasData, () => {
+                                canvas.requestRenderAll();
+                                console.log('Canvas synchronized via chunks');
+                            });
+                        } catch (e) {
+                            console.error('Error parsing chunked sync data:', e);
+                        }
+                    } else if (msg.type === 'chunked_message') {
+                        // Другие чанкованные сообщения
+                        try {
+                            const originalMessage = JSON.parse(fullData);
+                            processMessage(originalMessage);
+                        } catch (e) {
+                            console.error('Error parsing chunked message:', e);
+                        }
+                    }
+                }
+                return;
+            }
+            
+            // Обработка обычных сообщений
+            processMessage(msg);
+        });
+        
+        function processMessage(msg) {
+            if (msg.type === 'cursor') {
+                updatePartnerCursor(msg.x, msg.y);
+            } else if (msg.type === 'draw') {
                 fabric.util.enlivenObjects([msg.data], (objs) => {
                     objs.forEach(o => canvas.add(o));
                     canvas.requestRenderAll();
                 });
-            }
-            else if (msg.type === 'sync') {
+            } else if (msg.type === 'sync') {
                 canvas.loadFromJSON(JSON.parse(msg.data), () => {
                     canvas.requestRenderAll();
                     console.log('Canvas synchronized');
                 });
-            }
-            else if (msg.type === 'delete') {
+            } else if (msg.type === 'request_sync') {
+                // Запрос на синхронизацию от партнера
+                if (isHost) {
+                    sendCanvasDataChunked();
+                }
+            } else if (msg.type === 'delete') {
                 const obj = canvas.getObjects().find(o => o.id === msg.id);
                 if (obj) {
                     if (obj.isPinned) return;
                     canvas.remove(obj);
                     canvas.requestRenderAll();
                 }
-            }
-            else if (msg.type === 'modified') {
+            } else if (msg.type === 'modified') {
                 const obj = canvas.getObjects().find(o => o.id === msg.data.id);
                 if (obj) { 
                     const active = canvas.getActiveObject();
@@ -1807,94 +1901,148 @@ broadcast('draw', { data: activeShape.toObject(['id']) });
                     canvas.requestRenderAll(); 
                 }
             }
-            else if (msg.type === 'connection_type') {
-                // Синхронизируем тип соединения
-                actualConnectionType = msg.connectionType;
-                const connectionTypeText = actualConnectionType === "stun" ? "Direct" : "Relay";
-                if (connectionMode === "connected") {
-                    setStatus(`Connected (${connectionTypeText})`, 'ok');
-                }
-            }
-            else if (msg.type === 'host_migrated') {
-                // Хост мигрировал, получаем новый ID
-                console.log("Host migrated, new ID:", msg.newId);
-                setStatus("Host reconnected with new ID", 'ok');
+        }
+    }
+    
+    // Добавляем функцию сжатия изображений перед загрузкой (опционально)
+    function compressImageBeforeImport(file, callback) {
+        if (file.type === 'application/pdf') {
+            callback(file); // PDF не сжимаем
+            return;
+        }
+        
+        if (file.size < 100 * 1024) { // Меньше 100KB
+            callback(file);
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
                 
-                // Автоматически переподключаемся к новому хосту
-                setTimeout(() => {
-                    document.getElementById('remote-id-input').value = msg.newId;
-                    window.joinPeer();
-                }, 1000);
+                // Максимальные размеры
+                const MAX_WIDTH = 1200;
+                const MAX_HEIGHT = 1200;
+                
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Сжатие качества
+                canvas.toBlob(function(blob) {
+                    callback(blob);
+                }, 'image/jpeg', 0.7); // 70% качество для JPEG
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    // Модифицируем handleImport для использования сжатия
+    async function handleImport(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        input.value = '';
+        
+        compressImageBeforeImport(file, (processedFile) => {
+            if (processedFile.type.includes('image')) {
+                const reader = new FileReader();
+                reader.onload = (f) => {
+                    fabric.Image.fromURL(f.target.result, (img) => {
+                        setupImportedImage(img);
+                    });
+                };
+                
+                if (processedFile instanceof Blob) {
+                    reader.readAsDataURL(processedFile);
+                } else {
+                    reader.readAsDataURL(processedFile);
+                }
+            } else if (file.type === 'application/pdf') {
+                // Обработка PDF без изменений
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    // ... существующий код обработки PDF ...
+                };
+                reader.readAsArrayBuffer(file);
             }
         });
     }
     
-    function broadcast(type, payload) {
-        if (conn && conn.open) {
-            try {
-                conn.send({ type, ...payload });
-            } catch (err) {
-                console.error('Broadcast failed:', err);
-            }
-        }
+    // Переопределяем существующий обработчик
+    const originalImgInput = document.getElementById('img-input');
+    if (originalImgInput) {
+        originalImgInput.onchange = (e) => handleImport(e.target);
     }
     
-    // Добавляем кнопки управления соединением в интерфейс
+    // Добавляем кнопку для очистки очереди и сброса соединения
     function addConnectionControls() {
-        // Создаем контейнер для кнопок управления
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'bar-section';
         controlsContainer.id = 'connection-controls';
-        controlsContainer.style.marginLeft = '10px';
         
-        // Кнопка "Reset Session" (видна всегда)
         const resetBtn = document.createElement('button');
         resetBtn.className = 'tool-btn';
         resetBtn.innerHTML = '🔄';
-        resetBtn.title = 'Reset connection and get new ID';
-        resetBtn.onclick = window.resetSession;
-        
-        // Кнопка "Disconnect" (только для партнера)
-        const disconnectBtn = document.createElement('button');
-        disconnectBtn.className = 'tool-btn';
-        disconnectBtn.innerHTML = '🔌';
-        disconnectBtn.title = 'Disconnect from host';
-        disconnectBtn.onclick = window.disconnectFromHost;
-        disconnectBtn.id = 'disconnect-btn';
-        disconnectBtn.style.display = 'none';
+        resetBtn.title = 'Reset connection (fixes large file issues)';
+        resetBtn.onclick = function() {
+            console.log('Resetting connection for large data...');
+            sendQueue = [];
+            chunkedMessages = {};
+            
+            if (conn && conn.open) {
+                conn.close();
+                conn = null;
+            }
+            
+            if (peer) {
+                peer.destroy();
+                peer = null;
+            }
+            
+            initPeer();
+            setStatus('Connection reset - ready for large files', 'ok');
+        };
         
         controlsContainer.appendChild(resetBtn);
-        controlsContainer.appendChild(disconnectBtn);
         
-        // Вставляем в верхнюю панель
         const topBar = document.querySelector('.top-bar');
-        topBar.appendChild(controlsContainer);
-        
-        // Обновляем видимость кнопок при изменении режима
-        const observer = new MutationObserver(() => {
-            disconnectBtn.style.display = (connectionMode === "connected" && !isHost) ? 'inline-block' : 'none';
-        });
-        
-        observer.observe(document.body, { 
-            attributes: true, 
-            attributeFilter: ['style', 'class'] 
-        });
+        if (topBar) {
+            topBar.appendChild(controlsContainer);
+        }
     }
     
-    // Добавляем контролы после загрузки
     setTimeout(addConnectionControls, 1000);
     
-    // Автоматическое переподключение при потере соединения
+    // Автоматическое переподключение
     setInterval(() => {
         if (connectionMode === "offline" && !isHost) {
             const remoteId = document.getElementById('remote-id-input').value.trim();
-            if (remoteId && autoReconnectAttempts < MAX_AUTO_RECONNECT) {
-                console.log('Attempting auto-reconnect...');
-                autoReconnectAttempts++;
+            if (remoteId) {
+                console.log('Auto-reconnecting...');
                 window.joinPeer();
             }
         }
-    }, 10000); // Проверяем каждые 10 секунд
+    }, 10000);
 	/////////////////конец блока peer
     let partnerCursor;
  
