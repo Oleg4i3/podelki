@@ -72,9 +72,9 @@
             padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; 
             width: 80px; font-family: monospace; font-size: 11px; transition: 0.2s;
         }
-        input.id-box:focus { width: 140px; border-color: #2563eb; outline: none; }
+        input.id-box:focus { width: 50px; border-color: #2563eb; outline: none; }
         
-        .btn { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; color: white; transition: 0.2s; }
+        .btn { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; color: white; transition: 0.2s; }
         .btn-host { background: #2563eb; } .btn-host:hover { background: #1d4ed8; }
         .btn-join { background: #059669; } .btn-join:hover { background: #047857; }
         .btn-copy { background: #f3f4f6; color: #333; border: 1px solid #ddd;} .btn-copy:hover { background: #e5e7eb; }
@@ -90,19 +90,33 @@
         .hidden { display: none !important; }
 
         /* Стили для спойлера ручного подключения */
-        .spoiler {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        .spoiler.expanded {
-            max-height: 100px;
-        }
+		.spoiler {
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease-out; /* Анимируем всё, а не только высоту */
+    
+    /* Базовые стили (скрытое состояние) */
+    background: white;
+    border-radius: 6px;
+    border: 0 solid #ddd; /* Рамка 0 */
+    padding: 0 10px;      /* Вертикальный отступ 0 */
+    opacity: 0;           /* Прозрачность для красоты */
+}
+
+.spoiler.expanded {
+    max-height: 100px;
+    
+    /* Стили при открытии (перенесли из HTML) */
+    padding: 10px;
+    border-width: 1px;
+    opacity: 1;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
         .spoiler-toggle {
             background: transparent;
             border: none;
             color: #666;
-            font-size: 11px;
+            font-size: 8px;
             cursor: pointer;
             padding: 2px 6px;
             margin-left: 5px;
@@ -136,7 +150,7 @@
             <div id="session-info" class="hidden" style="display: flex; gap:5px; align-items: center;">
                 <div style="position: relative; display: flex; align-items: center;">
                     <input type="text" id="share-link-display" class="id-box" readonly 
-                           style="width: 200px; min-width: 200px;" 
+                           style="width: 100px; min-width: 30px;" 
                            title="Share this link with your partner"
                            onclick="copyShareLink()">
                     <button class="btn btn-copy" onclick="copyShareLink()">Copy Link</button>
@@ -145,8 +159,8 @@
             </div>
             
             <!-- Скрытый блок для ручного подключения -->
-            <div id="manual-connect-spoiler" class="spoiler" style="position: absolute; top: 40px; left: 10px; background: white; border: 1px solid #ddd; border-radius: 6px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 102;">
-                <div style="font-size: 12px; margin-bottom: 8px; color: #666;">Manual Connection</div>
+			<div id="manual-connect-spoiler" class="spoiler" style="position: absolute; top: 40px; left: 10px; z-index: 102;">
+				<div style="font-size: 12px; margin-bottom: 8px; color: #666;">Manual Connection</div>
                 <div style="display: flex; gap: 5px; align-items: center;">
                     <input type="text" id="manual-remote-id" class="id-box" placeholder="Host ID" style="width: 120px;">
                     <button class="btn btn-join" onclick="joinPeerManual()">Connect</button>
@@ -1817,7 +1831,7 @@ window.addEventListener('keyup', (e) => {
                 // Показываем ID хоста в поле ссылки при подключении
                 if (!isHost) {
                     const shareLink = generateShareLink(myId);
-                    document.getElementById('share-link-display').value = `Connected to host (Your ID: ${myId.substring(0, 8)}...)`;
+                    document.getElementById('share-link-display').value = `Connected`;
                 }
                 break;
             case "offline":
@@ -2233,7 +2247,7 @@ function initPartnerCursor() {
         <div style="position: relative;">
             <svg width="24" height="24" viewBox="0 0 24 24" style="position: absolute; top: -24px; left: 0;">
                 <path d="M1 1L1 23L7 18L18 18Z" fill="#fa3f5e" stroke="#fff" stroke-width="1.5"/>
-                <text x="10" y="16" font-size="6" fill="#f43f5e" font-family="sans-serif" font-weight="bold">I'm here</text>
+                <text x="10" y="16" font-size="6" fill="#f43f5e" font-family="sans-serif" font-weight="bold"></text>
             </svg>
         </div>
     `;
