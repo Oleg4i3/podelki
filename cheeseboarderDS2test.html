@@ -2533,152 +2533,81 @@ setTimeout(initPartnerCursor, 1000);
 // ==========================================
     // 6. SAVE & LOAD SYSTEM
     // ==========================================
-// ЗАМЕНИТЕ ФУНКЦИИ saveBoard и openBoard
+// 
 
-// ==========================================
-// УЛУЧШЕННАЯ СИСТЕМА СОХРАНЕНИЯ/ЗАГРУЗКИ
-// ==========================================
-
-// Сохраняем с оптимизацией для больших файлов
 function saveBoard() {
-    const syncProps = [
-        'id', 'isPinned', 
-        'lockMovementX', 'lockMovementY', 
-        'lockRotation', 
-        'lockScalingX', 'lockScalingY', 
-        'hasControls', 'borderColor', 'hoverCursor'
-    ];
-    
-    // Оптимизация: удаляем временные данные и сжимаем изображения
-    const canvasData = canvas.toJSON(syncProps);
-    
-    // Уменьшаем размер изображений в данных
-    if (canvasData.objects) {
-        canvasData.objects.forEach(obj => {
-            if (obj.type === 'image' && obj.src && obj.src.length > 50000) {
-                // Помечаем большие изображения для повторной загрузки
-                obj.largeImage = true;
-                obj.src = '[LARGE_IMAGE_PLACEHOLDER]';
-            }
-        });
-    }
-    
-    const json = JSON.stringify(canvasData);
-    
-    // Если данные очень большие, предлагаем сжатый вариант
-    if (json.length > 10 * 1024 * 1024) { // >10MB
-        if (!confirm('Файл очень большой (' + Math.round(json.length / 1024 / 1024) + 'MB). Сохранить в сжатом формате?')) {
-            return;
-        }
-    }
-    
+    const json = JSON.stringify(canvas.toJSON());
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `board-${new Date().toISOString().slice(0,10)}-${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'board.json';
+    a.click();
     
-    setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }, 100);
+    URL.revokeObjectURL(url);
 }
-
-// Улучшенная загрузка с обработкой больших файлов
-function openBoard(input) {
+function quickFixOpenBoard(input) {
     const file = input.files[0];
     if (!file) return;
-
-    // Показываем индикатор загрузки
+    
+    // Очищаем значение
+    input.value = '';
+    
+    // Показываем простой индикатор
     setStatus('Loading board...', 'ok');
     
-    // Проверяем размер файла
-    if (file.size > 50 * 1024 * 1024) { // >50MB
-        if (!confirm('Файл очень большой. Загрузка может занять время. Продолжить?')) {
-            input.value = '';
-            return;
-        }
-    }
-
     const reader = new FileReader();
     
-    reader.onloadstart = () => {
-        console.log('Начало загрузки файла:', file.name, 'size:', file.size);
-    };
-    
-    reader.onprogress = (e) => {
-        if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            setStatus(`Loading board... ${percent}%`, 'ok');
-        }
-    };
-    
-    reader.onload = (e) => {
+    reader.onload = function(e) {
         try {
             const json = JSON.parse(e.target.result);
             
-            // Очищаем канвас перед загрузкой
-            canvas.clear();
-            canvas.renderAll();
-            
-            // Загружаем данные с обработкой ошибок
-            canvas.loadFromJSON(json, () => {
-                // Присваиваем ID объектам, у которых их нет
-                canvas.getObjects().forEach(obj => {
-                    if (!obj.id) {
-                        obj.id = 'obj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                    }
-                    
-                    // Восстанавливаем блокировки для закрепленных объектов
-                    if (obj.isPinned) {
-                        obj.set({
-                            lockMovementX: true,
-                            lockMovementY: true,
-                            lockRotation: true,
-                            lockScalingX: true,
-                            lockScalingY: true,
-                            hasControls: false,
-                            hoverCursor: 'not-allowed'
-                        });
+            // Исправляем плейсхолдеры в изображениях
+            if (json.objects) {
+                json.objects.forEach(obj => {
+                    if (obj.type === 'image' && obj.src && obj.src.includes('[LARGE_IMAGE_PLACEHOLDER]')) {
+                        // Заменяем на небольшое серое изображение
+                        obj.src = 'data:image/svg+xml;base64,' + btoa(
+                            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">' +
+                            '<rect width="200" height="150" fill="#f0f0f0"/>' +
+                            '<text x="100" y="75" text-anchor="middle" fill="#999" font-family="Arial" font-size="12">Image unavailable</text>' +
+                            '</svg>'
+                        );
                     }
                 });
-                
+            }
+            
+            // Загружаем канвас
+            canvas.loadFromJSON(json, function() {
                 canvas.renderAll();
                 setStatus('Board loaded successfully', 'ok');
                 
-                // Синхронизируем с партнером (с чанкованием для больших данных)
+                // Синхронизируем с партнером
                 if (conn && conn.open) {
                     setTimeout(() => {
                         sendCanvasDataChunked();
                     }, 500);
                 }
-                
-                input.value = '';
-            }, (err) => {
-                console.error('Error loading JSON:', err);
-                setStatus('Error loading board', 'err');
-                alert('Ошибка при загрузке файла. Возможно файл поврежден.');
             });
             
         } catch (err) {
-            console.error("Error parsing JSON:", err);
-            setStatus('Error parsing board file', 'err');
-            alert("Не удалось прочитать файл доски. Возможно файл поврежден.");
+            console.error("Error loading board:", err);
+            setStatus('Error loading board', 'err');
+            alert("Failed to load board file. The file might be corrupted.");
         }
     };
     
-    reader.onerror = () => {
+    reader.onerror = function() {
         setStatus('Error reading file', 'err');
-        alert('Ошибка при чтении файла.');
-        input.value = '';
+        alert("Error reading file.");
     };
     
     reader.readAsText(file);
 }
 
+// Временно замените вызов openBoard
+window.openBoard = quickFixOpenBoard;
 		// ==========================================
     // 7. IMPORT SYSTEM (Images & PDF)
     // ==========================================
