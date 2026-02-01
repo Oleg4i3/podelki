@@ -2534,7 +2534,7 @@ window.openBoard = quickFixOpenBoard;
                     const pdf = await pdfjsLib.getDocument(typedarray).promise;
                     
                     if (pdf.numPages > 5) {
-                        const doLoad = confirm(`PDF содержит ${pdf.numPages} страниц. Это может занять время. Загрузить все?`);
+                        const doLoad = confirm(`PDF contains ${pdf.numPages} pages. Board may lag. Upload all?`);
                         if (!doLoad) return;
                     }
 
