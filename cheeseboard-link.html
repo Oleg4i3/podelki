@@ -69,15 +69,15 @@
 
         /* Inputs P2P */
         input.id-box { 
-            padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; 
-            width: 80px; font-family: monospace; font-size: 11px; transition: 0.2s;
+            padding: 4px 4px; border: 1px solid #ccc; border-radius: 4px; 
+            width: 70px; font-family: monospace; font-size: 11px; transition: 0.2s;
         }
         input.id-box:focus { width: 50px; border-color: #2563eb; outline: none; }
         
-        .btn { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; color: white; transition: 0.2s; }
+        .btn { padding: 7px 7px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; color: white; transition: 0.2s; }
         .btn-host { background: #2563eb; } .btn-host:hover { background: #1d4ed8; }
         .btn-join { background: #059669; } .btn-join:hover { background: #047857; }
-        .btn-copy { background: #f3f4f6; color: #333; border: 1px solid #ddd;} .btn-copy:hover { background: #e5e7eb; }
+        .btn-copy { background: #f3f4f6; width: 50px; color: #333; border: 1px solid #ddd;} .btn-copy:hover { background: #e5e7eb; }
 
         /* Канва на всю высоту */
         #canvas-wrapper { 
@@ -133,15 +133,15 @@
         
         <div class="bar-section">
             <div class="brand">
-                <span>🧀</span>
-                <span id="status-indicator" style="font-size: 9px; padding: 2px 4px; border-radius: 3px; background: #eee;">Offline</span>
+              
+                <span id="status-indicator" style="font-size: 8px; padding: 2px 2px; border-radius: 3px; background: #eee;">Offline</span>
             </div>
             
             <div id="host-controls">
                 <button class="btn btn-host" onclick="startHost()">Host</button>
             </div>
             <div id="join-controls" class="hidden">
-                <div style="display: flex; align-items: center; gap: 5px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
                     <input type="text" id="remote-id-input" class="id-box" placeholder="Enter host ID">
                     <button class="btn btn-join" onclick="joinPeer()">Connect</button>
                     <button class="spoiler-toggle" onclick="toggleManualConnect()">Manual</button>
@@ -150,7 +150,7 @@
             <div id="session-info" class="hidden" style="display: flex; gap:5px; align-items: center;">
                 <div style="position: relative; display: flex; align-items: center;">
                     <input type="text" id="share-link-display" class="id-box" readonly 
-                           style="width: 100px; min-width: 30px;" 
+                           style="width: 60px; min-width: 30px;" 
                            title="Share this link with your partner"
                            onclick="copyShareLink()">
                     <button class="btn btn-copy" onclick="copyShareLink()">Copy Link</button>
@@ -172,7 +172,7 @@
         <div class="divider"></div>
 
         <div class="bar-section" style="position: relative;">
-            <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">↖</button>
+            <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">⇖</button>
             
             <div style="position: relative;">
                 <button class="tool-btn" id="btn-pen" onclick="toggleSubmenu('pen-menu'); activateTool('pen', true)" title="Pen (P)">✎</button>
@@ -1827,7 +1827,10 @@ window.addEventListener('keyup', (e) => {
                 hostControls.classList.add('hidden');
                 joinControls.classList.add('hidden');
                 sessionInfo.classList.remove('hidden');
-                
+				//// скрываем кнопку "копировать ссылку"
+                   if (!isHost) {
+					sessionInfo.classList.add('hidden');
+					}
                 // Показываем ID хоста в поле ссылки при подключении
                 if (!isHost) {
                     const shareLink = generateShareLink(myId);
