@@ -230,10 +230,22 @@
                 </div>
             </div>
         </div>
+		
+		 <div class="divider"></div>
 
-        <div class="divider"></div>
+        <div class="bar-section">
+          <button class="tool-btn" id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
+			<button class="tool-btn" id="btn-duplicate" onclick="duplicateSelected()" title="Duplicate selected">❐</button>
+			<button class="tool-btn" id="btn-pin" onclick="togglePin()" title="Pin/UnPin">📌</button>
+		<button class="tool-btn" id="btn-delete" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
+            
+            <button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
+            <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
+        </div>
+		     <div class="divider"></div>
 
         <div class="bar-section" style="position: relative;">
+		
             <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">⇖</button>
             
             <div style="position: relative;">
@@ -294,30 +306,23 @@
                 </div>
             </div>
         </div>
-
-        <div class="divider"></div>
-
-        <div class="bar-section">
-          <button class="tool-btn" id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
-<button class="tool-btn" id="btn-duplicate" onclick="duplicateSelected()" title="Duplicate selected">❐</button>
-<button class="tool-btn" id="btn-pin" onclick="togglePin()" title="Pin/UnPin">📌</button>
-<button class="tool-btn" id="btn-delete" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
-            
-            <button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
-            <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
-        </div>
-
         <div class="bar-section">
             <button class="tool-btn" onclick="saveBoard()" title="Save Board">💾</button>
             <button class="tool-btn" onclick="document.getElementById('file-input').click()" title="Open Board">📁</button>
             <input type="file" id="file-input" style="display: none;" accept=".json" onchange="openBoard(this)">
+			
+			<input type="checkbox" id="show-partner-frame" title="Show partner viewport frame">
         </div>
+   
+
+       
 
     </div>
 
-    <div id="canvas-wrapper">
-        <canvas id="c"></canvas>
-    </div>
+   <div id="canvas-wrapper">
+    <canvas id="c"></canvas>
+    <div id="partner-frame" style="position: absolute; border: 2px dashed red; opacity: 0.3; pointer-events: none; display: none;"></div>
+	</div>
 </div>
 
 <script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
@@ -333,7 +338,8 @@
 // ==========================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И КОНФИГУРАЦИЯ
 // ==========================================
-
+let lastViewportSend = 0;
+const VIEWPORT_THROTTLE = 200; // ms
 let connectionMode = 'p2p'; // 'p2p' или 'mqtt'
 let mqttClient = null;
 let mqttRoomId = null;
@@ -344,10 +350,11 @@ let isSendingToMqtt = false; // Флаг для предотвращения д�
 
 // Конфигурация MQTT - несколько альтернативных брокеров
 const MQTT_BROKERS = [
+	{ name: 'HiveMQ', url: 'wss://broker.hivemq.com:8884/mqtt' },
     { name: 'EMQX', url: 'wss://broker.emqx.io:8084/mqtt' },
-    { name: 'HiveMQ', url: 'wss://broker.hivemq.com:8884/mqtt' },
-    { name: 'MQTTHQ', url: 'wss://public.mqtthq.com:8084/mqtt' },
-    { name: 'Mosquitto', url: 'wss://test.mosquitto.org:8081/mqtt' }
+   
+    { name: 'MQTTHQ', url: 'wss://public.mqtthq.com:8084/mqtt' }
+    //{ name: 'Mosquitto', url: 'wss://test.mosquitto.org:8081/mqtt' }
 ];
 
 let currentBrokerIndex = 0;
@@ -402,7 +409,7 @@ function enablePaperMode() {
     const disabledButtons = [
     'btn-select',    // выделение
     'btn-eraser',    // ластик
-    'btn-undo',      // отмена (нужно дать кнопке id)
+    'btn-undo',      // отмена (нужно дать кнопке id) 
     'btn-duplicate', // дубль (нужно дать кнопке id)
     'btn-pin',       // пин (нужно дать кнопке id)
     'btn-delete'     // удалить (нужно дать кнопке id)
@@ -762,6 +769,9 @@ function handleMqttMessage(type, data) {
     console.log('📥 Received MQTT message:', type, data.id || data);
     
     switch(type) {
+		  case 'viewport':  // Добавьте этот case
+            handlePartnerViewport(data);
+            break;
         case 'object_added':
             // 🔥 ИСПРАВЛЕНИЕ: Помечаем объект как удаленный
             data.__isLocal = true;
@@ -1252,7 +1262,7 @@ function addToHistory(obj) {
 
 function undo() {
 	 // 🔥 НОВОЕ: Проверка режима MQTT
-    if (connectionMode === 'mqtt') return;
+   if (connectionMode === 'mqtt') return;
     const lastAction = undoStack.pop();
     if (!lastAction) return;
 
@@ -1735,6 +1745,8 @@ canvas.on('mouse:move', (o) => {
         
         lastPosX = e.clientX;
         lastPosY = e.clientY;
+		   sendMyViewport();
+        updatePartnerFrame();
         return;
     }
     
@@ -1799,7 +1811,10 @@ canvas.on('mouse:move', (o) => {
         
         canvas.requestRenderAll();
     }
-    
+       if (isPanning) {
+        sendMyViewport();
+        updatePartnerFrame();
+    }
     broadcastCursor(o.e);
 });
 
@@ -2020,6 +2035,8 @@ canvas.upperCanvasEl.addEventListener('touchmove', (e) => {
         vpt[5] += deltaY;
         
         canvas.requestRenderAll();
+		 sendMyViewport();
+        updatePartnerFrame();
 
         touchStartPoint = currentPoint;
         touchStartScale = zoom; 
@@ -2046,6 +2063,9 @@ canvas.on('mouse:wheel', function(opt) {
     zoom *= 0.999 ** delta;
     if (zoom > 10) zoom = 10; if (zoom < 0.1) zoom = 0.1;
     canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+	
+	  sendMyViewport();
+    updatePartnerFrame();
     opt.e.preventDefault(); opt.e.stopPropagation();
 });
 
@@ -2726,6 +2746,8 @@ function setupConn() {
  function processMessage(msg) {
     if (msg.type === 'cursor') {
         updatePartnerCursor(msg.x, msg.y);
+		 } else if (msg.type === 'viewport') {
+        handlePartnerViewport(msg);  // Добавьте эту строку
     } else if (msg.type === 'draw') {
         // Особый случай для изображений
         if (msg.data.type === 'image' && msg.data.src) {
@@ -3348,6 +3370,95 @@ window.addEventListener('load', () => {
         }
     }, 15000);
 });
+
+
+
+// Храним данные viewport партнера
+let partnerViewport = null;
+
+// Отправляем свой viewport (нужно вызывать при изменении)
+
+function sendMyViewport() {
+    const now = Date.now();
+    if (now - lastViewportSend < VIEWPORT_THROTTLE) return;
+    
+    lastViewportSend = now;
+    
+    if (connectionMode === 'mqtt' && mqttClient && mqttClient.connected) {
+        publishMqttMessage('viewport', {
+            transform: canvas.viewportTransform,
+            zoom: canvas.getZoom(),
+            width: canvas.width,
+            height: canvas.height
+        });
+    } else if (conn && conn.open) {
+        conn.send({
+            type: 'viewport',
+            transform: canvas.viewportTransform,
+            zoom: canvas.getZoom(),
+            width: canvas.width,
+            height: canvas.height
+        });
+    }
+}
+// Обновляем отображение рамки партнера
+function updatePartnerFrame() {
+    const frame = document.getElementById('partner-frame');
+    if (!frame || !partnerViewport) return;
+    
+    if (!document.getElementById('show-partner-frame').checked) {
+        frame.style.display = 'none';
+        return;
+    }
+    
+    // Преобразуем координаты партнера в наши экранные координаты
+    const pTransform = partnerViewport.transform;
+    const pZoom = partnerViewport.zoom;
+    const pWidth = partnerViewport.width;
+    const pHeight = partnerViewport.height;
+    
+    // Левый верхний угол viewport партнера в мировых координатах
+    const worldLeft = -pTransform[4] / pZoom;
+    const worldTop = -pTransform[5] / pZoom;
+    
+    // Преобразуем в наши экранные координаты
+    const myZoom = canvas.getZoom();
+    const myTransform = canvas.viewportTransform;
+    
+    const screenLeft = (worldLeft * myZoom) + myTransform[4];
+    const screenTop = (worldTop * myZoom) + myTransform[5];
+    const screenWidth = (pWidth / pZoom) * myZoom;
+    const screenHeight = (pHeight / pZoom) * myZoom;
+    
+    frame.style.display = 'block';
+    frame.style.left = screenLeft + 'px';
+    frame.style.top = screenTop + 'px';
+    frame.style.width = screenWidth + 'px';
+    frame.style.height = screenHeight + 'px';
+}
+
+// Обрабатываем полученный viewport партнера
+function handlePartnerViewport(data) {
+    partnerViewport = data;
+    updatePartnerFrame();
+}
+
+
+// Инициализация чекбокса отображения рамки партнера
+document.getElementById('show-partner-frame').addEventListener('change', function() {
+    updatePartnerFrame();
+    
+    // Отправляем свой viewport при включении/выключении
+    if (this.checked) {
+        sendMyViewport();
+    }
+});
+
+// Отправляем начальный viewport при подключении
+setTimeout(() => {
+    sendMyViewport();
+}, 1000);
+
 </script>
 </body>
 </html>
