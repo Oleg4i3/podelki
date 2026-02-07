@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iOS P2P Test (Fixed MQTT)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .status { padding: 10px; margin: 10px 0; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .status.wait { background: #fff3cd; color: #856404; }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.err { background: #f8d7da; color: #721c24; }
+        
+        button { padding: 12px 24px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; transition: 0.2s; margin: 5px; }
+        .btn-main { background: #007aff; color: white; width: 100%; box-sizing: border-box;}
+        
+        /* Кнопка-индикатор P2P */
+        #p2pButton {
+            width: 120px; height: 120px; border-radius: 50%;
+            font-size: 18px; font-weight: bold;
+            margin: 30px auto; display: flex; align-items: center; justify-content: center;
+            border: 5px solid #ccc; background: #eee; color: #999;
+            transition: all 0.3s ease;
+            cursor: not-allowed;
+        }
+        #p2pButton.enabled { cursor: pointer; background: #fff; border-color: #666; color: #333; }
+        #p2pButton.active {
+            background: #34c759; border-color: #248a3d; color: white;
+            box-shadow: 0 0 25px rgba(52, 199, 89, 0.6);
+            transform: scale(1.05);
+        }
+
+        .logs { text-align: left; font-size: 10px; height: 120px; overflow-y: scroll; background: #222; color: #0f0; padding: 10px; border-radius: 6px; margin-top: 20px; font-family: monospace; }
+        input.link-box { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; font-size: 16px; background: #f9f9f9;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3>P2P Связь (iOS Check)</h3>
+    
+    <div id="hostPanel">
+        <button class="btn-main" onclick="createRoom()">1. Создать комнату</button>
+    </div>
+
+    <div id="sharePanel" style="display:none;">
+        <p>Отправьте ссылку на iPad:</p>
+        <input type="text" class="link-box" id="shareLink" readonly onclick="this.select()">
+        <div id="mqttStatus" style="font-size: 12px; color: #666;">Жду партнера в MQTT...</div>
+    </div>
+
+    <div id="connectionStatus" class="status wait" style="display:none">Ожидание P2P...</div>
+
+    <div id="p2pButton">НЕТ СЕТИ</div>
+    <p style="font-size: 12px; color: #888;">Нажмите, чтобы переключить (когда подключено)</p>
+
+    <div class="logs" id="logs"></div>
+</div>
+
+<script>
+// ================= НАСТРОЙКИ =================
+
+// MQTT Брокер (EMQX на порту 8084 - WSS)
+const MQTT_CONFIG = {
+    host: "broker.emqx.io",
+    port: 8084,
+    path: "/mqtt",
+    useSSL: true
+};
+
+// WebRTC STUN (и TURN, если нужно раскомментировать)
+const RTC_CONFIG = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        // { urls: "turn:YOUR_TURN_IP:PORT?transport=tcp", username: "user", credential: "password" }
+    ],
+    iceCandidatePoolSize: 2
+};
+
+// ================= ЛОГИКА =================
+let client;
+let pc;
+let dc;
+let roomId = new URLSearchParams(window.location.search).get("room");
+let isInitiator = !roomId;
+const myId = "user-" + Math.random().toString(36).substr(2, 6);
+
+// --- Логгер ---
+function log(msg) {
+    const box = document.getElementById("logs");
+    box.innerHTML += `<div>> ${msg}</div>`;
+    box.scrollTop = box.scrollHeight;
+    console.log(msg);
+}
+
+// --- Старт ---
+window.onload = () => {
+    if (roomId) {
+        // Мы ГОСТЬ (на iPad)
+        document.getElementById("hostPanel").style.display = 'none';
+        document.getElementById("connectionStatus").style.display = 'block';
+        log(`Режим: ГОСТЬ. Комната: ${roomId}`);
+        initMqtt();
+    } else {
+        log("Режим: ХОСТ. Жду создания.");
+    }
+};
+
+function createRoom() {
+    roomId = Math.random().toString(36).substr(2, 6);
+    const url = window.location.origin + window.location.pathname + "?room=" + roomId;
+    
+    document.getElementById("hostPanel").style.display = 'none';
+    document.getElementById("sharePanel").style.display = 'block';
+    document.getElementById("shareLink").value = url;
+    document.getElementById("connectionStatus").style.display = 'block';
+    
+    log(`Комната создана: ${roomId}`);
+    initMqtt();
+}
+
+// --- 1. MQTT SIGNALING ---
+function initMqtt() {
+    client = new Paho.MQTT.Client(MQTT_CONFIG.host, MQTT_CONFIG.port, MQTT_CONFIG.path, myId);
+
+    client.onConnectionLost = (resp) => {
+        if (resp.errorCode !== 0) {
+            log("MQTT обрыв: " + resp.errorMessage);
+            // Если P2P еще не готов, это плохо
+            if (!pc || pc.iceConnectionState !== 'connected') {
+                 document.getElementById("mqttStatus").innerText = "MQTT Error!";
+            }
+        } else {
+            log("MQTT отключен штатно.");
+        }
+    };
+
+    client.onMessageArrived = async (msg) => {
+        const data = JSON.parse(msg.payloadString);
+        if (data.sender === myId) return; // Свое не читаем
+        
+        log(`Сигнал: ${data.type}`);
+        handleSignal(data);
+    };
+
+    client.connect({
+        useSSL: MQTT_CONFIG.useSSL,
+        onSuccess: () => {
+            log("MQTT: Подключено!");
+            document.getElementById("mqttStatus").innerText = "MQTT: OK. Жду P2P...";
+            client.subscribe(`rtc-test/${roomId}`);
+            
+            // Если мы гость, сообщаем хосту, что мы пришли
+            if (!isInitiator) sendSignal({ type: 'join' });
+        },
+        onFailure: (e) => {
+            log("MQTT Fail: " + e.errorMessage);
+            alert("Ошибка подключения к брокеру. Проверьте сеть.");
+        }
+    });
+}
+
+function sendSignal(payload) {
+    payload.sender = myId;
+    const message = new Paho.MQTT.Message(JSON.stringify(payload));
+    message.destinationName = `rtc-test/${roomId}`;
+    client.send(message);
+}
+
+// --- 2. WEBRTC HANDSHAKE ---
+async function handleSignal(data) {
+    if (!pc) createPeerConnection();
+
+    try {
+        if (data.type === 'join' && isInitiator) {
+            log("Партнер вошел. Создаю Offer...");
+            // Создаем канал данных, так как мы инициатор
+            dc = pc.createDataChannel("chat");
+            setupDataChannel(dc);
+            
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: 'offer', sdp: offer });
+        }
+        else if (data.type === 'offer' && !isInitiator) {
+            log("Пришел Offer. Шлю Answer...");
+            pc.ondatachannel = (e) => {
+                log("DataChannel получен!");
+                dc = e.channel;
+                setupDataChannel(dc);
+            };
+            
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSignal({ type: 'answer', sdp: answer });
+        }
+        else if (data.type === 'answer' && isInitiator) {
+            log("Пришел Answer.");
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        }
+        else if (data.type === 'candidate') {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+    } catch (e) {
+        log("RTC Error: " + e);
+    }
+}
+
+function createPeerConnection() {
+    log("Запуск RTCPeerConnection...");
+    pc = new RTCPeerConnection(RTC_CONFIG);
+
+    pc.onicecandidate = (e) => {
+        if (e.candidate) sendSignal({ type: 'candidate', candidate: e.candidate });
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        log(`ICE State: ${state}`);
+        const statusDiv = document.getElementById("connectionStatus");
+        
+        if (state === 'connected' || state === 'completed') {
+            statusDiv.innerText = "P2P ПОДКЛЮЧЕНО ✅";
+            statusDiv.className = "status ok";
+            document.getElementById("p2pButton").innerText = "ВКЛ/ВЫКЛ";
+            
+            // ОТКЛЮЧАЕМ MQTT ПОСЛЕ УСПЕХА
+            setTimeout(() => {
+                if(client && client.isConnected()) {
+                    log("Разрываю MQTT (больше не нужен)");
+                    client.disconnect();
+                }
+            }, 2000);
+            
+        } else if (state === 'failed' || state === 'disconnected') {
+            statusDiv.innerText = "P2P РАЗРЫВ ❌";
+            statusDiv.className = "status err";
+            document.getElementById("p2pButton").classList.remove("active", "enabled");
+        }
+    };
+}
+
+// --- 3. DATA CHANNEL (ВКЛ/ВЫКЛ) ---
+function setupDataChannel(channel) {
+    channel.onopen = () => {
+        log("Канал данных ОТКРЫТ");
+        const btn = document.getElementById("p2pButton");
+        btn.classList.add("enabled");
+        btn.onclick = () => sendToggle();
+    };
+    
+    channel.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.cmd === 'toggle') {
+            applyToggle(msg.state);
+        }
+    };
+}
+
+function sendToggle() {
+    const btn = document.getElementById("p2pButton");
+    if (!btn.classList.contains("enabled")) return;
+    
+    const newState = !btn.classList.contains("active");
+    applyToggle(newState); // Меняем у себя
+    
+    // Шлем партнеру
+    if (dc && dc.readyState === 'open') {
+        dc.send(JSON.stringify({ cmd: 'toggle', state: newState }));
+    }
+}
+
+function applyToggle(state) {
+    const btn = document.getElementById("p2pButton");
+    if (state) {
+        btn.classList.add("active");
+        btn.innerText = "ON";
+    } else {
+        btn.classList.remove("active");
+        btn.innerText = "OFF";
+    }
+}
+</script>
+</body>
+</html>
