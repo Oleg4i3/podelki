@@ -3,291 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>STUN+TURN iOS Connectivity Test</title>
+    <title>WebRTC Deep Diagnostic</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { font-family: monospace; background: #1a1a1a; color: #0f0; padding: 15px; margin: 0; }
-        .box { border: 1px solid #444; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #222; }
-        h3 { margin-top: 0; color: #fff; }
-        
-        button {
-            width: 100%; padding: 15px; font-size: 16px; 
-            background: #007aff; color: white; border: none; border-radius: 6px; cursor: pointer;
-            margin-bottom: 10px; font-weight: bold;
-        }
-        button:disabled { background: #555; color: #888; }
-        
-        input { width: 100%; box-sizing: border-box; padding: 10px; background: #000; color: #fff; border: 1px solid #555; margin-bottom: 10px; }
-        
-        .status { padding: 5px 10px; display: inline-block; border-radius: 4px; color: #000; font-weight: bold; }
-        .wait { background: #ffd700; }
-        .ok { background: #32cd32; }
-        .fail { background: #ff4500; }
-        
-        #logArea { height: 200px; overflow-y: scroll; font-size: 11px; border-top: 1px solid #444; padding-top: 5px; opacity: 0.8; }
-        
-        /* Индикатор работы канала */
-        #pingPong {
-            text-align: center; font-size: 24px; padding: 20px; border: 2px dashed #555; margin-top: 10px;
-        }
-        #pingPong.live { border-color: #0f0; background: rgba(0, 255, 0, 0.1); }
+        body { background: #121212; color: #00ff00; font-family: 'Courier New', monospace; padding: 10px; margin: 0; font-size: 12px; }
+        .panel { border: 1px solid #333; padding: 10px; margin-bottom: 10px; background: #1e1e1e; }
+        button { width: 100%; padding: 15px; background: #2962ff; color: white; border: none; font-weight: bold; margin-bottom: 5px; font-size: 14px;}
+        input { width: 100%; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #555; padding: 8px; }
+        .red { color: #ff5252; } .yellow { color: #ffd740; } .green { color: #69f0ae; }
+        #log { height: 300px; overflow-y: scroll; white-space: pre-wrap; border-top: 1px solid #333; }
+        .candidate-box { border-left: 2px solid #555; padding-left: 5px; margin: 2px 0; font-size: 10px; color: #aaa; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h3>1. Настройка (STUN+TURN)</h3>
-    <div id="roleSelect">
-        <button onclick="startAsHost()">Я ХОСТ (Создать)</button>
-        <div style="text-align:center; margin: 5px;">--- ИЛИ ---</div>
-        <div id="guestMsg">Если вы гость, просто откройте ссылку от хоста.</div>
+<div class="panel">
+    <h3 style="margin:0 0 10px 0;">WebRTC NAT SCANNER</h3>
+    <div id="controls">
+        <button onclick="startHost()">Я ХОСТ (PC/Android)</button>
+        <div style="text-align:center; padding:5px;">--- ИЛИ ---</div>
+        <div style="color:#aaa; text-align:center;">Если iPad - просто открой ссылку</div>
     </div>
     
-    <div id="shareSection" style="display:none">
-        <label>Ссылка для партнера (iPad):</label>
-        <input type="text" id="shareLink" readonly onclick="this.select()">
-        <div class="status wait" id="sigStatus">Жду MQTT...</div>
+    <div id="share" style="display:none">
+        Ссылка: <input id="link" readonly onclick="this.select()">
+        <div id="mqttStat" class="yellow">MQTT: Connecting...</div>
     </div>
 </div>
 
-<div class="box">
-    <h3>2. Статус P2P</h3>
-    <div>ICE State: <span id="iceState" class="status wait">IDLE</span></div>
-    <div style="margin-top:5px">Pair: <span id="pairType" style="color:#fff">...</span></div>
-    
-    <div id="pingPong">НЕТ СВЯЗИ</div>
-    <button id="sendBtn" onclick="sendData()" disabled>Отправить PING</button>
+<div class="panel">
+    <div>ICE: <span id="iceState">IDLE</span></div>
+    <div>Пары: <span id="connPair">-</span></div>
+    <div id="gatheringStatus">Сбор кандидатов: ...</div>
 </div>
 
-<div id="logArea"></div>
+<div id="log"></div>
 
 <script>
-// === КОНФИГУРАЦИЯ "БРОНЕБОЙНАЯ" ===
-// Используем OpenRelay (бесплатный Tier)
+// === РАСШИРЕННЫЙ СПИСОК СЕРВЕРОВ ===
 const rtcConfig = {
     iceServers: [
-        // 1. Google STUN (классика)
+        // 1. Google STUN (стандарт)
         { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
         
-        // 2. OpenRelay TURN (UDP:80)
-        { 
-            urls: "turn:openrelay.metered.ca:80", 
-            username: "openrelayproject", 
-            credential: "openrelayproject" 
-        },
-        // 3. OpenRelay TURN (UDP:443)
-        { 
-            urls: "turn:openrelay.metered.ca:443", 
-            username: "openrelayproject", 
-            credential: "openrelayproject" 
-        },
-        // 4. OpenRelay TURN (TCP:443) - <<< ВАЖНО ДЛЯ iOS
-        { 
-            urls: "turn:openrelay.metered.ca:443?transport=tcp", 
-            username: "openrelayproject", 
-            credential: "openrelayproject" 
-        }
+        // 2. OpenRelay TURN (Попытка UDP и TCP)
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
     ],
-    iceCandidatePoolSize: 2,
-    bundlePolicy: 'max-bundle'
+    iceCandidatePoolSize: 4,     // Собираем заранее
+    bundlePolicy: 'max-bundle',  // Обязательно для iOS
+    iceTransportPolicy: 'all'    // Разрешить всё (не только relay)
 };
 
-// MQTT (EMQX - WSS/8084)
 const mqttCfg = { host: "broker.emqx.io", port: 8084, path: "/mqtt", useSSL: true };
-
-// Глобальные переменные
-let pc, dc, mqtt;
-let roomId = new URLSearchParams(window.location.search).get("room");
+let pc, mqtt, myId = "u" + Math.random().toString(16).substr(2,4);
+let roomId = new URLSearchParams(window.location.search).get("r");
 let isHost = !roomId;
-let myId = "u" + Math.random().toString(16).substr(2, 4);
+let candidatesCount = { host: 0, srflx: 0, relay: 0 };
 
-// --- ЛОГИРОВАНИЕ ---
-function log(msg) {
-    const d = new Date().toLocaleTimeString();
-    const line = `[${d}] ${msg}`;
-    console.log(line);
-    const area = document.getElementById("logArea");
-    area.innerHTML = `<div>${line}</div>` + area.innerHTML;
+function log(msg, color="") {
+    const d = new Date();
+    const ts = `${d.getMinutes()}:${d.getSeconds()}.${d.getMilliseconds()}`;
+    const el = document.getElementById("log");
+    const span = color ? `<span class="${color}">` : "<span>";
+    el.innerHTML = `<div><span style="color:#555">[${ts}]</span> ${span}${msg}</span></div>` + el.innerHTML;
 }
 
-// --- СТАРТ ---
 window.onload = () => {
-    if (roomId) {
-        document.getElementById("roleSelect").style.display = 'none';
-        log(`Режим: ГОСТЬ. Комната: ${roomId}`);
+    if(roomId) {
+        document.getElementById("controls").style.display = 'none';
+        log(`Роль: ГОСТЬ (iPad?). Комната: ${roomId}`);
         initMqtt();
     }
 };
 
-function startAsHost() {
-    roomId = Math.random().toString(36).substr(2, 6);
-    const url = location.origin + location.pathname + "?room=" + roomId;
-    document.getElementById("roleSelect").style.display = 'none';
-    document.getElementById("shareSection").style.display = 'block';
-    document.getElementById("shareLink").value = url;
-    log(`Режим: ХОСТ. Создана комната: ${roomId}`);
+function startHost() {
+    roomId = Math.random().toString(36).substr(2,6);
+    document.getElementById("controls").style.display = 'none';
+    document.getElementById("share").style.display = 'block';
+    document.getElementById("link").value = location.origin + location.pathname + "?r=" + roomId;
+    log(`Роль: ХОСТ. Комната создана.`);
     initMqtt();
 }
 
-// --- MQTT SIGNALING ---
 function initMqtt() {
     mqtt = new Paho.MQTT.Client(mqttCfg.host, mqttCfg.port, mqttCfg.path, myId);
-    
-    mqtt.onConnectionLost = (e) => {
-        if (e.errorCode !== 0) log("MQTT обрыв: " + e.errorMessage);
+    mqtt.onConnectionLost = (e) => log("MQTT Lost: " + e.errorMessage, "red");
+    mqtt.onMessageArrived = (m) => {
+        const d = JSON.parse(m.payloadString);
+        if(d.f !== myId) handleSignal(d);
     };
-    
-    mqtt.onMessageArrived = (msg) => {
-        const data = JSON.parse(msg.payloadString);
-        if (data.from === myId) return;
-        handleSignal(data);
-    };
-    
     mqtt.connect({
         useSSL: true,
         onSuccess: () => {
-            log("MQTT Подключен.");
-            document.getElementById("sigStatus").innerText = "MQTT OK";
-            document.getElementById("sigStatus").className = "status ok";
-            mqtt.subscribe(`turn-test/${roomId}`);
-            if (!isHost) sendSignal({ type: 'hello' });
-        },
-        onFailure: (e) => log("MQTT Ошибка: " + e.errorMessage)
+            document.getElementById("mqttStat").innerText = "MQTT: OK";
+            document.getElementById("mqttStat").className = "green";
+            mqtt.subscribe(`dgn/${roomId}`);
+            if(!isHost) send({t:'hello'});
+        }
     });
 }
 
-function sendSignal(data) {
-    data.from = myId;
-    const msg = new Paho.MQTT.Message(JSON.stringify(data));
-    msg.destinationName = `turn-test/${roomId}`;
-    mqtt.send(msg);
+function send(d) {
+    d.f = myId;
+    mqtt.send(`dgn/${roomId}`, JSON.stringify(d));
 }
 
-// --- WEBRTC CORE ---
-async function createPeer() {
-    log("Создание RTCPeerConnection (с TURN)...");
+async function createPC() {
+    log("Запуск RTCPeerConnection...", "yellow");
     pc = new RTCPeerConnection(rtcConfig);
     
+    // === ГЛАВНАЯ ДИАГНОСТИКА: СБОР КАНДИДАТОВ ===
     pc.onicecandidate = (e) => {
         if (e.candidate) {
-            // Логируем тип кандидата для проверки
-            // typ host = локальный IP, srflx = STUN, relay = TURN
-            const type = e.candidate.candidate.split(' typ ')[1].split(' ')[0];
-            // log(`Найден кандидат: ${type}`); 
-            sendSignal({ type: 'candidate', candidate: e.candidate });
+            const c = e.candidate;
+            // Парсинг типа: host (local), srflx (stun), relay (turn)
+            const type = c.candidate.match(/typ ([a-z]+)/)?.[1] || "unknown";
+            const protocol = c.protocol;
+            const port = c.port;
+            
+            candidatesCount[type] = (candidatesCount[type] || 0) + 1;
+            updateGatheringStats();
+
+            log(`Нашел себя: ${type.toUpperCase()} (${protocol}:${port})`, type === 'relay' ? 'green' : '');
+            send({t:'ice', c:c});
+        } else {
+            log("Сбор кандидатов завершен.", "yellow");
         }
     };
-    
+
     pc.oniceconnectionstatechange = () => {
         const s = pc.iceConnectionState;
-        const el = document.getElementById("iceState");
-        el.innerText = s.toUpperCase();
-        log(`ICE State: ${s}`);
+        document.getElementById("iceState").innerText = s.toUpperCase();
+        document.getElementById("iceState").className = s === 'connected' ? 'green' : (s === 'failed' ? 'red' : 'yellow');
+        log(`ICE State changed: ${s}`, s==='failed' ? 'red' : '');
         
-        if (s === 'connected' || s === 'completed') {
-            el.className = "status ok";
-            checkStats(); // Проверяем, как именно мы соединились
-        } else if (s === 'failed') {
-            el.className = "status fail";
-            log("КРИТИЧЕСКАЯ ОШИБКА: Не удалось пробить NAT даже через TURN.");
-        }
+        if (s === 'connected') showStats();
     };
     
-    // Data Channel
-    if (isHost) {
-        dc = pc.createDataChannel("test");
-        setupDc(dc);
-    } else {
-        pc.ondatachannel = (e) => setupDc(e.channel);
-    }
+    // Создаем DataChannel чтобы запустить ICE проверки
+    if(isHost) pc.createDataChannel("chat"); 
+    else pc.ondatachannel = () => {}; 
 }
 
-async function handleSignal(data) {
-    if (!pc) await createPeer();
-    
+function updateGatheringStats() {
+    document.getElementById("gatheringStatus").innerText = 
+        `Host:${candidatesCount.host} | Stun:${candidatesCount.srflx} | Turn:${candidatesCount.relay}`;
+}
+
+async function handleSignal(d) {
+    if(!pc) await createPC();
     try {
-        if (data.type === 'hello' && isHost) {
-            log("Гость на связи. Создаю Offer...");
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sendSignal({ type: 'offer', sdp: offer });
+        if(d.t === 'hello' && isHost) {
+            log("Гость тут. Создаю Offer...");
+            const off = await pc.createOffer();
+            await pc.setLocalDescription(off);
+            send({t:'off', s:off});
         }
-        else if (data.type === 'offer' && !isHost) {
-            log("Получен Offer. Шлю Answer...");
-            await pc.setRemoteDescription(data.sdp);
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendSignal({ type: 'answer', sdp: answer });
+        else if(d.t === 'off' && !isHost) {
+            log("Получил Offer. Шлю Answer...");
+            await pc.setRemoteDescription(d.s);
+            const ans = await pc.createAnswer();
+            await pc.setLocalDescription(ans);
+            send({t:'ans', s:ans});
         }
-        else if (data.type === 'answer' && isHost) {
-            log("Получен Answer.");
-            await pc.setRemoteDescription(data.sdp);
+        else if(d.t === 'ans' && isHost) {
+            log("Получил Answer.");
+            await pc.setRemoteDescription(d.s);
         }
-        else if (data.type === 'candidate') {
-            await pc.addIceCandidate(data.candidate);
+        else if(d.t === 'ice') {
+            await pc.addIceCandidate(d.c);
+            log(`Получил кандидата партнера!`, "yellow");
         }
-    } catch(e) {
-        log("Signal Error: " + e);
-    }
+    } catch(e) { log("ERR: " + e, "red"); }
 }
 
-// --- DATA CHANNEL & UI ---
-function setupDc(channel) {
-    dc = channel;
-    dc.onopen = () => {
-        log("КАНАЛ ОТКРЫТ!");
-        document.getElementById("sendBtn").disabled = false;
-        document.getElementById("pingPong").innerText = "ГОТОВО";
-        document.getElementById("pingPong").className = "live";
-        // Отключаем MQTT чтобы доказать P2P
-        setTimeout(() => { 
-            if(mqtt.isConnected()) { mqtt.disconnect(); log("MQTT отключен. Работаем на P2P."); }
-        }, 2000);
-    };
-    dc.onmessage = (e) => {
-        log(`Получено: ${e.data}`);
-        const box = document.getElementById("pingPong");
-        box.innerText = e.data;
-        // Анимация
-        box.style.background = "#fff";
-        setTimeout(() => box.style.background = "rgba(0,255,0,0.1)", 200);
-    };
+async function showStats() {
+    const stats = await pc.getStats();
+    stats.forEach(r => {
+        if(r.type === 'candidate-pair' && r.state === 'succeeded') {
+            const loc = stats.get(r.localCandidateId);
+            const rem = stats.get(r.remoteCandidateId);
+            const txt = `${loc.candidateType} -> ${rem.candidateType}`;
+            document.getElementById("connPair").innerText = txt;
+            log(`УСПЕХ! Соединение: ${txt}`, "green");
+        }
+    });
 }
-
-function sendData() {
-    const msg = isHost ? "PING" : "PONG";
-    if (dc && dc.readyState === 'open') {
-        dc.send(msg);
-        log(`Отправлено: ${msg}`);
-    }
-}
-
-// --- ДИАГНОСТИКА СОЕДИНЕНИЯ ---
-async function checkStats() {
-    // Пытаемся понять, идет ли через TURN
-    if (!pc) return;
-    try {
-        const stats = await pc.getStats();
-        stats.forEach(report => {
-            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                const local = stats.get(report.localCandidateId);
-                const remote = stats.get(report.remoteCandidateId);
-                const pairInfo = `${local.candidateType} <-> ${remote.candidateType}`;
-                document.getElementById("pairType").innerText = pairInfo;
-                log(`Успешная пара: ${pairInfo}`);
-                
-                if (pairInfo.includes('relay')) {
-                    log("УСПЕХ: Используется TURN сервер!");
-                } else {
-                    log("УСПЕХ: Прямое соединение (или STUN).");
-                }
-            }
-        });
-    } catch(e) {
-        console.log("Stats error", e);
-    }
-}
-
 </script>
 </body>
 </html>
