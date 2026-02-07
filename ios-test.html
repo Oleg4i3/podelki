@@ -3,202 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WebRTC Multi-TURN Test</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <title>PeerJS Quick Connect</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 10px; font-size: 13px; }
-        .box { border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 6px; background: #111; }
-        button { width: 100%; padding: 15px; background: #0055ff; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        input { width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: #fff; border: 1px solid #444; margin-bottom: 10px; }
-        
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
-        .val { font-weight: bold; color: #fff; }
-        .good { color: #0f0; } .bad { color: #f00; } .warn { color: orange; }
-        
-        #logs { height: 250px; overflow-y: scroll; border-top: 1px solid #444; font-size: 11px; color: #aaa; }
-        #logs div { margin-bottom: 2px; }
+        body { background: #121212; color: #eee; font-family: sans-serif; padding: 20px; font-size: 16px; }
+        .box { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
+        input { width: 100%; padding: 15px; margin: 10px 0; background: #000; color: #fff; border: 1px solid #555; border-radius: 8px; font-size: 18px; box-sizing: border-box;}
+        button { width: 100%; padding: 15px; background: #007aff; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .id-display { font-size: 24px; font-weight: bold; color: #00e676; letter-spacing: 2px; text-align: center; margin: 10px 0; word-break: break-all; }
+        #logs { font-family: monospace; font-size: 12px; color: #aaa; margin-top: 20px; }
+        .err { color: #ff3b30; } .ok { color: #00e676; }
     </style>
 </head>
 <body>
 
-<div class="box" id="setup">
-    <h3 style="margin-top:0">1. Настройка</h3>
-    <button onclick="createRoom()">СОЗДАТЬ (HOST)</button>
-    <div style="text-align:center; margin:10px; color:#666">--- ИЛИ ---</div>
-    <div style="text-align:center; color:#888">Просто откройте ссылку на iPad</div>
-</div>
-
-<div class="box" id="active" style="display:none">
-    <h3 style="margin-top:0">2. Ссылка для партнера</h3>
-    <input id="shareLink" readonly onclick="this.select()">
-    <div id="mqttStatus" class="warn">MQTT: Подключение...</div>
+<div class="box">
+    <div style="text-align:center; color:#888; font-size:14px;">ВАШ ID:</div>
+    <div id="myId" class="id-display">...</div>
 </div>
 
 <div class="box">
-    <div class="stat-row"><div>Статус:</div> <div id="status" class="warn">IDLE</div></div>
-    <div class="stat-row"><div>Тип:</div> <div id="pairType" class="val">-</div></div>
-    <div style="margin-top:10px; font-size:11px; color:#888;">НАЙДЕННЫЕ КАНДИДАТЫ:</div>
-    <div class="stat-row"><div>SRFLX (STUN):</div> <div id="cntStun" class="val">0</div></div>
-    <div class="stat-row"><div>RELAY (TURN):</div> <div id="cntTurn" class="val">0</div></div>
+    <div style="text-align:center; color:#888; font-size:14px;">ID ПАРТНЕРА:</div>
+    <input type="text" id="partnerId" placeholder="Введите ID собеседника">
+    <button onclick="connectToPeer()">ПОДКЛЮЧИТЬСЯ</button>
+</div>
+
+<div class="box">
+    <div style="text-align:center; color:#888; font-size:14px;">ЧАТ / ТЕСТ</div>
+    <div id="status" style="text-align:center; margin:10px; font-weight:bold; color:#f0ad4e;">Ожидание...</div>
+    <button id="pingBtn" style="background:#333; display:none;" onclick="sendMsg('PING')">ОТПРАВИТЬ PING</button>
 </div>
 
 <div id="logs"></div>
 
 <script>
-// === САМЫЙ ПОЛНЫЙ СПИСОК БЕСПЛАТНЫХ СЕРВЕРОВ ===
-const rtcConfig = {
-    iceServers: [
-        // 1. Google STUN (Основа)
-        { urls: "stun:stun.l.google.com:19302" },
+    let peer;
+    let conn;
 
-        // 2. OpenRelay (Популярный, часто банится, но пробуем разные порты)
-        { 
-            urls: [
-                "turn:openrelay.metered.ca:80", 
-                "turn:openrelay.metered.ca:443", 
-                "turn:openrelay.metered.ca:443?transport=tcp"
-            ], 
-            username: "openrelayproject", 
-            credential: "openrelayproject" 
-        },
+    // Генерируем короткий ID для удобства (4 символа)
+    // Но PeerJS может потребовать уникальный, поэтому добавляем случайность
+    const customId = Math.random().toString(36).substr(2, 5);
 
-        // 3. Glitch / Viagenie (Резерв, если доступен)
-        // Иногда срабатывает на старых списках
-        { 
-             urls: "turn:numb.viagenie.ca", 
-             username: "webrtc@live.com", 
-             credential: "muazkh" 
-        }
-    ],
-    iceCandidatePoolSize: 2,
-    bundlePolicy: 'max-bundle'
-};
-
-// MQTT (Сигналинг)
-const mqttCfg = { host: "broker.emqx.io", port: 8084, path: "/mqtt", useSSL: true };
-
-// --- LOGIC ---
-let pc, mqtt;
-let myId = "u" + Math.random().toString(16).substr(2, 4);
-let roomId = new URLSearchParams(window.location.search).get("room");
-let isHost = !roomId;
-let cStun = 0, cTurn = 0;
-
-function log(msg, type="") {
-    const box = document.getElementById("logs");
-    const color = type === 'err' ? 'red' : (type === 'ok' ? '#0f0' : '#ccc');
-    box.innerHTML = `<div><span style="color:${color}">></span> ${msg}</div>` + box.innerHTML;
-    console.log(msg);
-}
-
-window.onload = () => {
-    if (roomId) {
-        document.getElementById("setup").style.display = 'none';
-        log(`Режим: ГОСТЬ. Комната: ${roomId}`);
-        initMqtt();
+    function log(msg, type='') {
+        const d = new Date();
+        const time = d.toTimeString().split(' ')[0];
+        const el = document.getElementById("logs");
+        el.innerHTML = `<div class="${type}">[${time}] ${msg}</div>` + el.innerHTML;
+        console.log(msg);
     }
-};
 
-function createRoom() {
-    roomId = Math.random().toString(36).substr(2, 6);
-    const url = location.origin + location.pathname + "?room=" + roomId;
-    document.getElementById("setup").style.display = 'none';
-    document.getElementById("active").style.display = 'block';
-    document.getElementById("shareLink").value = url;
-    log(`Создана комната: ${roomId}`);
-    initMqtt();
-}
-
-function initMqtt() {
-    mqtt = new Paho.MQTT.Client(mqttCfg.host, mqttCfg.port, mqttCfg.path, myId);
-    mqtt.onConnectionLost = (e) => log("MQTT Lost: " + e.errorMessage, "err");
-    mqtt.onMessageArrived = (m) => {
-        const d = JSON.parse(m.payloadString);
-        if (d.f !== myId) handleSignal(d);
-    };
-    mqtt.connect({
-        useSSL: true,
-        onSuccess: () => {
-            document.getElementById("mqttStatus").innerText = "MQTT: OK";
-            document.getElementById("mqttStatus").className = "good";
-            mqtt.subscribe(`rtc-multi/${roomId}`);
-            if (!isHost) send({ t: 'hello' });
+    // 1. Инициализация (Без API ключей, используем Cloud Server от PeerJS)
+    log("Подключение к PeerJS Cloud...");
+    
+    peer = new Peer(customId, {
+        debug: 2,
+        config: {
+            // PeerJS использует дефолтные Google STUN. 
+            // Иногда они добавляют свои TURN, но это "черный ящик".
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
         }
     });
-}
 
-function send(d) {
-    d.f = myId;
-    mqtt.send(`rtc-multi/${roomId}`, JSON.stringify(d));
-}
+    peer.on('open', (id) => {
+        document.getElementById("myId").innerText = id;
+        log("Мой ID получен: " + id, "ok");
+        log("Жду соединения...", "ok");
+    });
 
-async function startPeer() {
-    log("Запуск WebRTC...", "warn");
-    pc = new RTCPeerConnection(rtcConfig);
-    
-    pc.onicecandidate = (e) => {
-        if (e.candidate) {
-            const type = e.candidate.type; // host, srflx, relay
-            if (type === 'srflx') { cStun++; document.getElementById("cntStun").innerText = cStun; }
-            if (type === 'relay') { 
-                cTurn++; 
-                document.getElementById("cntTurn").innerText = cTurn; 
-                document.getElementById("cntTurn").className = "good"; // УРА!
-                log("!!! ПОЛУЧЕН TURN КАНДИДАТ !!!", "ok");
-            }
-            send({ t: 'ice', c: e.candidate });
-        }
-    };
+    peer.on('error', (err) => {
+        log("ОШИБКА: " + err.type, "err");
+        log(err.message, "err");
+    });
 
-    pc.oniceconnectionstatechange = () => {
-        const s = pc.iceConnectionState;
-        const el = document.getElementById("status");
-        el.innerText = s.toUpperCase();
-        el.className = s === 'connected' ? 'good' : (s === 'failed' ? 'bad' : 'warn');
+    peer.on('connection', (c) => {
+        log("Входящее соединение от: " + c.peer);
+        setupConnection(c);
+    });
+
+    function connectToPeer() {
+        const pid = document.getElementById("partnerId").value.trim();
+        if(!pid) return alert("Введите ID партнера!");
         
-        log(`ICE State: ${s}`);
-        if(s === 'connected' || s === 'completed') checkStats();
-    };
-
-    if (isHost) {
-        const dc = pc.createDataChannel("test");
-        dc.onopen = () => log("КАНАЛ ДАННЫХ ОТКРЫТ (P2P РАБОТАЕТ)", "ok");
+        log("Пытаюсь соединиться с " + pid + "...");
+        const c = peer.connect(pid);
+        setupConnection(c);
     }
-}
 
-async function handleSignal(d) {
-    if (!pc) await startPeer();
-    
-    try {
-        if (d.t === 'hello' && isHost) {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            send({ t: 'off', s: offer });
-        } else if (d.t === 'off' && !isHost) {
-            await pc.setRemoteDescription(d.s);
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            send({ t: 'ans', s: answer });
-        } else if (d.t === 'ans') {
-            await pc.setRemoteDescription(d.s);
-        } else if (d.t === 'ice') {
-            await pc.addIceCandidate(d.c);
-        }
-    } catch (e) { log("Err: " + e, "err"); }
-}
+    function setupConnection(c) {
+        conn = c;
+        
+        conn.on('open', () => {
+            document.getElementById("status").innerText = "ПОДКЛЮЧЕНО!";
+            document.getElementById("status").style.color = "#00e676";
+            document.getElementById("pingBtn").style.display = "block";
+            log("!!! P2P КАНАЛ ОТКРЫТ !!!", "ok");
+            
+            // Отправляем приветствие
+            conn.send("Привет, я тут!");
+        });
 
-async function checkStats() {
-    const stats = await pc.getStats();
-    stats.forEach(rep => {
-        if(rep.type === 'candidate-pair' && rep.state === 'succeeded') {
-            const loc = stats.get(rep.localCandidateId);
-            const rem = stats.get(rep.remoteCandidateId);
-            const txt = `${loc.candidateType} <-> ${rem.candidateType}`;
-            document.getElementById("pairType").innerText = txt;
-            log(`Успешная пара: ${txt}`, "ok");
+        conn.on('data', (data) => {
+            log("Получено: " + data);
+            if(data === 'PING') {
+                log("Отправляю PONG...", "ok");
+                conn.send("PONG");
+            }
+        });
+
+        conn.on('close', () => {
+            document.getElementById("status").innerText = "ОТКЛЮЧЕНО";
+            document.getElementById("status").style.color = "red";
+            log("Соединение закрыто.", "err");
+        });
+        
+        conn.on('error', (err) => log("Ошибка соединения: " + err, "err"));
+    }
+
+    function sendMsg(msg) {
+        if(conn && conn.open) {
+            conn.send(msg);
+            log("Отправлено: " + msg);
+        } else {
+            log("Нет связи для отправки.", "err");
         }
-    });
-}
+    }
 </script>
+
 </body>
 </html>
