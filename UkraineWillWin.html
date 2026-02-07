@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ППО Симулятор: Вахтовий Метод</title>
+	
+	<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+
+
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #e0f0ff; color: #333; }
+        
+        .math-block {
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            text-align: center; /* Центруємо формули */
+            overflow-x: auto;   /* Щоб довгі формули не ламали верстку */
+            font-size: 1.1em;
+        }
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 10px; left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #aaa; padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 280px; z-index: 10;
+        }
+        .hud-title { font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #004488; }
+        .hud-text { font-size: 14px; margin-bottom: 4px; color: #333; }
+        .error-val { color: #d00; font-weight: bold; }
+        .status-ok { color: #008800; font-weight: bold; }
+        
+        /* Legend */
+        #legend {
+            position: absolute; bottom: 20px; right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #aaa; padding: 15px; border-radius: 8px;
+            font-size: 13px; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; border: 1px solid #555; }
+
+        /* Controls */
+        #controls-btn {
+            position: absolute; top: 10px; right: 10px;
+            background: #0055aa; color: #fff; border: none; padding: 10px 20px;
+            cursor: pointer; border-radius: 4px; font-weight: bold; z-index: 10;
+        }
+        #controls-btn:hover { background: #004488; }
+
+        /* Modal */
+        #modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        #settings-modal {
+            background: #fff; width: 650px; max-height: 90vh;
+            overflow-y: auto; padding: 25px; border-radius: 8px;
+        }
+        .control-group { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .control-group label { flex: 1; font-size: 14px; }
+        .control-group input { width: 80px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        details { background: #f9f9f9; padding: 15px; margin-top: 20px; border: 1px solid #ddd; border-radius: 4px; }
+        summary { cursor: pointer; color: #0055aa; font-weight: bold; outline: none; }
+        
+        #apply-btn {
+            width: 100%; padding: 12px; margin-top: 20px;
+            background: #28a745; color: #fff; border: none;
+            font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 4px;
+        }
+        input[type=range] { width: 100%; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="ui-layer">
+    <div class="hud-title">КОМАНДНИЙ ПУНКТ (СН)</div>
+    <div class="hud-text">Час симуляції: <span id="sim-time">0.00</span> с</div>
+    <div class="hud-text">Статус цілі: <span id="hud-status">ПОШУК...</span></div>
+    <div class="hud-text">Група сканування: <span id="hud-wave-status">ОЧІКУВАННЯ</span></div>
+    <hr>
+    <div class="hud-text">Похибка позиції: <span id="err-pos" class="error-val">--</span> м</div>
+    <div class="hud-text">Похибка швидкості: <span id="err-vel" class="error-val">--</span> м/с</div>
+    
+    <div style="margin-top: 15px;">
+        <label class="hud-text" style="font-weight:bold">Швидкість часу: <span id="time-scale-val">4.0</span>x</label>
+        <input type="range" id="time-scale-input" min="0.1" max="5.0" step="0.1" value="4.0">
+    </div>
+</div>
+
+<div id="legend">
+    <div class="hud-title" style="margin-bottom:10px;">Легенда</div>
+    <div class="legend-item"><span class="dot" style="background:#cc2222;"></span> Ракета (Ціль)</div>
+    <div class="legend-item"><span class="dot" style="background:#ff4400; opacity:0.6;"></span> Траєкторія цілі</div>
+    <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> Сканування (Активна група)</div>
+    <div class="legend-item"><span class="dot" style="background:#ff00ff;"></span> Захоплення (Lock)</div>
+    <div class="legend-item"><span class="dot" style="background:#00ff00;"></span> Прогноз СН</div>
+    <div class="legend-item"><span class="dot" style="background:#336699;"></span> Станція (Рух / Тиша)</div>
+</div>
+
+<button id="controls-btn">НАЛАШТУВАННЯ</button>
+
+<div id="modal-overlay">
+    <div id="settings-modal">
+        <h2>Налаштування Групи ППО</h2>
+        
+        <div class="control-group"><label>Загальна кількість СВ:</label><input type="number" id="inp-sv-count" value="30"></div>
+        <div class="control-group"><label>Розмір групи (одночасно):</label><input type="number" id="inp-sv-group" value="5"></div>
+        <div class="control-group"><label>Швидкість руху СВ (м/с):</label><input type="number" id="inp-sv-speed" value="25"></div>
+        <hr>
+        <div class="control-group"><label>Тривалість сканування (с):</label><input type="number" id="inp-scan-duration" value="5"></div>
+        <div class="control-group"><label>Період циклу (скан+переїзд) (с):</label><input type="number" id="inp-cycle-period" value="15"></div>
+        <div class="control-group"><label>Кут огляду радара (°):</label><input type="number" id="inp-beam-width" value="45"></div>
+        <hr>
+        <div class="control-group"><label>Швидкість ракети (м/с):</label><input type="number" id="inp-target-speed" value="100"></div>
+        <div class="control-group"><label>Період маневру ракети (с):</label><input type="number" id="inp-maneuver-period" value="12"></div>
+
+       <details>
+            <summary>Технічна документація: Алгоритми та Тактика</summary>
+            
+            <h3>1. Тактичний сценарій: "Мерехтливий рій"</h3>
+            <p>
+                Для підвищення живучості системи ППО в умовах наявності у ворога протирадіолокаційних ракет (HARM) та засобів радіоелектронної розвідки, застосовується тактика <strong>розосередженого вахтового сканування</strong>.
+            </p>
+            <ul>
+                <li><strong>Фаза 1: Груповий пошук.</strong> З загального пулу станцій (наприклад, 30 од.) вибирається активна підгрупа \( N_{active} \) (наприклад, 3 од.). Тільки вони вмикають випромінювання.</li>
+                <li><strong>Фаза 2: Data Link.</strong> Якщо одна станція знаходить ціль, вона миттєво передає вектор іншим активним станціям ("підсвічує" ціль), що дозволяє здійснити миттєву триангуляцію без зайвого пошуку.</li>
+                <li><strong>Фаза 3: "Тиша і маневр".</strong> Після короткого сеансу роботи (5-10 с) група вимикає радари і <strong>негайно змінює позицію</strong> (move to safe spot). Це унеможливлює наведення ворожої артилерії чи ракет на джерело сигналу, якого там вже немає.</li>
+                <li><strong>Фаза 4: Естафета.</strong> Сканування продовжує наступна група з іншої локації.</li>
+            </ul>
+
+            <h3>2. Математична модель (Sensor Fusion)</h3>
+            <p>СН (Станція Наведення) отримує набір "сирих" вимірів від \( k \) датчиків у різні моменти часу \( t_i \):</p>
+            <ul>
+                <li>Позиція радара: \( \vec{S}_i = (S_{ix}, S_{iy}, S_{iz}) \)</li>
+                <li>Одиничний вектор на ціль: \( \vec{u}_i \) (азимут/кут місця)</li>
+                <li>Радіальна швидкість (Доплер): \( v_{dop, i} \)</li>
+            </ul>
+
+            <h4>А. Відновлення повного вектора швидкості (МНК)</h4>
+            <p>
+                Один радар бачить лише проекцію швидкості цілі на промінь зору. Для відновлення повного вектора швидкості \( \vec{V} = (V_x, V_y, V_z) \) розв'язується перевизначена система лінійних рівнянь (для \( k \ge 3 \)):
+            </p>
+            <div class="math-block">
+                $$ \vec{V} \cdot \vec{u}_i = v_{dop, i} \quad \Rightarrow \quad A \vec{x} = \vec{b} $$
+                $$ 
+                A = \begin{bmatrix} 
+                u_{1x} & u_{1y} & u_{1z} \\ 
+                \vdots & \vdots & \vdots \\ 
+                u_{kx} & u_{ky} & u_{kz} 
+                \end{bmatrix}, \quad 
+                \vec{x} = \begin{bmatrix} V_x \\ V_y \\ V_z \end{bmatrix}, \quad 
+                \vec{b} = \begin{bmatrix} v_{dop,1} \\ \vdots \\ v_{dop,k} \end{bmatrix} 
+                $$
+            </div>
+            <p>
+                Розв'язок шукається методом найменших квадратів (Normal Equation) через псевдообернену матрицю:
+                $$ \vec{V} = (A^T A)^{-1} A^T \vec{b} $$
+            </p>
+
+            <h4>Б. Просторово-часова синхронізація (Time Alignment)</h4>
+            <p>
+                Оскільки ракета рухається швидко (до 2-3 Махів), а дані приходять асинхронно, пряме усереднення координат дасть велику похибку. Ми приводимо всі виміри координат \( \vec{P}_{raw, i} \) до поточного часу симуляції \( T_{now} \), використовуючи знайдений вектор швидкості:
+            </p>
+            <div class="math-block">
+                $$ \vec{P}_{corrected, i} = \vec{P}_{raw, i} + \vec{V} \cdot (T_{now} - t_i) $$
+                $$ \vec{P}_{final} = \frac{1}{k} \sum_{i=1}^{k} \vec{P}_{corrected, i} $$
+            </div>
+
+            <h4>В. Екстраполяція (Dead Reckoning)</h4>
+            <p>
+                У періоди "радіомовчання" (між хвилями сканування) положення цілі прогнозується чисельним інтегруванням.
+                Припускаючи модель руху зі сталим прискоренням (або нульовим для спрощення):
+            </p>
+            <div class="math-block">
+                $$ \vec{P}(t + \Delta t) \approx \vec{P}(t) + \vec{V}(t) \cdot \Delta t $$
+            </div>
+            <p>
+                Саме відхилення реальної траєкторії ракети (маневр) від цієї лінійної екстраполяції і формує "Похибку позиції", яка зростає з часом, поки не увімкнеться наступна група радарів.
+            </p>
+        </details>
+
+        <button id="apply-btn">Застосувати та Перезапустити</button>
+    </div>
+</div>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --- CONFIG ---
+const CONFIG = {
+    svCount: 30,
+    groupSize: 5,         // Exactly this many active
+    svSpeed: 25,
+    scanDuration: 5,      // How long they stay active
+    cyclePeriod: 15,      // Total time between wave starts
+    scanSpeed: 10,
+    beamWidth: 45,
+    targetSpeed: 100,
+    maneuverPeriod: 12,
+    mapSize: 3000,
+    timeScale: 4.0,
+    terrainHeight: 150
+};
+
+const STATE = {
+    time: 0,
+    lastEstimate: { 
+        pos: new THREE.Vector3(0, 1000, 0), 
+        vel: new THREE.Vector3(100, 0, 0),
+        timestamp: 0 
+    },
+    hasLock: false,
+    
+    // Scheduler State
+    nextWaveTime: 0,      // When the next group starts
+    stopScanTime: 0,      // When current group stops
+    currentGroupIndex: 0, // Round robin index
+    activeStations: []    // References to current scanners
+};
+
+// --- HELPERS (Math) ---
+const MathUtils = {
+    solveLSM: (A, b) => {
+        // Simple Least Squares Matrix Solver (inv(AtA)*Atb)
+        const AT = A[0].map((_, c) => A.map(r => r[c]));
+        const mul = (m1, m2) => {
+            let r = Array(m1.length).fill(0).map(()=>Array(m2[0].length).fill(0));
+            for(let i=0;i<m1.length;i++) 
+                for(let j=0;j<m2[0].length;j++) 
+                    for(let k=0;k<m2.length;k++) r[i][j] += m1[i][k]*m2[k][j];
+            return r;
+        };
+        const AtA = mul(AT, A);
+        const Atb = mul(AT, b);
+
+        // Determinant 3x3
+        const det = AtA[0][0]*(AtA[1][1]*AtA[2][2]-AtA[2][1]*AtA[1][2]) -
+                    AtA[0][1]*(AtA[1][0]*AtA[2][2]-AtA[1][2]*AtA[2][0]) +
+                    AtA[0][2]*(AtA[1][0]*AtA[2][1]-AtA[1][1]*AtA[2][0]);
+        
+        if (Math.abs(det) < 1e-6) return null; 
+
+        const invDet = 1/det;
+        const inv = [[0,0,0],[0,0,0],[0,0,0]];
+        // Adjugate matrix / det
+        inv[0][0] = (AtA[1][1]*AtA[2][2] - AtA[2][1]*AtA[1][2])*invDet;
+        inv[0][1] = (AtA[0][2]*AtA[2][1] - AtA[0][1]*AtA[2][2])*invDet;
+        inv[0][2] = (AtA[0][1]*AtA[1][2] - AtA[0][2]*AtA[1][1])*invDet;
+        inv[1][0] = (AtA[1][2]*AtA[2][0] - AtA[1][0]*AtA[2][2])*invDet;
+        inv[1][1] = (AtA[0][0]*AtA[2][2] - AtA[0][2]*AtA[2][0])*invDet;
+        inv[1][2] = (AtA[1][0]*AtA[0][2] - AtA[0][0]*AtA[1][2])*invDet;
+        inv[2][0] = (AtA[1][0]*AtA[2][1] - AtA[2][0]*AtA[1][1])*invDet;
+        inv[2][1] = (AtA[2][0]*AtA[0][1] - AtA[0][0]*AtA[2][1])*invDet;
+        inv[2][2] = (AtA[0][0]*AtA[1][1] - AtA[1][0]*AtA[0][1])*invDet;
+
+        const res = mul(inv, Atb);
+        return new THREE.Vector3(res[0][0], res[1][0], res[2][0]);
+    }
+};
+
+// --- OBJECTS ---
+
+class Terrain {
+    constructor(scene) {
+        const size = CONFIG.mapSize;
+        const segments = 128;
+        const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+        
+        const posAttr = geometry.attributes.position;
+        for (let i = 0; i < posAttr.count; i++) {
+            const x = posAttr.getX(i);
+            const y = posAttr.getY(i);
+            let z = Math.sin(x/400)*50 + Math.cos(y/350)*50;
+            z += Math.sin(x/100)*15 + Math.cos(y/100)*15;
+            posAttr.setZ(i, z-200);
+        }
+        geometry.computeVertexNormals();
+        geometry.rotateX(-Math.PI / 2);
+
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x559922, roughness: 0.8, metalness: 0.1, flatShading: true
+        });
+
+        this.mesh = new THREE.Mesh(geometry, material);
+        scene.add(this.mesh);
+        this.geometry = geometry;
+    }
+
+    getHeight(x, z) {
+        let h = Math.sin(x/400)*50 + Math.cos(-z/350)*50;
+        h += Math.sin(x/100)*15 + Math.cos(-z/100)*15;
+        return h-200;
+    }
+}
+
+class Rocket {
+    constructor(scene) {
+        this.mesh = new THREE.Group();
+        
+        // Body
+        const bodyGeo = new THREE.CylinderGeometry(8, 8, 60, 16);
+        bodyGeo.rotateX(-Math.PI/2); 
+        const bodyMat = new THREE.MeshPhongMaterial({ color: 0xcc2222 });
+        this.mesh.add(new THREE.Mesh(bodyGeo, bodyMat));
+        
+        // Nose
+        const noseGeo = new THREE.CylinderGeometry(0, 8, 20, 16);
+        noseGeo.rotateX(Math.PI/2); noseGeo.translate(0, 0, 40);
+        this.mesh.add(new THREE.Mesh(noseGeo, new THREE.MeshPhongMaterial({ color: 0xffffff })));
+        
+        // Fins
+        const finGeo = new THREE.BoxGeometry(30, 2, 10); finGeo.translate(0, 0, -25);
+        const fin1 = new THREE.Mesh(finGeo, new THREE.MeshPhongMaterial({ color: 0x333333 }));
+        const fin2 = fin1.clone(); fin2.rotation.z = Math.PI/2;
+        this.mesh.add(fin1, fin2);
+        
+        const light = new THREE.PointLight(0xffaa00, 2, 100);
+        light.position.set(0, 0, -35);
+        this.mesh.add(light);
+
+        scene.add(this.mesh);
+        this.position = new THREE.Vector3();
+        this.velocity = new THREE.Vector3();
+        
+        // Trail
+        this.trailPoints = [];
+        const trailGeo = new THREE.BufferGeometry();
+        this.trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xff4400, opacity: 0.6, transparent: true }));
+        scene.add(this.trailLine);
+        
+        this.reset();
+    }
+
+    reset() {
+        this.position.set(-1200, 600, -500);
+        this.velocity.set(1, 0, 0.5).normalize().multiplyScalar(CONFIG.targetSpeed);
+        this.nextManeuver = 0;
+        this.trailPoints = [];
+    }
+
+    update(dt) {
+        this.position.addScaledVector(this.velocity, dt);
+
+       // Bouncing logic (Hard Limits)
+        const limit = CONFIG.mapSize / 2;
+
+        // X bounds
+        if (this.position.x > limit) {
+            this.position.x = limit;
+            this.velocity.x *= -1;
+        } else if (this.position.x < -limit) {
+            this.position.x = -limit;
+            this.velocity.x *= -1;
+        }
+
+        // Z bounds
+        if (this.position.z > limit) {
+            this.position.z = limit;
+            this.velocity.z *= -1;
+        } else if (this.position.z < -limit) {
+            this.position.z = -limit;
+            this.velocity.z *= -1;
+        }
+
+        // Y bounds (Height)
+        if (this.position.y > 1500) {
+            this.position.y = 1500;
+            this.velocity.y *= -1;
+        } else if (this.position.y < 200) {
+            this.position.y = 200;
+            this.velocity.y *= -1;
+        }
+        this.mesh.position.copy(this.position);
+        this.mesh.lookAt(this.position.clone().add(this.velocity));
+
+        if (STATE.time > this.nextManeuver) {
+            const noise = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+            this.velocity.add(noise.multiplyScalar(CONFIG.targetSpeed * 0.4)); 
+            this.velocity.normalize().multiplyScalar(CONFIG.targetSpeed);
+            this.nextManeuver = STATE.time + CONFIG.maneuverPeriod;
+        }
+
+        this.trailPoints.push(this.position.x, this.position.y, this.position.z);
+        if (this.trailPoints.length > 600) this.trailPoints.splice(0, 3);
+        this.trailLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.trailPoints, 3));
+    }
+}
+
+class StationMobile {
+    constructor(scene, terrain, id) {
+        this.id = id;
+        this.scene = scene;
+        this.terrain = terrain;
+
+        const baseGeo = new THREE.BoxGeometry(15, 10, 20);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x336699, roughness: 0.4 });
+        this.base = new THREE.Mesh(baseGeo, mat);
+        
+        const domeGeo = new THREE.SphereGeometry(7, 16, 16, 0, Math.PI*2, 0, Math.PI/2);
+        const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        dome.position.y = 15;
+		dome.rotation.x = Math.PI; // Перевертаємо купол на 180 градусів
+        this.base.add(dome);
+
+        this.mesh = new THREE.Group();
+        this.mesh.add(this.base);
+        scene.add(this.mesh);
+
+        // Ray
+        const rayGeo = new THREE.ConeGeometry(2, 400, 8);
+        rayGeo.rotateX(Math.PI/2); rayGeo.translate(0, 0, 200); 
+        this.ray = new THREE.Mesh(rayGeo, new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 }));
+        this.base.add(this.ray);
+
+        this.pos = new THREE.Vector3(0,0,0);
+        this.vel = new THREE.Vector3(0,0,0);
+        this.dest = new THREE.Vector3(); // Where we are moving to
+        
+        this.state = 'MOVING'; // MOVING or SCANNING
+        this.scanStartTime = 0;
+        this.lookTarget = new THREE.Vector3();
+        this.lockData = null;
+
+        this.pickNewDestination();
+    }
+
+    pickNewDestination() {
+        // Pick random point on map
+        this.dest.set(
+            (Math.random()-0.5)*CONFIG.mapSize*0.8,
+            0,
+            (Math.random()-0.5)*CONFIG.mapSize*0.8
+        );
+        // Set velocity vector towards it
+        const dir = new THREE.Vector3().subVectors(this.dest, this.pos).normalize();
+        this.vel.copy(dir).multiplyScalar(CONFIG.svSpeed);
+    }
+
+    startScan(targetEstPos) {
+        this.state = 'SCANNING';
+        this.vel.set(0,0,0); // STOP
+        this.scanStartTime = STATE.time;
+        this.lockData = null;
+        this.lookTarget.copy(targetEstPos);
+        
+        // Visuals
+        this.ray.material.opacity = 0.6;
+        this.ray.material.color.setHex(0xffff00);
+        
+        // Orient towards threat
+        this.mesh.lookAt(this.lookTarget.x, this.pos.y, this.lookTarget.z);
+    }
+
+    stopScanAndMove() {
+        this.state = 'MOVING';
+        this.ray.material.opacity = 0; // Silent mode
+        this.lockData = null;
+        this.pickNewDestination(); // Move to new position
+    }
+
+    update(dt, targetObj) {
+        const h = this.terrain.getHeight(this.pos.x, this.pos.z);
+        this.pos.y = h + 5; 
+        this.mesh.position.copy(this.pos);
+
+        if (this.state === 'MOVING') {
+            // Check if arrived (simple check), pick new if close
+            if (this.pos.distanceTo(this.dest) < 10) this.pickNewDestination();
+
+            this.pos.addScaledVector(this.vel, dt);
+            this.mesh.lookAt(this.pos.x + this.vel.x, h+5, this.pos.z + this.vel.z);
+
+            // Bounds check
+            if (Math.abs(this.pos.x) > CONFIG.mapSize/2 || Math.abs(this.pos.z) > CONFIG.mapSize/2) {
+                this.pickNewDestination();
+            }
+            return null;
+
+        } else if (this.state === 'SCANNING') {
+            const timeInScan = STATE.time - this.scanStartTime;
+            
+            // Orientation
+            if (this.lockData) {
+                this.mesh.lookAt(targetObj.position);
+                this.ray.rotation.set(0,0,0); 
+            } else {
+                this.mesh.lookAt(this.lookTarget);
+                // Spiral visual
+                const spiralAngle = timeInScan * 10; 
+                const coneOpenAngle = THREE.MathUtils.degToRad(CONFIG.scanSpeed * timeInScan);
+                this.ray.rotation.x = Math.sin(spiralAngle) * coneOpenAngle;
+                this.ray.rotation.y = Math.cos(spiralAngle) * coneOpenAngle;
+                
+                // Detection Logic
+                const vecToTarget = new THREE.Vector3().subVectors(targetObj.position, this.pos);
+                const dist = vecToTarget.length();
+                vecToTarget.normalize();
+                
+                const stationDir = new THREE.Vector3(0,0,1).applyQuaternion(this.mesh.quaternion);
+                const angleError = stationDir.angleTo(vecToTarget);
+
+                if (coneOpenAngle >= angleError) {
+                    this.lockData = {
+                        svId: this.id,
+                        timestamp: STATE.time,
+                        pos: targetObj.position.clone().add(new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).multiplyScalar(15)),
+                        dir: vecToTarget,
+                        v_doppler: targetObj.velocity.dot(vecToTarget),
+                        svPos: this.pos.clone()
+                    };
+                    this.ray.material.color.setHex(0xff00ff); // Magenta Lock
+                    this.ray.scale.z = dist / 200;
+                }
+            }
+            
+            // Return measurement if we have lock
+            return this.lockData;
+        }
+    }
+}
+
+class CommandPost {
+    constructor(scene) {
+        // Visuals
+        const geo = new THREE.CylinderGeometry(20, 25, 15, 6);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x004488 });
+        this.mesh = new THREE.Mesh(geo, mat);
+        //this.mesh.position.set(0, CONFIG.terrainHeight/2, 0); 
+		this.mesh.position.set(10, -130, 0); // Підберіть значення, щоб він стояв на землі
+        scene.add(this.mesh);
+        
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(2,2,30), new THREE.MeshBasicMaterial({color:0x333}));
+        pole.position.y = 15;
+        this.mesh.add(pole);
+        this.light = new THREE.PointLight(0xff0000, 1, 100);
+        this.light.position.y = 30;
+        this.mesh.add(this.light);
+
+        this.estHelper = new THREE.Mesh(
+            new THREE.SphereGeometry(10, 8, 8),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 })
+        );
+        scene.add(this.estHelper);
+        
+        this.measurementsBuffer = [];
+    }
+
+    process(newMeas) {
+        if (!newMeas || newMeas.length === 0) return;
+        
+        this.measurementsBuffer.push(...newMeas);
+        // Buffer window 8s
+        this.measurementsBuffer = this.measurementsBuffer.filter(m => (STATE.time - m.timestamp) < 8.0);
+
+        if (this.measurementsBuffer.length < 3) return;
+
+        // 1. Solve Velocity
+        let A = [], b = [];
+        this.measurementsBuffer.forEach(m => {
+            A.push([m.dir.x, m.dir.y, m.dir.z]);
+            b.push([m.v_doppler]);
+        });
+
+        const v_est = MathUtils.solveLSM(A, b);
+        
+        if (v_est) {
+            // 2. Align Positions to Now
+            let posSum = new THREE.Vector3(), count = 0;
+            this.measurementsBuffer.forEach(m => {
+                const dt = STATE.time - m.timestamp;
+                const p_corrected = m.pos.clone().addScaledVector(v_est, dt);
+                posSum.add(p_corrected);
+                count++;
+            });
+            
+            const p_est = posSum.divideScalar(count);
+
+            STATE.lastEstimate.pos.copy(p_est);
+            STATE.lastEstimate.vel.copy(v_est);
+            STATE.lastEstimate.timestamp = STATE.time;
+            STATE.hasLock = true;
+            
+            this.estHelper.position.copy(p_est);
+            this.light.color.setHex(0x00ff00); 
+            document.getElementById('hud-status').innerText = "ЗАХОПЛЕНО";
+            document.getElementById('hud-status').className = "status-ok";
+        }
+    }
+}
+
+// --- MAIN LOOP ---
+
+let scene, camera, renderer, controls;
+let terrain, rocket, commandPost;
+let stations = [];
+let clock = new THREE.Clock();
+
+function init() {
+    const container = document.getElementById('canvas-container');
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); 
+    scene.fog = new THREE.Fog(0x87CEEB, 1000, 4000);
+
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 10, 10000);
+    camera.position.set(0, 800, 1200);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+    scene.add(hemiLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(500, 1000, 500);
+    scene.add(dirLight);
+
+    terrain = new Terrain(scene);
+    rocket = new Rocket(scene);
+    commandPost = new CommandPost(scene);
+
+    setupStations();
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.maxPolarAngle = Math.PI/2 - 0.05; 
+    
+    // UI Events
+    document.getElementById('controls-btn').addEventListener('click', () => document.getElementById('modal-overlay').style.display='flex');
+    document.getElementById('modal-overlay').addEventListener('click', (e) => {
+        if(e.target.id === 'modal-overlay') document.getElementById('modal-overlay').style.display='none';
+    });
+    document.getElementById('apply-btn').addEventListener('click', () => {
+        applySettings();
+        document.getElementById('modal-overlay').style.display='none';
+        resetSim();
+    });
+    document.getElementById('time-scale-input').addEventListener('input', (e) => {
+        CONFIG.timeScale = parseFloat(e.target.value);
+        document.getElementById('time-scale-val').innerText = CONFIG.timeScale.toFixed(1);
+    });
+
+    animate();
+}
+
+function setupStations() {
+    stations.forEach(s => scene.remove(s.mesh));
+    stations = [];
+    for(let i=0; i<CONFIG.svCount; i++) {
+        stations.push(new StationMobile(scene, terrain, i));
+    }
+}
+
+function applySettings() {
+    CONFIG.svCount = parseInt(document.getElementById('inp-sv-count').value);
+    CONFIG.groupSize = parseInt(document.getElementById('inp-sv-group').value);
+    CONFIG.svSpeed = parseFloat(document.getElementById('inp-sv-speed').value);
+    CONFIG.scanDuration = parseFloat(document.getElementById('inp-scan-duration').value);
+    CONFIG.cyclePeriod = parseFloat(document.getElementById('inp-cycle-period').value);
+    CONFIG.beamWidth = parseFloat(document.getElementById('inp-beam-width').value);
+    CONFIG.targetSpeed = parseFloat(document.getElementById('inp-target-speed').value);
+    setupStations();
+}
+
+function resetSim() {
+    STATE.time = 0;
+    STATE.hasLock = false;
+    STATE.lastEstimate.pos.set(0, 1000, 0); 
+    STATE.nextWaveTime = 0;
+    STATE.stopScanTime = 0;
+    STATE.currentGroupIndex = 0;
+    STATE.activeStations = [];
+    
+    rocket.reset();
+    commandPost.measurementsBuffer = [];
+    commandPost.light.color.setHex(0xff0000);
+    
+    stations.forEach(s => s.stopScanAndMove());
+    
+    document.getElementById('hud-status').innerText = "ПОШУК...";
+    document.getElementById('hud-status').className = "";
+}
+
+function step(dt) {
+    STATE.time += dt;
+    document.getElementById('sim-time').innerText = STATE.time.toFixed(2);
+    rocket.update(dt);
+	// --- ЛОГІКА ЕКСТРАПОЛЯЦІЇ (DEAD RECKONING) ---
+    // Якщо ми хоч раз бачили ціль, ми "думаємо", що вона летить далі з тією ж швидкістю
+    if (STATE.hasLock) {
+        // Рухаємо "зелену точку" (уявну ціль) по старому вектору
+        STATE.lastEstimate.pos.addScaledVector(STATE.lastEstimate.vel, dt);
+        
+        // Оновлюємо візуальну сферу (зелену)
+        commandPost.estHelper.position.copy(STATE.lastEstimate.pos);
+    }
+    // --- SCHEDULER LOGIC ---
+    
+    // 1. Check if scan duration is over -> Stop current group
+    if (STATE.activeStations.length > 0 && STATE.time >= STATE.stopScanTime) {
+        STATE.activeStations.forEach(s => s.stopScanAndMove());
+        STATE.activeStations = []; // Clear active list
+    }
+
+    // 2. Check if it's time for the NEXT WAVE
+    if (STATE.time >= STATE.nextWaveTime) {
+        // Select next group (Round Robin)
+        const group = [];
+        for (let i = 0; i < CONFIG.groupSize; i++) {
+            const idx = (STATE.currentGroupIndex + i) % stations.length;
+            group.push(stations[idx]);
+        }
+        
+        // Update index for next time
+        STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
+
+        // Calculate Target Hint (Where to look?)
+        let guessPos;
+        if (STATE.hasLock) {
+             // Predict
+            const predTime = 1.0; 
+            guessPos = STATE.lastEstimate.pos.clone().addScaledVector(STATE.lastEstimate.vel, predTime);
+        } else {
+             // Rough intel
+            guessPos = rocket.position.clone().add(new THREE.Vector3(
+                (Math.random()-0.5)*500, (Math.random()-0.5)*200, (Math.random()-0.5)*500
+            ));
+        }
+
+        // Activate Group
+        group.forEach(s => s.startScan(guessPos));
+        STATE.activeStations = group;
+
+        // Schedule Timing
+        STATE.stopScanTime = STATE.time + CONFIG.scanDuration;
+        STATE.nextWaveTime = STATE.time + CONFIG.cyclePeriod;
+    }
+
+    // Update HUD Text for Wave Status
+    const timeToNext = (STATE.nextWaveTime - STATE.time).toFixed(1);
+    if (STATE.activeStations.length > 0) {
+        const timeLeft = (STATE.stopScanTime - STATE.time).toFixed(1);
+        document.getElementById('hud-wave-status').innerText = `АКТИВНА (${timeLeft}с)`;
+        document.getElementById('hud-wave-status').style.color = '#aa0000';
+    } else {
+        document.getElementById('hud-wave-status').innerText = `ТИША (наст. ${timeToNext}с)`;
+        document.getElementById('hud-wave-status').style.color = '#333';
+    }
+
+ // Update Objects & Data Link Logic
+    let newMeasurements = [];
+    let sharedTargetPos = null;
+
+    // 1. Спочатку оновлюємо всі станції і збираємо дані
+    stations.forEach(s => {
+        const meas = s.update(dt, rocket);
+        if (meas) {
+            newMeasurements.push(meas);
+            // Якщо хоч хтось знайшов ціль - запам'ятовуємо її координати
+            if (!sharedTargetPos) sharedTargetPos = meas.pos;
+        }
+    });
+
+    // 2. ЛОГІКА DATA LINK: 
+    // Якщо координати відомі (хтось знайшов), передаємо їх тим, хто ще шукає в цій групі
+    if (sharedTargetPos) {
+        STATE.activeStations.forEach(s => {
+            // Якщо станція активна, але ще НЕ має захвату (lockData == null)
+            if (!s.lockData) {
+                // Примусово повертаємо її "очі" на знайдену ціль
+                s.lookTarget.copy(sharedTargetPos);
+                // Можна також збільшити колір променя, щоб показати "прийом даних" (опціонально)
+                s.ray.material.color.setHex(0xffee00); 
+            }
+        });
+    }
+    commandPost.process(newMeasurements);
+
+    if (STATE.hasLock) {
+        const dPos = STATE.lastEstimate.pos.distanceTo(rocket.position);
+        const dVel = STATE.lastEstimate.vel.distanceTo(rocket.velocity);
+        document.getElementById('err-pos').innerText = dPos.toFixed(1);
+        document.getElementById('err-vel').innerText = dVel.toFixed(1);
+    } else {
+        document.getElementById('err-pos').innerText = "--";
+        document.getElementById('err-vel').innerText = "--";
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const d = clock.getDelta();
+    step(d * CONFIG.timeScale);
+    renderer.render(scene, camera);
+}
+
+init();
+resetSim();
+
+</script>
+</body>
+</html>
