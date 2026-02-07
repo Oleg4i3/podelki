@@ -3,192 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WebRTC Deep Diagnostic</title>
+    <title>WebRTC Multi-TURN Test</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
-        body { background: #121212; color: #00ff00; font-family: 'Courier New', monospace; padding: 10px; margin: 0; font-size: 12px; }
-        .panel { border: 1px solid #333; padding: 10px; margin-bottom: 10px; background: #1e1e1e; }
-        button { width: 100%; padding: 15px; background: #2962ff; color: white; border: none; font-weight: bold; margin-bottom: 5px; font-size: 14px;}
-        input { width: 100%; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #555; padding: 8px; }
-        .red { color: #ff5252; } .yellow { color: #ffd740; } .green { color: #69f0ae; }
-        #log { height: 300px; overflow-y: scroll; white-space: pre-wrap; border-top: 1px solid #333; }
-        .candidate-box { border-left: 2px solid #555; padding-left: 5px; margin: 2px 0; font-size: 10px; color: #aaa; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 10px; font-size: 13px; }
+        .box { border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 6px; background: #111; }
+        button { width: 100%; padding: 15px; background: #0055ff; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        input { width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: #fff; border: 1px solid #444; margin-bottom: 10px; }
+        
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .val { font-weight: bold; color: #fff; }
+        .good { color: #0f0; } .bad { color: #f00; } .warn { color: orange; }
+        
+        #logs { height: 250px; overflow-y: scroll; border-top: 1px solid #444; font-size: 11px; color: #aaa; }
+        #logs div { margin-bottom: 2px; }
     </style>
 </head>
 <body>
 
-<div class="panel">
-    <h3 style="margin:0 0 10px 0;">WebRTC NAT SCANNER</h3>
-    <div id="controls">
-        <button onclick="startHost()">Я ХОСТ (PC/Android)</button>
-        <div style="text-align:center; padding:5px;">--- ИЛИ ---</div>
-        <div style="color:#aaa; text-align:center;">Если iPad - просто открой ссылку</div>
-    </div>
-    
-    <div id="share" style="display:none">
-        Ссылка: <input id="link" readonly onclick="this.select()">
-        <div id="mqttStat" class="yellow">MQTT: Connecting...</div>
-    </div>
+<div class="box" id="setup">
+    <h3 style="margin-top:0">1. Настройка</h3>
+    <button onclick="createRoom()">СОЗДАТЬ (HOST)</button>
+    <div style="text-align:center; margin:10px; color:#666">--- ИЛИ ---</div>
+    <div style="text-align:center; color:#888">Просто откройте ссылку на iPad</div>
 </div>
 
-<div class="panel">
-    <div>ICE: <span id="iceState">IDLE</span></div>
-    <div>Пары: <span id="connPair">-</span></div>
-    <div id="gatheringStatus">Сбор кандидатов: ...</div>
+<div class="box" id="active" style="display:none">
+    <h3 style="margin-top:0">2. Ссылка для партнера</h3>
+    <input id="shareLink" readonly onclick="this.select()">
+    <div id="mqttStatus" class="warn">MQTT: Подключение...</div>
 </div>
 
-<div id="log"></div>
+<div class="box">
+    <div class="stat-row"><div>Статус:</div> <div id="status" class="warn">IDLE</div></div>
+    <div class="stat-row"><div>Тип:</div> <div id="pairType" class="val">-</div></div>
+    <div style="margin-top:10px; font-size:11px; color:#888;">НАЙДЕННЫЕ КАНДИДАТЫ:</div>
+    <div class="stat-row"><div>SRFLX (STUN):</div> <div id="cntStun" class="val">0</div></div>
+    <div class="stat-row"><div>RELAY (TURN):</div> <div id="cntTurn" class="val">0</div></div>
+</div>
+
+<div id="logs"></div>
 
 <script>
-// === РАСШИРЕННЫЙ СПИСОК СЕРВЕРОВ ===
+// === САМЫЙ ПОЛНЫЙ СПИСОК БЕСПЛАТНЫХ СЕРВЕРОВ ===
 const rtcConfig = {
     iceServers: [
-        // 1. Google STUN (стандарт)
+        // 1. Google STUN (Основа)
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        
-        // 2. OpenRelay TURN (Попытка UDP и TCP)
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+
+        // 2. OpenRelay (Популярный, часто банится, но пробуем разные порты)
+        { 
+            urls: [
+                "turn:openrelay.metered.ca:80", 
+                "turn:openrelay.metered.ca:443", 
+                "turn:openrelay.metered.ca:443?transport=tcp"
+            ], 
+            username: "openrelayproject", 
+            credential: "openrelayproject" 
+        },
+
+        // 3. Glitch / Viagenie (Резерв, если доступен)
+        // Иногда срабатывает на старых списках
+        { 
+             urls: "turn:numb.viagenie.ca", 
+             username: "webrtc@live.com", 
+             credential: "muazkh" 
+        }
     ],
-    iceCandidatePoolSize: 4,     // Собираем заранее
-    bundlePolicy: 'max-bundle',  // Обязательно для iOS
-    iceTransportPolicy: 'all'    // Разрешить всё (не только relay)
+    iceCandidatePoolSize: 2,
+    bundlePolicy: 'max-bundle'
 };
 
+// MQTT (Сигналинг)
 const mqttCfg = { host: "broker.emqx.io", port: 8084, path: "/mqtt", useSSL: true };
-let pc, mqtt, myId = "u" + Math.random().toString(16).substr(2,4);
-let roomId = new URLSearchParams(window.location.search).get("r");
-let isHost = !roomId;
-let candidatesCount = { host: 0, srflx: 0, relay: 0 };
 
-function log(msg, color="") {
-    const d = new Date();
-    const ts = `${d.getMinutes()}:${d.getSeconds()}.${d.getMilliseconds()}`;
-    const el = document.getElementById("log");
-    const span = color ? `<span class="${color}">` : "<span>";
-    el.innerHTML = `<div><span style="color:#555">[${ts}]</span> ${span}${msg}</span></div>` + el.innerHTML;
+// --- LOGIC ---
+let pc, mqtt;
+let myId = "u" + Math.random().toString(16).substr(2, 4);
+let roomId = new URLSearchParams(window.location.search).get("room");
+let isHost = !roomId;
+let cStun = 0, cTurn = 0;
+
+function log(msg, type="") {
+    const box = document.getElementById("logs");
+    const color = type === 'err' ? 'red' : (type === 'ok' ? '#0f0' : '#ccc');
+    box.innerHTML = `<div><span style="color:${color}">></span> ${msg}</div>` + box.innerHTML;
+    console.log(msg);
 }
 
 window.onload = () => {
-    if(roomId) {
-        document.getElementById("controls").style.display = 'none';
-        log(`Роль: ГОСТЬ (iPad?). Комната: ${roomId}`);
+    if (roomId) {
+        document.getElementById("setup").style.display = 'none';
+        log(`Режим: ГОСТЬ. Комната: ${roomId}`);
         initMqtt();
     }
 };
 
-function startHost() {
-    roomId = Math.random().toString(36).substr(2,6);
-    document.getElementById("controls").style.display = 'none';
-    document.getElementById("share").style.display = 'block';
-    document.getElementById("link").value = location.origin + location.pathname + "?r=" + roomId;
-    log(`Роль: ХОСТ. Комната создана.`);
+function createRoom() {
+    roomId = Math.random().toString(36).substr(2, 6);
+    const url = location.origin + location.pathname + "?room=" + roomId;
+    document.getElementById("setup").style.display = 'none';
+    document.getElementById("active").style.display = 'block';
+    document.getElementById("shareLink").value = url;
+    log(`Создана комната: ${roomId}`);
     initMqtt();
 }
 
 function initMqtt() {
     mqtt = new Paho.MQTT.Client(mqttCfg.host, mqttCfg.port, mqttCfg.path, myId);
-    mqtt.onConnectionLost = (e) => log("MQTT Lost: " + e.errorMessage, "red");
+    mqtt.onConnectionLost = (e) => log("MQTT Lost: " + e.errorMessage, "err");
     mqtt.onMessageArrived = (m) => {
         const d = JSON.parse(m.payloadString);
-        if(d.f !== myId) handleSignal(d);
+        if (d.f !== myId) handleSignal(d);
     };
     mqtt.connect({
         useSSL: true,
         onSuccess: () => {
-            document.getElementById("mqttStat").innerText = "MQTT: OK";
-            document.getElementById("mqttStat").className = "green";
-            mqtt.subscribe(`dgn/${roomId}`);
-            if(!isHost) send({t:'hello'});
+            document.getElementById("mqttStatus").innerText = "MQTT: OK";
+            document.getElementById("mqttStatus").className = "good";
+            mqtt.subscribe(`rtc-multi/${roomId}`);
+            if (!isHost) send({ t: 'hello' });
         }
     });
 }
 
 function send(d) {
     d.f = myId;
-    mqtt.send(`dgn/${roomId}`, JSON.stringify(d));
+    mqtt.send(`rtc-multi/${roomId}`, JSON.stringify(d));
 }
 
-async function createPC() {
-    log("Запуск RTCPeerConnection...", "yellow");
+async function startPeer() {
+    log("Запуск WebRTC...", "warn");
     pc = new RTCPeerConnection(rtcConfig);
     
-    // === ГЛАВНАЯ ДИАГНОСТИКА: СБОР КАНДИДАТОВ ===
     pc.onicecandidate = (e) => {
         if (e.candidate) {
-            const c = e.candidate;
-            // Парсинг типа: host (local), srflx (stun), relay (turn)
-            const type = c.candidate.match(/typ ([a-z]+)/)?.[1] || "unknown";
-            const protocol = c.protocol;
-            const port = c.port;
-            
-            candidatesCount[type] = (candidatesCount[type] || 0) + 1;
-            updateGatheringStats();
-
-            log(`Нашел себя: ${type.toUpperCase()} (${protocol}:${port})`, type === 'relay' ? 'green' : '');
-            send({t:'ice', c:c});
-        } else {
-            log("Сбор кандидатов завершен.", "yellow");
+            const type = e.candidate.type; // host, srflx, relay
+            if (type === 'srflx') { cStun++; document.getElementById("cntStun").innerText = cStun; }
+            if (type === 'relay') { 
+                cTurn++; 
+                document.getElementById("cntTurn").innerText = cTurn; 
+                document.getElementById("cntTurn").className = "good"; // УРА!
+                log("!!! ПОЛУЧЕН TURN КАНДИДАТ !!!", "ok");
+            }
+            send({ t: 'ice', c: e.candidate });
         }
     };
 
     pc.oniceconnectionstatechange = () => {
         const s = pc.iceConnectionState;
-        document.getElementById("iceState").innerText = s.toUpperCase();
-        document.getElementById("iceState").className = s === 'connected' ? 'green' : (s === 'failed' ? 'red' : 'yellow');
-        log(`ICE State changed: ${s}`, s==='failed' ? 'red' : '');
+        const el = document.getElementById("status");
+        el.innerText = s.toUpperCase();
+        el.className = s === 'connected' ? 'good' : (s === 'failed' ? 'bad' : 'warn');
         
-        if (s === 'connected') showStats();
+        log(`ICE State: ${s}`);
+        if(s === 'connected' || s === 'completed') checkStats();
     };
-    
-    // Создаем DataChannel чтобы запустить ICE проверки
-    if(isHost) pc.createDataChannel("chat"); 
-    else pc.ondatachannel = () => {}; 
-}
 
-function updateGatheringStats() {
-    document.getElementById("gatheringStatus").innerText = 
-        `Host:${candidatesCount.host} | Stun:${candidatesCount.srflx} | Turn:${candidatesCount.relay}`;
+    if (isHost) {
+        const dc = pc.createDataChannel("test");
+        dc.onopen = () => log("КАНАЛ ДАННЫХ ОТКРЫТ (P2P РАБОТАЕТ)", "ok");
+    }
 }
 
 async function handleSignal(d) {
-    if(!pc) await createPC();
+    if (!pc) await startPeer();
+    
     try {
-        if(d.t === 'hello' && isHost) {
-            log("Гость тут. Создаю Offer...");
-            const off = await pc.createOffer();
-            await pc.setLocalDescription(off);
-            send({t:'off', s:off});
-        }
-        else if(d.t === 'off' && !isHost) {
-            log("Получил Offer. Шлю Answer...");
+        if (d.t === 'hello' && isHost) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            send({ t: 'off', s: offer });
+        } else if (d.t === 'off' && !isHost) {
             await pc.setRemoteDescription(d.s);
-            const ans = await pc.createAnswer();
-            await pc.setLocalDescription(ans);
-            send({t:'ans', s:ans});
-        }
-        else if(d.t === 'ans' && isHost) {
-            log("Получил Answer.");
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            send({ t: 'ans', s: answer });
+        } else if (d.t === 'ans') {
             await pc.setRemoteDescription(d.s);
-        }
-        else if(d.t === 'ice') {
+        } else if (d.t === 'ice') {
             await pc.addIceCandidate(d.c);
-            log(`Получил кандидата партнера!`, "yellow");
         }
-    } catch(e) { log("ERR: " + e, "red"); }
+    } catch (e) { log("Err: " + e, "err"); }
 }
 
-async function showStats() {
+async function checkStats() {
     const stats = await pc.getStats();
-    stats.forEach(r => {
-        if(r.type === 'candidate-pair' && r.state === 'succeeded') {
-            const loc = stats.get(r.localCandidateId);
-            const rem = stats.get(r.remoteCandidateId);
-            const txt = `${loc.candidateType} -> ${rem.candidateType}`;
-            document.getElementById("connPair").innerText = txt;
-            log(`УСПЕХ! Соединение: ${txt}`, "green");
+    stats.forEach(rep => {
+        if(rep.type === 'candidate-pair' && rep.state === 'succeeded') {
+            const loc = stats.get(rep.localCandidateId);
+            const rem = stats.get(rep.remoteCandidateId);
+            const txt = `${loc.candidateType} <-> ${rem.candidateType}`;
+            document.getElementById("pairType").innerText = txt;
+            log(`Успешная пара: ${txt}`, "ok");
         }
     });
 }
