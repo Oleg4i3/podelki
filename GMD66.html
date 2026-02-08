@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>МГД</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; color: white; font-family: 'Segoe UI', sans-serif; }
+        
+        /* UI Panel */
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            left: auto;
+            bottom: auto;
+            width: 220px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: rgba(10, 10, 15, 0.85);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 5px;
+        }
+        
+        /* Checkbox styling */
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #ccc;
+            background: rgba(255,255,255,0.05);
+            padding: 8px;
+            border-radius: 6px;
+        }
+        input[type=checkbox] {
+            accent-color: #0088ff;
+            width: 16px; height: 16px; cursor: pointer;
+        }
+
+        /* Tabs */
+        #tabs {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .tab-btn {
+            background: rgba(30, 30, 30, 0.8);
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .tab-btn.active {
+            background: #0066cc;
+            color: white;
+            border-color: #3399ff;
+            box-shadow: 0 0 15px rgba(0, 102, 204, 0.6);
+        }
+
+        /* Controls */
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #0088ff; margin-top:5px; }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.9em; color: #ccc; margin-top: 5px; }
+        #status-title { font-weight: bold; color: #4db8ff; font-size: 1.1em; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px;}
+        #status-desc { font-size: 0.85em; color: #aaa; line-height: 1.4; }
+
+        /* Legend */
+        #legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            pointer-events: none;
+            border: 1px solid #333;
+        }
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+        /* Help Button & Modal */
+        #help-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: #333;
+            border: 1px solid #666;
+            color: white;
+            border-radius: 50%;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+        #help-btn:hover { background: #0066cc; }
+
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        #modal-content {
+            background: #111;
+            width: 80%;
+            max-width: 800px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #444;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
+            position: relative;
+            color: #ddd;
+            line-height: 1.6;
+        }
+        #modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #888;
+        }
+        #modal-close:hover { color: white; }
+        
+        .math-block { background: #222; padding: 5px; border-radius: 5px; margin: 5px 0; border-left: 3px solid #0066cc; }
+        h2 { color: #4db8ff; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        h3 { color: #ccddff; margin-top: 5px; }
+        strong { color: #fff; }
+
+        /* Стилі з flower.html (Вморожування) */
+        /* UI Panel для вкладки Вморожування */
+        #ff-ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: rgba(10, 10, 15, 0.9);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* Легенда для вкладки Вморожування */
+        #legend-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(10, 10, 15, 0.85);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            backdrop-filter: blur(5px);
+            font-size: 13px;
+            line-height: 1.6;
+            pointer-events: none;
+            user-select: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            width: 220px;
+        }
+
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+        .color-box { width: 12px; height: 12px; display: inline-block; margin-right: 10px; border-radius: 2px; }
+        .arrow-symbol { font-size: 16px; margin-right: 8px; font-weight: bold; width: 15px; text-align: center; }
+
+        /* Кнопка "Теорія" для вкладки Вморожування */
+        #btn-theory {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: #4cc9f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(76, 201, 240, 0.5);
+            transition: transform 0.2s, background 0.2s;
+            z-index: 20;
+        }
+        #btn-theory:hover { transform: scale(1.05); background: #fff; }
+
+        /* Модальне вікно для вкладки Вморожування */
+        #ff-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        #ff-modal-content {
+            background: #1a1a20;
+            width: 600px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #4cc9f0;
+            box-shadow: 0 0 30px rgba(76, 201, 240, 0.2);
+            position: relative;
+            color: #ddd;
+        }
+
+        #ff-modal-content h2 { color: #4cc9f0; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        #ff-modal-content p { font-size: 15px; line-height: 1.6; margin-bottom: 15px; text-align: justify; }
+        #ff-modal-content b { color: #fff; }
+        .ff-math-block { background: #111; padding: 10px; border-left: 3px solid #4cc9f0; margin: 15px 0; font-family: monospace; font-size: 1.1em; color: #4cc9f0; }
+
+        .ff-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .ff-close-btn:hover { color: #fff; }
+        .ff-control-group { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 5px; }
+        .ff-control-group:last-child { border-bottom: none; }
+        .ff-label { font-size: 14px; color: #aaa; margin-bottom: 5px; display: block; font-weight: 600; }
+        .ff-sublabel { font-size: 12px; color: #888; display: flex; justify-content: space-between; }
+
+        input[type=range].ff-slider { width: 100%; -webkit-appearance: none; background: #333; height: 4px; border-radius: 2px; outline: none; margin-top: 5px; }
+        input[type=range].ff-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #4cc9f0; border-radius: 50%; cursor: pointer; transition: background 0.2s; }
+        input[type=range].ff-slider::-webkit-slider-thumb:hover { background: #fff; }
+
+        .ff-toggle-row { display: flex; align-items: center; margin-bottom: 6px; cursor: pointer; font-size: 13px; }
+        .ff-toggle-row input { margin-right: 8px; accent-color: #4cc9f0; }
+
+        h3.ff-title { margin: 0 0 10px 0; color: #4cc9f0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid #4cc9f0; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="tabs">
+        <button class="tab-btn" onclick="switchTab('frozen')">Індукція</button>
+        <button class="tab-btn" onclick="switchTab('frozenfield')">Вморожування</button>
+        <button class="tab-btn" onclick="switchTab('induction')">α-ефект</button>
+        <button class="tab-btn" onclick="switchTab('amplification')">Підсилення</button>
+        <button class="tab-btn" onclick="switchTab('toroidal')">Ω-ефект</button>
+    </div>
+
+    <button id="help-btn" onclick="openModal()">?</button>
+
+    <div id="legend"></div>
+
+    <!-- UI панель для вкладки Вморожування -->
+    <div id="ff-ui-panel" style="display: none;">
+        <h3 class="ff-title">Вморожування (Симетричне)</h3>
+
+        <div class="ff-control-group">
+            <span class="ff-label">Поле:</span>
+            <label class="ff-toggle-row"><input type="radio" name="fieldMode" value="total" checked onchange="ff_updateParams()"> Сумарне (Total)</label>
+            <label class="ff-toggle-row"><input type="radio" name="fieldMode" value="ind" onchange="ff_updateParams()"> Тільки вторинне</label>
+            <label class="ff-toggle-row"><input type="radio" name="fieldMode" value="ext" onchange="ff_updateParams()"> Тільки зовнішнє</label>
+        </div>
+
+        <div class="ff-control-group">
+            <span class="ff-label">Візуалізація:</span>
+            <label class="ff-toggle-row"><input type="checkbox" id="ff_chk_lorentz" checked onchange="ff_updateParams()"> Сила Лоренца</label>
+            <label class="ff-toggle-row"><input type="checkbox" id="ff_chk_coulomb" onchange="ff_updateParams()"> Сила Кулона</label>
+            <label class="ff-toggle-row"><input type="checkbox" id="ff_chk_currents" checked onchange="ff_updateParams()"> Індукований струм</label>
+        </div>
+
+        <div class="ff-control-group">
+            <span class="ff-label">Параметри:</span>
+            
+            <div class="ff-sublabel">Обертання (ω) <span id="val_speed">1.0</span></div>
+            <input type="range" class="ff-slider" id="ff_sld_speed" min="0" max="8" step="0.1" value="2.0" oninput="ff_updateParams()">
+            
+            <div class="ff-sublabel">Зовнішнє поле (B₀) <span id="val_bfield">1.0</span></div>
+            <input type="range" class="ff-slider" id="ff_sld_bfield" min="0" max="3" step="0.1" value="1.0" oninput="ff_updateParams()">
+
+            <div class="ff-sublabel">Провідність (σ) <span id="val_cond">1.0</span></div>
+            <input type="range" class="ff-slider" id="ff_sld_cond" min="0.1" max="5.0" step="0.1" value="1.5" oninput="ff_updateParams()">
+            
+            <div class="ff-sublabel">Кількість ліній <span id="val_density">24</span></div>
+            <input type="range" class="ff-slider" id="ff_sld_density" min="8" max="48" step="4" value="24" onchange="ff_reinitLines()">
+        </div>
+    </div>
+
+    <!-- Легенда для вкладки Вморожування -->
+    <div id="legend-panel" style="display: none;">
+        <div style="color:#aaa; font-weight:bold; margin-bottom:8px; border-bottom:1px solid #444; padding-bottom:3px;">Легенда:</div>
+        
+        <div class="legend-item">
+            <span class="arrow-symbol" style="color:red">↑</span>
+            <span>Сила Лоренца (Fₗ)</span>
+        </div>
+        <div class="legend-item">
+            <span class="arrow-symbol" style="color:#00ff00">↓</span>
+            <span>Сила Кулона (Fₑ)</span>
+        </div>
+        <div class="legend-item">
+            <span class="color-box" style="background:#ffff00; border-radius:50%"></span>
+            <span>Індукований струм</span>
+        </div>
+        <div class="legend-item">
+            <span class="color-box" style="background:linear-gradient(90deg, #222, #4cc9f0, #222)"></span>
+            <span>Магнітні лінії (B)</span>
+        </div>
+        <div class="legend-item">
+            <span class="color-box" style="background:#4cc9f0; opacity:0.5"></span>
+            <span>Провідник (Плазма)</span>
+        </div>
+    </div>
+
+    <!-- Кнопка "Теорія" для вкладки Вморожування -->
+    <button id="btn-theory" onclick="openFrozenFieldModal()" style="display: none;">?</button>
+
+    <!-- Модальне вікно для вкладки Вморожування -->
+    <div id="ff-modal-overlay" onclick="closeFrozenFieldModal(event)">
+        <div id="ff-modal-content">
+            <button class="ff-close-btn" onclick="forceCloseFrozenFieldModal()">×</button>
+            <h2>Ефект вморожування поля в магнітній гідродинаміці</h2>
+            
+            <p>На попредній владці "Індукція" пояснено спотворення поля провідником (плазмою) у випадку, коли  він рухається в неоднорідному полі - діє закон електромагнітної індукції. Тут демонструється взаємодія провідної рідини (або плазми) з однорідним магнітним полем  у випадку, коли є рух одних частинок плазми відносно інших, тобто є градієнт швидкості.</p>
+
+            <h3>1. Сила Лоренца (Червона стрілка)</h3>
+            <p>Коли провідник рухається зі швидкістю <b>v</b> через магнітне поле <b>B</b>, на носії заряду діє магнітна сила:</p>
+            <div class="ff-math-block">Fₗ = q(v × B)</div>
+            <p>Ця сила розділяє заряди, створюючи електрорушійну силу (ЕРС) індукції.</p>
+
+            <h3>2. Сила Кулона (Зелена стрілка)</h3>
+            <p>Розділення зарядів створює електричне поле <b>E</b>. </p>
+            <div class="ff-math-block">Fₑ = qE</div>
+            <p>Разом із силою Лоренца ця сила рухає заряди, створюючи індукційні струми (жовті частинки). Саме ці струми і створюють додаткове магнітне поле, що призводить до ефекту  вморожування: сумарне поле має такий розподіл, ніби "чепляється" за частинки плазми.</p>
+
+            <h3>3. Вморожування магнітного поля</h3>
+            <p>При високій провідності магнітні лінії "приклеюються" до речовини. Обертання циліндрів затягує магнітні лінії, викривляючи їх. Це явище описується рівнянням:</p>
+            <div class="ff-math-block">∂B/∂t = ∇ × (v × B) + η∇²B</div>
+            <p>Де перший доданок відповідає за перенос поля потоком речовини.</p>
+            
+            <br>
+            <button onclick="forceCloseFrozenFieldModal()" style="padding:8px 20px; background:#4cc9f0; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Закрити</button>
+        </div>
+    </div>
+
+    <div id="ui-panel">
+        <div>
+            <div id="status-title">Статус</div>
+            <div id="status-desc">Опис</div>
+        </div>
+        
+        <div id="controls-frozen" class="control-group" style="display:none;">
+            <div class="label-row"><span>Положення провідника</span></div>
+            <input type="range" id="froz-pos" min="0" max="100" value="50">
+            <div class="label-row"><span>Швидкість руху v: <span id="vel-readout">0</span></span></div>
+        </div>
+
+        <div id="controls-induction" class="control-group">
+            <div class="label-row"><span>1. Швидкість конвекційних потоків</span></div>
+            <input type="range" id="ind-updraft" min="0" max="100" value="0">
+            <div class="label-row"><span>2. Сила Коріоліса (Скручування)</span></div>
+            <input type="range" id="ind-twist" min="0" max="50" value="0">
+            
+            <label class="checkbox-row">
+                <input type="checkbox" id="ind-hemisphere">
+                Показати південну півкулю
+            </label>
+        </div>
+
+        <div id="controls-amplification" class="control-group" style="display:none;">
+            <div class="label-row"><span>Еволюція геометрії</span></div>
+            <input type="range" id="amp-morph" min="0" max="1000" value="0">
+        </div>
+
+        <div id="controls-toroidal" class="control-group" style="display:none;">
+             <div class="label-row"><span>Сила ефекту диференціального обертання</span></div>
+             <input type="range" id="tor-rotation" min="0" max="500" value="0">
+        </div>
+    </div>
+
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <span id="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modal-text"></div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "three_flower": "https://unpkg.com/three@0.154.0/build/three.module.js"
+            }
+        }
+    </script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+
+let scene, camera, renderer, controls;
+let activeTab = 'induction';
+
+// Groups
+const groupFrozen = new THREE.Group();
+const groupInduction = new THREE.Group();
+const groupAmplification = new THREE.Group();
+const groupToroidal = new THREE.Group();
+const groupFrozenField = new THREE.Group(); // Нова група для вкладки Вморожування
+
+// --- VARIABLES: TAB 0 (FROZEN) ---
+let frozenLine;
+let conductorSphere;
+let eddyParticlesSystem;
+let inducedFieldArrow;
+let lastPos = 0;
+let currentVel = 0;
+let targetPos = 0;
+
+// --- VARIABLES: TAB 1 (INDUCTION/PARKER) ---
+const IND_CONFIG = { baseRadius: 20, lineCount: 7, segs: 400, vortexCount: 4, vortexRadius: 20 };
+let indFieldLines = [];
+let plasmaSystems = [];
+let yellowCurrentRing;
+let yellowCurrentPath = [];
+let greenFieldLines = [];
+let updraftVal = 0;
+let twistVal = 0;
+let isSouthern = false;
+
+let torSphereSegments = [];
+
+// --- VARIABLES: TAB 2 (AMPLIFICATION/OMEGA LOOP) ---
+let tubeMesh, conductorCurve;
+let currentArrowsAmp = [];
+let fieldLinesAmpPool = [];
+const AMP_CONFIG = { R: 12, tubeSegs: 300, baseTubeRadius: 0.8, arrowSpacing: 20 };
+let ampMorphVal = 0;
+let ampFlowOffset = 0;
+
+// --- VARIABLES: TAB 3 (POLOIDAL TO TOROIDAL) ---
+let torSphere;
+let torFieldLines = [];
+let torRotationVal = 0;
+
+// --- VARIABLES: TAB ВМОРОЖУВАННЯ ---
+let ff_scene, ff_camera, ff_renderer, ff_controls;
+let ff_cylinders = [];
+let ff_lines = [];
+let ff_fieldLinesGroup, ff_vectorsGroup, ff_particlesGroup;
+let ff_particles = [];
+let ff_initialized = false;
+
+const ff_params = {
+    rotationSpeed: 2.0,
+    bFieldExt: 1.0,
+    conductivity: 1.5,
+    showLorentz: true,
+    showCoulomb: false,
+    showCurrents: true,
+    fieldMode: 'total',
+    lineCount: 24
+};
+
+const CYL_RADIUS = 1.25;
+const CYL_HEIGHT = 3;
+const CLUSTER_RADIUS = 2.5;
+const VIEW_LIMIT = 7.0;
+
+// Helpers
+const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _vTemp = new THREE.Vector3();
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050505, 0.005);
+
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 60, 90);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0x333333));
+    const dl = new THREE.DirectionalLight(0xffffff, 1.2);
+    dl.position.set(20, 50, 20);
+    scene.add(dl);
+    const bl = new THREE.DirectionalLight(0x0044ff, 0.6);
+    bl.position.set(-20, -10, -20);
+    scene.add(bl);
+
+    initFrozenTab();
+    initInductionTab();
+    initAmplificationTab();
+    initToroidalTab();
+
+    scene.add(groupFrozen);
+    scene.add(groupInduction);
+    scene.add(groupAmplification);
+    scene.add(groupToroidal);
+    scene.add(groupFrozenField);
+
+    // Inputs Tab 0
+    document.getElementById('froz-pos').addEventListener('input', (e) => {
+        targetPos = (parseInt(e.target.value) - 50) / 2;
+    });
+
+    // Inputs Tab 1
+    const upSlider = document.getElementById('ind-updraft');
+    const twistSlider = document.getElementById('ind-twist');
+    const hemiCheck = document.getElementById('ind-hemisphere');
+
+    twistSlider.disabled = true;
+    twistSlider.style.opacity = '0.4';
+
+    upSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        if (val > 0) {
+            twistSlider.disabled = false;
+            twistSlider.style.opacity = '1.0';
+        } else {
+            twistSlider.disabled = true;
+            twistSlider.style.opacity = '0.4';
+            twistSlider.value = 0; 
+        }
+        updateInductionLogic();
+    });
+    twistSlider.addEventListener('input', updateInductionLogic);
+    hemiCheck.addEventListener('change', (e) => {
+        isSouthern = e.target.checked;
+        updateInductionLogic();
+    });
+
+    // Inputs Tab 2
+    document.getElementById('amp-morph').addEventListener('input', (e) => {
+        ampMorphVal = parseInt(e.target.value) / 1000;
+        updateAmpText();
+    });
+
+    // Inputs Tab 3
+    document.getElementById('tor-rotation').addEventListener('input', (e) => {
+        torRotationVal = parseInt(e.target.value) / 1000;
+        updateToroidalText();
+    });
+
+    // Expose functions globally
+    window.switchTab = switchTab;
+    window.openModal = openModal;
+    window.closeModal = closeModal;
+    window.openFrozenFieldModal = openFrozenFieldModal;
+    window.closeFrozenFieldModal = closeFrozenFieldModal;
+    window.forceCloseFrozenFieldModal = forceCloseFrozenFieldModal;
+    window.ff_updateParams = ff_updateParams;
+    window.ff_reinitLines = ff_reinitLines;
+
+    switchTab('toroidal');
+    window.addEventListener('resize', onResize);
+}
+
+function switchTab(name) {
+    activeTab = name;
+    
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`button[onclick="switchTab('${name}')"]`).classList.add('active');
+    
+    ['controls-frozen', 'controls-induction', 'controls-amplification', 'controls-toroidal'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    
+    // Ховаємо/показуємо UI панель для вкладки Вморожування
+    if (name === 'frozenfield') {
+        document.getElementById('ff-ui-panel').style.display = 'flex';
+        document.getElementById('legend-panel').style.display = 'block';
+        document.getElementById('btn-theory').style.display = 'block';
+        document.getElementById('ui-panel').style.display = 'none';
+        document.getElementById('legend').style.display = 'none';
+        document.getElementById('help-btn').style.display = 'none';
+    } else {
+        document.getElementById('ff-ui-panel').style.display = 'none';
+        document.getElementById('legend-panel').style.display = 'none';
+        document.getElementById('btn-theory').style.display = 'none';
+        document.getElementById('ui-panel').style.display = 'block';
+        document.getElementById('legend').style.display = 'block';
+        document.getElementById('help-btn').style.display = 'block';
+        document.getElementById(`controls-${name}`).style.display = 'flex';
+    }
+
+    groupFrozen.visible = (name === 'frozen');
+    groupInduction.visible = (name === 'induction');
+    groupAmplification.visible = (name === 'amplification');
+    groupToroidal.visible = (name === 'toroidal');
+    groupFrozenField.visible = (name === 'frozenfield');
+
+    const legend = document.getElementById('legend');
+    
+    if(name === 'frozen') {
+        camera.position.set(0, 10, 80);
+        controls.target.set(0, 0, 0);
+        legend.innerHTML = `
+            <div><span class="dot" style="background:#0088ff"></span>Магнітна лінія (B)</div>
+            <div><span class="dot" style="background:#ff4444"></span>Провідник</div>
+            <div><span class="dot" style="background:#ffff00"></span>Струм Фуко</div>
+            <div><span class="dot" style="background:#00ff00"></span>Індуковане поле (B_ind)</div>
+        `;
+        updateFrozenText();
+    }
+    else if(name === 'frozenfield') {
+        camera.position.set(0, 18, 0);
+        controls.target.set(0, 0, 0);
+        controls.enabled = false;
+        if (!ff_initialized) {
+            ff_init();
+            ff_initialized = true;
+        }
+        updateFrozenFieldText();
+    }
+    else if(name === 'induction') {
+        camera.position.set(0, 20, 40);
+        controls.target.set(0, 0, 0);
+        controls.enabled = true;
+        legend.innerHTML = `
+            <div><span class="dot" style="background:#0066aa"></span>Магнітні лінії (тороїдальні)</div>
+            <div><span class="dot" style="background:#ffaaaa"></span>Конвекція (Плазма/рідкий метал)</div>
+            <div><span class="dot" style="background:#ffff00"></span>Індукований Струм</div>
+            <div><span class="dot" style="background:#00ff66"></span>Індуковане поле </div>
+        `;
+        updateInductionLogic();
+    } 
+    else if (name === 'amplification') {
+        camera.position.set(0, 45, 55);
+        controls.target.set(0, 0, 0);
+        controls.enabled = true;
+        legend.innerHTML = `
+            <div><span class="dot" style="background:#cc0000"></span>Кільце плазми (або рідкого металу ядра)</div>
+            <div><span class="dot" style="background:#ffff00"></span>Струм </div>
+            <div><span class="dot" style="background:#0088ff"></span>Магнітне поле B</div>
+        `;
+        updateAmpText();
+    }
+    else if (name === 'toroidal') {
+        camera.position.set(40, 20, 60);
+        controls.target.set(0, 0, 0);
+        controls.enabled = true;
+        legend.innerHTML = `
+            <div><span class="dot" style="background:#933; border:1px solid #fff"></span>Поверхня зорі чи ядра</div>
+            <div><span class="dot" style="background:#0088ff"></span>Магнітні лінії (Полоїдальні -> Тороїдальні)</div>
+        `;
+        updateToroidalText();
+    }
+}
+
+// ==============================================================
+// === TAB: ВМОРОЖУВАННЯ ========================================
+// ==============================================================
+
+function ff_init() {
+    ff_scene = new THREE.Scene();
+    ff_scene.background = new THREE.Color(0x050505);
+
+    ff_camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    ff_camera.position.set(10, 18, 0);
+    ff_camera.lookAt(0, 0, 0);
+
+    ff_renderer = new THREE.WebGLRenderer({ antialias: true });
+    ff_renderer.setSize(window.innerWidth, window.innerHeight);
+    ff_renderer.domElement.style.position = 'absolute';
+    ff_renderer.domElement.style.top = '0';
+    ff_renderer.domElement.style.left = '0';
+    ff_renderer.domElement.style.zIndex = '1';
+    document.body.appendChild(ff_renderer.domElement);
+
+    ff_controls = new OrbitControls(ff_camera, ff_renderer.domElement);
+    ff_controls.enableDamping = true;
+
+    const ambientLight = new THREE.AmbientLight(0x404040, 3);
+    ff_scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 5);
+    ff_scene.add(dirLight);
+
+    ff_fieldLinesGroup = new THREE.Group();
+    ff_scene.add(ff_fieldLinesGroup);
+    ff_vectorsGroup = new THREE.Group();
+    ff_scene.add(ff_vectorsGroup);
+    ff_particlesGroup = new THREE.Group();
+    ff_scene.add(ff_particlesGroup);
+
+    ff_createCylinders();
+    ff_initFieldLines();
+    ff_initParticles();
+    
+    window.addEventListener('resize', ff_onWindowResize);
+}
+
+function ff_createCylinders() {
+    const material = new THREE.MeshPhysicalMaterial({
+        color: 0x4cc9f0, metalness: 0.2, roughness: 0.1,
+        transparent: true, opacity: 0.7, transmission: 0.1, side: THREE.DoubleSide
+    });
+    const centerMat = new THREE.MeshPhysicalMaterial({
+        color: 0x4cc9f0, metalness: 0.5, transparent: true, opacity: 0.8
+    });
+    const geometry = new THREE.CylinderGeometry(CYL_RADIUS, CYL_RADIUS, CYL_HEIGHT, 32);
+
+    // Center
+    const centerMesh = new THREE.Mesh(geometry, centerMat);
+    ff_scene.add(centerMesh);
+    ff_cylinders.push({ mesh: centerMesh, type: 'center', currentI: 0 });
+
+    // Outer
+    for (let i = 0; i < 6; i++) {
+        const mesh = new THREE.Mesh(geometry, material);
+        ff_scene.add(mesh);
+        ff_cylinders.push({ 
+            mesh: mesh, type: 'outer', 
+            baseAngle: (Math.PI / 3) * i, currentI: 0 
+        });
+    }
+}
+
+function getMagneticField(pos) {
+    const B_total = new THREE.Vector3(0,0,0);
+    
+    // 1. External Field (Along X)
+    if (ff_params.fieldMode !== 'ind') {
+        B_total.x = ff_params.bFieldExt;
+    }
+
+    // 2. Induced Field
+    if (ff_params.fieldMode !== 'ext') {
+        const mu_scale = 0.8;
+        for (let cyl of ff_cylinders) {
+            if (Math.abs(cyl.currentI) < 0.001) continue;
+
+            const dx = pos.x - cyl.mesh.position.x;
+            const dz = pos.z - cyl.mesh.position.z;
+            const rSq = dx*dx + dz*dz;
+            
+            if (rSq > 0.05) {
+                const bMag = (mu_scale * cyl.currentI) / rSq;
+                B_total.x += -dz * bMag;
+                B_total.z += dx * bMag;
+            }
+        }
+    }
+    return B_total;
+}
+
+function ff_initFieldLines() {
+    while(ff_fieldLinesGroup.children.length > 0){ 
+        ff_fieldLinesGroup.remove(ff_fieldLinesGroup.children[0]); 
+    }
+    ff_lines = [];
+
+    const material = new THREE.LineBasicMaterial({ vertexColors: true });
+    const totalLines = ff_params.lineCount;
+
+    const rings = [1.5, 3.5];
+    
+    rings.forEach(radius => {
+        const linesInRing = radius < 2 ? totalLines / 2 : totalLines;
+        for(let i=0; i<linesInRing; i++) {
+            const angle = (i / linesInRing) * Math.PI * 2;
+            
+            const geometry = new THREE.BufferGeometry();
+            const segments = 120;
+            const positions = new Float32Array(segments * 3);
+            const colors = new Float32Array(segments * 3);
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            const line = new THREE.Line(geometry, material);
+            
+            line.userData = { 
+                seedX: Math.cos(angle) * radius, 
+                seedZ: Math.sin(angle) * radius,
+                seedY: 0 
+            };
+            
+            ff_fieldLinesGroup.add(line);
+            ff_lines.push(line);
+        }
+    });
+}
+
+function ff_updateFieldLines() {
+    const dt = 0.1; 
+    const halfSeg = 60;
+
+    ff_lines.forEach(line => {
+        const posArr = line.geometry.attributes.position.array;
+        const colArr = line.geometry.attributes.color.array;
+        
+        const seedX = line.userData.seedX;
+        const seedZ = line.userData.seedZ;
+        
+        let idxCenter = halfSeg * 3;
+        posArr[idxCenter] = seedX;
+        posArr[idxCenter+1] = 0;
+        posArr[idxCenter+2] = seedZ;
+        
+        let cx = seedX, cy = 0, cz = seedZ;
+        for(let i = 1; i < halfSeg; i++) {
+            const B = getMagneticField({x: cx, y: cy, z: cz});
+            const len = B.length();
+            
+            if(len > 0.001) {
+                const dir = B.normalize();
+                cx += dir.x * dt;
+                cz += dir.z * dt;
+            }
+
+            if (cx*cx + cz*cz > VIEW_LIMIT*VIEW_LIMIT) {
+                // Обрізка по радіусу
+            }
+
+            const idx = (halfSeg + i) * 3;
+            posArr[idx] = cx;
+            posArr[idx+1] = 0;
+            posArr[idx+2] = cz;
+            
+            const inten = Math.min(len / 1.5, 1.0);
+            colArr[idx] = 0.2 + 0.8*inten; colArr[idx+1] = 0.2 + 0.5*inten; colArr[idx+2] = 1.0 - 0.5*inten;
+        }
+
+        cx = seedX; cy = 0; cz = seedZ;
+        for(let i = 1; i <= halfSeg; i++) {
+            const B = getMagneticField({x: cx, y: cy, z: cz});
+            const len = B.length();
+            
+            if(len > 0.001) {
+                const dir = B.normalize();
+                cx -= dir.x * dt;
+                cz -= dir.z * dt;
+            }
+
+            const idx = (halfSeg - i) * 3;
+            posArr[idx] = cx;
+            posArr[idx+1] = 0;
+            posArr[idx+2] = cz;
+
+            const inten = Math.min(len / 1.5, 1.0);
+            colArr[idx] = 0.2 + 0.8*inten; colArr[idx+1] = 0.2 + 0.5*inten; colArr[idx+2] = 1.0 - 0.5*inten;
+        }
+        
+        const B_seed = getMagneticField({x: seedX, y: 0, z: seedZ}).length();
+        const intenS = Math.min(B_seed / 1.5, 1.0);
+        colArr[idxCenter] = 0.2+0.8*intenS; colArr[idxCenter+1] = 0.2+0.5*intenS; colArr[idxCenter+2] = 1.0-0.5*intenS;
+
+        line.geometry.attributes.position.needsUpdate = true;
+        line.geometry.attributes.color.needsUpdate = true;
+    });
+}
+
+function ff_initParticles() {
+    while(ff_particlesGroup.children.length > 0) ff_particlesGroup.remove(ff_particlesGroup.children[0]);
+    ff_particles = [];
+    const geom = new THREE.SphereGeometry(0.06, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+
+    for(let i=0; i<6; i++) {
+        const count = 10; 
+        for(let p=0; p<count; p++) {
+            const mesh = new THREE.Mesh(geom, mat);
+            ff_particlesGroup.add(mesh);
+            ff_particles.push({
+                mesh: mesh,
+                cylIndex: i,
+                phase: p / count
+            });
+        }
+    }
+}
+
+function ff_updateParticles(dt) {
+    if (!ff_params.showCurrents) { ff_particlesGroup.visible = false; return; }
+    ff_particlesGroup.visible = true;
+    const h = (CYL_HEIGHT / 2) - 0.5;
+
+    ff_particles.forEach(p => {
+        const outerCyl = ff_cylinders[p.cylIndex + 1];
+        const I = outerCyl.currentI;
+        
+        const speed = -I * 2.0 * dt; 
+        p.phase += speed;
+        
+        if (p.phase > 4) p.phase -= 4;
+        if (p.phase < 0) p.phase += 4;
+
+        const rOut = new THREE.Vector3(outerCyl.mesh.position.x, 0, outerCyl.mesh.position.z);
+        let pos = new THREE.Vector3();
+
+        let ph = p.phase; 
+        
+        if (ph < 1) {
+            pos.copy(rOut); pos.y = -h + ph * 2*h;
+        } else if (ph < 2) {
+            pos.lerpVectors(new THREE.Vector3(rOut.x, h, rOut.z), new THREE.Vector3(0, h, 0), ph - 1);
+        } else if (ph < 3) {
+            pos.set(0, h - (ph - 2) * 2*h, 0);
+        } else {
+            pos.lerpVectors(new THREE.Vector3(0, -h, 0), new THREE.Vector3(rOut.x, -h, rOut.z), ph - 3);
+        }
+        p.mesh.position.copy(pos);
+    });
+}
+
+let ff_time = 0;
+function ff_animate() {
+    requestAnimationFrame(ff_animate);
+    ff_time += 0.01;
+    ff_controls.update();
+
+    const omega = ff_params.rotationSpeed;
+    const angleOffset = ff_time * omega;
+
+    let totalReturnCurrent = 0;
+    ff_cylinders.forEach(cyl => {
+        if (cyl.type === 'outer') {
+            const theta = cyl.baseAngle + angleOffset;
+            cyl.mesh.position.x = Math.cos(theta) * CLUSTER_RADIUS;
+            cyl.mesh.position.z = Math.sin(theta) * CLUSTER_RADIUS;
+
+            const x = cyl.mesh.position.x;
+            const EMF = x * omega * ff_params.bFieldExt; 
+            
+            cyl.currentI = -EMF * ff_params.conductivity;
+            totalReturnCurrent -= cyl.currentI;
+        }
+    });
+    ff_cylinders[0].currentI = totalReturnCurrent;
+
+    ff_updateFieldLines();
+    ff_updateParticles(0.016);
+    
+    if (ff_vectorsGroup.children.length === 0) {
+        for(let i=0; i<6; i++) {
+            ff_vectorsGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(), 1, 0xff0000));
+            ff_vectorsGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(), 1, 0x00ff00));
+        }
+    }
+    
+    let arrIdx = 0;
+    for(let i=0; i<6; i++) {
+        const cyl = ff_cylinders[i+1];
+        const lArr = ff_vectorsGroup.children[arrIdx++];
+        const cArr = ff_vectorsGroup.children[arrIdx++];
+        
+        lArr.visible = ff_params.showLorentz;
+        cArr.visible = ff_params.showCoulomb;
+        
+        if(lArr.visible) {
+            lArr.position.copy(cyl.mesh.position).setY(1);
+            lArr.setDirection(new THREE.Vector3(0, cyl.currentI > 0 ? 1 : -1, 0));
+            lArr.setLength(Math.abs(cyl.currentI)+0.1);
+        }
+        
+        if(cArr.visible) {
+            cArr.position.copy(cyl.mesh.position).setY(-1);
+            
+            const verticalDir = new THREE.Vector3(0, cyl.currentI > 0 ? -1 : 1, 0);
+            const radialDir = new THREE.Vector3(-cyl.mesh.position.x, 0, -cyl.mesh.position.z).normalize();
+            
+            const totalDir = new THREE.Vector3().addVectors(verticalDir, radialDir.multiplyScalar(0.6)).normalize();
+
+            cArr.setDirection(totalDir); 
+            cArr.setLength(Math.abs(cyl.currentI) + 0.1);
+        }
+    }
+
+    ff_renderer.render(ff_scene, ff_camera);
+}
+
+function ff_updateParams() {
+    ff_params.rotationSpeed = parseFloat(document.getElementById('ff_sld_speed').value);
+    ff_params.bFieldExt = parseFloat(document.getElementById('ff_sld_bfield').value);
+    ff_params.conductivity = parseFloat(document.getElementById('ff_sld_cond').value);
+    
+    ff_params.showLorentz = document.getElementById('ff_chk_lorentz').checked;
+    ff_params.showCoulomb = document.getElementById('ff_chk_coulomb').checked;
+    ff_params.showCurrents = document.getElementById('ff_chk_currents').checked;
+
+    document.getElementsByName('fieldMode').forEach(r => { if(r.checked) ff_params.fieldMode = r.value; });
+
+    document.getElementById('val_speed').innerText = ff_params.rotationSpeed.toFixed(1);
+    document.getElementById('val_bfield').innerText = ff_params.bFieldExt.toFixed(1);
+    document.getElementById('val_cond').innerText = ff_params.conductivity.toFixed(1);
+}
+
+function ff_reinitLines() {
+    ff_params.lineCount = parseInt(document.getElementById('ff_sld_density').value);
+    document.getElementById('val_density').innerText = ff_params.lineCount;
+    ff_initFieldLines();
+}
+
+function ff_onWindowResize() {
+    ff_camera.aspect = window.innerWidth / window.innerHeight;
+    ff_camera.updateProjectionMatrix();
+    ff_renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function updateFrozenFieldText() {
+    document.getElementById('status-title').innerText = "Вморожування поля";
+    document.getElementById('status-desc').innerText = "Симетрична модель вморожування магнітного поля в провідну плазму. Обертання циліндрів деформує магнітні лінії, демонструючи ефект 'приклеювання' поля до речовини.";
+}
+
+function openFrozenFieldModal() {
+    const modal = document.getElementById('ff-modal-overlay');
+    modal.style.display = 'flex';
+}
+
+function closeFrozenFieldModal(e) {
+    if (e.target.id === 'ff-modal-overlay') {
+        forceCloseFrozenFieldModal();
+    }
+}
+
+function forceCloseFrozenFieldModal() {
+    document.getElementById('ff-modal-overlay').style.display = 'none';
+}
+
+// ==============================================================
+// === TAB 0: FROZEN-IN =========================================
+// ==============================================================
+
+function initFrozenTab() {
+    const geom = new LineGeometry();
+    const pts = [];
+    const segs = 100;
+    for(let j=0; j<=segs; j++) {
+        pts.push(0, (j/segs)*60 - 30, 0);
+    }
+    geom.setPositions(pts);
+    const mat = new LineMaterial({ color: 0x0088ff, linewidth: 5, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+    frozenLine = new Line2(geom, mat);
+    groupFrozen.add(frozenLine);
+
+    conductorSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(4, 32, 32),
+        new THREE.MeshPhysicalMaterial({ color: 0xff4444, metalness: 0.8, roughness: 0.2 })
+    );
+    groupFrozen.add(conductorSphere);
+
+    const pGeo = new THREE.BufferGeometry();
+    const pCount = 10;
+    const pPos = [];
+    const pAngles = [];
+    for(let i=0; i<pCount; i++) {
+        pPos.push(0,0,0);
+        pAngles.push((i/pCount) * Math.PI * 2);
+    }
+    pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+    const pMat = new THREE.PointsMaterial({ color: 0xffff00, size: 0.8 });
+    eddyParticlesSystem = new THREE.Points(pGeo, pMat);
+    eddyParticlesSystem.userData = { angles: pAngles };
+    conductorSphere.add(eddyParticlesSystem);
+
+    inducedFieldArrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 1, 0x00ff00);
+    conductorSphere.add(inducedFieldArrow);
+}
+
+function updateFrozenLogic() {
+    const smooth = 0.05;
+    const dx = targetPos - lastPos;
+    currentVel = dx * smooth * 10.0; 
+    lastPos += dx * smooth;
+    conductorSphere.position.x = lastPos;
+
+    const pts = [];
+    const segs = 100;
+    for(let j=0; j<=segs; j++) {
+        const y = (j/segs)*60 - 30;
+        const distY = Math.abs(y);
+        const decay = Math.exp( - (distY * distY) / 100.0 );
+        const x = currentVel * 8.0 * decay; 
+        pts.push(x, y, 0);
+    }
+    frozenLine.geometry.setPositions(pts);
+    frozenLine.computeLineDistances();
+
+    const speedMagnitude = Math.abs(currentVel);
+    const particlesVisible = speedMagnitude > 0.1;
+    eddyParticlesSystem.visible = particlesVisible;
+    inducedFieldArrow.visible = particlesVisible;
+
+    if (particlesVisible) {
+        const isMovingAway = (lastPos * currentVel) >= 0;
+        const dirY = isMovingAway ? 1 : -1;
+        const positions = eddyParticlesSystem.geometry.attributes.position.array;
+        const angles = eddyParticlesSystem.userData.angles;
+        const radius = 5.0;
+
+        for(let i=0; i<angles.length; i++) {
+            angles[i] += speedMagnitude * 0.05 * dirY;
+            const theta = angles[i];
+            const px = Math.cos(theta) * radius;
+            const pz = Math.sin(theta) * radius;
+            const idx = i*3;
+            positions[idx] = px; positions[idx+1] = 0; positions[idx+2] = pz;
+        }
+        eddyParticlesSystem.geometry.attributes.position.needsUpdate = true;
+
+        const bDir = new THREE.Vector3(0, dirY, 0);
+        inducedFieldArrow.setDirection(bDir);
+        const arrowLength = speedMagnitude * 2.0 + 2.0; 
+        inducedFieldArrow.setLength(arrowLength, arrowLength*0.2, arrowLength*0.1);
+    }
+    document.getElementById('vel-readout').innerText = currentVel.toFixed(2);
+}
+
+function updateFrozenText() {
+    document.getElementById('status-title').innerText = "Фаза: Індукція / Вморожування";
+    document.getElementById('status-desc').innerText = "Рух провідника викликає зміну потоку. Жовті частинки — індукований струм Фуко (J). Якщо провідник ідеальний, струм не зникає і поле стає 'вморожене' надпровідник.";
+}
+
+// ==============================================================
+// === TAB 1: PARKER LOOPS (INDUCTION) ==========================
+// ==============================================================
+
+function initInductionTab() {
+    for(let v=0; v<IND_CONFIG.vortexCount; v++) {
+        const angle = (v / IND_CONFIG.vortexCount) * Math.PI * 2;
+        const cx = Math.cos(angle) * IND_CONFIG.vortexRadius;
+        const cz = Math.sin(angle) * IND_CONFIG.vortexRadius;
+        const partGeo = new THREE.BufferGeometry();
+        const pPos = []; const pData = [];
+        for(let i=0; i<80; i++) {
+            const r = Math.random() * 3.0;
+            const theta = Math.random() * Math.PI * 2;
+            const y = (Math.random() - 0.5) * 10;
+            pPos.push(cx + r*Math.cos(theta), y, cz + r*Math.sin(theta));
+            pData.push({ cx: cx, cz: cz, r: r, theta: theta, y: y, speed: 0.1 + Math.random()*0.1 });
+        }
+        partGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+        const particles = new THREE.Points(partGeo, new THREE.PointsMaterial({ color: 0xffaaaa, size: 0.6, transparent: true, opacity: 0.6 }));
+        groupInduction.add(particles);
+        plasmaSystems.push({ mesh: particles, data: pData });
+    }
+
+    const arrowConeGeo = new THREE.ConeGeometry(0.5, 1.5, 8);
+    arrowConeGeo.rotateX(Math.PI/2);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00aaff });
+
+    for(let i=0; i<IND_CONFIG.lineCount; i++) {
+        const isMain = (i === 0);
+        const rOffset = isMain ? 0 : (Math.random() - 0.5) * 4.0;
+        const yOffset = isMain ? 0 : (Math.random() - 0.5) * 1.5;
+        const geom = new LineGeometry();
+        const arr = new Array((IND_CONFIG.segs + 1) * 3).fill(0);
+        geom.setPositions(arr);
+        const mat = new LineMaterial({ color: isMain ? 0x0088ff : 0x003366, linewidth: isMain ? 5 : 2, transparent: true, opacity: isMain ? 1.0 : 0.4, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) });
+        const line = new Line2(geom, mat);
+        
+        const arrows = [];
+        if (isMain) {
+            const numArrows = 8; 
+            for(let a=0; a<numArrows; a++) {
+                const arrMesh = new THREE.Mesh(arrowConeGeo, arrowMat);
+                line.add(arrMesh);
+                arrows.push(arrMesh);
+            }
+        }
+
+        groupInduction.add(line);
+        indFieldLines.push({ mesh: line, radius: IND_CONFIG.baseRadius + rOffset, baseY: yOffset, arrows: arrows });
+    }
+
+    yellowCurrentRing = new THREE.Group();
+    const sphereGeo = new THREE.SphereGeometry(0.4, 16, 16);
+    for(let i=0; i<40; i++) { yellowCurrentRing.add(new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0x555500 }))); }
+    yellowCurrentRing.visible = false;
+    groupInduction.add(yellowCurrentRing);
+
+    for(let i=0; i<32; i++) {
+        const gGeo = new LineGeometry();
+        const gLine = new Line2(gGeo, new LineMaterial({ color: 0x00ff66, linewidth: 2, transparent: true, opacity: 0, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) }));
+        groupInduction.add(gLine);
+        const head = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 6), new THREE.MeshBasicMaterial({color:0x00ff66}));
+        head.geometry.rotateX(Math.PI/2);
+        groupInduction.add(head);
+        greenFieldLines.push({ line: gLine, head: head, seedAngle: (i/32)*Math.PI*2 });
+    }
+}
+
+function updateInductionLogic() {
+    updraftVal = parseInt(document.getElementById('ind-updraft').value) / 100;
+    twistVal = parseInt(document.getElementById('ind-twist').value) / 100;
+    
+    const hemiSign = isSouthern ? -1 : 1;
+    
+    const desc = document.getElementById('status-desc');
+    if(activeTab === 'induction') {
+        let txt = isSouthern ? "Південна півкуля: " : "Північна півкуля: ";
+        document.getElementById('status-title').innerText = "Фаза: α-ефект (Петлі Паркера)";
+        if (updraftVal < 0.1) desc.innerText = txt + "Спокій. Магнітні лінії (сині) тороїдальні.";
+        else if (twistVal < 0.2) desc.innerText = txt + "Конвекція вигинає магнітні лінії " + (isSouthern?"вниз":"вгору") + " (див. вкладку Індукція для розуміння механізму викривлення поля плазмою чи провідником).";
+        else desc.innerText = txt + "Сила Коріоліса скручує петлі. Тільки за наявності обох умов (ковекція+скручування) формується 3D петля і виникає ЦИРКУЛЯЦІЯ магнітного поля, яка створює струм (жовтий), що генерує полоїдальне поле (зелене).";
+    }
+
+    indFieldLines.forEach(obj => {
+        const pts = []; const R = obj.radius; const Y0 = obj.baseY;
+        const totalSegs = IND_CONFIG.segs;
+        
+        for(let i=0; i<=totalSegs; i++) {
+            const phi = (i / totalSegs) * Math.PI * 2;
+            let x = R * Math.cos(phi), z = R * Math.sin(phi), y = Y0;
+            
+            for(let v=0; v<IND_CONFIG.vortexCount; v++) {
+                const vAngle = (v / IND_CONFIG.vortexCount) * Math.PI * 2;
+                const vx = IND_CONFIG.vortexRadius * Math.cos(vAngle), vz = IND_CONFIG.vortexRadius * Math.sin(vAngle);
+                
+                const distSq = (x-vx)**2 + (z-vz)**2;
+                const influence = Math.exp(-distSq/25.0);
+                
+                y += influence * updraftVal * 12.0 * hemiSign;
+                
+                if(twistVal > 0 && influence > 0.01) {
+                    const twistDir = hemiSign;
+                    const ta = influence * twistVal * Math.PI * 1.5 * twistDir;
+                    
+                    const lx = x-vx, lz = z-vz;
+                    x = vx + (lx*Math.cos(ta) - lz*Math.sin(ta));
+                    z = vz + (lx*Math.sin(ta) + lz*Math.cos(ta));
+                }
+            }
+            pts.push(x, y, z);
+        }
+        obj.mesh.geometry.setPositions(pts);
+        obj.mesh.computeLineDistances();
+
+        const arrowDirSign = hemiSign; 
+        
+        obj.arrows.forEach((arrow, idx) => {
+            const ratio = idx / obj.arrows.length;
+            const idxPt = Math.floor(ratio * totalSegs);
+            const i1 = idxPt * 3;
+            const i2 = Math.min(idxPt + 1, totalSegs) * 3;
+            
+            const p1 = new THREE.Vector3(pts[i1], pts[i1+1], pts[i1+2]);
+            const p2 = new THREE.Vector3(pts[i2], pts[i2+1], pts[i2+2]);
+            
+            arrow.position.copy(p1);
+            if (arrowDirSign > 0) {
+                arrow.lookAt(p2);
+            } else {
+                arrow.lookAt(p1.clone().sub(p2).add(p1));
+            }
+        });
+    });
+
+    if(twistVal > 0.1 && updraftVal > 0.1) {
+        yellowCurrentRing.visible = true;
+        const loopHeight = updraftVal * 10.0 * hemiSign;
+        const ringRadius = IND_CONFIG.vortexRadius;
+        
+        yellowCurrentPath = [];
+        for(let i=0; i<=60; i++) {
+            const th = (i/60)*Math.PI*2;
+            yellowCurrentPath.push(new THREE.Vector3(Math.cos(th)*ringRadius, loopHeight, Math.sin(th)*ringRadius));
+        }
+
+        yellowCurrentRing.children.forEach((arrow, idx) => {
+            const th = (idx/yellowCurrentRing.children.length)*Math.PI*2;
+            const px = Math.cos(th)*ringRadius, pz = Math.sin(th)*ringRadius;
+            arrow.position.set(px, loopHeight, pz);
+            
+            arrow.lookAt(px - Math.sin(th), loopHeight, pz + Math.cos(th));
+            
+            const s = 0.5 + twistVal * 0.5; arrow.scale.set(s,s,s);
+        });
+        
+        updateBiotSavartField(loopHeight, ringRadius);
+    } else {
+        yellowCurrentRing.visible = false;
+        greenFieldLines.forEach(gl => { gl.line.visible = false; gl.head.visible = false; });
+    }
+}
+
+function updateBiotSavartField(ringY, ringR) {
+    if(yellowCurrentPath.length < 2) return;
+
+    greenFieldLines.forEach(item => {
+        item.line.visible = true; 
+        item.head.visible = true;
+        const opacity = Math.max(0, twistVal - 0.1);
+        item.line.material.opacity = opacity; 
+        item.head.material.opacity = opacity;
+
+        const seedAngle = item.seedAngle;
+        const loopRadius = 5.0;           
+        const pts = [];
+        
+        let arrowPos = new THREE.Vector3();
+        let arrowTarget = new THREE.Vector3();
+        
+        const segments = 50;
+        for(let s=0; s <= segments; s++) {
+            const alpha = (s / segments) * Math.PI * 2;
+            const rLocal = ringR + loopRadius * Math.cos(alpha);
+            const yLocal = ringY + loopRadius * Math.sin(alpha);
+
+            const px = rLocal * Math.cos(seedAngle);
+            const pz = rLocal * Math.sin(seedAngle);
+
+            pts.push(px, yLocal, pz);
+
+            if (s === Math.floor(segments * 0.75)) {
+                arrowPos.set(px, yLocal, pz);
+            }
+            if (s === Math.floor(segments * 0.75) + 1) {
+                arrowTarget.set(px, yLocal, pz);
+            }
+        }
+        item.line.geometry.setPositions(pts);
+        item.line.computeLineDistances();
+        item.head.position.copy(arrowPos);
+        item.head.lookAt(arrowTarget);
+    });
+}
+
+// ==============================================================
+// === TAB 2: AMPLIFICATION ======================
+// ==============================================================
+
+function initAmplificationTab() {
+    const points = getAmpCurvePoints(0);
+    conductorCurve = new THREE.CatmullRomCurve3(points); conductorCurve.closed = true;
+    tubeMesh = new THREE.Mesh(new THREE.TubeGeometry(conductorCurve, AMP_CONFIG.tubeSegs, AMP_CONFIG.baseTubeRadius, 12, true), new THREE.MeshPhysicalMaterial({ color: 0xff0000, emissive: 0x990000, metalness: 0.7, roughness: 0.2, clearcoat: 1.0 }));
+    groupAmplification.add(tubeMesh);
+
+    const arrowGeo = new THREE.ConeGeometry(0.8, 2.0, 12); arrowGeo.rotateX(Math.PI/2);
+    const count = Math.floor(AMP_CONFIG.tubeSegs / AMP_CONFIG.arrowSpacing);
+    for(let i=0; i<count; i++) {
+        const mesh = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+        groupAmplification.add(mesh);
+        currentArrowsAmp.push({ mesh: mesh, baseRatio: i/count });
+    }
+    for(let i=0; i<32; i++) {
+        const line = new Line2(new LineGeometry(), new LineMaterial({ color: 0x0088ff, linewidth: 2, transparent: true, opacity: 0.4, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) }));
+        groupAmplification.add(line);
+        const am = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.9, 8), new THREE.MeshBasicMaterial({color:0x44aaff})); am.geometry.rotateX(Math.PI/2);
+        groupAmplification.add(am);
+        fieldLinesAmpPool.push({ line: line, arrow: am, angle: (i/32)*Math.PI*2 });
+    }
+}
+
+function getAmpCurvePoints(t) {
+    const R = AMP_CONFIG.R; const points = [];
+    for(let i=0; i<AMP_CONFIG.tubeSegs; i++) {
+        const a = (i/AMP_CONFIG.tubeSegs)*Math.PI*2;
+        let x,y,z;
+        if(t <= 0.5) {
+            const t1 = t*2;
+            x = THREE.MathUtils.lerp(Math.cos(a)*R, Math.cos(a)*R, t1);
+            y = THREE.MathUtils.lerp(0, Math.sin(a)*(R*0.5), t1);
+            z = THREE.MathUtils.lerp(Math.sin(a)*R, Math.sin(2*a)*(R*0.7), t1);
+        } else {
+            const t2 = (t-0.5)*2;
+            x = THREE.MathUtils.lerp(Math.cos(a)*R, Math.cos(2*a)*R, t2);
+            y = THREE.MathUtils.lerp(Math.sin(a)*(R*0.5), Math.cos(a)*3.0, t2);
+            z = THREE.MathUtils.lerp(Math.sin(2*a)*(R*0.7), Math.sin(2*a)*R, t2);
+        }
+        points.push(new THREE.Vector3(x,y,z));
+    }
+    points.push(points[0].clone());
+    return points;
+}
+
+function updateAmpWorld() {
+    const newPoints = getAmpCurvePoints(ampMorphVal);
+    conductorCurve.points = newPoints;
+    
+    const rs = 1.0 - (ampMorphVal * 0.29);
+    
+    if (tubeMesh.geometry) tubeMesh.geometry.dispose();
+    tubeMesh.geometry = new THREE.TubeGeometry(conductorCurve, AMP_CONFIG.tubeSegs, AMP_CONFIG.baseTubeRadius * rs, 10, true);
+    
+    ampFlowOffset -= 0.003; 
+    if(ampFlowOffset < 0) ampFlowOffset += 1.0;
+    
+    currentArrowsAmp.forEach(item => {
+        const t = (item.baseRatio + ampFlowOffset) % 1.0;
+        const pt = conductorCurve.getPointAt(t);
+        item.mesh.position.copy(pt);
+        item.mesh.lookAt(pt.clone().add(conductorCurve.getTangentAt(t)));
+        item.mesh.scale.set(rs, rs, rs);
+    });
+    
+    const intensity = ampMorphVal; 
+    const colorBase = new THREE.Color(0x0088ff);
+    const colorHot = new THREE.Color(0x1199ff);
+    const currColor = colorBase.clone().lerp(colorHot, intensity);
+    
+    const currOpacity = 0.4 + (intensity * 0.6);
+    const currWidth = 1 + (intensity * 1);
+
+    const seedR = 18;
+    
+    fieldLinesAmpPool.forEach(item => {
+        item.line.material.color.copy(currColor);
+        item.line.material.opacity = currOpacity;
+        item.line.material.linewidth = currWidth;
+        item.arrow.material.color.copy(currColor);
+        
+        const pos = new THREE.Vector3(Math.cos(item.angle)*seedR, 0, Math.sin(item.angle)*seedR);
+        const pts = [pos.x, pos.y, pos.z];
+        
+        let arrowPos = new THREE.Vector3();
+        let arrowDir = new THREE.Vector3();
+        
+        for(let s=0; s<40; s++) {
+            let B = new THREE.Vector3();
+            
+            for(let i=0; i<newPoints.length-1; i+=5) {
+                const r = _v1.copy(pos).sub(newPoints[i]);
+                const d2 = r.lengthSq();
+                
+                if(d2 < 2.0) continue;
+                
+                const dl = _v2.copy(newPoints[i+1]).sub(newPoints[i]);
+                const cross = _vTemp.copy(dl).cross(r);
+                B.add(cross.multiplyScalar(1 / (d2 * Math.sqrt(d2))));
+            }
+            
+            if(B.lengthSq() < 1e-6) break;
+            
+            B.normalize().multiplyScalar(0.7);
+            pos.add(B);
+            pts.push(pos.x, pos.y, pos.z);
+            
+            if(s===20) { arrowPos.copy(pos); arrowDir.copy(B); }
+        }
+        
+        item.line.geometry.setPositions(pts);
+        item.line.computeLineDistances();
+        
+        item.arrow.position.copy(arrowPos);
+        item.arrow.lookAt(arrowPos.clone().add(arrowDir));
+    });
+}
+
+function updateAmpText() {
+    document.getElementById('status-title').innerText = "Принцип механічного підсилення поля";
+    document.getElementById('status-desc').innerText = ampMorphVal < 0.5 ? "Механічний рух обертання розтягує і закручує петлю струму, перетворюючи механічну енергію в електромагнітну." : "Складання петель створює подвійний потік. Поле підсилюється.";
+}
+
+// ==============================================================
+// === TAB 3: POLOIDAL TO TOROIDAL ========================
+// ==============================================================
+
+function initToroidalTab() {
+    const latCount = 4;
+    for (let i = 0; i < latCount; i++) {
+        const thetaStart = (i / latCount) * Math.PI;
+        const thetaLength = Math.PI / latCount;
+        
+        const segGeo = new THREE.SphereGeometry(20, 32, 1, 0, Math.PI * 2, thetaStart, thetaLength);
+        const seg = new THREE.Mesh(
+            segGeo,
+            new THREE.MeshBasicMaterial({ color: 0x990000, transparent: true, opacity: 0.5, wireframe: true })
+        );
+        
+        seg.userData.thetaMid = thetaStart + thetaLength / 2;
+        groupToroidal.add(seg);
+        torSphereSegments.push(seg);
+    }
+
+    const lineCount = 12;
+    const segsPerLine = 100;
+    const arrowConeGeo = new THREE.ConeGeometry(0.5, 1.5, 8);
+    arrowConeGeo.rotateX(Math.PI/2);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00aaff });
+
+    for(let i=0; i<lineCount; i++) {
+        const phi0 = (i / lineCount) * Math.PI * 2;
+        const geom = new LineGeometry();
+        const pts = new Array((segsPerLine+1)*3).fill(0);
+        geom.setPositions(pts);
+        
+        const mat = new LineMaterial({ 
+            color: 0x0088ff, linewidth: 3, 
+            resolution: new THREE.Vector2(window.innerWidth, window.innerHeight) 
+        });
+        const line = new Line2(geom, mat);
+        groupToroidal.add(line);
+
+        const arrows = [];
+        for(let k=0; k<5; k++) {
+            const arr = new THREE.Mesh(arrowConeGeo, arrowMat);
+            line.add(arr);
+            arrows.push(arr);
+        }
+
+        torFieldLines.push({
+            line: line,
+            arrows: arrows,
+            phi0: phi0,
+            segs: segsPerLine
+        });
+    }
+}
+
+function updateToroidalText() {
+    document.getElementById('status-title').innerText = "Фаза: Ω-ефект (Глобальний)";
+    document.getElementById('status-desc').innerText = "Полоїдальне магнітне поле (показана тільки зовнішня частина) може виникнути спонтанно або навсетися зовні. Спочатку воне може бути дуже слабким, але далі підсилюється за рахунок енергії обертання Землі (чи зорі) і конвекції (в ядрі чи плазмі). Лінії поля викривляються через швидше обертання екваторіальних шарів, створюючи тороїдальні пояси (див. вкладку Індукція для розуміння механізму деформації поля плазмою чи рідким металом)";
+}
+
+function updateToroidalTab() {
+    const maxWinding = Math.PI * 8; 
+    const currentWinding = torRotationVal * maxWinding;
+    const R = 20.5;
+
+    torSphereSegments.forEach(seg => {
+        const speed = 0.001 + 0.01 * Math.sin(seg.userData.thetaMid); 
+        seg.rotation.y += speed;
+    });
+
+    torFieldLines.forEach(obj => {
+        const pts = [];
+        const phi0 = obj.phi0;
+        
+        for(let j=0; j<=obj.segs; j++) {
+            const theta = (j / obj.segs) * Math.PI;
+            const diffRotOffset = currentWinding * Math.sin(theta); 
+            const phi = phi0 - diffRotOffset;
+            
+            const x = R * Math.sin(theta) * Math.cos(phi);
+            const z = R * Math.sin(theta) * Math.sin(phi);
+            const y = R * Math.cos(theta);
+            
+            pts.push(x, y, z);
+        }
+        
+        obj.line.geometry.setPositions(pts);
+        obj.line.computeLineDistances();
+
+        obj.arrows.forEach((arr, idx) => {
+            const safeIdx = Math.floor(10 + (idx / obj.arrows.length) * (obj.segs - 20));
+            const i1 = safeIdx * 3;
+            const i2 = (safeIdx + 1) * 3;
+            
+            const p1 = new THREE.Vector3(pts[i1], pts[i1+1], pts[i1+2]);
+            const p2 = new THREE.Vector3(pts[i2], pts[i2+1], pts[i2+2]);
+
+            arr.position.copy(p1);
+            arr.lookAt(p2);
+        });
+    });
+}
+
+// ==============================================================
+// === MODAL CONTENT & MAIN LOOP ================================
+// ==============================================================
+
+function openModal() {
+    const modal = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-text');
+    modal.style.display = 'flex';
+    
+    let html = "";
+    
+    if (activeTab === 'frozen') {
+             html = `
+            <h2> Індукція та Вморожування поля</h2>
+            <p>Ця симуляція демонструє фундаментальний механізм взаємодії провідної рідини (плазми) та магнітного поля.</p>
+            
+            <h3>1. Закони Ома і електромагнітної індукції</h3>
+            <p>Коли провідник (червона кулька) рухається зі швидкістю \\(\\mathbf{v}\\) через магнітне поле \\(\\mathbf{B}\\), на заряджені частинки діє сила Лоренца:</p>
+             <p>Це викликає струм:</p>
+            <div class="math-block">$$ \\mathbf{J} = \\sigma (\\mathbf{E} + \\mathbf{v} \\times \\mathbf{B}) $$</div>
+            <p>де \\(\\sigma\\) — провідність плазми. </p>
+			
+            <p>Коли провідна плазма входить у магнітне поле, магнітний потік \\( \\Phi_B \\) через її об'єм змінюється. Згідно із законом Фарадея, це створює електрорушійну силу (ЕРС) та вихрове електричне поле:</p>
+            
+            <div class="math-block">
+                $$ \\mathcal{E} = -\\frac{d\\Phi_B}{dt} \\quad \\text{або} \\quad \\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t} $$
+            </div>
+
+            <h3>Струми Фуко</h3>
+            <p>Це вихрове електричне поле породжує всередині провідника замкнені <strong>вихрові струми (струми Фуко)</strong>. На візуалізації це жовті частинки, що рухаються по колу.</p>
+			
+			<p>Напрямок струму визначається правилом Ленца: він намагається зберегти магнітний потік незмінним.
+			    Якщо провідник виходить з поля, він "тягне" його за собою (індукований струм не дає поля всередині провідника зменшитися). Якщо частинка входить в поле, індукований струм не дає агнітному потоки збільшуватись - це виглядає як відштовхування поля.
+				  В будь-якому разі поле викривляяється у напрямку руху провідника</p>
+
+            <h3>2. Викривлення ліній (Зворотна реакція)</h3>
+            <p>Згідно з законом Біо-Савара-Лапласа, індукований струм \\(\\mathbf{J}\\) створює власне магнітне поле \\(\\mathbf{B}_{ind}\\) (зелена стрілка). Векторна сума зовнішнього поля і індукованого поля дає результуюче викривлення лінії.</p>
+            <div class="math-block">$$ \\mathbf{B}_{total} = \\mathbf{B}_{ext} + \\mathbf{B}_{ind} $$</div>
+
+            <h3>3. Теорема Альвена (Вморожування)</h3>
+            <p>У ідеальній плазмі (де \\(\\sigma \\to \\infty\\)) рівняння індукції набуває вигляду:</p>
+            <div class="math-block">$$ \\frac{\\partial \\mathbf{B}}{\\partial t} = \\nabla \\times (\\mathbf{v} \\times \\mathbf{B}) $$</div>
+            <p>Це означає, що магнітні лінії "вморожені" в речовину і рухаються разом з нею. Саме це дозволяє потокам плазми у ядрі Землі чи Сонця переносити та скручувати магнітні поля.</p>
+        `;
+    } else if (activeTab === 'frozenfield') {
+        html = `
+            <h2>Ефект вморожування поля в магнітній гідродинаміці</h2>
+            <p>Тут демонструється взаємодія провідної рідини (або плазми) з магнітним полем.</p>
+
+            <h3>1. Сила Лоренца (Червона стрілка)</h3>
+            <p>Коли провідник рухається зі швидкістю <b>v</b> через магнітне поле <b>B</b>, на носії заряду діє магнітна сила:</p>
+            <div class="math-block">Fₗ = q(v × B)</div>
+            <p>Ця сила розділяє заряди, створюючи електрорушійну силу (ЕРС) індукції.</p>
+
+            <h3>2. Сила Кулона (Зелена стрілка)</h3>
+            <p>Розділення зарядів створює електричне поле <b>E</b>. Це поле створює силу, що протидіє подальшому розділенню і спрямовує струм у зовнішнє коло (або назад через центр):</p>
+            <div class="math-block">Fₑ = qE</div>
+            <p>У стані рівноваги (без навантаження) ці сили врівноважують одна одну.</p>
+
+            <h3>3. Вморожування магнітного поля</h3>
+            <p>При високій провідності магнітні лінії "приклеюються" до речовини. Обертання циліндрів затягує магнітні лінії, викривляючи їх. Це явище описується рівнянням індукції:</p>
+            <div class="math-block">∂B/∂t = ∇ × (v × B) + η∇²B</div>
+            <p>Де перший доданок відповідає за перенос поля потоком речовини.</p>
+        `;
+    } else if (activeTab === 'induction') {
+        html = `
+            <h2> \\(\\alpha\\)-ефект (Петлі Паркера)</h2>
+            <p>Демонстрація того, як радіальні рухи плазми (конвекція) та обертання планети створюють нове магнітне поле.</p>
+				<p>Сині лінії на цій моделі — це приховане  всередині Сонця або земного ядра тороїдальне поле. Воно є необхідним фундаментом для роботи динамо.</p>
+            <p>Тут показано механізм перетворення тороїдального поля (кільцевого) назад у полоїдальне (вертикальне) для замикання циклу динамо.</p>
+			<p> Зелені кільця — це народження того звичного нам поля, на яке реагує компас. У зорі рухається плазма, у ядрі Землі відбувається те саме, тільки замість плазми рухаються потоки рідкого заліза.</p>
+                <p>Зауваження. В симуляції показані тільки висхідні потоки (більш гарячою плазми чи рідкого металу). Вони більш інтенсивні, навідміну від потоків опускання, які більш широкі, повільні і зосереджені ближче до полюсів.</p>
+			<p>Тороїдальні поля в північній і південній півкулі протилежні, але й сила Коріоліса, що їх скручує, теж протилежна. Тому результат їхньої взаємодії виходить узгодженим і створює єдине глобальне магнітне поле зірки чи планети.</p>
+			<h3>1. Конвекція та сила Коріоліса</h3>
+            <p>Висхідні потоки гарячої плазми піднімають магнітні лінії, утворюючи форму літери \\(\\Omega\\). Сила Коріоліса закручує їх:</p>
+            <div class="math-block">$$ \\mathbf{F}_C = -2m (\\mathbf{\\Omega} \\times \\mathbf{v}) $$</div>
+
+            <h3>2. Генерація струму (Закон Ампера)</h3>
+            <p>Закручування петель створює ефективний струм \\(\\mathbf{J}\\) паралельно магнітному полю. Фундаментальний закон Ампера пов'язує циркуляцію магнітного поля з електричним струмом:</p>
+            <div class="math-block">$$ \\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} $$</div>
+            <p>Часто це описується як \\(\\alpha\\)-ефект:</p>
+            <div class="math-block">$$ \\mathbf{\\mathcal{E}} = \\alpha \\mathbf{B} $$</div>
+
+            <h3>3. Закон Біо-Савара-Лапласа</h3>
+            <p>Зелені лінії розраховані як поле від індукованого струму (жовте кільце):</p>
+            <div class="math-block">$$ \\mathbf{B}(\\mathbf{r}) = \\frac{\\mu_0}{4\\pi} \\int \\frac{I d\\mathbf{l} \\times \\mathbf{r}'}{|\\mathbf{r}'|^3} $$</div>
+       
+           
+            <ul>
+                <li><strong>Північна:</strong> Плазма піднімається, Сила Коріоліса закручує потоки проти годинникової.</li>
+                <li><strong>Південна:</strong> Плазма опускається (геометрія дзеркальна), Сила Коріоліса крутить за годинниковою стрілкою.</li>
+            </ul>
+            <p>Зверніть увагу: хоча магнітні поля в півкулях протилежні (сині стрілки), і напрямок скручування протилежний, результуючий індукований струм (жовтий) має <strong>узгоджений напрямок</strong>. Це дозволяє полям додаватися, а не знищувати одне одного.</p>
+
+             <p>Скручена петля створює струм вздовж поля, що породжує нове полоїдальне поле (зелене).</p>
+        `;
+    } else if (activeTab === 'amplification') {
+        html = `
+           <h2>Підсилення поля</h2>
+            <p>У провідному ядрі електричні струми течуть безпосередньо крізь рідину, тому вони жорстко пов'язані з її рухом. Коли гаряча плазма піднімається вгору, сила Коріоліса закручує її, механічно захоплюючи і скручуючи трубку зі струмом у петлю. Це розтягування подовжує шлях струму і змінює його форму. Процес працює як генератор: механічна енергія вихору витрачається на подолання сил магнітного опору, переходячи в енергію електромагнітного поля і підсилюючи його.</p>
+            
+			
+			<div style="background: rgba(255, 255, 255, 0.05); padding: 5px; border-left: 4px solid #ffcc00; border-radius: 4px;">
+          
+            <p>
+                <li> Поле зростає пропорційно видовженню трубки (<i>B ∝ L</i>). Так кінетична енергія руху перетворюється на магнітну.</li>
+            </ul>
+            </div>
+			
+			
+			<div style="background-color: rgba(15, 15, 20, 0.95); padding: 5px; border-radius: 8px; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; line-height: 1; border: 1px solid #444;">
+   
+
+   
+    <div style="background: rgba(255, 255, 255, 0.05); padding: 5px; border-radius: 6px; margin: 5px 0;">
+        <strong style="color: #ffcc00; display: block; margin-bottom: 5px;">
+            Ключовий механізм - збільшення розміру петлі
+        </strong>
+        <p>
+            Під дією висхідного потоку і сили Коріоліса петля зі струмом розтягується і скручується. 
+            Відбувається <strong>збільшення довжини та площі охоплення</strong> цього контуру струму.
+        </p>
+    </div>
+
+    <div style="background: rgba(255, 255, 255, 0.05); padding: 5px; border-radius: 6px; margin: 5px 0;">
+      
+        <p style="margin-bottom: 10px;">
+            Магнітний потік (<span style="font-family: 'Times New Roman', serif;">Φ</span>), що створюється кільцевим струмом, залежить від розмірів цього кільця. У першому наближенні:
+       Φ ~ R · I   </p>
+        
+             <p>
+            Коли петля струму механічно розтягується (збільшує ефективний радіус <span style="font-family: 'Times New Roman', serif;">R</span>), вона починає охоплювати більший простір і генерувати більший сумарний магнітний потік.
+            <br><br>
+            Це збільшує загальну магнітну енергію системи.
+        </p>
+    </div>
+
+    <div style="border-top: 1px dashed #666; padding-top: 5px; margin-top: 5px;">
+     
+        <p style="font-size: 0.9em; margin-top: 5px;">
+          
+            Конвекція  і обертання Землі чи зорі виконує <strong>механічну роботу</strong>, розтягуючи петлю. Саме ця робота перетворюється на додаткову енергію магнітного поля.
+        </p>
+    </div>
+
+</div>
+			
+            <p><strong>Позитивний зворотний зв'язок:</strong> \\(\\Omega\\)-ефект створює сильне тороїдальне поле з полоїдального \\(\\rightarrow\\) \\(\\alpha\\)-ефект скручує його, відновлюючи полоїдальне поле.</p>
+        `;
+    } else if (activeTab === 'toroidal') {
+        html = `
+            <h2>\\(\\Omega\\)-ефект (Глобальний)</h2>
+            <p>Ця модель показує, як Полоїдальне поле (Лінії Північ-Південь) перетворюється на Тороїдальне (Кільця Схід-Захід).</p>
+            
+            <h3>Диференціальне обертання</h3>
+            <p>Сонце (і рідке ядро Землі) не є твердим тілом. Екватор обертається швидше за полюси.</p>
+            <div class="math-block">$$ \\omega(\\theta) = \\omega_{eq} (1 - k \\cos^2 \\theta) $$</div>
+            
+            <h3>Намотування ліній</h3>
+            <p>Магнітна лінія, яка була вертикальною, захоплюється плазмою на екваторі і витягується вперед. З часом вона робить багато обертів навколо зорі, формуючи сильні магнітні "труби" під поверхнею.</p>
+            <p>Зверніть увагу на стрілки: в північній півкулі поле закручується в один бік, у південній — в протилежний.</p>
+			
+			 <p>Причина, чому екватор обертається швидше за полюси, криється в анізотропії (нерівномірності) конвекції. В умовах швидкого обертання конвективні комірки витягуються вздовж осі обертання, набуваючи специфічної форми. Через таку геометрії рухи речовини вгору-вниз перестають бути симетричними щодо перенесення обертального моменту. Виникає ефект «насоса»: турбулентні потоки систематично перекачують момент імпульсу з глибинних шарів та полюсів до екватора. Це створює надлишок швидкості на екваторі, змушуючи його постійно випереджати загальне обертання тіла.</p>
+        `;
+    }
+    
+    content.innerHTML = html;
+    MathJax.typesetPromise([content]);
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    const res = new THREE.Vector2(window.innerWidth, window.innerHeight);
+    
+    if(frozenLine) frozenLine.material.resolution = res;
+    indFieldLines.forEach(l => l.mesh.material.resolution = res);
+    fieldLinesAmpPool.forEach(l => l.line.material.resolution = res);
+    greenFieldLines.forEach(l => l.line.material.resolution = res);
+    torFieldLines.forEach(l => l.line.material.resolution = res);
+    
+    // Оновлення розмірів для вкладки Вморожування
+    if (ff_initialized) {
+        ff_onWindowResize();
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    
+    if(activeTab === 'frozen') {
+        updateFrozenLogic();
+    } else if(activeTab === 'frozenfield') {
+        if (ff_initialized) {
+            ff_animate();
+        }
+    } else if(activeTab === 'induction') {
+        const hemiSign = isSouthern ? -1 : 1;
+        const upSpeed = (0.05 + updraftVal * 0.4) * hemiSign;
+        
+        plasmaSystems.forEach((sys) => {
+            const pos = sys.mesh.geometry.attributes.position.array;
+            for(let i=0; i<sys.data.length; i++) {
+                const d = sys.data[i];
+                d.y += upSpeed * d.speed;
+                if(!isSouthern && d.y > 8) d.y = -8;
+                if(isSouthern && d.y < -8) d.y = 8;
+                
+                if(twistVal > 0) d.theta += twistVal * 0.05 * hemiSign;
+                
+                const idx = i*3;
+                pos[idx] = d.cx + d.r * Math.cos(d.theta);
+                pos[idx+1] = d.y;
+                pos[idx+2] = d.cz + d.r * Math.sin(d.theta);
+            }
+            sys.mesh.geometry.attributes.position.needsUpdate = true;
+        });
+        if(yellowCurrentRing.visible) yellowCurrentRing.rotation.y -= 0.02;
+    } else if (activeTab === 'amplification') {
+        updateAmpWorld();
+    } else if (activeTab === 'toroidal') {
+        updateToroidalTab();
+    }
+
+    renderer.render(scene, camera);
+}
+
+// Додаткові функції для модального вікна вкладки Вморожування
+document.addEventListener('keydown', function(event) {
+    if (event.key === "Escape") {
+        forceCloseFrozenFieldModal();
+    }
+});
+</script>
+</body>
+</html>
