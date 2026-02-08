@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ППО Симулятор: Вахтовий Метод</title>
+    <title>ППО Симулятор 2.0: Перехоплення</title>
 	
 	<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
-
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #e0f0ff; color: #333; }
@@ -19,10 +17,11 @@
             border-radius: 4px;
             border: 1px solid #ddd;
             margin: 10px 0;
-            text-align: center; /* Центруємо формули */
-            overflow-x: auto;   /* Щоб довгі формули не ламали верстку */
+            text-align: center;
+            overflow-x: auto;
             font-size: 1.1em;
         }
+        
         /* UI Overlay */
         #ui-layer {
             position: absolute;
@@ -35,7 +34,27 @@
         .hud-text { font-size: 14px; margin-bottom: 4px; color: #333; }
         .error-val { color: #d00; font-weight: bold; }
         .status-ok { color: #008800; font-weight: bold; }
+        .status-lost { color: #cc0000; font-weight: bold; animation: blink 1s infinite; }
         
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* Launch Button */
+        #fire-btn {
+            display: block; width: 100%; margin-top: 15px;
+            padding: 15px; font-size: 18px; font-weight: bold;
+            background: #555; color: #ccc; border: 2px solid #444;
+            border-radius: 6px; cursor: not-allowed; text-transform: uppercase;
+            box-shadow: inset 0 0 10px #000;
+        }
+        #fire-btn.ready {
+            background: #cc0000; color: #fff; border-color: #ff0000;
+            cursor: pointer; box-shadow: 0 0 15px #ff0000;
+            animation: pulse-red 1.5s infinite;
+        }
+        #fire-btn:active { transform: scale(0.98); }
+
+        @keyframes pulse-red { 0% { box-shadow: 0 0 5px #ff0000; } 50% { box-shadow: 0 0 20px #ff0000; } 100% { box-shadow: 0 0 5px #ff0000; } }
+
         /* Legend */
         #legend {
             position: absolute; bottom: 20px; right: 20px;
@@ -93,6 +112,8 @@
     <div class="hud-text">Похибка позиції: <span id="err-pos" class="error-val">--</span> м</div>
     <div class="hud-text">Похибка швидкості: <span id="err-vel" class="error-val">--</span> м/с</div>
     
+    <button id="fire-btn" disabled>ПУСК (НЕМАЄ РІШЕННЯ)</button>
+
     <div style="margin-top: 15px;">
         <label class="hud-text" style="font-weight:bold">Швидкість часу: <span id="time-scale-val">4.0</span>x</label>
         <input type="range" id="time-scale-input" min="0.1" max="5.0" step="0.1" value="4.0">
@@ -101,12 +122,13 @@
 
 <div id="legend">
     <div class="hud-title" style="margin-bottom:10px;">Легенда</div>
-    <div class="legend-item"><span class="dot" style="background:#cc2222;"></span> Ракета (Ціль)</div>
-    <div class="legend-item"><span class="dot" style="background:#ff4400; opacity:0.6;"></span> Траєкторія цілі</div>
+    <div class="legend-item"><span class="dot" style="background:#cc2222;"></span> Ракета (Ворог)</div>
     <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> Сканування (Активна група)</div>
     <div class="legend-item"><span class="dot" style="background:#ff00ff;"></span> Захоплення (Lock)</div>
     <div class="legend-item"><span class="dot" style="background:#00ff00;"></span> Прогноз СН</div>
-    <div class="legend-item"><span class="dot" style="background:#336699;"></span> Станція (Рух / Тиша)</div>
+    <div class="legend-item"><span class="dot" style="background:#336699;"></span> Станція (СВ)</div>
+    <div class="legend-item"><span class="dot" style="background:#228822;"></span> Пускова (ПУ)</div>
+    <div class="legend-item"><span class="dot" style="background:#ffffff; border-color:#000;"></span> Перехоплювач</div>
 </div>
 
 <button id="controls-btn">НАЛАШТУВАННЯ</button>
@@ -115,18 +137,27 @@
     <div id="settings-modal">
         <h2>Налаштування Групи ППО</h2>
         
-        <div class="control-group"><label>Загальна кількість СВ:</label><input type="number" id="inp-sv-count" value="30"></div>
-        <div class="control-group"><label>Розмір групи (одночасно):</label><input type="number" id="inp-sv-group" value="5"></div>
+        <h3>Агенти</h3>
+        <div class="control-group"><label>Кількість СВ (Радари):</label><input type="number" id="inp-sv-count" value="30"></div>
+        <div class="control-group"><label>Кількість ПУ (Пускові):</label><input type="number" id="inp-pu-count" value="4"></div>
+        <div class="control-group"><label>Розмір активної групи:</label><input type="number" id="inp-sv-group" value="5"></div>
         <div class="control-group"><label>Швидкість руху СВ (м/с):</label><input type="number" id="inp-sv-speed" value="25"></div>
-        <hr>
+        
+        <h3>Радар та Сканування</h3>
         <div class="control-group"><label>Тривалість сканування (с):</label><input type="number" id="inp-scan-duration" value="5"></div>
-        <div class="control-group"><label>Період циклу (скан+переїзд) (с):</label><input type="number" id="inp-cycle-period" value="15"></div>
+        <div class="control-group"><label>Період циклу (с):</label><input type="number" id="inp-cycle-period" value="15"></div>
         <div class="control-group"><label>Кут огляду радара (°):</label><input type="number" id="inp-beam-width" value="45"></div>
-        <hr>
-        <div class="control-group"><label>Швидкість ракети (м/с):</label><input type="number" id="inp-target-speed" value="100"></div>
-        <div class="control-group"><label>Період маневру ракети (с):</label><input type="number" id="inp-maneuver-period" value="12"></div>
+        
+        <h3>Ціль (Ворог)</h3>
+        <div class="control-group"><label>Швидкість (м/с):</label><input type="number" id="inp-target-speed" value="100"></div>
+        <div class="control-group"><label>Період маневру (с):</label><input type="number" id="inp-maneuver-period" value="12"></div>
+        <div class="control-group"><label>Радіус повороту (м):</label><input type="number" id="inp-turn-radius" value="800"></div>
 
-       <details>
+        <h3>Перехоплення</h3>
+        <div class="control-group"><label>Швидкість перехоплювача (м/с):</label><input type="number" id="inp-int-speed" value="300"></div>
+        <div class="control-group"><label>Час життя перехоплювача (с):</label><input type="number" id="inp-int-life" value="20"></div>
+
+        <details>
             <summary>Технічна документація: Алгоритми та Тактика</summary>
             
             <h3>1. Тактичний сценарій: "Мерехтливий рій"</h3>
@@ -189,6 +220,26 @@
             <p>
                 Саме відхилення реальної траєкторії ракети (маневр) від цієї лінійної екстраполяції і формує "Похибку позиції", яка зростає з часом, поки не увімкнеться наступна група радарів.
             </p>
+          <h3>3. Балістика перехоплення (Zero-Order Prediction)</h3>
+            <p>
+                Система не стріляє в поточне положення цілі. Для розрахунку <strong>Точки Зустрічі</strong> використовується алгоритм лінійної екстраполяції. Обчислюється час підльоту \( \Delta t \) і прогнозована координата \( \vec{P}_{impact} \):
+            </p>
+            <div class="math-block">
+                $$ \Delta t \approx \frac{|\vec{P}_{target} - \vec{P}_{launcher}|}{V_{interceptor}} $$
+                $$ \vec{P}_{impact} = \vec{P}_{target} + \vec{V}_{target} \cdot \Delta t $$
+            </div>
+
+            <h3>4. Алгоритм Самонаведення (Homing Loop)</h3>
+            <p>
+                Ракета-перехоплювач використовує метод <strong>Lead Pursuit</strong> (наведення на випередження). Вона постійно коригує свій вектор швидкості \( \vec{V}_{m} \), намагаючись сумістити його з вектором на прогнозовану точку зустрічі.
+            </p>
+            <p>
+                Щоб симулювати фізичну інерцію та обмеження перевантажень (G-force), поворот здійснюється плавно через сферичну інтерполяцію (Slerp/Lerp):
+            </p>
+            <div class="math-block">
+                $$ \vec{V}_{next} = \text{Lerp}(\vec{V}_{current}, \vec{Dir}_{impact}, \alpha \cdot dt) $$
+            </div>
+            <p>Де \( \alpha \) — коефіцієнт маневреності ракети.</p>
         </details>
 
         <button id="apply-btn">Застосувати та Перезапустити</button>
@@ -211,15 +262,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // --- CONFIG ---
 const CONFIG = {
     svCount: 30,
-    groupSize: 5,         // Exactly this many active
+    puCount: 4,           // New: Launchers
+    groupSize: 5,
     svSpeed: 25,
-    scanDuration: 5,      // How long they stay active
-    cyclePeriod: 15,      // Total time between wave starts
+    scanDuration: 5,
+    cyclePeriod: 15,
     scanSpeed: 10,
     beamWidth: 45,
     targetSpeed: 100,
+    targetTurnRadius: 800, // New: Inertia
     maneuverPeriod: 12,
-    mapSize: 3000,
+    intSpeed: 300,        // New: Interceptor speed
+    intLife: 20,          // New: Interceptor lifetime
+    mapSize: 4000,
+    earthRadius: 10000,   // New: Curvature radius
     timeScale: 4.0,
     terrainHeight: 150
 };
@@ -229,21 +285,26 @@ const STATE = {
     lastEstimate: { 
         pos: new THREE.Vector3(0, 1000, 0), 
         vel: new THREE.Vector3(100, 0, 0),
-        timestamp: 0 
+        timestamp: -100 // Old enough to be invalid initially
     },
     hasLock: false,
+    lockLostTime: 0,
     
     // Scheduler State
-    nextWaveTime: 0,      // When the next group starts
-    stopScanTime: 0,      // When current group stops
-    currentGroupIndex: 0, // Round robin index
-    activeStations: []    // References to current scanners
+    nextWaveTime: 0,
+    stopScanTime: 0,
+    currentGroupIndex: 0,
+    activeStations: [],
+    
+    // Game State
+    interceptors: [],
+    explosions: [],
+    targetAlive: true
 };
 
 // --- HELPERS (Math) ---
 const MathUtils = {
     solveLSM: (A, b) => {
-        // Simple Least Squares Matrix Solver (inv(AtA)*Atb)
         const AT = A[0].map((_, c) => A.map(r => r[c]));
         const mul = (m1, m2) => {
             let r = Array(m1.length).fill(0).map(()=>Array(m2[0].length).fill(0));
@@ -255,7 +316,6 @@ const MathUtils = {
         const AtA = mul(AT, A);
         const Atb = mul(AT, b);
 
-        // Determinant 3x3
         const det = AtA[0][0]*(AtA[1][1]*AtA[2][2]-AtA[2][1]*AtA[1][2]) -
                     AtA[0][1]*(AtA[1][0]*AtA[2][2]-AtA[1][2]*AtA[2][0]) +
                     AtA[0][2]*(AtA[1][0]*AtA[2][1]-AtA[1][1]*AtA[2][0]);
@@ -264,7 +324,6 @@ const MathUtils = {
 
         const invDet = 1/det;
         const inv = [[0,0,0],[0,0,0],[0,0,0]];
-        // Adjugate matrix / det
         inv[0][0] = (AtA[1][1]*AtA[2][2] - AtA[2][1]*AtA[1][2])*invDet;
         inv[0][1] = (AtA[0][2]*AtA[2][1] - AtA[0][1]*AtA[2][2])*invDet;
         inv[0][2] = (AtA[0][1]*AtA[1][2] - AtA[0][2]*AtA[1][1])*invDet;
@@ -277,6 +336,11 @@ const MathUtils = {
 
         const res = mul(inv, Atb);
         return new THREE.Vector3(res[0][0], res[1][0], res[2][0]);
+    },
+    
+    getCurvatureDrop: (x, z) => {
+        const distSq = x*x + z*z;
+        return distSq / (2 * CONFIG.earthRadius);
     }
 };
 
@@ -292,26 +356,34 @@ class Terrain {
         for (let i = 0; i < posAttr.count; i++) {
             const x = posAttr.getX(i);
             const y = posAttr.getY(i);
+            
+            // Noise relief
             let z = Math.sin(x/400)*50 + Math.cos(y/350)*50;
             z += Math.sin(x/100)*15 + Math.cos(y/100)*15;
-            posAttr.setZ(i, z-200);
+            
+            // Earth Curvature (convex)
+            const curve = MathUtils.getCurvatureDrop(x, y); // using y as z here because plane is created on XY then rotated
+            
+            posAttr.setZ(i, z - curve - 200);
         }
         geometry.computeVertexNormals();
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshStandardMaterial({
-            color: 0x559922, roughness: 0.8, metalness: 0.1, flatShading: true
+            color: 0x559922, roughness: 0.8, metalness: 0.1, flatShading: true,
+            side: THREE.DoubleSide
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
         scene.add(this.mesh);
-        this.geometry = geometry;
     }
 
     getHeight(x, z) {
+        // Recalculate exact height for logic
         let h = Math.sin(x/400)*50 + Math.cos(-z/350)*50;
         h += Math.sin(x/100)*15 + Math.cos(-z/100)*15;
-        return h-200;
+        const curve = MathUtils.getCurvatureDrop(x, z);
+        return h - curve - 200;
     }
 }
 
@@ -343,6 +415,7 @@ class Rocket {
         scene.add(this.mesh);
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
+        this.targetDir = new THREE.Vector3();
         
         // Trail
         this.trailPoints = [];
@@ -354,57 +427,57 @@ class Rocket {
     }
 
     reset() {
-        this.position.set(-1200, 600, -500);
+        this.position.set(-1500, 800, -800);
         this.velocity.set(1, 0, 0.5).normalize().multiplyScalar(CONFIG.targetSpeed);
+        this.targetDir.copy(this.velocity).normalize();
         this.nextManeuver = 0;
         this.trailPoints = [];
+        this.mesh.visible = true;
+        this.trailLine.visible = true;
     }
 
     update(dt) {
-        this.position.addScaledVector(this.velocity, dt);
-
-       // Bouncing logic (Hard Limits)
-        const limit = CONFIG.mapSize / 2;
-
-        // X bounds
-        if (this.position.x > limit) {
-            this.position.x = limit;
-            this.velocity.x *= -1;
-        } else if (this.position.x < -limit) {
-            this.position.x = -limit;
-            this.velocity.x *= -1;
+        if (!STATE.targetAlive) {
+            this.mesh.visible = false;
+            this.trailLine.visible = false;
+            return;
         }
 
-        // Z bounds
-        if (this.position.z > limit) {
-            this.position.z = limit;
-            this.velocity.z *= -1;
-        } else if (this.position.z < -limit) {
-            this.position.z = -limit;
-            this.velocity.z *= -1;
-        }
-
-        // Y bounds (Height)
-        if (this.position.y > 1500) {
-            this.position.y = 1500;
-            this.velocity.y *= -1;
-        } else if (this.position.y < 200) {
-            this.position.y = 200;
-            this.velocity.y *= -1;
-        }
-        this.mesh.position.copy(this.position);
-        this.mesh.lookAt(this.position.clone().add(this.velocity));
-
+        // Maneuver Logic
         if (STATE.time > this.nextManeuver) {
-            const noise = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
-            this.velocity.add(noise.multiplyScalar(CONFIG.targetSpeed * 0.4)); 
-            this.velocity.normalize().multiplyScalar(CONFIG.targetSpeed);
+            const noise = new THREE.Vector3(Math.random()-0.5, Math.random()*0.2-0.1, Math.random()-0.5).normalize();
+            this.targetDir.copy(this.velocity).normalize().add(noise).normalize();
             this.nextManeuver = STATE.time + CONFIG.maneuverPeriod;
         }
 
+        // Smooth Turn (Inertia)
+        const currentDir = this.velocity.clone().normalize();
+        const maxTurnAngle = (CONFIG.targetSpeed / CONFIG.targetTurnRadius) * dt; // rad/step
+        const angle = currentDir.angleTo(this.targetDir);
+        
+        if (angle > 0.001) {
+            const alpha = Math.min(1.0, maxTurnAngle / angle);
+            currentDir.lerp(this.targetDir, alpha).normalize();
+        }
+        this.velocity.copy(currentDir).multiplyScalar(CONFIG.targetSpeed);
+
+        // Movement
+        this.position.addScaledVector(this.velocity, dt);
+
+        // Bouncing/Bounds Logic
+        const limit = CONFIG.mapSize / 2;
+        if (Math.abs(this.position.x) > limit) { this.velocity.x *= -1; this.targetDir.x *= -1; }
+        if (Math.abs(this.position.z) > limit) { this.velocity.z *= -1; this.targetDir.z *= -1; }
+        if (this.position.y > 2000) { this.velocity.y = -Math.abs(this.velocity.y); this.targetDir.y = -Math.abs(this.targetDir.y); }
+        if (this.position.y < 300) { this.velocity.y = Math.abs(this.velocity.y); this.targetDir.y = Math.abs(this.targetDir.y); }
+
+        this.mesh.position.copy(this.position);
+        this.mesh.lookAt(this.position.clone().add(this.velocity));
+
         this.trailPoints.push(this.position.x, this.position.y, this.position.z);
-        if (this.trailPoints.length > 600) this.trailPoints.splice(0, 3);
+        if (this.trailPoints.length > 900) this.trailPoints.splice(0, 3);
         this.trailLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.trailPoints, 3));
+        this.trailLine.geometry.computeBoundingSphere();
     }
 }
 
@@ -421,7 +494,7 @@ class StationMobile {
         const domeGeo = new THREE.SphereGeometry(7, 16, 16, 0, Math.PI*2, 0, Math.PI/2);
         const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
         dome.position.y = 15;
-		dome.rotation.x = Math.PI; // Перевертаємо купол на 180 градусів
+		dome.rotation.x = Math.PI;
         this.base.add(dome);
 
         this.mesh = new THREE.Group();
@@ -436,48 +509,51 @@ class StationMobile {
 
         this.pos = new THREE.Vector3(0,0,0);
         this.vel = new THREE.Vector3(0,0,0);
-        this.dest = new THREE.Vector3(); // Where we are moving to
+        this.dest = new THREE.Vector3();
         
-        this.state = 'MOVING'; // MOVING or SCANNING
+        this.state = 'MOVING'; 
         this.scanStartTime = 0;
         this.lookTarget = new THREE.Vector3();
         this.lockData = null;
+        this.searchAngleOffset = Math.random() * Math.PI * 2; // For sector search
 
         this.pickNewDestination();
     }
 
     pickNewDestination() {
-        // Pick random point on map
         this.dest.set(
             (Math.random()-0.5)*CONFIG.mapSize*0.8,
             0,
             (Math.random()-0.5)*CONFIG.mapSize*0.8
         );
-        // Set velocity vector towards it
         const dir = new THREE.Vector3().subVectors(this.dest, this.pos).normalize();
         this.vel.copy(dir).multiplyScalar(CONFIG.svSpeed);
     }
 
-    startScan(targetEstPos) {
+    startScan(targetEstPos, mode) {
         this.state = 'SCANNING';
-        this.vel.set(0,0,0); // STOP
+        this.vel.set(0,0,0);
         this.scanStartTime = STATE.time;
         this.lockData = null;
-        this.lookTarget.copy(targetEstPos);
+        this.mode = mode; // 'TRACK' or 'SEARCH'
+
+        if (mode === 'TRACK') {
+            this.lookTarget.copy(targetEstPos);
+        } else {
+            // Search mode: Look outwards + offset
+            this.lookTarget.copy(this.pos).add(new THREE.Vector3(Math.sin(this.searchAngleOffset), 0, Math.cos(this.searchAngleOffset)).multiplyScalar(1000));
+        }
         
-        // Visuals
         this.ray.material.opacity = 0.6;
         this.ray.material.color.setHex(0xffff00);
-        
-        // Orient towards threat
         this.mesh.lookAt(this.lookTarget.x, this.pos.y, this.lookTarget.z);
     }
 
     stopScanAndMove() {
         this.state = 'MOVING';
-        this.ray.material.opacity = 0; // Silent mode
+        this.ray.material.opacity = 0;
         this.lockData = null;
-        this.pickNewDestination(); // Move to new position
+        this.pickNewDestination();
     }
 
     update(dt, targetObj) {
@@ -486,69 +562,208 @@ class StationMobile {
         this.mesh.position.copy(this.pos);
 
         if (this.state === 'MOVING') {
-            // Check if arrived (simple check), pick new if close
             if (this.pos.distanceTo(this.dest) < 10) this.pickNewDestination();
-
             this.pos.addScaledVector(this.vel, dt);
             this.mesh.lookAt(this.pos.x + this.vel.x, h+5, this.pos.z + this.vel.z);
-
-            // Bounds check
-            if (Math.abs(this.pos.x) > CONFIG.mapSize/2 || Math.abs(this.pos.z) > CONFIG.mapSize/2) {
-                this.pickNewDestination();
-            }
+            if (Math.abs(this.pos.x) > CONFIG.mapSize/2 || Math.abs(this.pos.z) > CONFIG.mapSize/2) this.pickNewDestination();
             return null;
 
         } else if (this.state === 'SCANNING') {
             const timeInScan = STATE.time - this.scanStartTime;
             
-            // Orientation
             if (this.lockData) {
+                // Keep lock
                 this.mesh.lookAt(targetObj.position);
                 this.ray.rotation.set(0,0,0); 
             } else {
-                this.mesh.lookAt(this.lookTarget);
-                // Spiral visual
+                // Scanning animation
+                if (this.mode === 'TRACK') {
+                    this.mesh.lookAt(this.lookTarget);
+                } else {
+                    // Wide sector scan
+                    const angle = Math.sin(timeInScan * 2) * 1.0; // +/- 1 rad sweep
+                    this.mesh.rotation.y += angle * dt;
+                }
+
+                // Spiral cone
                 const spiralAngle = timeInScan * 10; 
                 const coneOpenAngle = THREE.MathUtils.degToRad(CONFIG.scanSpeed * timeInScan);
                 this.ray.rotation.x = Math.sin(spiralAngle) * coneOpenAngle;
                 this.ray.rotation.y = Math.cos(spiralAngle) * coneOpenAngle;
                 
-                // Detection Logic
-                const vecToTarget = new THREE.Vector3().subVectors(targetObj.position, this.pos);
-                const dist = vecToTarget.length();
-                vecToTarget.normalize();
-                
-                const stationDir = new THREE.Vector3(0,0,1).applyQuaternion(this.mesh.quaternion);
-                const angleError = stationDir.angleTo(vecToTarget);
+                if (STATE.targetAlive) {
+                    // Detection Logic
+                    const vecToTarget = new THREE.Vector3().subVectors(targetObj.position, this.pos);
+                    const dist = vecToTarget.length();
+                    vecToTarget.normalize();
+                    
+                    const stationDir = new THREE.Vector3(0,0,1).applyQuaternion(this.mesh.quaternion);
+                    const angleError = stationDir.angleTo(vecToTarget);
 
-                if (coneOpenAngle >= angleError) {
-                    this.lockData = {
-                        svId: this.id,
-                        timestamp: STATE.time,
-                        pos: targetObj.position.clone().add(new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).multiplyScalar(15)),
-                        dir: vecToTarget,
-                        v_doppler: targetObj.velocity.dot(vecToTarget),
-                        svPos: this.pos.clone()
-                    };
-                    this.ray.material.color.setHex(0xff00ff); // Magenta Lock
-                    this.ray.scale.z = dist / 200;
+                    // Horizon Check
+                    const drop = MathUtils.getCurvatureDrop(dist/2, 0); // Approx drop at midpoint
+                    const isVisible = (targetObj.position.y > this.pos.y - drop); // Simplified LOS
+                    
+                    if (isVisible && coneOpenAngle >= angleError) {
+                        this.lockData = {
+                            svId: this.id,
+                            timestamp: STATE.time,
+                            pos: targetObj.position.clone().add(new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).multiplyScalar(15)),
+                            dir: vecToTarget,
+                            v_doppler: targetObj.velocity.dot(vecToTarget),
+                            svPos: this.pos.clone()
+                        };
+                        this.ray.material.color.setHex(0xff00ff);
+                        this.ray.scale.z = dist / 200;
+                    }
                 }
             }
-            
-            // Return measurement if we have lock
             return this.lockData;
         }
     }
 }
 
+class Launcher {
+    constructor(scene, terrain, id) {
+        this.id = id;
+        this.pos = new THREE.Vector3((Math.random()-0.5)*1500, 0, (Math.random()-0.5)*1500);
+        this.terrain = terrain;
+        
+        // Visuals
+        this.mesh = new THREE.Group();
+        const chassis = new THREE.Mesh(
+            new THREE.BoxGeometry(20, 10, 30),
+            new THREE.MeshStandardMaterial({ color: 0x228822 })
+        );
+        const box = new THREE.Mesh(
+            new THREE.BoxGeometry(16, 12, 35),
+            new THREE.MeshStandardMaterial({ color: 0x115511 })
+        );
+        box.position.set(0, 10, -5); box.rotation.x = -Math.PI/6;
+        this.mesh.add(chassis);
+        this.mesh.add(box);
+        
+        scene.add(this.mesh);
+        
+        // Place on ground
+        const h = this.terrain.getHeight(this.pos.x, this.pos.z);
+        this.pos.y = h + 5;
+        this.mesh.position.copy(this.pos);
+        this.mesh.rotation.y = Math.random() * 6;
+
+        this.hasSolution = false;
+    }
+
+    checkSolution(targetPos) {
+        // Simple range & LOS check
+        const dist = this.pos.distanceTo(targetPos);
+        // Range 2500 max
+        this.hasSolution = (dist < 2500 && STATE.hasLock);
+        return this.hasSolution;
+    }
+}
+
+class Interceptor {
+    constructor(scene, startPos, targetObj) {
+        this.scene = scene;
+        this.pos = startPos.clone();
+        this.pos.y += 10;
+        this.vel = new THREE.Vector3(0, 1, 0).normalize().multiplyScalar(CONFIG.intSpeed);
+        this.targetObj = targetObj;
+        this.lifeTime = CONFIG.intLife;
+        this.alive = true;
+
+        const geo = new THREE.CylinderGeometry(1, 1, 8);
+        geo.rotateX(-Math.PI/2);
+        this.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xffffff}));
+        scene.add(this.mesh);
+
+        // Trail
+        const trailGeo = new THREE.BufferGeometry();
+        this.trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5 }));
+        this.trailPoints = [];
+        scene.add(this.trailLine);
+    }
+
+    update(dt) {
+        if (!this.alive) return;
+
+        this.lifeTime -= dt;
+        if (this.lifeTime <= 0) {
+            this.explode(false);
+            return;
+        }
+
+        // Guidance (Lead Pursuit)
+        const dist = this.pos.distanceTo(this.targetObj.position);
+        if (dist < 20) {
+            this.explode(true);
+            return;
+        }
+
+        // Forecast impact point
+        const timeToImpact = dist / CONFIG.intSpeed;
+        const predictedPos = this.targetObj.position.clone().add(this.targetObj.velocity.clone().multiplyScalar(timeToImpact));
+        
+        const desiredDir = new THREE.Vector3().subVectors(predictedPos, this.pos).normalize();
+        const currentDir = this.vel.clone().normalize();
+        
+        // Max turn rate
+        const maxTurn = 3.0 * dt; 
+        currentDir.lerp(desiredDir, 0.1).normalize(); // Simple smoothing
+        
+        this.vel = currentDir.multiplyScalar(CONFIG.intSpeed);
+        this.pos.addScaledVector(this.vel, dt);
+
+        this.mesh.position.copy(this.pos);
+        this.mesh.lookAt(this.pos.clone().add(this.vel));
+
+        // Trail update
+        this.trailPoints.push(this.pos.x, this.pos.y, this.pos.z);
+      if (this.trailPoints.length > 150) this.trailPoints.splice(0, 3); // Зберігаємо останні 50 точок (50 * 3 coord)
+        this.trailLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.trailPoints, 3));
+    }
+
+    explode(hit) {
+        this.alive = false;
+        this.scene.remove(this.mesh);
+        this.scene.remove(this.trailLine);
+        
+        if (hit) {
+            STATE.explosions.push(new Explosion(this.scene, this.pos));
+            STATE.targetAlive = false;
+            document.getElementById('hud-status').innerText = "ЦІЛЬ ЗНИЩЕНО";
+            document.getElementById('hud-status').className = "status-ok";
+        }
+    }
+}
+
+class Explosion {
+    constructor(scene, pos) {
+        this.scene = scene;
+        this.age = 0;
+        this.mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(10, 46, 46),
+            new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true })
+        );
+        this.mesh.position.copy(pos);
+        scene.add(this.mesh);
+    }
+    update(dt) {
+        this.age += dt;
+        const s = 1 + this.age * 50;
+        this.mesh.scale.set(s,s,s);
+        this.mesh.material.opacity = 1 - this.age;
+        return this.age < 1.0;
+    }
+}
+
 class CommandPost {
     constructor(scene) {
-        // Visuals
         const geo = new THREE.CylinderGeometry(20, 25, 15, 6);
         const mat = new THREE.MeshPhongMaterial({ color: 0x004488 });
         this.mesh = new THREE.Mesh(geo, mat);
-        //this.mesh.position.set(0, CONFIG.terrainHeight/2, 0); 
-		this.mesh.position.set(10, -130, 0); // Підберіть значення, щоб він стояв на землі
+		this.mesh.position.set(10, -130, 0); 
         scene.add(this.mesh);
         
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(2,2,30), new THREE.MeshBasicMaterial({color:0x333}));
@@ -571,12 +786,10 @@ class CommandPost {
         if (!newMeas || newMeas.length === 0) return;
         
         this.measurementsBuffer.push(...newMeas);
-        // Buffer window 8s
-        this.measurementsBuffer = this.measurementsBuffer.filter(m => (STATE.time - m.timestamp) < 8.0);
+        this.measurementsBuffer = this.measurementsBuffer.filter(m => (STATE.time - m.timestamp) < 5.0);
 
         if (this.measurementsBuffer.length < 3) return;
 
-        // 1. Solve Velocity
         let A = [], b = [];
         this.measurementsBuffer.forEach(m => {
             A.push([m.dir.x, m.dir.y, m.dir.z]);
@@ -586,7 +799,6 @@ class CommandPost {
         const v_est = MathUtils.solveLSM(A, b);
         
         if (v_est) {
-            // 2. Align Positions to Now
             let posSum = new THREE.Vector3(), count = 0;
             this.measurementsBuffer.forEach(m => {
                 const dt = STATE.time - m.timestamp;
@@ -600,12 +812,14 @@ class CommandPost {
             STATE.lastEstimate.pos.copy(p_est);
             STATE.lastEstimate.vel.copy(v_est);
             STATE.lastEstimate.timestamp = STATE.time;
-            STATE.hasLock = true;
             
+            if (!STATE.hasLock) {
+                STATE.hasLock = true;
+                document.getElementById('hud-status').innerText = "ЗАХОПЛЕНО";
+                document.getElementById('hud-status').className = "status-ok";
+                this.light.color.setHex(0x00ff00);
+            }
             this.estHelper.position.copy(p_est);
-            this.light.color.setHex(0x00ff00); 
-            document.getElementById('hud-status').innerText = "ЗАХОПЛЕНО";
-            document.getElementById('hud-status').className = "status-ok";
         }
     }
 }
@@ -614,17 +828,17 @@ class CommandPost {
 
 let scene, camera, renderer, controls;
 let terrain, rocket, commandPost;
-let stations = [];
+let stations = [], launchers = [];
 let clock = new THREE.Clock();
 
 function init() {
     const container = document.getElementById('canvas-container');
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB); 
-    scene.fog = new THREE.Fog(0x87CEEB, 1000, 4000);
+    scene.fog = new THREE.Fog(0x87CEEB, 2000, 8000);
 
-    camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 10, 10000);
-    camera.position.set(0, 800, 1200);
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 10, 20000);
+    camera.position.set(0, 1500, 2000);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -641,7 +855,7 @@ function init() {
     rocket = new Rocket(scene);
     commandPost = new CommandPost(scene);
 
-    setupStations();
+    setupAgents();
 
     controls = new OrbitControls(camera, renderer.domElement);
     controls.maxPolarAngle = Math.PI/2 - 0.05; 
@@ -656,6 +870,8 @@ function init() {
         document.getElementById('modal-overlay').style.display='none';
         resetSim();
     });
+    document.getElementById('fire-btn').addEventListener('click', fireInterceptor);
+    
     document.getElementById('time-scale-input').addEventListener('input', (e) => {
         CONFIG.timeScale = parseFloat(e.target.value);
         document.getElementById('time-scale-val').innerText = CONFIG.timeScale.toFixed(1);
@@ -664,33 +880,56 @@ function init() {
     animate();
 }
 
-function setupStations() {
+function setupAgents() {
     stations.forEach(s => scene.remove(s.mesh));
     stations = [];
-    for(let i=0; i<CONFIG.svCount; i++) {
-        stations.push(new StationMobile(scene, terrain, i));
-    }
+    launchers.forEach(l => scene.remove(l.mesh));
+    launchers = [];
+    
+    for(let i=0; i<CONFIG.svCount; i++) stations.push(new StationMobile(scene, terrain, i));
+    for(let i=0; i<CONFIG.puCount; i++) launchers.push(new Launcher(scene, terrain, i));
 }
 
 function applySettings() {
     CONFIG.svCount = parseInt(document.getElementById('inp-sv-count').value);
+    CONFIG.puCount = parseInt(document.getElementById('inp-pu-count').value);
     CONFIG.groupSize = parseInt(document.getElementById('inp-sv-group').value);
     CONFIG.svSpeed = parseFloat(document.getElementById('inp-sv-speed').value);
     CONFIG.scanDuration = parseFloat(document.getElementById('inp-scan-duration').value);
     CONFIG.cyclePeriod = parseFloat(document.getElementById('inp-cycle-period').value);
     CONFIG.beamWidth = parseFloat(document.getElementById('inp-beam-width').value);
     CONFIG.targetSpeed = parseFloat(document.getElementById('inp-target-speed').value);
-    setupStations();
+    CONFIG.targetTurnRadius = parseFloat(document.getElementById('inp-turn-radius').value);
+    CONFIG.maneuverPeriod = parseFloat(document.getElementById('inp-maneuver-period').value);
+    CONFIG.intSpeed = parseFloat(document.getElementById('inp-int-speed').value);
+    CONFIG.intLife = parseFloat(document.getElementById('inp-int-life').value);
+    setupAgents();
+}
+
+function fireInterceptor() {
+    // Find a launcher with a solution
+    const validLaunchers = launchers.filter(l => l.hasSolution);
+    if (validLaunchers.length > 0) {
+        const p = validLaunchers[0];
+        STATE.interceptors.push(new Interceptor(scene, p.pos, rocket));
+    }
 }
 
 function resetSim() {
     STATE.time = 0;
     STATE.hasLock = false;
-    STATE.lastEstimate.pos.set(0, 1000, 0); 
-    STATE.nextWaveTime = 0;
-    STATE.stopScanTime = 0;
-    STATE.currentGroupIndex = 0;
-    STATE.activeStations = [];
+	STATE.nextWaveTime = 0;       // Скидаємо час наступного сканування
+    STATE.stopScanTime = 0;       // Скидаємо час зупинки
+    STATE.currentGroupIndex = 0;  // Починаємо з першої групи радарів
+    // Initial Intel: Roughly points to where rocket spawns (-1200, 600, -500)
+    STATE.lastEstimate.pos.set(-1500, 800, -800); 
+    STATE.lastEstimate.vel.set(CONFIG.targetSpeed, 0, 0); 
+    STATE.lastEstimate.timestamp = -10; // Old but valid for init
+    STATE.targetAlive = true;
+    STATE.interceptors.forEach(i => scene.remove(i.mesh));
+    STATE.interceptors = [];
+    STATE.explosions.forEach(e => scene.remove(e.mesh));
+    STATE.explosions = [];
     
     rocket.reset();
     commandPost.measurementsBuffer = [];
@@ -706,105 +945,149 @@ function step(dt) {
     STATE.time += dt;
     document.getElementById('sim-time').innerText = STATE.time.toFixed(2);
     rocket.update(dt);
-	// --- ЛОГІКА ЕКСТРАПОЛЯЦІЇ (DEAD RECKONING) ---
-    // Якщо ми хоч раз бачили ціль, ми "думаємо", що вона летить далі з тією ж швидкістю
-    if (STATE.hasLock) {
-        // Рухаємо "зелену точку" (уявну ціль) по старому вектору
+    
+    // Interceptors
+    STATE.interceptors.forEach(i => i.update(dt));
+    STATE.interceptors = STATE.interceptors.filter(i => i.alive);
+
+    // Explosions
+    STATE.explosions = STATE.explosions.filter(e => {
+        const alive = e.update(dt);
+        if (!alive) scene.remove(e.mesh);
+        return alive;
+    });
+
+    // Dead Reckoning
+// --- ВИПРАВЛЕННЯ ПРОГНОЗУ (Dead Reckoning + Clamp) ---
+    const timeSinceLock = STATE.time - STATE.lastEstimate.timestamp;
+    if (timeSinceLock < 5.0 || STATE.hasLock) {
+        // Екстраполяція
         STATE.lastEstimate.pos.addScaledVector(STATE.lastEstimate.vel, dt);
         
-        // Оновлюємо візуальну сферу (зелену)
+        // Обмежуємо прогноз межами мапи (щоб радари не дивились за горизонт)
+        const limit = CONFIG.mapSize / 2;
+        STATE.lastEstimate.pos.x = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.x));
+        STATE.lastEstimate.pos.z = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.z));
+        STATE.lastEstimate.pos.y = Math.max(100, Math.min(2500, STATE.lastEstimate.pos.y));
+
         commandPost.estHelper.position.copy(STATE.lastEstimate.pos);
+        commandPost.estHelper.visible = true;
+    } else {
+        // ... (код else без змін)
+        commandPost.estHelper.visible = false;
+        if (STATE.hasLock) {
+            STATE.hasLock = false; 
+            document.getElementById('hud-status').innerText = "ЦІЛЬ ВТРАЧЕНО";
+            document.getElementById('hud-status').className = "status-lost";
+            commandPost.light.color.setHex(0xff0000);
+        }
     }
-    // --- SCHEDULER LOGIC ---
-    
-    // 1. Check if scan duration is over -> Stop current group
+    // -----------------------------------------------------
+    // --- SCHEDULER ---
     if (STATE.activeStations.length > 0 && STATE.time >= STATE.stopScanTime) {
         STATE.activeStations.forEach(s => s.stopScanAndMove());
-        STATE.activeStations = []; // Clear active list
+        STATE.activeStations = [];
     }
 
-    // 2. Check if it's time for the NEXT WAVE
     if (STATE.time >= STATE.nextWaveTime) {
-        // Select next group (Round Robin)
-        const group = [];
-        for (let i = 0; i < CONFIG.groupSize; i++) {
-            const idx = (STATE.currentGroupIndex + i) % stations.length;
-            group.push(stations[idx]);
-        }
+        // SMART GROUP SELECTION
+        let candidates = [];
+        const predPos = STATE.lastEstimate.pos;
         
-        // Update index for next time
-        STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
-
-        // Calculate Target Hint (Where to look?)
-        let guessPos;
-        if (STATE.hasLock) {
-             // Predict
-            const predTime = 1.0; 
-            guessPos = STATE.lastEstimate.pos.clone().addScaledVector(STATE.lastEstimate.vel, predTime);
+        // Calculate scores for all stations based on distance to predicted target
+        const scoredStations = stations.map(s => {
+            return { s: s, dist: s.pos.distanceTo(predPos) };
+        });
+        
+        // Sort by distance (closest first)
+        scoredStations.sort((a,b) => a.dist - b.dist);
+        
+        // Select top N available, with some randomness to simulate rotation
+        // If track is lost, we might just pick random sectors
+        const startIndex = (STATE.currentGroupIndex) % stations.length;
+        
+        let group = [];
+        if (STATE.hasLock || timeSinceLock < 15.0) {
+            // Priority: Closest ones
+            group = scoredStations.slice(0, CONFIG.groupSize).map(o => o.s);
         } else {
-             // Rough intel
-            guessPos = rocket.position.clone().add(new THREE.Vector3(
-                (Math.random()-0.5)*500, (Math.random()-0.5)*200, (Math.random()-0.5)*500
-            ));
+            // Lost/Search: Round robin
+             for (let i = 0; i < CONFIG.groupSize; i++) {
+                const idx = (STATE.currentGroupIndex + i) % stations.length;
+                group.push(stations[idx]);
+            }
+            STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
         }
 
-        // Activate Group
-        group.forEach(s => s.startScan(guessPos));
+        // Activate
+        const mode = (STATE.hasLock || timeSinceLock < 10.0) ? 'TRACK' : 'SEARCH';
+        
+        // If tracking, point to estimated pos. If searching, pass estimated pos (it might be old, radar will add offset)
+        group.forEach(s => s.startScan(predPos, mode));
         STATE.activeStations = group;
 
-        // Schedule Timing
         STATE.stopScanTime = STATE.time + CONFIG.scanDuration;
         STATE.nextWaveTime = STATE.time + CONFIG.cyclePeriod;
     }
 
-    // Update HUD Text for Wave Status
-    const timeToNext = (STATE.nextWaveTime - STATE.time).toFixed(1);
-    if (STATE.activeStations.length > 0) {
-        const timeLeft = (STATE.stopScanTime - STATE.time).toFixed(1);
-        document.getElementById('hud-wave-status').innerText = `АКТИВНА (${timeLeft}с)`;
-        document.getElementById('hud-wave-status').style.color = '#aa0000';
-    } else {
-        document.getElementById('hud-wave-status').innerText = `ТИША (наст. ${timeToNext}с)`;
-        document.getElementById('hud-wave-status').style.color = '#333';
-    }
-
- // Update Objects & Data Link Logic
+    // --- SENSOR FUSION & DATA LINK ---
     let newMeasurements = [];
     let sharedTargetPos = null;
 
-    // 1. Спочатку оновлюємо всі станції і збираємо дані
     stations.forEach(s => {
         const meas = s.update(dt, rocket);
         if (meas) {
             newMeasurements.push(meas);
-            // Якщо хоч хтось знайшов ціль - запам'ятовуємо її координати
             if (!sharedTargetPos) sharedTargetPos = meas.pos;
         }
     });
 
-    // 2. ЛОГІКА DATA LINK: 
-    // Якщо координати відомі (хтось знайшов), передаємо їх тим, хто ще шукає в цій групі
+    // Data Link: Share info immediately within active group
     if (sharedTargetPos) {
         STATE.activeStations.forEach(s => {
-            // Якщо станція активна, але ще НЕ має захвату (lockData == null)
             if (!s.lockData) {
-                // Примусово повертаємо її "очі" на знайдену ціль
-                s.lookTarget.copy(sharedTargetPos);
-                // Можна також збільшити колір променя, щоб показати "прийом даних" (опціонально)
+                s.lookTarget.copy(sharedTargetPos); // Snap to target
                 s.ray.material.color.setHex(0xffee00); 
+                s.mode = 'TRACK'; // Switch to track mode
             }
         });
     }
     commandPost.process(newMeasurements);
 
-    if (STATE.hasLock) {
+    // --- LAUNCHER LOGIC ---
+    let canFire = false;
+    if (STATE.hasLock && STATE.targetAlive) {
+        launchers.forEach(l => {
+            if (l.checkSolution(STATE.lastEstimate.pos)) canFire = true;
+        });
+        
         const dPos = STATE.lastEstimate.pos.distanceTo(rocket.position);
-        const dVel = STATE.lastEstimate.vel.distanceTo(rocket.velocity);
         document.getElementById('err-pos').innerText = dPos.toFixed(1);
-        document.getElementById('err-vel').innerText = dVel.toFixed(1);
     } else {
+        launchers.forEach(l => l.hasSolution = false);
         document.getElementById('err-pos').innerText = "--";
-        document.getElementById('err-vel').innerText = "--";
+    }
+
+    const btn = document.getElementById('fire-btn');
+    if (canFire) {
+        btn.disabled = false;
+        btn.innerText = "ПУСК (ГОТОВНІСТЬ)";
+        btn.classList.add('ready');
+    } else {
+        btn.disabled = true;
+        btn.innerText = STATE.targetAlive ? "ПУСК (НЕМАЄ РІШЕННЯ)" : "ЦІЛЬ ЗНИЩЕНО";
+        btn.classList.remove('ready');
+    }
+
+    // HUD Update
+    if (STATE.activeStations.length > 0) {
+        const timeLeft = (STATE.stopScanTime - STATE.time).toFixed(1);
+        document.getElementById('hud-wave-status').innerText = `АКТИВНА (${timeLeft}с)`;
+        document.getElementById('hud-wave-status').style.color = '#aa0000';
+    } else {
+        const timeToNext = (STATE.nextWaveTime - STATE.time).toFixed(1);
+        document.getElementById('hud-wave-status').innerText = `ТИША (наст. ${timeToNext}с)`;
+        document.getElementById('hud-wave-status').style.color = '#333';
     }
 }
 
