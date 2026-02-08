@@ -958,13 +958,16 @@ function step(dt) {
     });
 
     // Dead Reckoning
-// --- ВИПРАВЛЕННЯ ПРОГНОЗУ (Dead Reckoning + Clamp) ---
+// --- ВИПРАВЛЕНА ЛОГІКА ПРОГНОЗУ ТА СТАТУСУ ---
     const timeSinceLock = STATE.time - STATE.lastEstimate.timestamp;
-    if (timeSinceLock < 5.0 || STATE.hasLock) {
-        // Екстраполяція
+    const timeLimit = CONFIG.scanDuration + 1.0; // Час очікування: цикл сканування + запас 1с
+
+    // 1. Оновлення фізики прогнозу (зелена точка)
+    // Прогноз продовжує рух, поки ми "пам'ятаємо" ціль (навіть якщо давно не бачили)
+    if (timeSinceLock < timeLimit * 2 || STATE.hasLock) { 
         STATE.lastEstimate.pos.addScaledVector(STATE.lastEstimate.vel, dt);
         
-        // Обмежуємо прогноз межами мапи (щоб радари не дивились за горизонт)
+        // Обмеження межами мапи (щоб не летіло в нескінченність)
         const limit = CONFIG.mapSize / 2;
         STATE.lastEstimate.pos.x = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.x));
         STATE.lastEstimate.pos.z = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.z));
@@ -973,13 +976,30 @@ function step(dt) {
         commandPost.estHelper.position.copy(STATE.lastEstimate.pos);
         commandPost.estHelper.visible = true;
     } else {
-        // ... (код else без змін)
         commandPost.estHelper.visible = false;
-        if (STATE.hasLock) {
+    }
+
+    // 2. Логіка СТАТУСУ (UI)
+    if (STATE.hasLock) {
+        // Якщо час з останнього оновлення перевищив допустиму межу (весь цикл пройшов впусту)
+        if (timeSinceLock > timeLimit) {
             STATE.hasLock = false; 
             document.getElementById('hud-status').innerText = "ЦІЛЬ ВТРАЧЕНО";
             document.getElementById('hud-status').className = "status-lost";
             commandPost.light.color.setHex(0xff0000);
+            
+            // Вимикаємо кнопку пуску
+            const btn = document.getElementById('fire-btn');
+            btn.disabled = true;
+            btn.classList.remove('ready');
+        } 
+        else {
+            // Якщо ми все ще в межах допустимого часу, статус залишається "ЗАХОПЛЕНО"
+            // Оновлюємо текст тільки якщо він був іншим, щоб не мерехтіло
+            if (document.getElementById('hud-status').innerText !== "ЗАХОПЛЕНО") {
+                document.getElementById('hud-status').innerText = "ЗАХОПЛЕНО";
+                document.getElementById('hud-status').className = "status-ok";
+            }
         }
     }
     // -----------------------------------------------------
