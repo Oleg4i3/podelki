@@ -122,13 +122,13 @@
 
 <div id="legend">
     <div class="hud-title" style="margin-bottom:10px;">Легенда</div>
-    <div class="legend-item"><span class="dot" style="background:#cc2222;"></span> Ракета (Ворог)</div>
-    <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> Сканування (Активна група)</div>
+    <div class="legend-item"><span class="dot" style="background:#cc2222;"></span> Ціль (Ворог)</div>
+    <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> Промінь сканування (Активна група)</div>
     <div class="legend-item"><span class="dot" style="background:#ff00ff;"></span> Захоплення (Lock)</div>
-    <div class="legend-item"><span class="dot" style="background:#00ff00;"></span> Прогноз СН</div>
-    <div class="legend-item"><span class="dot" style="background:#336699;"></span> Станція (СВ)</div>
-    <div class="legend-item"><span class="dot" style="background:#228822;"></span> Пускова (ПУ)</div>
-    <div class="legend-item"><span class="dot" style="background:#ffffff; border-color:#000;"></span> Перехоплювач</div>
+    <div class="legend-item"><span class="dot" style="background:#00ff00;"></span> Прогноз положення ракети</div>
+    <div class="legend-item"><span class="dot" style="background:#3366ff;"></span> Станція виявлення (СВ)</div>
+    <div class="legend-item"><span class="dot" style="background:#228822;"></span> Пускова установка (ПУ)</div>
+    <div class="legend-item"><span class="dot" style="background:#ffffff; border-color:#000;"></span> Ракета-перехоплювач</div>
 </div>
 
 <button id="controls-btn">НАЛАШТУВАННЯ</button>
@@ -404,7 +404,7 @@ class Rocket {
         
         // Fins
         const finGeo = new THREE.BoxGeometry(30, 2, 10); finGeo.translate(0, 0, -25);
-        const fin1 = new THREE.Mesh(finGeo, new THREE.MeshPhongMaterial({ color: 0x333333 }));
+        const fin1 = new THREE.Mesh(finGeo, new THREE.MeshPhongMaterial({ color: 0x2211ff }));
         const fin2 = fin1.clone(); fin2.rotation.z = Math.PI/2;
         this.mesh.add(fin1, fin2);
         
@@ -487,14 +487,14 @@ class StationMobile {
         this.scene = scene;
         this.terrain = terrain;
 
-        const baseGeo = new THREE.BoxGeometry(15, 10, 20);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x336699, roughness: 0.4 });
+        const baseGeo = new THREE.BoxGeometry(15, 10, 25);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x3366ff, roughness: 0.4 });
         this.base = new THREE.Mesh(baseGeo, mat);
         
-        const domeGeo = new THREE.SphereGeometry(7, 16, 16, 0, Math.PI*2, 0, Math.PI/2);
-        const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        const domeGeo = new THREE.SphereGeometry(12, 26, 16, 0, Math.PI*2, 0, 2*Math.PI/3);
+        const dome = new THREE.Mesh(domeGeo, new THREE.MeshStandardMaterial({ color: 0xffff00 }));
         dome.position.y = 15;
-		dome.rotation.x = Math.PI;
+		dome.rotation.x = Math.PI;0
         this.base.add(dome);
 
         this.mesh = new THREE.Group();
