@@ -99,7 +99,7 @@
             border: 0 solid #ddd;
             padding: 0 10px;
             opacity: 0;
-            width: 320px;
+            width: 350px;
         }
 
         .spoiler.expanded {
@@ -227,7 +227,21 @@
 
         <div class="divider"></div>
 
-        <div class="bar-section" style="position: relative;">
+        
+
+        <div class="bar-section">
+            <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
+            <button class="tool-btn" onclick="duplicateSelected()" title="Duplicate selected">❐</button>
+            <button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">📌</button>
+            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
+            
+            <button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
+            <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
+        </div>
+		
+		
+		
+		<div class="bar-section" style="position: relative;">
             <button class="tool-btn active" id="btn-select" onclick="activateTool('select')" title="Select (V)">⇖</button>
             
             <div style="position: relative;">
@@ -288,19 +302,11 @@
                 </div>
             </div>
         </div>
+		
 
         <div class="divider"></div>
-
-        <div class="bar-section">
-            <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
-            <button class="tool-btn" onclick="duplicateSelected()" title="Duplicate selected">❐</button>
-            <button class="tool-btn" onclick="togglePin()" title="Pin/UnPin">📌</button>
-            <button class="tool-btn" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
-            
-            <button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
-            <input type="file" id="img-input" style="display: none;" accept="image/*,application/pdf" onchange="handleImport(this)">
-        </div>
-
+		
+		
         <div class="bar-section">
             <button class="tool-btn" onclick="saveBoard()" title="Save Board">💾</button>
             <button class="tool-btn" onclick="document.getElementById('file-input').click()" title="Open Board">📁</button>
@@ -443,6 +449,7 @@ function copyMqttLink() {
             btn.style.background = '';
             btn.style.color = '';
         }, 2000);
+		document.getElementById('manual-connect-spoiler').classList.remove('expanded');//////////????
     });
 }
 
@@ -609,7 +616,7 @@ function setupCanvasMqttEvents() {
         // 3. Идет отправка в данный момент
         if (!e.target || 
             e.target.__isLocal || 
-            e.target.type === 'path' ||  // 🔥 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
+           // e.target.type === 'path' ||  // 🔥 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
             isSendingToMqtt) {
             return;
         }
@@ -626,7 +633,8 @@ function setupCanvasMqttEvents() {
         const syncProps = [
             'id', 'isPinned', 'left', 'top', 'scaleX', 'scaleY', 'angle', 
             'fill', 'stroke', 'strokeWidth', 'type', 'width', 'height',
-            'rx', 'ry', 'points', 'objectCaching'
+            'rx', 'ry', 'points', 'objectCaching', 
+			'path'////!!
         ];
         
         publishMqttMessage('object_added', e.target.toObject(syncProps));
@@ -2133,7 +2141,7 @@ function setupPeerEvents() {
             setStatus('Network error', 'err');
         } else if (err.type === 'webrtc') {
             logIOS('WebRTC ERROR: ' + err.message);
-            setStatus('WebRTC error (check console)', 'err');
+            setStatus('WebRTC error', 'err');
         } else {
             logIOS('Unknown error: ' + err.type);
             setStatus('Error: ' + err.type, 'err');
@@ -2144,21 +2152,42 @@ function setupPeerEvents() {
         logIOS('Incoming connection from: ' + c.peer);
         
         if (conn && conn.open) {
+            logIOS('Closing old connection');
             conn.close();
         }
         
         conn = c;
         
+        let openTimeout = setTimeout(() => {
+            logIOS('CONNECTION OPEN TIMEOUT - forcing setup');
+            setupConn();
+            connectionMode = "connected";
+            setStatus("Connected (forced)", 'ok');
+        }, 5000);
+        
         c.on('open', () => {
+            clearTimeout(openTimeout);
             logIOS('Incoming connection OPENED');
             setupConn();
             connectionMode = "connected";
-            setStatus("Connected (partner joined)", 'ok');
+            setStatus("Connected", 'ok');
+            updateUIForConnectionMode();
             setTimeout(() => sendCanvasDataChunked(), 500);
         });
         
         c.on('error', (err) => {
+            clearTimeout(openTimeout);
             logIOS('Incoming conn error: ' + err.message);
+            setStatus('Connection error', 'err');
+        });
+        
+        c.on('close', () => {
+            clearTimeout(openTimeout);
+            logIOS('Incoming connection closed');
+        });
+        
+        c.on('iceStateChanged', (state) => {
+            logIOS('ICE state changed: ' + state);
         });
     });
     
@@ -2172,6 +2201,7 @@ function setupPeerEvents() {
         }, 2000);
     });
 }
+
 
 initPeer();
 setTimeout(checkAutoConnect, 1500);
@@ -2418,22 +2448,32 @@ window.joinPeer = function() {
     }
     
     try {
-        const newConn = peer.connect(id, {
+        const opts = {
             reliable: true,
             serialization: 'json'
-        });
+        };
         
-        logIOS('Connection object created');
+        logIOS('Creating connection with opts: ' + JSON.stringify(opts));
+        const newConn = peer.connect(id, opts);
+        
+        logIOS('Connection object created, waiting for open...');
+        
+        let openFired = false;
         
         const timeout = setTimeout(() => {
-            if (newConn && !newConn.open) {
-                logIOS('Connection TIMEOUT after 20s');
-                setStatus('Timeout', 'err');
-                newConn.close();
+            if (!openFired) {
+                logIOS('CONNECTION TIMEOUT - no open event after 10s');
+                setStatus('Timeout - trying setup anyway', 'err');
+                
+                conn = newConn;
+                setupConn();
+                connectionMode = "connected";
+                updateUIForConnectionMode();
             }
-        }, 20000);
+        }, 10000);
         
         newConn.on('open', () => {
+            openFired = true;
             clearTimeout(timeout);
             logIOS('Connection OPENED successfully!');
             conn = newConn;
@@ -2446,12 +2486,22 @@ window.joinPeer = function() {
         newConn.on('error', (err) => {
             clearTimeout(timeout);
             logIOS('Connection ERROR: ' + err.type + ' - ' + err.message);
-            setStatus('Connection failed', 'err');
+            setStatus('Failed: ' + err.type, 'err');
         });
         
         newConn.on('close', () => {
-            logIOS('Connection closed');
+            clearTimeout(timeout);
+            logIOS('Connection closed before opening');
+            setStatus('Connection closed', 'err');
         });
+        
+        newConn.on('iceStateChanged', (state) => {
+            logIOS('Outgoing ICE state: ' + state);
+        });
+        
+        setTimeout(() => {
+            logIOS('Connection state after 2s: open=' + newConn.open);
+        }, 2000);
         
     } catch (e) {
         logIOS('EXCEPTION in joinPeer: ' + e.message);
