@@ -1974,9 +1974,7 @@ canvas.on('mouse:wheel', function(opt) {
     opt.e.preventDefault(); opt.e.stopPropagation();
 });
 
-// ==========================================
-// 5. P2P NETWORKING WITH CHUNKING & COMPRESSION
-// ==========================================
+
 // ==========================================
 // 5. P2P NETWORKING - iOS DIAGNOSTIC VERSION
 // ==========================================
@@ -1985,8 +1983,40 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 console.log('Device detection - iOS:', isIOS);
 console.log('RTCPeerConnection available:', typeof RTCPeerConnection !== 'undefined');
 console.log('Protocol:', window.location.protocol);
+////////////
 
 
+/////////////
+const iceConfig = {
+    iceServers: [
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        {
+            urls: 'turn:a.relay.metered.ca:80',
+            username: 'e497516fd38bc6c87e97fc84',
+            credential: '2wmQS3dJ8vqe8gKj',
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+            username: 'e497516fd38bc6c87e97fc84',
+            credential: '2wmQS3dJ8vqe8gKj',
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:443',
+            username: 'e497516fd38bc6c87e97fc84',
+            credential: '2wmQS3dJ8vqe8gKj',
+        },
+        {
+            urls: 'turns:a.relay.metered.ca:443?transport=tcp',
+            username: 'e497516fd38bc6c87e97fc84',
+            credential: '2wmQS3dJ8vqe8gKj',
+        }
+    ],
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+};
+
+/*
 const iceConfig = {
     iceServers: [
         {
@@ -2027,7 +2057,7 @@ const iceConfig = {
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
 };
-///////////////////
+*/
 
 
 ///////////////
