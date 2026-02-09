@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>cheeseboard-2Cl</title>
+    <title>cheeseboard-2</title>
     <style>
         /* --- CSS STYLES --- */
         body, html { 
@@ -1984,9 +1984,38 @@ console.log('Device detection - iOS:', isIOS);
 console.log('RTCPeerConnection available:', typeof RTCPeerConnection !== 'undefined');
 console.log('Protocol:', window.location.protocol);
 ////////////
-
+const iceConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        {
+            urls: 'turn:freestun.net:3479',
+            username: 'free',
+            credential: 'free'
+        },
+        {
+            urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
+            username: 'webrtc',
+            credential: 'webrtc'
+        },
+        {
+            urls: 'turn:relay.backups.cz',
+            username: 'webrtc',
+            credential: 'webrtc'
+        },
+        {
+            urls: 'turn:relay.backups.cz:80',
+            username: 'webrtc',
+            credential: 'webrtc'
+        }
+    ],
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+};
 
 /////////////
+/*
 const iceConfig = {
     iceServers: [
         { urls: 'stun:stun.relay.metered.ca:80' },
@@ -2015,6 +2044,7 @@ const iceConfig = {
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
 };
+*/
 
 /*
 const iceConfig = {
