@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>cheeseboard-2</title>
+    <title>cheeseboard-C</title>
     <style>
         /* --- CSS STYLES --- */
         body, html { 
@@ -346,31 +346,72 @@ let isSendingToMqtt = false; // Флаг для предотвращения д�
 /////////
 
 // Массив разных TURN конфигураций для попыток
+
 const TURN_CONFIGS = [
-    // Конфиг 1: Numb
+    // 1. Metered OpenRelay
+    {
+        iceServers: [
+            { urls: 'stun:stun.relay.metered.ca:80' },
+            { urls: 'turn:standard.relay.metered.ca:80', username: 'e497516fd38bc6c87e97fc84', credential: '2wmQS3dJ8vqe8gKj' },
+            { urls: 'turn:standard.relay.metered.ca:80?transport=tcp', username: 'e497516fd38bc6c87e97fc84', credential: '2wmQS3dJ8vqe8gKj' },
+            { urls: 'turn:standard.relay.metered.ca:443', username: 'e497516fd38bc6c87e97fc84', credential: '2wmQS3dJ8vqe8gKj' }
+        ]
+    },
+    
+    // 2. Numb Viagenie
     {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'turn:numb.viagenie.ca', username: 'webrtc@live.com', credential: 'muazkh' }
         ]
     },
-    // Конфиг 2: OpenRelay
+    
+    // 3. Twilio (может работать без auth для тестов)
+    {
+        iceServers: [
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            { urls: 'turn:global.turn.twilio.com:3478?transport=udp', username: 'your_username', credential: 'your_credential' },
+            { urls: 'turn:global.turn.twilio.com:3478?transport=tcp', username: 'your_username', credential: 'your_credential' },
+            { urls: 'turn:global.turn.twilio.com:443?transport=tcp', username: 'your_username', credential: 'your_credential' }
+        ]
+    },
+    
+    // 4. Xirsys (тестовый)
     {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:us-turn1.xirsys.com:80?transport=udp', username: 'test', credential: 'test' },
+            { urls: 'turn:us-turn1.xirsys.com:3478?transport=tcp', username: 'test', credential: 'test' }
+        ]
+    },
+    
+    // 5. Stunprotocol.org
+    {
+        iceServers: [
+            { urls: 'stun:stun.stunprotocol.org:3478' },
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    },
+    
+    // 6. OpenRelay Project
+    {
+        iceServers: [
+            { urls: 'stun:openrelay.metered.ca:80' },
             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
             { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
     },
-    // Конфиг 3: Bistri
+    
+    // 7. Bistri
     {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'turn:turn.bistri.com:80', username: 'homeo', credential: 'homeo' }
         ]
     },
-    // Конфиг 4: Только STUN (для хороших сетей)
+    
+    // 8. L.Google STUN (множественные)
     {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -379,12 +420,95 @@ const TURN_CONFIGS = [
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' }
         ]
+    },
+    
+    // 9. Relay.Backups.cz
+    {
+        iceServers: [
+            { urls: 'stun:stun.relay.metered.ca:80' },
+            { urls: 'turn:relay.backups.cz', username: 'webrtc', credential: 'webrtc' },
+            { urls: 'turn:relay.backups.cz:80', username: 'webrtc', credential: 'webrtc' }
+        ]
+    },
+    
+    // 10. Peerjs Cloud
+    {
+        iceServers: [
+            { urls: 'stun:stun.peerjs.com:3478' },
+            { urls: 'turn:turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' }
+        ]
+    },
+    
+    // 11. Anyfirewall
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' }
+        ]
+    },
+    
+    // 12. Freestun.net
+    {
+        iceServers: [
+            { urls: 'stun:stun.freestun.net:3478' },
+            { urls: 'turn:freestun.net:3479', username: 'free', credential: 'free' }
+        ]
+    },
+    
+    // 13. Voip.eutelia.it
+    {
+        iceServers: [
+            { urls: 'stun:stun.voip.eutelia.it:3478' },
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    },
+    
+    // 14. Sipgate
+    {
+        iceServers: [
+            { urls: 'stun:stun.sipgate.net:3478' },
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    },
+    
+    // 15. Voipbuster
+    {
+        iceServers: [
+            { urls: 'stun:stun.voipbuster.com:3478' },
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    },
+    
+    // 16. Ekiga
+    {
+        iceServers: [
+            { urls: 'stun:stun.ekiga.net:3478' },
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    },
+    
+    // 17. Только Google STUN (как последняя попытка)
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun.services.mozilla.com:3478' },
+            { urls: 'stun:stun.stunprotocol.org:3478' }
+        ]
     }
 ];
+/////////////////////
 
 let currentConfigIndex = 0;
 
 function initPeer() {
+
+	    // Пробуем начать с последнего рабочего конфига
+    const savedConfig = localStorage.getItem('workingTurnConfig');
+    if (savedConfig && !isNaN(savedConfig)) {
+        currentConfigIndex = parseInt(savedConfig);
+        logIOS('Using saved config: ' + currentConfigIndex);
+    }
+	
     logIOS('Initializing PeerJS (config ' + currentConfigIndex + ')...');
     
     if (peer) {
@@ -2657,20 +2781,27 @@ window.joinPeer = function() {
 
 function attemptConnection(id, attemptNumber) {
     if (attemptNumber >= TURN_CONFIGS.length) {
-        logIOS('All TURN configs failed');
-        setStatus('All connection attempts failed', 'err');
+        logIOS('❌ All ' + TURN_CONFIGS.length + ' TURN configs failed');
+        setStatus('All attempts failed', 'err');
         
-        // Предложить MQTT
-        if (confirm('P2P connection failed. Switch to Cloud mode (MQTT)?')) {
+        if (confirm('P2P failed. Switch to Cloud (MQTT)?')) {
             document.querySelector('input[value="mqtt"]').checked = true;
             setConnectionMode('mqtt');
         }
         return;
     }
     
-    logIOS('Connection attempt ' + (attemptNumber + 1) + '/' + TURN_CONFIGS.length);
-    logIOS('Attempting to connect to: ' + id);
-    setStatus('Connecting (try ' + (attemptNumber + 1) + ')...', 'ok');
+    const configName = [
+        'Metered', 'Numb', 'Twilio', 'Xirsys', 'Stunprotocol',
+        'OpenRelay', 'Bistri', 'Google STUN', 'Backups.cz', 'PeerJS',
+        'Anyfirewall', 'Freestun', 'Eutelia', 'Sipgate', 'Voipbuster',
+        'Ekiga', 'Mozilla'
+    ][attemptNumber] || 'Config ' + attemptNumber;
+    
+    logIOS('═══════════════════════════════');
+    logIOS('Try ' + (attemptNumber + 1) + '/' + TURN_CONFIGS.length + ': ' + configName);
+    logIOS('Connecting to: ' + id);
+    setStatus('Try ' + (attemptNumber + 1) + ': ' + configName, 'ok');
     
     if (conn && conn.open) {
         conn.close();
@@ -2685,39 +2816,44 @@ function attemptConnection(id, attemptNumber) {
         const newConn = peer.connect(id, opts);
         
         if (newConn.peerConnection) {
-            logIOS('Setting up ICE logging');
-            
             let hasRelayCandidate = false;
+            let candidateCount = { host: 0, srflx: 0, relay: 0 };
             
             newConn.peerConnection.onicecandidate = function(event) {
                 if (event.candidate) {
                     const type = event.candidate.type;
-                    logIOS('CAND: ' + type + ' | ' + event.candidate.protocol);
+                    candidateCount[type] = (candidateCount[type] || 0) + 1;
+                    
                     if (type === 'relay') {
                         hasRelayCandidate = true;
-                        logIOS('✓ RELAY candidate found!');
+                        logIOS('✓ RELAY: ' + event.candidate.relatedAddress);
                     }
                 } else {
-                    logIOS('ICE gathering done. Has relay: ' + hasRelayCandidate);
+                    logIOS('Candidates: host=' + candidateCount.host + 
+                           ', srflx=' + candidateCount.srflx + 
+                           ', relay=' + candidateCount.relay);
                 }
             };
             
             newConn.peerConnection.oniceconnectionstatechange = function() {
                 const state = newConn.peerConnection.iceConnectionState;
-                logIOS('ICE state: ' + state);
+                logIOS('ICE: ' + state);
                 
                 if (state === 'connected' || state === 'completed') {
-                    logIOS('✓✓✓ ICE CONNECTED!');
+                    logIOS('✓✓✓ SUCCESS with ' + configName + '!');
                     conn = newConn;
                     setupConn();
-                    setStatus('Connected!', 'ok');
+                    setStatus('Connected via ' + configName, 'ok');
                     connectionMode = "connected";
                     updateUIForConnectionMode();
+                    
+                    // Сохраняем рабочий конфиг
+                    localStorage.setItem('workingTurnConfig', attemptNumber);
+                    
                 } else if (state === 'failed') {
-                    logIOS('ICE FAILED - trying next config...');
+                    logIOS('✗ Failed with ' + configName);
                     newConn.close();
                     
-                    // Пробуем следующий TURN конфиг
                     currentConfigIndex = (currentConfigIndex + 1) % TURN_CONFIGS.length;
                     
                     setTimeout(() => {
@@ -2732,10 +2868,9 @@ function attemptConnection(id, attemptNumber) {
         
         const timeout = setTimeout(() => {
             if (!newConn.open) {
-                logIOS('Timeout on config ' + attemptNumber);
+                logIOS('⏱ Timeout on ' + configName);
                 newConn.close();
                 
-                // Пробуем следующий
                 currentConfigIndex = (currentConfigIndex + 1) % TURN_CONFIGS.length;
                 
                 initPeer();
@@ -2743,30 +2878,30 @@ function attemptConnection(id, attemptNumber) {
                     attemptConnection(id, attemptNumber + 1);
                 }, 1000);
             }
-        }, 10000);
+        }, 8000);
         
         newConn.on('open', () => {
             clearTimeout(timeout);
-            logIOS('✓✓✓ Connection OPENED!');
+            logIOS('✓✓✓ OPENED with ' + configName + '!');
             conn = newConn;
             setupConn();
-            setStatus('Connected!', 'ok');
+            setStatus('Connected via ' + configName, 'ok');
             connectionMode = "connected";
             updateUIForConnectionMode();
+            
+            localStorage.setItem('workingTurnConfig', attemptNumber);
         });
         
         newConn.on('error', (err) => {
             clearTimeout(timeout);
-            logIOS('Error: ' + (err.type || 'unknown'));
+            logIOS('✗ Error: ' + (err.type || 'unknown'));
         });
         
     } catch (e) {
-        logIOS('EXCEPTION: ' + e.message);
+        logIOS('✗ Exception: ' + e.message);
         attemptConnection(id, attemptNumber + 1);
     }
 }
-
-
 
 
 function setupConn() {
