@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>cheeseboard-C</title>
+    <title>cheeseboard-GC</title>
     <style>
         /* --- CSS STYLES --- */
         body, html { 
@@ -535,7 +535,7 @@ function initPeer() {
     
     const config = TURN_CONFIGS[currentConfigIndex];
     
-    try {
+try {
         peer = new Peer({
             config: {
                 ...config,
