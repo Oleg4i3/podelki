@@ -342,6 +342,80 @@ let myMqttId = Math.random().toString(36).substr(2, 9);
 let isSendingToMqtt = false; // Флаг для предотвращения дублирования событий
 
 
+
+/////////
+
+// Массив разных TURN конфигураций для попыток
+const TURN_CONFIGS = [
+    // Конфиг 1: Numb
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:numb.viagenie.ca', username: 'webrtc@live.com', credential: 'muazkh' }
+        ]
+    },
+    // Конфиг 2: OpenRelay
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+    },
+    // Конфиг 3: Bistri
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:turn.bistri.com:80', username: 'homeo', credential: 'homeo' }
+        ]
+    },
+    // Конфиг 4: Только STUN (для хороших сетей)
+    {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+    }
+];
+
+let currentConfigIndex = 0;
+
+function initPeer() {
+    logIOS('Initializing PeerJS (config ' + currentConfigIndex + ')...');
+    
+    if (peer) {
+        try {
+            peer.destroy();
+        } catch (e) {
+            logIOS('Error destroying peer: ' + e.message);
+        }
+        peer = null;
+    }
+    
+    const config = TURN_CONFIGS[currentConfigIndex];
+    
+    try {
+        peer = new Peer({
+            config: {
+                ...config,
+                iceCandidatePoolSize: 10,
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require'
+            },
+            debug: 2
+        });
+        
+        logIOS('PeerJS created with config ' + currentConfigIndex);
+        setupPeerEvents();
+    } catch (e) {
+        logIOS('FATAL: PeerJS creation failed: ' + e.message);
+        setStatus('PeerJS init failed', 'err');
+    }
+}
 // Конфигурация MQTT - несколько альтернативных брокеров
 const MQTT_BROKERS = [  
 	{ name: 'HiveMQ', url: 'wss://broker.hivemq.com:8884/mqtt' },
@@ -2578,11 +2652,27 @@ window.joinPeer = function() {
         return;
     }
     
+    attemptConnection(id, 0);
+};
+
+function attemptConnection(id, attemptNumber) {
+    if (attemptNumber >= TURN_CONFIGS.length) {
+        logIOS('All TURN configs failed');
+        setStatus('All connection attempts failed', 'err');
+        
+        // Предложить MQTT
+        if (confirm('P2P connection failed. Switch to Cloud mode (MQTT)?')) {
+            document.querySelector('input[value="mqtt"]').checked = true;
+            setConnectionMode('mqtt');
+        }
+        return;
+    }
+    
+    logIOS('Connection attempt ' + (attemptNumber + 1) + '/' + TURN_CONFIGS.length);
     logIOS('Attempting to connect to: ' + id);
-    setStatus('Connecting...', 'ok');
+    setStatus('Connecting (try ' + (attemptNumber + 1) + ')...', 'ok');
     
     if (conn && conn.open) {
-        logIOS('Closing old connection');
         conn.close();
     }
     
@@ -2592,62 +2682,72 @@ window.joinPeer = function() {
             serialization: 'json'
         };
         
-        logIOS('Creating connection...');
         const newConn = peer.connect(id, opts);
         
         if (newConn.peerConnection) {
-            logIOS('PeerConnection exists, setting up ICE logging');
+            logIOS('Setting up ICE logging');
+            
+            let hasRelayCandidate = false;
             
             newConn.peerConnection.onicecandidate = function(event) {
                 if (event.candidate) {
-                    logIOS('CAND: ' + event.candidate.type + ' | ' + event.candidate.protocol);
+                    const type = event.candidate.type;
+                    logIOS('CAND: ' + type + ' | ' + event.candidate.protocol);
+                    if (type === 'relay') {
+                        hasRelayCandidate = true;
+                        logIOS('✓ RELAY candidate found!');
+                    }
                 } else {
-                    logIOS('ICE gathering done');
+                    logIOS('ICE gathering done. Has relay: ' + hasRelayCandidate);
                 }
             };
             
             newConn.peerConnection.oniceconnectionstatechange = function() {
                 const state = newConn.peerConnection.iceConnectionState;
-                logIOS('ICE conn state: ' + state);
+                logIOS('ICE state: ' + state);
                 
                 if (state === 'connected' || state === 'completed') {
-                    logIOS('ICE CONNECTED! Forcing setup...');
+                    logIOS('✓✓✓ ICE CONNECTED!');
                     conn = newConn;
                     setupConn();
-                    setStatus('Connected (ICE)', 'ok');
+                    setStatus('Connected!', 'ok');
                     connectionMode = "connected";
                     updateUIForConnectionMode();
+                } else if (state === 'failed') {
+                    logIOS('ICE FAILED - trying next config...');
+                    newConn.close();
+                    
+                    // Пробуем следующий TURN конфиг
+                    currentConfigIndex = (currentConfigIndex + 1) % TURN_CONFIGS.length;
+                    
+                    setTimeout(() => {
+                        initPeer();
+                        setTimeout(() => {
+                            attemptConnection(id, attemptNumber + 1);
+                        }, 1000);
+                    }, 500);
                 }
             };
-            
-            newConn.peerConnection.onicegatheringstatechange = function() {
-                logIOS('ICE gathering: ' + newConn.peerConnection.iceGatheringState);
-            };
-        } else {
-            logIOS('WARNING: No peerConnection object!');
         }
         
-        let openFired = false;
-        
         const timeout = setTimeout(() => {
-            if (!openFired) {
-                logIOS('Timeout - checking ICE state...');
-                if (newConn.peerConnection) {
-                    logIOS('ICE state: ' + newConn.peerConnection.iceConnectionState);
-                }
+            if (!newConn.open) {
+                logIOS('Timeout on config ' + attemptNumber);
+                newConn.close();
                 
-                conn = newConn;
-                setupConn();
-                connectionMode = "connected";
-                updateUIForConnectionMode();
-                setStatus('Connected (forced)', 'ok');
+                // Пробуем следующий
+                currentConfigIndex = (currentConfigIndex + 1) % TURN_CONFIGS.length;
+                
+                initPeer();
+                setTimeout(() => {
+                    attemptConnection(id, attemptNumber + 1);
+                }, 1000);
             }
-        }, 15000);
+        }, 10000);
         
         newConn.on('open', () => {
-            openFired = true;
             clearTimeout(timeout);
-            logIOS('Connection OPENED!');
+            logIOS('✓✓✓ Connection OPENED!');
             conn = newConn;
             setupConn();
             setStatus('Connected!', 'ok');
@@ -2657,37 +2757,14 @@ window.joinPeer = function() {
         
         newConn.on('error', (err) => {
             clearTimeout(timeout);
-            logIOS('Conn ERROR: ' + (err.type || 'unknown') + ' - ' + (err.message || 'no msg'));
-            setStatus('Failed: ' + (err.type || 'unknown'), 'err');
+            logIOS('Error: ' + (err.type || 'unknown'));
         });
-        
-        newConn.on('close', () => {
-            clearTimeout(timeout);
-            logIOS('Connection closed');
-            setStatus('Closed', 'err');
-        });
-        
-        setTimeout(() => {
-            logIOS('State after 2s: open=' + newConn.open);
-            if (newConn.peerConnection) {
-                logIOS('ICE state after 2s: ' + newConn.peerConnection.iceConnectionState);
-            }
-        }, 2000);
-        
-        setTimeout(() => {
-            logIOS('State after 5s: open=' + newConn.open);
-            if (newConn.peerConnection) {
-                logIOS('ICE state after 5s: ' + newConn.peerConnection.iceConnectionState);
-            }
-        }, 5000);
         
     } catch (e) {
         logIOS('EXCEPTION: ' + e.message);
-        setStatus('Error: ' + e.message, 'err');
+        attemptConnection(id, attemptNumber + 1);
     }
-};
-
-
+}
 
 
 
