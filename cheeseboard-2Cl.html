@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>cheeseboard</title>
+    <title>cheeseboard-Cl</title>
     <style>
         /* --- CSS STYLES --- */
         body, html { 
@@ -1986,20 +1986,85 @@ console.log('Device detection - iOS:', isIOS);
 console.log('RTCPeerConnection available:', typeof RTCPeerConnection !== 'undefined');
 console.log('Protocol:', window.location.protocol);
 
+
+const iceConfig = {
+    iceServers: [
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:numb.viagenie.ca',
+            username: 'webrtc@live.com',
+            credential: 'muazkh'
+        },
+        {
+            urls: 'turn:turn.bistri.com:80',
+            username: 'homeo',
+            credential: 'homeo'
+        },
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ],
+    iceTransportPolicy: 'all',
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+};
+///////////////////
+
+
+///////////////
+/* alteranive
 const iceConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:global.stun.twilio.com:3478' },
         {
-            urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-            username: '748c34c07fbd01c313924701',
-            credential: 'skchpI9EhitPaW68'
+            urls: 'turn:numb.viagenie.ca',
+            username: 'webrtc@live.com',
+            credential: 'muazkh'
+        },
+        {
+            urls: 'turn:192.158.29.39:3478?transport=udp',
+            username: '28224511:1379330808',
+            credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA='
+        },
+        {
+            urls: 'turn:192.158.29.39:3478?transport=tcp',
+            username: '28224511:1379330808',
+            credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA='
         }
     ],
     iceCandidatePoolSize: 10,
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require'
-};
+};*///////////////////////
+
+
+
+////////////////////
+
 
 let peer = null;
 let conn = null;
@@ -2014,21 +2079,34 @@ let sendQueue = [];
 let isSending = false;
 let chunkedMessages = {};
 
+
+
 function logIOS(msg) {
     console.log('[iOS] ' + msg);
-    if (isIOS) {
-        const logDiv = document.createElement('div');
-        logDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);color:#0f0;font-size:10px;padding:2px;z-index:99999;max-height:100px;overflow-y:auto;';
+    
+    let logDiv = document.getElementById('ios-log');
+    if (!logDiv) {
+        logDiv = document.createElement('div');
         logDiv.id = 'ios-log';
-        logDiv.textContent = msg;
-        const existing = document.getElementById('ios-log');
-        if (existing) {
-            existing.textContent = msg + '\n' + existing.textContent.substring(0, 500);
-        } else {
-            document.body.appendChild(logDiv);
-        }
+        logDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:#0f0;font-size:9px;padding:5px;z-index:99999;max-height:150px;overflow-y:auto;font-family:monospace;border-top:2px solid #0f0;';
+        document.body.appendChild(logDiv);
+    }
+    
+    const time = new Date().toLocaleTimeString();
+    const line = document.createElement('div');
+    line.textContent = time + ' | ' + msg;
+    line.style.borderBottom = '1px solid #333';
+    logDiv.insertBefore(line, logDiv.firstChild);
+    
+    while (logDiv.children.length > 20) {
+        logDiv.removeChild(logDiv.lastChild);
     }
 }
+
+
+
+
+
 
 function generateShareLink(peerId) {
     const currentUrl = window.location.href.split('?')[0];
