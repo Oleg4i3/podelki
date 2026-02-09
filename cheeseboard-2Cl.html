@@ -1969,25 +1969,28 @@ canvas.on('mouse:wheel', function(opt) {
 // ==========================================
 // 5. P2P NETWORKING WITH CHUNKING & COMPRESSION
 // ==========================================
+// ==========================================
+// 5. P2P NETWORKING - iOS DIAGNOSTIC VERSION
+// ==========================================
 
-// ==========================================
-// 5. P2P NETWORKING - iOS COMPATIBLE
-// ==========================================
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+console.log('Device detection - iOS:', isIOS);
+console.log('RTCPeerConnection available:', typeof RTCPeerConnection !== 'undefined');
+console.log('Protocol:', window.location.protocol);
+
 const iceConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
         {
-            urls: "turns:global.relay.metered.ca:443?transport=tcp",
-            username: "748c34c07fbd01c313924701",
-            credential: "skchpI9EhitPaW68",
+            urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+            username: '748c34c07fbd01c313924701',
+            credential: 'skchpI9EhitPaW68'
         }
     ],
     iceCandidatePoolSize: 10,
     bundlePolicy: 'max-bundle',
-    rtcpMuxPolicy: 'require',
-    sdpSemantics: 'unified-plan'
+    rtcpMuxPolicy: 'require'
 };
 
 let peer = null;
@@ -2001,12 +2004,27 @@ const CHUNK_SIZE = 16 * 1024;
 const MAX_BUFFER_SIZE = 64 * 1024;
 let sendQueue = [];
 let isSending = false;
-
 let chunkedMessages = {};
+
+function logIOS(msg) {
+    console.log('[iOS] ' + msg);
+    if (isIOS) {
+        const logDiv = document.createElement('div');
+        logDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);color:#0f0;font-size:10px;padding:2px;z-index:99999;max-height:100px;overflow-y:auto;';
+        logDiv.id = 'ios-log';
+        logDiv.textContent = msg;
+        const existing = document.getElementById('ios-log');
+        if (existing) {
+            existing.textContent = msg + '\n' + existing.textContent.substring(0, 500);
+        } else {
+            document.body.appendChild(logDiv);
+        }
+    }
+}
 
 function generateShareLink(peerId) {
     const currentUrl = window.location.href.split('?')[0];
-    return `${currentUrl}?connect=${peerId}`;
+    return currentUrl + '?connect=' + peerId;
 }
 
 function checkAutoConnect() {
@@ -2014,23 +2032,20 @@ function checkAutoConnect() {
     const connectId = urlParams.get('connect');
     
     if (connectId && connectId.trim() !== '') {
-        console.log('Auto-connect parameter found:', connectId);
+        logIOS('Auto-connect found: ' + connectId);
         document.getElementById('remote-id-input').value = connectId;
         document.getElementById('manual-remote-id').value = connectId;
         
         const checkPeerReady = setInterval(() => {
-            if (myId && connectionMode === "ready") {
+            if (myId) {
                 clearInterval(checkPeerReady);
                 setTimeout(() => {
                     joinPeer();
-                    setStatus('Auto-connecting to host...', 'ok');
-                }, 500);
+                }, 1000);
             }
-        }, 100);
+        }, 200);
         
-        setTimeout(() => {
-            clearInterval(checkPeerReady);
-        }, 5000);
+        setTimeout(() => clearInterval(checkPeerReady), 10000);
     }
 }
 
@@ -2043,14 +2058,11 @@ function copyShareLink() {
         btn.innerText = 'Copied!';
         btn.style.background = '#d1fae5';
         btn.style.color = '#065f46';
-        
         setTimeout(() => {
             btn.innerText = originalText;
             btn.style.background = '';
             btn.style.color = '';
         }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy link:', err);
     });
 }
 
@@ -2060,112 +2072,99 @@ function joinPeerManual() {
         alert('Please enter a host ID');
         return;
     }
-    
     document.getElementById('remote-id-input').value = manualId;
     joinPeer();
-    
-    const spoiler = document.getElementById('manual-connect-spoiler');
-    spoiler.classList.remove('expanded');
+    document.getElementById('manual-connect-spoiler').classList.remove('expanded');
 }
 
 function initPeer() {
-    console.log("Initializing peer connection...");
+    logIOS('Initializing PeerJS...');
     
     if (peer) {
         try {
             peer.destroy();
         } catch (e) {
-            console.warn("Error destroying old peer:", e);
+            logIOS('Error destroying peer: ' + e.message);
         }
         peer = null;
     }
     
-    peer = new Peer({
-        config: iceConfig,
-        debug: 2,
-        pingInterval: 5000
-    });
-    
-    setupPeerEvents();
+    try {
+        peer = new Peer({
+            config: iceConfig,
+            debug: isIOS ? 3 : 2
+        });
+        
+        logIOS('PeerJS instance created');
+        setupPeerEvents();
+    } catch (e) {
+        logIOS('FATAL: PeerJS creation failed: ' + e.message);
+        setStatus('PeerJS init failed', 'err');
+    }
 }
 
 function setupPeerEvents() {
     peer.on('open', (id) => {
-        console.log('Peer ID: ' + id);
+        logIOS('Peer opened with ID: ' + id);
         myId = id;
         connectionMode = "ready";
-        actualConnectionType = "stun";
         
-        let statusText;
         if (isHost) {
-            statusText = "Hosting (Share the link)";
             connectionMode = "hosting";
-            
             const shareLink = generateShareLink(id);
             document.getElementById('share-link-display').value = shareLink;
+            setStatus("Hosting", 'ok');
         } else {
-            statusText = "Ready to connect";
-        }
-        
-        setStatus(statusText, 'ok');
-        
-        if (connectionTimeout) {
-            clearTimeout(connectionTimeout);
-            connectionTimeout = null;
+            setStatus("Ready", 'ok');
         }
         
         updateUIForConnectionMode();
     });
     
     peer.on('error', (err) => {
-        console.error('Peer error:', err.type, err.message);
+        logIOS('Peer error: ' + err.type + ' - ' + err.message);
         
         if (err.type === 'unavailable-id' || err.type === 'server-error') {
-            console.log('Server error, retrying in 3 seconds...');
-            setStatus('Server error, retrying...', 'err');
+            setStatus('Server error, retry...', 'err');
             setTimeout(initPeer, 3000);
         } else if (err.type === 'peer-unavailable') {
             setStatus('Peer not found', 'err');
         } else if (err.type === 'network') {
-            setStatus('Network issue - check connection', 'err');
+            setStatus('Network error', 'err');
         } else if (err.type === 'webrtc') {
-            console.error('WebRTC error (possibly iOS):', err);
-            setStatus('Connection failed', 'err');
+            logIOS('WebRTC ERROR: ' + err.message);
+            setStatus('WebRTC error (check console)', 'err');
+        } else {
+            logIOS('Unknown error: ' + err.type);
+            setStatus('Error: ' + err.type, 'err');
         }
     });
     
     peer.on('connection', (c) => {
-        console.log('Incoming connection from: ' + c.peer);
+        logIOS('Incoming connection from: ' + c.peer);
         
         if (conn && conn.open) {
-            console.log('Closing old connection...');
             conn.close();
-            conn = null;
         }
         
         conn = c;
-        setupConn();
         
         c.on('open', () => {
-            console.log('Incoming connection established');
+            logIOS('Incoming connection OPENED');
+            setupConn();
             connectionMode = "connected";
-            actualConnectionType = "turn";
-            setStatus("Connected (Partner joined)", 'ok');
-            
-            setTimeout(() => {
-                sendCanvasDataChunked();
-            }, 200);
+            setStatus("Connected (partner joined)", 'ok');
+            setTimeout(() => sendCanvasDataChunked(), 500);
         });
         
         c.on('error', (err) => {
-            console.error('Incoming connection error:', err);
+            logIOS('Incoming conn error: ' + err.message);
         });
     });
     
     peer.on('disconnected', () => {
-        console.log('Peer disconnected from signaling server');
-        setStatus('Disconnected from server, reconnecting...', 'err');
-        
+        logIOS('Peer disconnected from server');
+        setStatus('Disconnected, reconnecting...', 'err');
         setTimeout(() => {
             if (peer && peer.disconnected) {
                 peer.reconnect();
@@ -2175,77 +2174,63 @@ function setupPeerEvents() {
 }
 
 initPeer();
-setTimeout(checkAutoConnect, 1000);
+setTimeout(checkAutoConnect, 1500);
 
 function sendCanvasDataChunked() {
-    if (!conn || !conn.open) return;
+    if (!conn || !conn.open) {
+        logIOS('Cannot send canvas: no connection');
+        return;
+    }
     
-    const syncProps = [
-        'id', 'isPinned', 
-        'lockMovementX', 'lockMovementY', 
-        'lockRotation', 
-        'lockScalingX', 'lockScalingY', 
-        'hasControls', 'borderColor', 'hoverCursor'
-    ];
+    const syncProps = ['id', 'isPinned', 'lockMovementX', 'lockMovementY', 'lockRotation', 'lockScalingX', 'lockScalingY', 'hasControls', 'borderColor', 'hoverCursor'];
     
     try {
         const canvasData = canvas.toJSON(syncProps);
         const jsonStr = JSON.stringify(canvasData);
         
-        if (jsonStr.length < CHUNK_SIZE * 0.8) {
-            conn.send({ 
-                type: 'sync', 
-                data: jsonStr
-            });
-            console.log('Sent canvas data (single chunk)');
+        logIOS('Sending canvas data: ' + jsonStr.length + ' bytes');
+        
+        if (jsonStr.length < CHUNK_SIZE) {
+            conn.send({ type: 'sync', data: jsonStr });
+            logIOS('Sent as single message');
             return;
         }
-        
-        console.log('Canvas data large (' + jsonStr.length + ' bytes), chunking...');
-        setStatus('Sending canvas data (large file)...', 'ok');
         
         const chunks = [];
         const messageId = 'canvas_' + Date.now();
         const totalChunks = Math.ceil(jsonStr.length / CHUNK_SIZE);
         
+        logIOS('Chunking into ' + totalChunks + ' parts');
+        
         for (let i = 0; i < totalChunks; i++) {
-            const chunk = jsonStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
             chunks.push({
                 type: 'chunked_sync',
                 messageId: messageId,
                 chunkIndex: i,
                 totalChunks: totalChunks,
-                data: chunk
+                data: jsonStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
             });
         }
         
         sendChunksWithDelay(chunks, 0);
-        
     } catch (error) {
-        console.error('Error preparing canvas data:', error);
+        logIOS('Error in sendCanvasData: ' + error.message);
     }
 }
 
 function sendChunksWithDelay(chunks, index) {
     if (index >= chunks.length || !conn || !conn.open) {
-        console.log('Finished sending chunks');
+        logIOS('Chunks sent: ' + index);
         setStatus('Connected', 'ok');
         return;
     }
     
     try {
         conn.send(chunks[index]);
-        console.log('Sent chunk ' + (index + 1) + '/' + chunks.length);
-        
-        setTimeout(() => {
-            sendChunksWithDelay(chunks, index + 1);
-        }, 50);
-        
+        setTimeout(() => sendChunksWithDelay(chunks, index + 1), 50);
     } catch (error) {
-        console.error('Error sending chunk:', error);
-        setTimeout(() => {
-            sendChunksWithDelay(chunks, index);
-        }, 500);
+        logIOS('Chunk send error: ' + error.message);
+        setTimeout(() => sendChunksWithDelay(chunks, index), 500);
     }
 }
 
@@ -2268,23 +2253,11 @@ function assembleChunkedMessage(messageId, chunkIndex, totalChunks, data) {
     
     if (message.received === message.total) {
         const fullData = message.chunks.join('');
-        
         delete chunkedMessages[messageId];
-        cleanupOldMessages();
-        
         return fullData;
     }
     
     return null;
-}
-
-function cleanupOldMessages() {
-    const now = Date.now();
-    for (const messageId in chunkedMessages) {
-        if (now - chunkedMessages[messageId].timestamp > 60000) {
-            delete chunkedMessages[messageId];
-        }
-    }
 }
 
 function sendWithQueue(message) {
@@ -2304,21 +2277,12 @@ function processSendQueue() {
     const message = sendQueue.shift();
     
     try {
-        const messageSize = JSON.stringify(message).length;
-        if (messageSize > MAX_BUFFER_SIZE * 0.9) {
-            console.warn('Message too large, dropping:', message.type);
-            setTimeout(processSendQueue, 100);
-            return;
-        }
-        
         conn.send(message);
-        
         setTimeout(processSendQueue, 10);
-        
     } catch (error) {
-        console.error('Error in send queue:', error);
+        logIOS('Send queue error: ' + error.message);
         sendQueue.unshift(message);
-        setTimeout(() => processSendQueue(), 500);
+        setTimeout(processSendQueue, 500);
     }
 }
 
@@ -2341,29 +2305,7 @@ function broadcast(type, payload) {
         message[key] = payload[key];
     }
     
-    const messageStr = JSON.stringify(message);
-    if (messageStr.length > CHUNK_SIZE) {
-        const chunks = [];
-        const messageId = type + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const totalChunks = Math.ceil(messageStr.length / CHUNK_SIZE);
-        
-        for (let i = 0; i < totalChunks; i++) {
-            const chunk = messageStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-            chunks.push({
-                type: 'chunked_message',
-                messageId: messageId,
-                chunkIndex: i,
-                totalChunks: totalChunks,
-                data: chunk,
-                originalType: type
-            });
-        }
-        
-        chunks.forEach(chunk => sendWithQueue(chunk));
-        
-    } else {
-        sendWithQueue(message);
-    }
+    sendWithQueue(message);
 }
 
 function updateUIForConnectionMode() {
@@ -2389,18 +2331,11 @@ function updateUIForConnectionMode() {
     } else if (connectionMode === "connected") {
         hostControls.classList.add('hidden');
         joinControls.classList.add('hidden');
-        sessionInfo.classList.remove('hidden');
-        if (!isHost) {
+        if (isHost) {
+            sessionInfo.classList.remove('hidden');
+        } else {
             sessionInfo.classList.add('hidden');
         }
-        if (!isHost) {
-            const shareLink = generateShareLink(myId);
-            document.getElementById('share-link-display').value = 'Connected';
-        }
-    } else if (connectionMode === "offline") {
-        hostControls.classList.remove('hidden');
-        joinControls.classList.remove('hidden');
-        sessionInfo.classList.add('hidden');
     }
 }
 
@@ -2419,7 +2354,6 @@ function setStatus(msg, type) {
     if (msg.includes("Hosting") || isHost) icon = "👑";
     if (msg.includes("Ready")) icon = "🟢";
     if (msg.includes("Connected")) icon = "✅";
-    if (msg.includes("Sending")) icon = "📤";
     if (connectionMode === 'mqtt') icon = "☁️";
     
     el.innerHTML = icon + ' ' + msg;
@@ -2427,182 +2361,115 @@ function setStatus(msg, type) {
 
 window.startHost = function() {
     if (connectionMode === 'mqtt') {
-        alert('In Cloud mode, use "Generate Link" button instead');
+        alert('In Cloud mode use Generate Link');
         return;
     }
     
+    logIOS('Starting host mode');
     isHost = true;
-    
-    if (connectionMode === "hosting" || connectionMode === "connected") {
-        console.log("Re-hosting with new ID...");
-        
-        if (conn && conn.open) {
-            conn.close();
-            conn = null;
-        }
-        
-        if (peer) {
-            peer.destroy();
-            peer = null;
-        }
-        
-        initPeer();
-        
-        const waitForNewId = setInterval(() => {
-            if (myId && connectionMode === "hosting") {
-                clearInterval(waitForNewId);
-                const shareLink = generateShareLink(myId);
-                document.getElementById('share-link-display').value = shareLink;
-                setStatus("Re-hosted! Share new link", 'ok');
-            }
-        }, 100);
-        
-        return;
-    }
-    
-    console.log("Starting host mode...");
     
     if (myId) {
         const shareLink = generateShareLink(myId);
         document.getElementById('share-link-display').value = shareLink;
-        setStatus("Hosting (Share the link)", 'ok');
+        setStatus("Hosting", 'ok');
         connectionMode = "hosting";
         updateUIForConnectionMode();
+    } else {
+        logIOS('No peer ID yet, waiting...');
+        const waitId = setInterval(() => {
+            if (myId) {
+                clearInterval(waitId);
+                const shareLink = generateShareLink(myId);
+                document.getElementById('share-link-display').value = shareLink;
+                setStatus("Hosting", 'ok');
+                connectionMode = "hosting";
+                updateUIForConnectionMode();
+            }
+        }, 200);
+        
+        setTimeout(() => clearInterval(waitId), 5000);
     }
 };
 
 window.joinPeer = function() {
     if (connectionMode === 'mqtt') {
-        alert('In Cloud mode, use the room link instead');
+        alert('In Cloud mode use room link');
         return;
     }
     
     const id = document.getElementById('remote-id-input').value.trim();
     if (!id) {
-        alert('Please enter a host ID');
+        alert('Enter host ID');
         return;
     }
     
     if (!myId) {
-        setStatus('Not ready yet - initializing...', 'err');
+        setStatus('Not ready', 'err');
+        logIOS('Cannot join: no peer ID yet');
         return;
     }
     
-    console.log('Connecting to peer: ' + id);
+    logIOS('Attempting to connect to: ' + id);
+    setStatus('Connecting...', 'ok');
     
-    if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
+    if (conn && conn.open) {
+        logIOS('Closing old connection');
+        conn.close();
     }
     
-    function attemptConnect(retryCount) {
-        if (typeof retryCount === 'undefined') retryCount = 0;
-        const maxRetries = 2;
-        
-        if (retryCount >= maxRetries) {
-            setStatus('Connection failed', 'err');
-            connectionMode = "ready";
-            updateUIForConnectionMode();
-            return;
-        }
-        
-        if (conn && conn.open) {
-            conn.close();
-            conn = null;
-        }
-        
-        setStatus('Connecting... (' + (retryCount + 1) + '/' + maxRetries + ')', 'err');
-        connectionMode = "connecting";
-        updateUIForConnectionMode();
-        
+    try {
         const newConn = peer.connect(id, {
             reliable: true,
-            serialization: 'json',
-            metadata: { 
-                client: 'cheeseboard',
-                version: '2.0_ios_fix'
-            }
+            serialization: 'json'
         });
         
-        connectionTimeout = setTimeout(() => {
-            console.log('Connection timeout (attempt ' + (retryCount + 1) + ')');
+        logIOS('Connection object created');
+        
+        const timeout = setTimeout(() => {
             if (newConn && !newConn.open) {
+                logIOS('Connection TIMEOUT after 20s');
+                setStatus('Timeout', 'err');
                 newConn.close();
-                setTimeout(() => attemptConnect(retryCount + 1), 1000);
             }
-        }, 15000);
+        }, 20000);
         
         newConn.on('open', () => {
-            clearTimeout(connectionTimeout);
-            console.log('Connection opened successfully');
+            clearTimeout(timeout);
+            logIOS('Connection OPENED successfully!');
             conn = newConn;
             setupConn();
-            
-            actualConnectionType = retryCount > 0 ? "turn" : "stun";
-            const connectionTypeText = actualConnectionType === "stun" ? "Direct" : "Relay";
-            setStatus('Connected to host (' + connectionTypeText + ')', 'ok');
+            setStatus('Connected!', 'ok');
             connectionMode = "connected";
-            
             updateUIForConnectionMode();
         });
         
         newConn.on('error', (err) => {
-            clearTimeout(connectionTimeout);
-            console.error('Connection error:', err);
-            setTimeout(() => attemptConnect(retryCount + 1), 800);
+            clearTimeout(timeout);
+            logIOS('Connection ERROR: ' + err.type + ' - ' + err.message);
+            setStatus('Connection failed', 'err');
         });
         
         newConn.on('close', () => {
-            clearTimeout(connectionTimeout);
-            console.log('Connection attempt closed');
+            logIOS('Connection closed');
         });
+        
+    } catch (e) {
+        logIOS('EXCEPTION in joinPeer: ' + e.message);
+        setStatus('Error: ' + e.message, 'err');
     }
-    
-    attemptConnect(0);
 };
 
 function setupConn() {
-    if (!conn) return;
+    if (!conn) {
+        logIOS('setupConn called but conn is null');
+        return;
+    }
     
-    conn.on('open', () => {
-        console.log('Connection fully established');
-        broadcast('request_sync', {});
-    });
-    
-    conn.on('error', (err) => {
-        console.error('Connection error:', err);
-        
-        if (connectionMode === "connected") {
-            setStatus('Connection lost', 'err');
-            connectionMode = "offline";
-            actualConnectionType = "unknown";
-            
-            if (isHost) {
-                setStatus('Partner disconnected - waiting...', 'err');
-                connectionMode = "hosting";
-            }
-            
-            updateUIForConnectionMode();
-        }
-    });
-    
-    conn.on('close', () => {
-        console.log('Connection closed');
-        if (connectionMode === "connected") {
-            setStatus('Disconnected', 'err');
-            connectionMode = "offline";
-            actualConnectionType = "unknown";
-            updateUIForConnectionMode();
-        }
-    });
+    logIOS('Setting up connection handlers');
     
     conn.on('data', (msg) => {
         if (msg.type === 'chunked_sync' || msg.type === 'chunked_message') {
-            const fullData = assembleChunkedMessage(
-                msg.messageId, 
-                msg.chunkIndex, 
-                msg.totalChunks, 
-                msg.data
-            );
+            const fullData = assembleChunkedMessage(msg.messageId, msg.chunkIndex, msg.totalChunks, msg.data);
             
             if (fullData) {
                 if (msg.type === 'chunked_sync') {
@@ -2610,27 +2477,16 @@ function setupConn() {
                         const canvasData = JSON.parse(fullData);
                         canvas.loadFromJSON(canvasData, () => {
                             canvas.requestRenderAll();
-                            console.log('Canvas synchronized via chunks');
+                            logIOS('Canvas synced from chunks');
                         });
                     } catch (e) {
-                        console.error('Error parsing chunked sync data:', e);
-                    }
-                } else if (msg.type === 'chunked_message') {
-                    try {
-                        const originalMessage = JSON.parse(fullData);
-                        processMessage(originalMessage);
-                    } catch (e) {
-                        console.error('Error parsing chunked message:', e);
+                        logIOS('Parse error: ' + e.message);
                     }
                 }
             }
             return;
         }
         
-        processMessage(msg);
-    });
-    
-    function processMessage(msg) {
         if (msg.type === 'cursor') {
             updatePartnerCursor(msg.x, msg.y);
         } else if (msg.type === 'draw') {
@@ -2642,11 +2498,8 @@ function setupConn() {
                         top: msg.data.top || 0,
                         scaleX: msg.data.scaleX || 1,
                         scaleY: msg.data.scaleY || 1,
-                        angle: msg.data.angle || 0,
-                        selectable: true,
-                        evented: true
+                        angle: msg.data.angle || 0
                     });
-                    
                     canvas.add(img);
                     canvas.requestRenderAll();
                 });
@@ -2659,7 +2512,7 @@ function setupConn() {
         } else if (msg.type === 'sync') {
             canvas.loadFromJSON(JSON.parse(msg.data), () => {
                 canvas.requestRenderAll();
-                console.log('Canvas synchronized');
+                logIOS('Canvas synced');
             });
         } else if (msg.type === 'request_sync') {
             if (isHost) {
@@ -2667,25 +2520,35 @@ function setupConn() {
             }
         } else if (msg.type === 'delete') {
             const obj = canvas.getObjects().find(o => o.id === msg.id);
-            if (obj) {
-                if (obj.isPinned) return;
+            if (obj && !obj.isPinned) {
                 canvas.remove(obj);
                 canvas.requestRenderAll();
             }
         } else if (msg.type === 'modified') {
             const obj = canvas.getObjects().find(o => o.id === msg.data.id);
-            if (obj) { 
-                const active = canvas.getActiveObject();
-                if (active && (active === obj || (active.type === 'activeSelection' && active.getObjects().includes(obj)))) {
-                    canvas.discardActiveObject();
-                }
-                obj.set(msg.data); 
-                obj.setCoords(); 
-                canvas.requestRenderAll(); 
+            if (obj) {
+                obj.set(msg.data);
+                obj.setCoords();
+                canvas.requestRenderAll();
             }
         }
-    }
+    });
+    
+    conn.on('close', () => {
+        logIOS('Data channel closed');
+        setStatus('Disconnected', 'err');
+        connectionMode = "offline";
+        updateUIForConnectionMode();
+    });
+    
+    conn.on('error', (err) => {
+        logIOS('Data channel error: ' + err.message);
+    });
 }
+
+
+
+
 // ==========================================
 // КУРСОР ПОЛЬЗОВАТЕЛЯ (Div-based)
 // ==========================================
