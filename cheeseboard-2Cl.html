@@ -2499,6 +2499,7 @@ window.startHost = function() {
     }
 };
 
+
 window.joinPeer = function() {
     if (connectionMode === 'mqtt') {
         alert('In Cloud mode use room link');
@@ -2531,29 +2532,62 @@ window.joinPeer = function() {
             serialization: 'json'
         };
         
-        logIOS('Creating connection with opts: ' + JSON.stringify(opts));
+        logIOS('Creating connection...');
         const newConn = peer.connect(id, opts);
         
-        logIOS('Connection object created, waiting for open...');
+        if (newConn.peerConnection) {
+            logIOS('PeerConnection exists, setting up ICE logging');
+            
+            newConn.peerConnection.onicecandidate = function(event) {
+                if (event.candidate) {
+                    logIOS('CAND: ' + event.candidate.type + ' | ' + event.candidate.protocol);
+                } else {
+                    logIOS('ICE gathering done');
+                }
+            };
+            
+            newConn.peerConnection.oniceconnectionstatechange = function() {
+                const state = newConn.peerConnection.iceConnectionState;
+                logIOS('ICE conn state: ' + state);
+                
+                if (state === 'connected' || state === 'completed') {
+                    logIOS('ICE CONNECTED! Forcing setup...');
+                    conn = newConn;
+                    setupConn();
+                    setStatus('Connected (ICE)', 'ok');
+                    connectionMode = "connected";
+                    updateUIForConnectionMode();
+                }
+            };
+            
+            newConn.peerConnection.onicegatheringstatechange = function() {
+                logIOS('ICE gathering: ' + newConn.peerConnection.iceGatheringState);
+            };
+        } else {
+            logIOS('WARNING: No peerConnection object!');
+        }
         
         let openFired = false;
         
         const timeout = setTimeout(() => {
             if (!openFired) {
-                logIOS('CONNECTION TIMEOUT - no open event after 10s');
-                setStatus('Timeout - trying setup anyway', 'err');
+                logIOS('Timeout - checking ICE state...');
+                if (newConn.peerConnection) {
+                    logIOS('ICE state: ' + newConn.peerConnection.iceConnectionState);
+                }
                 
                 conn = newConn;
                 setupConn();
                 connectionMode = "connected";
                 updateUIForConnectionMode();
+                setStatus('Connected (forced)', 'ok');
             }
-        }, 10000);
+        }, 15000);
         
         newConn.on('open', () => {
             openFired = true;
             clearTimeout(timeout);
-            logIOS('Connection OPENED successfully!');
+            logIOS('Connection OPENED!');
             conn = newConn;
             setupConn();
             setStatus('Connected!', 'ok');
@@ -2563,29 +2597,40 @@ window.joinPeer = function() {
         
         newConn.on('error', (err) => {
             clearTimeout(timeout);
-            logIOS('Connection ERROR: ' + err.type + ' - ' + err.message);
-            setStatus('Failed: ' + err.type, 'err');
+            logIOS('Conn ERROR: ' + (err.type || 'unknown') + ' - ' + (err.message || 'no msg'));
+            setStatus('Failed: ' + (err.type || 'unknown'), 'err');
         });
         
         newConn.on('close', () => {
             clearTimeout(timeout);
-            logIOS('Connection closed before opening');
-            setStatus('Connection closed', 'err');
-        });
-        
-        newConn.on('iceStateChanged', (state) => {
-            logIOS('Outgoing ICE state: ' + state);
+            logIOS('Connection closed');
+            setStatus('Closed', 'err');
         });
         
         setTimeout(() => {
-            logIOS('Connection state after 2s: open=' + newConn.open);
+            logIOS('State after 2s: open=' + newConn.open);
+            if (newConn.peerConnection) {
+                logIOS('ICE state after 2s: ' + newConn.peerConnection.iceConnectionState);
+            }
         }, 2000);
         
+        setTimeout(() => {
+            logIOS('State after 5s: open=' + newConn.open);
+            if (newConn.peerConnection) {
+                logIOS('ICE state after 5s: ' + newConn.peerConnection.iceConnectionState);
+            }
+        }, 5000);
+        
     } catch (e) {
-        logIOS('EXCEPTION in joinPeer: ' + e.message);
+        logIOS('EXCEPTION: ' + e.message);
         setStatus('Error: ' + e.message, 'err');
     }
 };
+
+
+
+
+
 
 function setupConn() {
     if (!conn) {
