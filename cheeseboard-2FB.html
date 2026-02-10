@@ -3655,6 +3655,22 @@ function connectToFirebaseRoom(roomId) {
         
         // Устанавливаем обработчик отключения
         myUserRef.onDisconnect().remove();
+		
+		// Удаляем комнату при отключении последнего пользователя
+myUserRef.onDisconnect().remove().then(() => {
+    // Ждем 10 секунд после отключения, затем проверяем
+    setTimeout(() => {
+        firebaseRef.child('users').once('value').then(snapshot => {
+            // Если пользователей вообще нет - удаляем всю комнату
+            if (!snapshot.exists() || snapshot.numChildren() === 0) {
+                firebaseRef.remove();
+                console.log('✅ Комната удалена (все пользователи вышли)');
+            }
+        });
+    }, 10000); // 10 секунд задержки
+});
+
+//////////////
         
         // Слушаем ТОЛЬКО новые сообщения
         firebaseRef.child('messages').limitToLast(50).on('child_added', (snapshot) => {
