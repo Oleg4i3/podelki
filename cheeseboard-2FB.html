@@ -1062,7 +1062,7 @@ async function handleImport(input) {
                             context.drawImage(tempCanvas, 0, 0);
                         }
 
-                        const imgData = canvasTmp.toDataURL('image/jpeg', 0.7);
+                        const imgData = canvasTmp.toDataURL('image/jpeg', 0.6); /// was 0.7
                         
                         await new Promise(resolve => {
                             fabric.Image.fromURL(imgData, (img) => {
@@ -1719,19 +1719,15 @@ canvas.on('mouse:down', (o) => {
         const type = settings.shape.type;
         
         // Для сложных фигур используем Path, для простых - стандартные объекты
-        if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
-            // Для сложных фигур создаем временную линию как превью
-            const points = [shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY];
-            activeShape = new fabric.Line(points, {
-                stroke: settings.shape.stroke,
-                strokeWidth: settings.shape.width,
-                fill: '',
-                selectable: false,
-                evented: false,
-                objectCaching: false,
-                id: Math.random().toString(36).substr(2, 9)
-            });
-        } else {
+     if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
+    // Для сложных фигур создаем временный путь
+    activeShape = createComplexShapePath(type, shapeOrigX, shapeOrigY, shapeOrigX, shapeOrigY);
+    activeShape.set({
+        selectable: false,
+        evented: false,
+        objectCaching: false
+    });
+} else {
             // Стандартные фигуры
             const opts = {
                 left: shapeOrigX,
@@ -1809,9 +1805,17 @@ canvas.on('mouse:move', (o) => {
         const type = settings.shape.type;
         
         // Для сложных фигур просто обновляем линию превью
-        if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
-            activeShape.set({ x2: pointer.x, y2: pointer.y });
-        } else if (['rect', 'triangle'].includes(type)) {
+       if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
+    // Удаляем старую фигуру и создаем новую с обновленными координатами
+    canvas.remove(activeShape);
+    activeShape = createComplexShapePath(type, shapeOrigX, shapeOrigY, pointer.x, pointer.y);
+    activeShape.set({
+        selectable: false,
+        evented: false,
+        objectCaching: false
+    });
+    canvas.add(activeShape);
+} else if (['rect', 'triangle'].includes(type)) {
             let w = pointer.x - shapeOrigX;
             let h = pointer.y - shapeOrigY;
             let left = shapeOrigX;
@@ -1876,20 +1880,15 @@ canvas.on('mouse:up', () => {
         const type = settings.shape.type;
         
         // Для сложных фигур создаем финальный Path
-        if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
-            const x1 = activeShape.x1;
-            const y1 = activeShape.y1;
-            const x2 = activeShape.x2;
-            const y2 = activeShape.y2;
-            
-            // Создаем финальную фигуру как Path
-            const finalShape = createComplexShapePath(type, x1, y1, x2, y2);
-            
-            // Удаляем временную линию и добавляем финальную фигуру
-            canvas.remove(activeShape);
-            canvas.add(finalShape);
-            activeShape = finalShape;
-        } 
+     if (['rightTriangle', 'scalene', 'trapezoid', 'rhombus', 'parallelogram', 'pentagon', 'hexagon', 'outlineArrow'].includes(type)) {
+    // Фигура уже создана, просто финализируем ее
+    activeShape.set({
+        selectable: false,
+        evented: false,
+        objectCaching: true
+    });
+    activeShape.setCoords();
+}
         else if (['line', 'dashed', 'arrow'].includes(type) && activeShape.type === 'line') {
             const x1 = activeShape.x1;
             const y1 = activeShape.y1;
@@ -3655,22 +3654,6 @@ function connectToFirebaseRoom(roomId) {
         
         // Устанавливаем обработчик отключения
         myUserRef.onDisconnect().remove();
-		
-		// Удаляем комнату при отключении последнего пользователя
-myUserRef.onDisconnect().remove().then(() => {
-    // Ждем 10 секунд после отключения, затем проверяем
-    setTimeout(() => {
-        firebaseRef.child('users').once('value').then(snapshot => {
-            // Если пользователей вообще нет - удаляем всю комнату
-            if (!snapshot.exists() || snapshot.numChildren() === 0) {
-                firebaseRef.remove();
-                console.log('✅ Комната удалена (все пользователи вышли)');
-            }
-        });
-    }, 10000); // 10 секунд задержки
-});
-
-//////////////
         
         // Слушаем ТОЛЬКО новые сообщения
         firebaseRef.child('messages').limitToLast(50).on('child_added', (snapshot) => {
