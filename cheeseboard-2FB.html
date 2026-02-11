@@ -1657,22 +1657,35 @@ function createComplexShapePath(type, x1, y1, x2, y2) {
             pathString += ' Z';
             break;
             
-        case 'outlineArrow':
-            // Контурная стрелка
-            const arrowWidth = width;
-            const arrowHeight = height;
-            const headHeight = arrowHeight * 0.4;
-            const shaftWidth = arrowWidth * 0.3;
-            
-            pathString = `M ${x1} ${y1 + arrowHeight/2} `;
-            pathString += `L ${x1 + arrowWidth*0.7} ${y1 + arrowHeight/2} `;
-            pathString += `L ${x1 + arrowWidth*0.7} ${y1} `;
-            pathString += `L ${x1 + arrowWidth} ${y1 + arrowHeight/2} `;
-            pathString += `L ${x1 + arrowWidth*0.7} ${y1 + arrowHeight} `;
-            pathString += `L ${x1 + arrowWidth*0.7} ${y1 + arrowHeight/2 + headHeight/2} `;
-            pathString += `L ${x1} ${y1 + arrowHeight/2 + headHeight/2} Z`;
-            break;
-            
+   case 'outlineArrow':
+    // Контурная стрелка
+    const headLength = width * 0.3;      // Длина "головы" стрелки (30% от ширины)
+    const shaftLength = width - headLength; // Длина "хвоста"
+    const shaftThickness = height * 0.5;    // Толщина "хвоста" (50% от высоты)
+    const centerY = y1 + height / 2;        // Центральная ось по Y
+
+    // 1. Начало: Верхний левый угол хвоста
+    pathString = `M ${x1} ${centerY - shaftThickness / 2} `;
+    
+    // 2. Линия до начала головы (верхняя часть хвоста)
+    pathString += `L ${x1 + shaftLength} ${centerY - shaftThickness / 2} `;
+    
+    // 3. Вверх до верхнего края головы
+    pathString += `L ${x1 + shaftLength} ${y1} `;
+    
+    // 4. Острие стрелки (середина справа)
+    pathString += `L ${x1 + width} ${centerY} `;
+    
+    // 5. Вниз до нижнего края головы
+    pathString += `L ${x1 + shaftLength} ${y1 + height} `;
+    
+    // 6. Возврат к хвосту (нижняя часть)
+    pathString += `L ${x1 + shaftLength} ${centerY + shaftThickness / 2} `;
+    
+    // 7. Нижний левый угол хвоста и замыкание
+    pathString += `L ${x1} ${centerY + shaftThickness / 2} Z`;
+    break;
+	
         default:
             // По умолчанию - прямоугольник
             pathString = `M ${x1} ${y1} L ${x2} ${y1} L ${x2} ${y2} L ${x1} ${y2} Z`;
@@ -2120,14 +2133,14 @@ const iceConfig = {
         { urls: 'stun:stun3.l.google.com:19302' },
         { urls: 'stun:stun4.l.google.com:19302' },
         {
-            urls: "turn:global.relay.metered.ca:443",
-            username: "748c34c07fbd01c313924701",
-            credential: "skchpI9EhitPaW68",
+            urls: "turn:global.relay.metered.ca:443",// does not work
+            username: "748c34c07fbd01c313924701",// does not work
+            credential: "skchpI9EhitPaW68",// does not work
         },
         {
-            urls: "turn:global.relay.metered.ca:80",
-            username: "748c34c07fbd01c313924701",
-            credential: "skchpI9EhitPaW68",
+            urls: "turn:global.relay.metered.ca:80",// does not work
+            username: "748c34c07fbd01c313924701",// does not work
+            credential: "skchpI9EhitPaW68",// does not work
         }
     ],
     iceCandidatePoolSize: 5,
@@ -2803,7 +2816,7 @@ function setupConn() {
     if (msg.type === 'cursor') {
         updatePartnerCursor(msg.x, msg.y);
 		 } else if (msg.type === 'viewport') {
-        handlePartnerViewport(msg);  // Добавьте эту строку
+        handlePartnerViewport(msg); 
     } else if (msg.type === 'draw') {
         // Особый случай для изображений
         if (msg.data.type === 'image' && msg.data.src) {
@@ -3606,7 +3619,6 @@ function checkFirebaseAutoConnect() {
     }
 }
 
-// 4. Подключение к комнате Firebase
 // 4. Подключение к комнате Firebase
 function connectToFirebaseRoom(roomId) {
     try {
