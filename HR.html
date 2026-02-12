@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Монітор пульсу з веб-камери (Навчальний стенд)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        /* Custom styles for better aesthetics and layout */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #2d3748; /* Darker text color */
+        }
+
+        .container {
+            background-color: #ffffff;
+            border-radius: 1rem; /* Rounded corners */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* Soft shadow */
+            padding: 1.5rem; /* Reduced padding */
+            max-width: 900px; /* Adjusted max width */
+            width: 95%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem; /* Reduced gap */
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #3182ce; /* Blue for heading */
+            font-size: 1.75rem; /* Smaller font size */
+            font-weight: 700; /* Bold */
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            font-size: 1rem; /* Smaller font size */
+            color: #4a5568;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        /* Theory Styles */
+        .theory-details {
+            background-color: #ebf8ff;
+            border: 1px solid #bee3f8;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+        .theory-details summary {
+            font-weight: 600;
+            color: #2b6cb0;
+            cursor: pointer;
+            list-style: none; /* Hide default triangle in some browsers */
+        }
+        .theory-details summary::-webkit-details-marker {
+            display: none;
+        }
+        .theory-details summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 0.5rem;
+            transition: transform 0.2s;
+            font-size: 0.8rem;
+        }
+        .theory-details[open] summary::before {
+            transform: rotate(90deg);
+        }
+        .theory-content {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            color: #2d3748;
+        }
+        .theory-content h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #2c5282;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #bee3f8;
+            padding-bottom: 0.2rem;
+        }
+        .theory-content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin-top: 0.8rem;
+            margin-bottom: 0.3rem;
+        }
+        .theory-content ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .theory-content li {
+            margin-bottom: 0.3rem;
+        }
+
+        /* Original Layout Styles */
+        .top-section {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping */
+            justify-content: center;
+            align-items: flex-start; /* Align video to top, controls follow */
+            gap: 1.5rem; /* Gap between video and controls */
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 320px; /* Smaller video width */
+            margin: 0 auto;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background-color: #1a202c; /* Dark background for video */
+            aspect-ratio: 4 / 3; /* Common webcam aspect ratio */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: url('https://placehold.co/320x240/000000/FFFFFF?text=Немає+відео+з+камери'); /* Placeholder */
+            background-size: cover;
+            background-position: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Cover the container */
+            transform: scaleX(-1); /* Mirror the video for selfie view */
+            display: block; /* Ensure it's always block */
+            opacity: 0; /* Start hidden */
+            transition: opacity 0.5s ease; /* Smooth fade in */
+        }
+        video.visible {
+            opacity: 1; /* Make visible when ready */
+        }
+
+        #noCameraMessage, #statusMessage {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            color: #cbd5e0;
+            font-size: 0.9rem; /* Smaller font size */
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            transition: opacity 0.3s ease, height 0.3s ease, padding 0.3s ease;
+            box-sizing: border-box;
+        }
+        #noCameraMessage.hidden, #statusMessage.hidden {
+            opacity: 0;
+            pointer-events: none;
+            height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+        }
+        #noCameraMessage:not(.hidden), #statusMessage:not(.hidden) {
+            height: auto;
+            padding: 0.4rem; /* Reduced padding */
+        }
+
+        .control-panel {
+            flex-grow: 1; /* Allow control panel to take available space */
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 300px; /* Ensure controls don't get too narrow */
+        }
+
+        .controls, .filter-controls, .hr-method-controls, .file-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 0.75rem; /* Reduced gap */
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background-color: #e2e8f0;
+        }
+
+        .filter-controls {
+            flex-direction: column; /* Stack filter groups vertically */
+            gap: 0.75rem;
+            padding: 0.75rem;
+        }
+
+        .filter-group {
+            border: 1px solid #cbd5e0;
+            border-radius: 0.5rem;
+            padding: 0.6rem; /* Reduced padding */
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem; /* Reduced gap */
+            background-color: #f7fafc;
+            width: 100%; /* Take full width in column */
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 0.2rem;
+            font-size: 0.95rem;
+        }
+
+        .filter-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .filter-option {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.85rem; /* Smaller font */
+            color: #4a5568;
+        }
+
+        button {
+            background-color: #4299e1;
+            color: white;
+            padding: 0.6rem 1.2rem; /* Reduced padding */
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem; /* Smaller font */
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #3182ce;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #a0aec0;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        button.active-filter {
+            background-color: #38a169;
+        }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            width: 100%;
+            max-width: 250px; /* Smaller slider width */
+            margin: 0 auto;
+        }
+
+        .slider-container label {
+            font-size: 0.95rem;
+            color: #4a5568;
+        }
+
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px; /* Thinner slider */
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            width: 16px; /* Smaller thumb */
+            height: 16px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem; /* Reduced gap */
+            margin-top: 1.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .top-section {
+                flex-wrap: nowrap; /* Prevent wrapping on larger screens */
+                justify-content: center;
+                align-items: flex-start; /* Align video to top, controls follow */
+            }
+            .results-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .wet-signal-box, .fft-spectrum-box {
+            grid-column: 1 / -1;
+        }
+
+        .result-box {
+            background-color: #edf2f7;
+            border-radius: 0.75rem;
+            padding: 1rem; /* Reduced padding */
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-box h2 {
+            font-size: 1.25rem; /* Smaller font */
+            color: #2b6cb0;
+            margin-bottom: 0.4rem;
+        }
+
+        #heartRateDisplay {
+            font-size: 2.5rem; /* Smaller font for BPM */
+            font-weight: 800;
+            color: #38a169;
+            line-height: 1;
+        }
+
+        #heartRateDisplay.calculating {
+            color: #dd6b20;
+        }
+
+        #wetSignalCanvas, #fftSpectrumCanvas {
+            background-color: #e2e8f0;
+            border-radius: 0.5rem;
+            border: 1px solid #cbd5e0;
+            width: 100%;
+            height: 300px; /* Reduced height for graphs */
+        }
+        .filter-info {
+            font-size: 0.9rem;
+            color: #4a5568;
+            margin-top: 0.5rem;
+            text-align: left;
+            padding-left: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Монітор пульсу</h1>
+       
+        <details class="theory-details">
+            <summary>📘 Теоретична довідка: Цифрова фільтрація та ДПФ</summary>
+            <div class="theory-content">
+                <p>Цей симулятор демонструє процес виділення корисного сигналу (серцебиття) із зашумленого відеопотоку і його подальший спектральний аналіз.</p>
+
+                <h3>1. Цифрова фільтрація: Згортка у часовій області</h3>
+                <p>На панелі керування ви бачите <strong>HPF (Фільтр верхніх частот)</strong> та <strong>LPF (Фільтр нижніх частот)</strong>. Їхня робота відображається на графіку <em>"Сирий" та відфільтрований сигнал</em>.</p>
+
+                <h4>Зв'язок зі згорткою</h4>
+                <p>Будь-який лінійний фільтр можна представити через <strong>дискретну згортку</strong> вхідного сигналу \(x[n]\) та імпульсної характеристики фільтра \(h[n]\):</p>
+                $$y[n] = (x * h)[n] = \sum_{k=-\infty}^{\infty} x[k] \cdot h[n-k]$$
+                <p>Імпульсна характеристика фільтра - це сигнал на виході фільтра, що є реакцією (відгуком) на один імпульс на вході. Якщо ми працюємо з цифровим сигналом, то на вхід фільтра подається послідовність таких імпульсів - дискретних відліків (семплів) сигналу. Операція згортки  і формує сумарний відгук фільтра на послідовність відліків сигналу.</p>
+
+                <h4>Фільтр нижніх частот (LPF / ФНЧ)</h4>
+                <p>Найпростіший ФНЧ — це <strong>ковзне середнє (Moving Average)</strong>. Він прибирає високочастотний шум. Якщо розмір вікна \(M\), то:</p>
+                $$y_{LPF}[n] = \frac{1}{M} \sum_{k=0}^{M-1} x[n-k]$$
+                <p><strong>У симуляторі:</strong> Налаштування <em>LPF (5 Гц / 10 Гц)</em> застосовують згладжування, щоб прибрати тремтіння та шум камери.</p>
+
+                <h4>Фільтр верхніх частот (HPF / ФВЧ)</h4>
+                <p>Сигнал з камери має дрейф (середнє значення "плаває" внаслідок зміни освітлення або руху). Також сам пульсовий сигнал містить повільні хвилі, наприклад, внаслідок дихання. Це низькочастотна завада. Найпростіший ФВЧ — це <strong>віднімання середнього</strong>:</p>
+                $$y_{HPF}[n] = x[n] - y_{LPF}[n]$$
+                <p><strong>У симуляторі:</strong> Налаштування <em>HPF</em> вирівнюють сигнал (зелена лінія) відносно нуля, прибираючи постійну складову (DC offset).</p>
+				
+				<h4>Справжні згорткові фільтри: Фільтри зі скінченною та нескінченною імпульсною характеристикою</h4>
+
+<p>Важливо розуміти, що згортка, яку ми бачили у простому ковзному середньому (ФНЧ), описує так звані Фільтри зі Скінченною Імпульсною Характеристикою (Finite Impulse Response, FIR). У таких фільтрах вихідний сигнал \(y[n]\) залежить лише від поточних та попередніх значень вхідного сигналу \(x[n]\):</p>
+$$\text{FIR-фільтр:} \quad y[n] = \sum_{k=0}^{M} b_k x[n-k]$$
+<p>Тут \(h[k] = b_k\) є ненульовим лише для скінченної кількості відліків \(M\).</p>
+
+<p>На противагу їм, у багатьох практичних застосуваннях, зокрема у високопорядкових фільтрах Баттерворта, які імітує ваш симулятор, використовуються Фільтри з Нескінченною Імпульсною Характеристикою (Infinite Impulse Response, IIR). Ці фільтри вводять зворотній зв'язок (рекурсію), де поточне значення вихідного сигналу \(y[n]\) залежить не лише від входу \(x[n]\), але й від попередніх значень самого вихідного сигналу \(y[n-k]\):</p>
+$$\text{IIR-фільтр (рекурсивний):} \quad y[n] = \sum_{k=0}^{M} b_k x[n-k] - \sum_{k=1}^{N} a_k y[n-k]$$
+<p>Саме ця рекурсивна залежність від попередніх вихідних значень \(y[n-k]\) призводить до того, що імпульсна характеристика \(h[n]\) такого фільтра теоретично є нескінченною (тобто, відгук на одиничний імпульс ніколи не згасає повністю). IIR-фільтри набагато ефективніші: вони можуть досягти тієї ж крутизни частотної характеристики, що й FIR-фільтр, але з використанням значно меншої кількості коефіцієнтів \(M\) та \(N\). У  симуляторі опції "Порядок 2" та "Порядок 4" реалізують саме каскади таких рекурсивних IIR-фільтрів.</p>
+
+
+
+
+                <h3>2. Спектральний аналіз</h3>
+                <p>Щоб знайти пульс (частоту), ми переходимо у частотну область (графік <em>Амплітудний спектр</em>).</p>
+
+                <h4>ДПФ (DFT) проти ДКП (DCT)</h4>
+                <p>Дискретне косинусне перетворення ДКП (DCT) застосовують для стиснення зображень і звуку. Для аналізу коливань у часі також використовується <strong>Дискретне перетворення Фур'є (DFT)</strong>, яке використовує комплексні експоненти (а не лише косинуси):</p>
+                $$X[k] = \sum_{n=0}^{N-1} x[n] \cdot e^{-i \frac{2\pi}{N} k n}$$
+                <p>Математичний апарат комплексних чисел дуже зручний для цього, оскільки модуль комплексного спектра є набором амплітуд гармонік, а аргумент представляє фазу. В ідеальному випадку за відсутності завад і стабільності пульсу пік на графіку амплітудного спектру \( |X[k]| \) вказує частоту пульсу, інші максимуми мають кратні частоти</p>
+
+                
+            </div>
+        </details>
+ <p>
+            Притисніть палець до об'єктива камери, переконавшись, що вся область об'єктива закрита та освітлена зовні (сидіть спиною до вікна, джерела світла, або можна використати ліхтарик в телефоні). Тримайте руку максимально нерухомо.
+            Цей застосунок намагається виявити пульс, аналізуючи ледь помітні зміни яскравості у відеопотоці.
+        </p>
+        <div class="top-section">
+            <div class="video-wrapper">
+                <video id="webcamFeed" autoplay playsinline></video>
+                <canvas id="hiddenCanvas" style="display: none;"></canvas>
+                <div id="noCameraMessage">
+                    Будь ласка, дозвольте доступ до камери, щоб розпочати.
+                </div>
+                <div id="statusMessage" class="hidden"></div>
+            </div>
+
+            <div class="control-panel">
+                
+
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>Фільтр верхніх частот (HPF)</label>
+                        <div class="filter-options">
+                            <div class="filter-option">
+                                <input type="radio" id="hpfOrderNone" name="hpfOrder" value="0">
+                                <label for="hpfOrderNone">Немає</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="hpfOrder2" name="hpfOrder" value="2" checked>
+                                <label for="hpfOrder2">Порядок 2</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="hpfOrder4" name="hpfOrder" value="4">
+                                <label for="hpfOrder4">Порядок 4</label>
+                            </div>
+                        </div>
+                        <div class="filter-options">
+                            <div class="filter-option">
+                                <input type="radio" id="hpfCutoff0_25" name="hpfCutoff" value="0.25" checked>
+                                <label for="hpfCutoff0_25">0.25 Гц</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="hpfCutoff0_5" name="hpfCutoff" value="0.5">
+                                <label for="hpfCutoff0_5">0.5 Гц</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Фільтр нижніх частот (LPF)</label>
+                        <div class="filter-options">
+                            <div class="filter-option">
+                                <input type="radio" id="lpfOrderNone" name="lpfOrder" value="0">
+                                <label for="lpfOrderNone">Немає</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="lpfOrder2" name="lpfOrder" value="2" checked>
+                                <label for="lpfOrder2">Порядок 2</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="lpfOrder4" name="lpfOrder" value="4">
+                                <label for="lpfOrder4">Порядок 4</label>
+                            </div>
+                        </div>
+                        <div class="filter-options">
+                            <div class="filter-option">
+                                <input type="radio" id="lpfCutoff5" name="lpfCutoff" value="5" checked>
+                                <label for="lpfCutoff5">5 Гц</label>
+                            </div>
+                            <div class="filter-option">
+                                <input type="radio" id="lpfCutoff10" name="lpfCutoff" value="10">
+                                <label for="lpfCutoff10">10 Гц</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hr-method-controls">
+                    <label>Метод розрахунку пульсу:</label>
+                    <div class="filter-option">
+                        <input type="radio" id="hrMethodFFT" name="hrMethod" value="fft" checked>
+                        <label for="hrMethodFFT">За домінуючою частотою (стандарт)</label>
+                    </div>
+                    <div class="filter-option">
+                        <input type="radio" id="hrMethodHarmonic" name="hrMethod" value="harmonic">
+                        <label for="hrMethodHarmonic">За гармоніками</label>
+                    </div>
+                </div>
+
+                <div class="file-controls">
+                    <button id="saveSignalButton">Зберегти сигнал</button>
+                    <input type="file" id="loadSignalInput" accept=".csv" style="display: none;">
+                    <button id="loadSignalButton">Завантажити з файлу</button>
+                    <button id="playSignalButton" disabled>Програти з файлу</button>
+                </div>
+            </div>
+        </div>
+
+
+<div class="controls">
+                    <button id="startButton" disabled>Почати моніторинг</button>
+                    <button id="redGreenFilterButton">Колірний фільтр (Вимк.)</button>
+                    <div class="slider-container">
+                        <label for="timeWindowSlider">Часове вікно: <span id="timeWindowValue">9</span> секунд</label>
+                        <input type="range" id="timeWindowSlider" min="4" max="15" value="9" step="1">
+                    </div>
+                </div>
+
+        <div class="result-box" style="margin-top: 1rem;">
+            <h2>Пульс (уд/хв)</h2>
+            <span id="heartRateDisplay" class="calculating">--</span>
+        </div>
+
+        <div class="results-grid">
+            <div class="result-box wet-signal-box">
+                <h2>"Сирий" та відфільтрований сигнал</h2>
+                <canvas id="wetSignalCanvas"></canvas>
+            </div>
+            <div class="result-box fft-spectrum-box">
+                <h2>Амплітудний спектр (ШПФ) і АЧХ фільтрів (загальна)</h2>
+                <canvas id="fftSpectrumCanvas"></canvas>
+                <div id="filterInfo" class="filter-info"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const webcamFeed = document.getElementById('webcamFeed');
+        const hiddenCanvas = document.getElementById('hiddenCanvas');
+        const hiddenContext = hiddenCanvas.getContext('2d', { willReadFrequently: true });
+        const wetSignalCanvas = document.getElementById('wetSignalCanvas');
+        const wetSignalContext = wetSignalCanvas.getContext('2d');
+        const fftSpectrumCanvas = document.getElementById('fftSpectrumCanvas');
+        const fftSpectrumContext = fftSpectrumCanvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const redGreenFilterButton = document.getElementById('redGreenFilterButton');
+        const timeWindowSlider = document.getElementById('timeWindowSlider');
+        const timeWindowValueSpan = document.getElementById('timeWindowValue');
+        const heartRateDisplay = document.getElementById('heartRateDisplay');
+        const noCameraMessage = document.getElementById('noCameraMessage');
+        const statusMessage = document.getElementById('statusMessage');
+        const filterInfoDisplay = document.getElementById('filterInfo');
+
+        // Filter controls
+        const hpfOrderRadios = document.querySelectorAll('input[name="hpfOrder"]');
+        const hpfCutoffRadios = document.querySelectorAll('input[name="hpfCutoff"]');
+        const lpfOrderRadios = document.querySelectorAll('input[name="lpfOrder"]');
+        const lpfCutoffRadios = document.querySelectorAll('input[name="lpfCutoff"]');
+        const hrMethodRadios = document.querySelectorAll('input[name="hrMethod"]');
+
+        // File controls
+        const saveSignalButton = document.getElementById('saveSignalButton');
+        const loadSignalInput = document.getElementById('loadSignalInput');
+        const loadSignalButton = document.getElementById('loadSignalButton');
+        const playSignalButton = document.getElementById('playSignalButton');
+
+
+        // --- Configuration ---
+        const ROI_SIZE = 480; // This is the square size of the region of interest from the camera feed
+                               // If the camera resolution is smaller than this, it will be capped by the camera's resolution.
+                               // For display, the video wrapper uses max-width: 320px, so it's scaled down.
+        const SAMPLE_RATE = 60; // Assuming ~60 FPS from requestAnimationFrame
+        let BUFFER_SECONDS = parseInt(timeWindowSlider.value);
+        let BUFFER_SIZE = SAMPLE_RATE * BUFFER_SECONDS;
+        const MIN_BPM = 45;
+        const MAX_BPM = 180;
+        const FFT_UPDATE_INTERVAL_FRAMES = SAMPLE_RATE * 2; // Update heart rate every 2 seconds (120 frames)
+        const FFT_RESOLUTION_MULTIPLIER = 4; // New: Multiply FFT size by this factor for better resolution
+
+        // --- Global Variables ---
+        let animationFrameId = null;
+        let signalBuffer = []; // Stores raw average pixel intensity values for current window
+        let fullSessionSignal = []; // Stores raw average pixel intensity values for the entire recording session
+        let filteredSignalBuffer = []; // Stores filtered signal values for display
+        let frameCount = 0;
+        let isMonitoring = false;
+        let isPlayingFromFile = false; // New flag for playing from file
+        let fileSignalData = []; // Stores signal loaded from file
+        let fileSignalIndex = 0; // Current index for playing from file
+
+        let redGreenFilterEnabled = false;
+
+        let currentHpfOrder = 2; // 0, 2, or 4
+        let currentHpfCutoff = 0.25; // Hz
+        let currentLpfOrder = 2; // 0, 2, or 4
+        let currentLpfCutoff = 5; // Hz
+        let currentHrMethod = 'fft'; // 'fft' or 'harmonic'
+
+        let dominantFrequency = 0; // Stores dominant frequency for drawing
+
+        // --- Utility Functions ---
+
+        // Complex number object for FFT
+        class Complex {
+            constructor(re, im = 0) {
+                this.re = re;
+                this.im = im;
+            }
+
+            add(other) {
+                return new Complex(this.re + other.re, this.im + other.im);
+            }
+
+            sub(other) {
+                return new Complex(this.re - other.re, this.im - other.im);
+            }
+
+            mul(other) {
+                return new Complex(
+                    this.re * other.re - this.im * other.im,
+                    this.re * other.im + this.im * other.re
+                );
+            }
+
+            magnitude() {
+                return Math.sqrt(this.re * this.re + this.im * this.im);
+            }
+        }
+
+        // Iterative FFT (Cooley-Tukey algorithm)
+        // Returns an array of complex numbers
+        function fft(x) {
+            const N = x.length;
+
+            // Ensure N is a power of 2 by zero-padding if necessary
+            const targetN = Math.pow(2, Math.ceil(Math.log2(N)) + Math.log2(FFT_RESOLUTION_MULTIPLIER));
+            let paddedX = new Array(targetN).fill(0);
+            for (let i = 0; i < N; i++) {
+                paddedX[i] = x[i];
+            }
+            const paddedN = paddedX.length;
+
+            let X = new Array(paddedN);
+            for (let i = 0; i < paddedN; i++) {
+                X[i] = new Complex(paddedX[i]);
+            }
+
+            // Bit-reversal permutation
+            for (let i = 0; i < paddedN; i++) {
+                let j = 0;
+                for (let bit = 0; bit < Math.log2(paddedN); bit++) {
+                    if ((i >> bit) & 1) {
+                        j |= (1 << (Math.log2(paddedN) - 1 - bit));
+                    }
+                }
+                if (j > i) {
+                    [X[i], X[j]] = [X[j], X[i]]; // Swap
+                }
+            }
+
+            // Cooley-Tukey FFT algorithm
+            for (let len = 2; len <= paddedN; len <<= 1) {
+                const halfLen = len / 2;
+                const angleUnit = -2 * Math.PI / len;
+                for (let i = 0; i < paddedN; i += len) {
+                    for (let j = 0; j < halfLen; j++) {
+                        const t = new Complex(Math.cos(j * angleUnit), Math.sin(j * angleUnit)).mul(X[i + j + halfLen]);
+                        X[i + j + halfLen] = X[i + j].sub(t);
+                        X[i + j] = X[i + j].add(t);
+                    }
+                }
+            }
+            return X;
+        }
+
+
+        // --- Signal Processing ---
+
+        // Get brightness from ROI
+        function getBrightnessFromROI(imageData, useRedGreenFilter) {
+            let totalBrightness = 0;
+            let count = 0;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const r = imageData.data[i];     // Red channel
+                const g = imageData.data[i + 1]; // Green channel
+                const b = imageData.data[i + 2]; // Blue channel
+
+                if (useRedGreenFilter) {
+                    // Weighted average of red and green for pulse sensitivity
+                    totalBrightness += (r * 0.4 + g * 0.4 + b * 0.2); // More emphasis on red/green
+                } else {
+                    // Simple red channel average
+                    totalBrightness += r;
+                }
+                count++;
+            }
+            return totalBrightness / count;
+        }
+
+        // Detrending: subtract a simple moving average to remove baseline drift
+        function detrend(data, windowSize) {
+            if (data.length < windowSize) return [...data]; // Return a copy to avoid modifying original
+            const detrended = new Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - Math.floor(windowSize / 2));
+                const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+                let sum = 0;
+                let count = 0;
+                for (let j = start; j < end; j++) {
+                    sum += data[j];
+                    count++;
+                }
+                const avg = sum / count;
+                detrended[i] = data[i] - avg;
+            }
+            return detrended;
+        }
+
+        // 1st-order Low-Pass Filter (RC equivalent)
+        function applyOnePoleLPF(data, cutoffFreq, sampleRate) {
+            if (data.length === 0) return [];
+            const dt = 1 / sampleRate;
+            const RC = 1 / (2 * Math.PI * cutoffFreq);
+            const alpha = dt / (RC + dt); // Alpha for low-pass
+            const filteredData = new Array(data.length);
+            filteredData[0] = data[0]; // Initialize with first sample
+
+            for (let i = 1; i < data.length; i++) {
+                filteredData[i] = alpha * data[i] + (1 - alpha) * filteredData[i - 1];
+            }
+            return filteredData;
+        }
+
+        // 1st-order High-Pass Filter (RC equivalent)
+        function applyOnePoleHPF(data, cutoffFreq, sampleRate) {
+            if (data.length === 0) return [];
+            const dt = 1 / sampleRate;
+            const RC = 1 / (2 * Math.PI * cutoffFreq);
+            const alpha = RC / (RC + dt); // Alpha for high-pass
+            const filteredData = new Array(data.length);
+            filteredData[0] = 0; // Initialize with 0 for HPF (assuming DC is removed)
+
+            let y_prev = 0; // y[n-1]
+            let x_prev = data[0]; // x[n-1]
+            for (let i = 0; i < data.length; i++) {
+                if (i === 0) {
+                    filteredData[i] = 0; // First output is typically 0 for HPF
+                } else {
+                    filteredData[i] = alpha * y_prev + alpha * (data[i] - x_prev);
+                }
+                x_prev = data[i];
+                y_prev = filteredData[i];
+            }
+            return filteredData;
+        }
+
+        // Apply cascaded filters (simulating Butterworth order)
+        function applyCascadedFilter(data, order, cutoffFreq, sampleRate, filterType) {
+            if (order === 0) return [...data]; // No filter
+            let filtered = [...data];
+            for (let i = 0; i < order; i++) {
+                if (filterType === 'HPF') {
+                    filtered = applyOnePoleHPF(filtered, cutoffFreq, sampleRate);
+                } else if (filterType === 'LPF') {
+                    filtered = applyOnePoleLPF(filtered, cutoffFreq, sampleRate);
+                }
+            }
+            return filtered;
+        }
+
+        // Simple moving average for smoothing
+        function smoothSignal(data, windowSize) {
+            if (data.length < windowSize) return [...data];
+            const smoothedData = new Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - Math.floor(windowSize / 2));
+                const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+                let sum = 0;
+                let count = 0;
+                for (let j = start; j < end; j++) {
+                    sum += data[j];
+                    count++;
+                }
+                smoothedData[i] = sum / count;
+            }
+            return smoothedData;
+        }
+
+
+        // --- Heart Rate Calculation ---
+
+        function calculateHeartRate() {
+            // Only calculate if buffer is full
+            if (signalBuffer.length < BUFFER_SIZE) {
+                heartRateDisplay.textContent = '--';
+                heartRateDisplay.classList.add('calculating');
+                statusMessage.textContent = `Збір даних... (${signalBuffer.length}/${BUFFER_SIZE})`;
+                return;
+            }
+
+            heartRateDisplay.classList.remove('calculating');
+            statusMessage.textContent = 'Аналіз...';
+
+            let dataForFFT = [...signalBuffer]; // Use a copy for FFT processing
+
+            // Apply HPF first if enabled, or detrend if no HPF
+            if (currentHpfOrder > 0) {
+                dataForFFT = applyCascadedFilter(dataForFFT, currentHpfOrder, currentHpfCutoff, SAMPLE_RATE, 'HPF');
+            } else {
+                // If no HPF, still detrend to remove DC component for FFT
+                dataForFFT = detrend(dataForFFT, SAMPLE_RATE * 2); // Detrend over 2 seconds
+            }
+
+            // Apply LPF if enabled for FFT
+            if (currentLpfOrder > 0) {
+                dataForFFT = applyCascadedFilter(dataForFFT, currentLpfOrder, currentLpfCutoff, SAMPLE_RATE, 'LPF');
+            }
+
+            // Apply Hanning window function for spectral leakage reduction
+            // This is ONLY for FFT calculation, not for the time-domain display
+            for (let i = 0; i < dataForFFT.length; i++) {
+                dataForFFT[i] *= 0.5 * (1 - Math.cos(2 * Math.PI * i / (dataForFFT.length - 1)));
+            }
+
+            // Perform FFT
+            const spectrum = fft(dataForFFT);
+            const fftSize = spectrum.length;
+            const freqResolution = SAMPLE_RATE / fftSize;
+
+            const minFreqBPM = MIN_BPM;
+            const maxFreqBPM = MAX_BPM;
+            const minFreqHz = minFreqBPM / 60;
+            const maxFreqHz = maxFreqBPM / 60;
+
+            let bpm = 0;
+            dominantFrequency = 0;
+            let harmonicFrequencies = []; // For harmonic method visualization
+
+            if (currentHrMethod === 'fft') {
+                // Standard FFT method: Find dominant frequency in the heart rate range
+                let maxMagnitude = 0;
+                const minFreqIndex = Math.floor(minFreqHz / freqResolution);
+                const maxFreqIndex = Math.ceil(maxFreqHz / freqResolution);
+
+                for (let i = minFreqIndex; i <= maxFreqIndex; i++) {
+                    const magnitude = spectrum[i].magnitude();
+                    if (magnitude > maxMagnitude) {
+                        maxMagnitude = magnitude;
+                        dominantFrequency = i * freqResolution;
+                    }
+                }
+                bpm = dominantFrequency * 60;
+            } else if (currentHrMethod === 'harmonic') {
+                // Harmonic analysis method: Search for the best fundamental frequency
+                let bestFundamentalFreq = 0;
+                let maxCombinedScore = 0; // Score combines sum of harmonics and fundamental strength
+                harmonicFrequencies = [];
+
+                const searchMinFreqHz = MIN_BPM / 60;
+                const searchMaxFreqHz = MAX_BPM / 60;
+
+                // Iterate through potential fundamental frequencies with fine resolution
+                // The step should be small enough to catch peaks, but not too small to be slow
+                const fineFreqStep = freqResolution / 4; // Use 1/4 of FFT resolution
+                const numSearchPoints = Math.floor((searchMaxFreqHz - searchMinFreqHz) / fineFreqStep);
+
+
+                for (let i = 0; i <= numSearchPoints; i++) {
+                    const currentFundamentalFreq = searchMinFreqHz + i * fineFreqStep;
+                    if (currentFundamentalFreq === 0) continue;
+
+                    let currentHarmonicSum = 0;
+                    let tempHarmonics = [];
+                    let fundamentalMagnitude = 0;
+
+                    for (let h = 1; h <= 5; h++) { // Check fundamental + up to 4 harmonics
+                        const harmonicFreq = currentFundamentalFreq * h;
+                        if (harmonicFreq > SAMPLE_RATE / 2) break; // Beyond Nyquist limit
+
+                        // Find the magnitude at the exact harmonic frequency by interpolation if needed,
+                        // or just use the closest FFT bin for simplicity. Using closest bin for now.
+                        const harmonicIndex = Math.round(harmonicFreq / freqResolution);
+                        if (harmonicIndex >= 0 && harmonicIndex < spectrum.length) {
+                            const mag = spectrum[harmonicIndex].magnitude();
+                            currentHarmonicSum += mag;
+                            tempHarmonics.push({ freq: harmonicFreq, magnitude: mag });
+                            if (h === 1) { // Store fundamental magnitude for scoring
+                                fundamentalMagnitude = mag;
+                            }
+                        }
+                    }
+
+                    // A robust scoring function:
+                    // 1. Sum of harmonic magnitudes
+                    // 2. Weight for the fundamental frequency's own strength (it should be strong!)
+                    // 3. Add a small bias to prevent getting stuck at minimal freq if other harmonics are weak
+                    let score = currentHarmonicSum;
+                    if (fundamentalMagnitude > 0) {
+                        score += fundamentalMagnitude * 2; // Give more weight to the fundamental
+                    }
+                    // Add a small increasing bias for higher frequencies in the search range
+                    // to help it "break free" from very low frequencies if a stronger signal exists higher up.
+                    // This creates a slight preference for higher frequencies, but not enough to pick noise.
+                    score += (currentFundamentalFreq - searchMinFreqHz) * 10;
+
+
+                    if (score > maxCombinedScore) {
+                        maxCombinedScore = score;
+                        bestFundamentalFreq = currentFundamentalFreq;
+                        harmonicFrequencies = tempHarmonics;
+                    }
+                }
+                dominantFrequency = bestFundamentalFreq;
+                bpm = dominantFrequency * 60;
+            }
+
+
+            drawFFTSpectrum(spectrum, fftSize, freqResolution, harmonicFrequencies);
+
+            if (dominantFrequency > 0 && bpm >= MIN_BPM && bpm <= MAX_BPM) {
+                heartRateDisplay.textContent = Math.round(bpm);
+                statusMessage.textContent = isPlayingFromFile ? `Відтворення... Пульс: ${Math.round(bpm)} уд/хв` : 'Моніторинг...';
+            } else {
+                heartRateDisplay.textContent = '--';
+                statusMessage.textContent = isPlayingFromFile ? 'Відтворення... Пульс не визначено' : 'Чіткого пульсу не виявлено. Відрегулюйте палець/освітлення.';
+            }
+        }
+
+        // --- Graphics ---
+
+        function drawSignalGraph() {
+            wetSignalCanvas.width = wetSignalCanvas.offsetWidth;
+            wetSignalCanvas.height = wetSignalCanvas.offsetHeight;
+
+            wetSignalContext.clearRect(0, 0, wetSignalCanvas.width, wetSignalCanvas.height);
+
+            if (signalBuffer.length < 2) return;
+
+            // Normalize and draw raw signal
+            const rawMin = Math.min(...signalBuffer);
+            const rawMax = Math.max(...signalBuffer);///////
+            const rawRange = rawMax - rawMin;
+
+            if (rawRange > 0) {
+                wetSignalContext.beginPath();
+                wetSignalContext.strokeStyle = '#6366f1'; // Purple for raw signal
+                wetSignalContext.lineWidth = 1;
+
+                for (let i = 0; i < signalBuffer.length; i++) {
+                    const x = (i / (signalBuffer.length - 1)) * wetSignalCanvas.width;
+                    const y = (wetSignalCanvas.height*0.5 - ((signalBuffer[i] - rawMin) / rawRange) * wetSignalCanvas.height*0.5); ////////
+
+                    if (i === 0) {
+                        wetSignalContext.moveTo(x, y);
+                    } else {
+                        wetSignalContext.lineTo(x, y);
+                    }
+                }
+                wetSignalContext.stroke();
+            }
+
+            // Draw filtered signal if available
+            if (filteredSignalBuffer.length >= 2) {
+                const smoothedFiltered = smoothSignal(filteredSignalBuffer, 3); // Smooth filtered data for display
+                const filteredMin = Math.min(...smoothedFiltered);
+                const filteredMax = Math.max(...smoothedFiltered);
+                const filteredRange = filteredMax - filteredMin;
+
+                if (filteredRange > 0) {
+                    wetSignalContext.beginPath();
+                    wetSignalContext.strokeStyle = '#38a169'; // Green for filtered signal
+                    wetSignalContext.lineWidth = 2;
+
+                    for (let i = 0; i < smoothedFiltered.length; i++) {
+                        const x = (i / (smoothedFiltered.length - 1)) * wetSignalCanvas.width;
+                        // Invert Y axis for better visualization (higher value = higher on graph)
+                        const y = (wetSignalCanvas.height - ((smoothedFiltered[i] - filteredMin) / filteredRange) * wetSignalCanvas.height*0.5); /////
+
+                        if (i === 0) {
+                            wetSignalContext.moveTo(x, y);
+                        } else {
+                            wetSignalContext.lineTo(x, y);
+                        }
+                    }
+                    wetSignalContext.stroke();
+                }
+            }
+             // Add labels for raw and filtered signals
+            wetSignalContext.fillStyle = '#2d3748';
+            wetSignalContext.font = '12px Inter';
+            wetSignalContext.textAlign = 'left';
+            wetSignalContext.fillText('Сирий сигнал', 5, 15);
+            wetSignalContext.fillText('Відфільтрований сигнал', 5, 30);
+            wetSignalContext.fillStyle = '#6366f1';
+            wetSignalContext.fillRect(90, 8, 10, 5); // Color indicator for raw
+            wetSignalContext.fillStyle = '#38a169';
+            wetSignalContext.fillRect(150, 23, 10, 5); // Color indicator for filtered
+        }
+
+        // Function to calculate Butterworth filter magnitude response
+        // n: order of the filter
+        // fc: cutoff frequency
+        // f: frequency at which to calculate response
+        // type: 'HPF' or 'LPF'
+        function getButterworthMagnitudeResponse(n, fc, f, type) {
+            if (fc === 0 || n === 0) return 1; // No filter or cutoff at zero
+
+            // Normalize frequency relative to cutoff
+            const omega = f / fc;
+
+            if (type === 'LPF') {
+                return 1 / Math.sqrt(1 + Math.pow(omega, 2 * n));
+            } else if (type === 'HPF') {
+                // For HPF, calculate magnitude response correctly
+                return Math.pow(omega, n) / Math.sqrt(1 + Math.pow(omega, 2 * n));
+            }
+            return 1; // Should not happen
+        }
+
+
+        function drawFFTSpectrum(spectrum, fftSize, freqResolution, harmonicFrequencies = []) {
+            fftSpectrumCanvas.width = fftSpectrumCanvas.offsetWidth;
+            fftSpectrumCanvas.height = fftSpectrumCanvas.offsetHeight;
+            fftSpectrumContext.clearRect(0, 0, fftSpectrumCanvas.width, fftSpectrumCanvas.height);
+
+            if (spectrum.length === 0) {
+                 filterInfoDisplay.textContent = ''; // Clear filter info if no spectrum
+                return;
+            }
+
+            const halfSpectrumSize = fftSize / 2;
+            let maxMagnitude = 0;
+            // Find max magnitude for scaling
+            for (let i = 0; i < halfSpectrumSize; i++) {
+                const freq = i * freqResolution;
+                if (freq >= 0.01 && freq <= SAMPLE_RATE / 2) {
+                    maxMagnitude = Math.max(maxMagnitude, spectrum[i].magnitude());
+                }
+            }
+
+            if (maxMagnitude === 0) maxMagnitude = 1;
+
+            const minDisplayFreq = 0.05; // Smallest frequency to display on log scale
+            const maxDisplayFreq = SAMPLE_RATE / 2; // Nyquist frequency (30 Hz for 60 FPS)
+
+            const logMin = Math.log10(minDisplayFreq);
+            const logMax = Math.log10(maxDisplayFreq);
+            const logRange = logMax - logMin;
+
+            // Draw spectrum
+            fftSpectrumContext.beginPath();
+            fftSpectrumContext.strokeStyle = '#2b6cb0'; // Blue for spectrum line
+            fftSpectrumContext.lineWidth = 2;
+
+            for (let i = 0; i < halfSpectrumSize; i++) {
+                const freq = i * freqResolution;
+                if (freq < minDisplayFreq) continue;
+
+                const logFreq = Math.log10(freq);
+                const x = ((logFreq - logMin) / logRange) * fftSpectrumCanvas.width;
+                const y = fftSpectrumCanvas.height - (spectrum[i].magnitude() / maxMagnitude) * fftSpectrumCanvas.height;
+
+                if (i === 0 || freq < minDisplayFreq) {
+                    fftSpectrumContext.moveTo(x, y);
+                } else {
+                    fftSpectrumContext.lineTo(x, y);
+                }
+            }
+            fftSpectrumContext.stroke();
+
+
+            // Draw total filter frequency response
+            const numPoints = 200;
+            fftSpectrumContext.lineWidth = 2;
+            fftSpectrumContext.strokeStyle = '#8b5cf6'; // Violet for combined response
+
+            fftSpectrumContext.beginPath();
+            let hasMoved = false;
+
+            for (let j = 0; j < numPoints; j++) {
+                const freq = minDisplayFreq + (j / (numPoints - 1)) * (maxDisplayFreq - minDisplayFreq);
+                if (freq === 0) continue;
+
+                let hpfResponse = 1;
+                if (currentHpfOrder > 0) {
+                    hpfResponse = getButterworthMagnitudeResponse(currentHpfOrder, currentHpfCutoff, freq, 'HPF');
+                }
+
+                let lpfResponse = 1;
+                if (currentLpfOrder > 0) {
+                    lpfResponse = getButterworthMagnitudeResponse(currentLpfOrder, currentLpfCutoff, freq, 'LPF');
+                }
+
+                const totalResponse = hpfResponse * lpfResponse; // Combined response
+
+                const logFreq = Math.log10(freq);
+                const x = ((logFreq - logMin) / logRange) * fftSpectrumCanvas.width;
+                const y = fftSpectrumCanvas.height - totalResponse * fftSpectrumCanvas.height; // Scale to canvas height
+
+                if (!hasMoved) {
+                    fftSpectrumContext.moveTo(x, y);
+                    hasMoved = true;
+                } else {
+                    fftSpectrumContext.lineTo(x, y);
+                }
+            }
+            if (hasMoved) {
+                fftSpectrumContext.stroke();
+            }
+
+            // Update filter info display
+            let filterLabel = "Поточні фільтри: ";
+            if (currentHpfOrder > 0) {
+                filterLabel += `ВЧФ ${currentHpfCutoff}Гц (Порядок ${currentHpfOrder})`;
+            }
+            if (currentLpfOrder > 0) {
+                if (currentHpfOrder > 0) filterLabel += ", ";
+                filterLabel += `НЧФ ${currentLpfCutoff}Гц (Порядок ${currentLpfOrder})`;
+            }
+            if (currentHpfOrder === 0 && currentLpfOrder === 0) {
+                filterLabel += "Немає";
+            }
+            filterInfoDisplay.textContent = filterLabel;
+
+
+            // Draw frequency labels (log scale)
+            fftSpectrumContext.fillStyle = '#4a5568';
+            fftSpectrumContext.font = '10px Inter';
+            fftSpectrumContext.textAlign = 'center';
+
+            const logLabels = [0.1, 0.25, 0.5, 1, 2, 5, 10, 20]; // Example labels
+            logLabels.forEach(f => {
+                if (f >= minDisplayFreq && f <= maxDisplayFreq) {
+                    const logF = Math.log10(f);
+                    const x = ((logF - logMin) / logRange) * fftSpectrumCanvas.width;
+                    fftSpectrumContext.fillText(`${f}Гц`, x, fftSpectrumCanvas.height - 5);
+                }
+            });
+
+            // Draw dominant frequency line (and harmonics if applicable)
+            if (dominantFrequency > 0 && dominantFrequency >= minDisplayFreq) {
+                if (currentHrMethod === 'fft') {
+                    const logDominantFreq = Math.log10(dominantFrequency);
+                    const dominantX = ((logDominantFreq - logMin) / logRange) * fftSpectrumCanvas.width;
+
+                    fftSpectrumContext.beginPath();
+                    fftSpectrumContext.strokeStyle = '#e53e3e'; // Red color
+                    fftSpectrumContext.lineWidth = 2;
+                    fftSpectrumContext.moveTo(dominantX, 0);
+                    fftSpectrumContext.lineTo(dominantX, fftSpectrumCanvas.height);
+                    fftSpectrumContext.stroke();
+
+                    fftSpectrumContext.fillStyle = '#e53e3e';
+                    fftSpectrumContext.font = '12px Inter';
+                    fftSpectrumContext.textAlign = 'left';
+                    fftSpectrumContext.fillText(`${dominantFrequency.toFixed(2)}Гц`, dominantX + 5, 15);
+                } else if (currentHrMethod === 'harmonic' && harmonicFrequencies.length > 0) {
+                    fftSpectrumContext.strokeStyle = '#e53e3e'; // Red for harmonics
+                    fftSpectrumContext.lineWidth = 1.5;
+                    fftSpectrumContext.font = '10px Inter';
+                    fftSpectrumContext.textAlign = 'center';
+
+                    harmonicFrequencies.forEach((harmonic) => { // harmonic is an object {freq, magnitude}
+                        if (harmonic.freq >= minDisplayFreq) {
+                            const logF = Math.log10(harmonic.freq);
+                            const x = ((logF - logMin) / logRange) * fftSpectrumCanvas.width;
+                            // Scale height by its magnitude relative to maxMagnitude
+                            const barHeight = (harmonic.magnitude / maxMagnitude) * fftSpectrumCanvas.height;
+
+                            fftSpectrumContext.beginPath();
+                            fftSpectrumContext.moveTo(x, fftSpectrumCanvas.height);
+                            fftSpectrumContext.lineTo(x, fftSpectrumCanvas.height - barHeight);
+                            fftSpectrumContext.stroke();
+                        }
+                    });
+                     // Label for the fundamental frequency of the harmonic analysis
+                    if (dominantFrequency > 0 && dominantFrequency >= minDisplayFreq) {
+                        const logDominantFreq = Math.log10(dominantFrequency);
+                        const dominantX = ((logDominantFreq - logMin) / logRange) * fftSpectrumCanvas.width;
+                        fftSpectrumContext.fillStyle = '#e53e3e';
+                        fftSpectrumContext.font = '12px Inter';
+                        fftSpectrumContext.textAlign = 'left';
+                        fftSpectrumContext.fillText(`Основа: ${dominantFrequency.toFixed(2)}Гц`, dominantX + 5, 15);
+                    }
+                }
+            }
+        }
+
+
+        // --- Webcam and Main Loop ---
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment', // Prefer rear camera for flash if available
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                webcamFeed.srcObject = stream;
+                webcamFeed.onloadedmetadata = () => {
+                    webcamFeed.play().then(() => {
+                        setTimeout(() => {
+                            webcamFeed.classList.add('visible');
+                        }, 100);
+                    }).catch(playError => {
+                        console.error('Error playing video:', playError);
+                        statusMessage.textContent = 'Помилка відтворення відео. Перевірте налаштування браузера.';
+                        statusMessage.classList.remove('hidden');
+                    });
+
+                    noCameraMessage.classList.add('hidden');
+                    startButton.disabled = false;
+                    statusMessage.textContent = 'Камера готова. Покладіть палець і натисніть "Почати".';
+                    statusMessage.classList.remove('hidden');
+                };
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                noCameraMessage.textContent = 'Не вдалося отримати доступ до веб-камери. Перевірте дозволи та переконайтеся, що жодна інша програма її не використовує.';
+                noCameraMessage.style.color = 'red';
+                noCameraMessage.classList.remove('hidden');
+                startButton.disabled = true;
+                statusMessage.classList.add('hidden');
+            }
+        }
+
+        function processFrame() {
+            // Check if any monitoring/playback is active
+            if (!isMonitoring && !isPlayingFromFile) {
+                animationFrameId = null; // Ensure animation loop stops
+                return;
+            }
+
+            let avgBrightness;
+
+            if (isPlayingFromFile) {
+                // If end of file data is reached, stop playback
+                if (fileSignalIndex >= fileSignalData.length) {
+                    stopPlayback(); // This will clean up and update UI
+                    statusMessage.textContent = 'Відтворення з файлу завершено.';
+                    return; // Stop processing frames
+                }
+                avgBrightness = fileSignalData[fileSignalIndex];
+                fileSignalIndex++;
+            } else { // Monitoring from webcam
+                // Ensure webcam is active and not paused/ended
+                if (!webcamFeed.srcObject || webcamFeed.paused || webcamFeed.ended) {
+                    console.warn('Webcam stream is not active. Stopping processFrame.');
+                    stopAllMonitoring(); // Stop monitoring if stream is unexpectedly gone
+                    return;
+                }
+
+                // Adjust hidden canvas size to video dimensions if needed
+                if (hiddenCanvas.width !== webcamFeed.videoWidth || hiddenCanvas.height !== webcamFeed.videoHeight) {
+                    hiddenCanvas.width = webcamFeed.videoWidth;
+                    hiddenCanvas.height = webcamFeed.videoHeight; // Corrected: use webcamFeed.videoHeight
+                }
+
+                // Draw current video frame to hidden canvas
+                hiddenContext.drawImage(webcamFeed, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+
+                // Define ROI (Region of Interest)
+                const roiX = (hiddenCanvas.width - ROI_SIZE) / 2;
+                const roiY = (hiddenCanvas.height - ROI_SIZE) / 2;
+                const imageData = hiddenContext.getImageData(roiX, roiY, ROI_SIZE, ROI_SIZE);
+
+                avgBrightness = getBrightnessFromROI(imageData, redGreenFilterEnabled);
+            }
+
+            // Add new data point and maintain buffer size (sliding window)
+            signalBuffer.push(avgBrightness);
+            if (signalBuffer.length > BUFFER_SIZE) {
+                signalBuffer.shift(); // Remove oldest data point
+            }
+
+            // Always add to the full session signal if monitoring live
+            if (isMonitoring) {
+                fullSessionSignal.push(avgBrightness);
+            }
+
+            // --- Real-time filtering for display ---
+            let currentFilteredData = [...signalBuffer];
+
+            // Apply HPF or detrend first for display signal
+            if (currentHpfOrder > 0) {
+                currentFilteredData = applyCascadedFilter(currentFilteredData, currentHpfOrder, currentHpfCutoff, SAMPLE_RATE, 'HPF');
+            } else {
+                // If no HPF, still detrend to remove DC component for display
+                // Use a smaller window for detrending for display fluidity, e.g., 1 second
+                currentFilteredData = detrend(currentFilteredData, SAMPLE_RATE);
+            }
+
+            // Apply LPF if enabled for display signal
+            if (currentLpfOrder > 0) {
+                currentFilteredData = applyCascadedFilter(currentFilteredData, currentLpfOrder, currentLpfCutoff, SAMPLE_RATE, 'LPF');
+            }
+
+            // Update the filtered signal buffer for display
+            filteredSignalBuffer = currentFilteredData;
+
+            drawSignalGraph(); // Draw both raw and filtered signals
+
+            frameCount++;
+            // Calculate HR and update FFT only when buffer is full AND at the defined interval
+            if (signalBuffer.length >= BUFFER_SIZE && frameCount % FFT_UPDATE_INTERVAL_FRAMES === 0) {
+                calculateHeartRate();
+            } else if (signalBuffer.length < BUFFER_SIZE) {
+                // If buffer is not yet full, update status and clear HR display
+                heartRateDisplay.textContent = '--';
+                heartRateDisplay.classList.add('calculating');
+                const sourceStatus = isPlayingFromFile ? `Відтворення...` : `Камера.`;
+                statusMessage.textContent = `${sourceStatus} Збір даних... (${signalBuffer.length}/${BUFFER_SIZE})`;
+            }
+
+
+            animationFrameId = requestAnimationFrame(processFrame);
+        }
+
+        // Renamed and refactored stop functions for clarity
+        function stopAllMonitoring() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            isMonitoring = false;
+            isPlayingFromFile = false;
+            startButton.textContent = 'Почати моніторинг';
+            startButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+            startButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            heartRateDisplay.classList.remove('calculating');
+            heartRateDisplay.textContent = '--'; // Clear display on stop
+            // DO NOT CLEAR signalBuffer here, so it can be saved after stopping.
+            // signalBuffer = [];
+            filteredSignalBuffer = []; // Clear filtered for display
+            frameCount = 0;
+            dominantFrequency = 0;
+            // Ensure UI elements are in correct state after stopping everything
+            playSignalButton.textContent = 'Програти з файлу';
+            if (fileSignalData.length > 0) {
+                playSignalButton.disabled = false;
+            } else {
+                playSignalButton.disabled = true;
+            }
+            startButton.disabled = false;
+            webcamFeed.classList.remove('visible');
+            webcamFeed.style.display = 'block'; // Keep it block, just hide visibility
+            statusMessage.textContent = 'Моніторинг/Відтворення зупинено.';
+            drawSignalGraph(); // Redraw with current (potentially incomplete) buffer
+            drawFFTSpectrum([],0,0); // Clear FFT graph
+        }
+
+        function startMonitoring() {
+            if (isMonitoring) return; // Already monitoring
+
+            stopAllMonitoring(); // Stop any ongoing process first
+            isMonitoring = true;
+            startButton.textContent = 'Зупинити моніторинг';
+            startButton.classList.add('bg-red-500', 'hover:bg-red-600');
+            startButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+
+            statusMessage.textContent = 'Покладіть палець на камеру. Збір даних...';
+            statusMessage.classList.remove('hidden');
+            
+            // Ensure webcam feed is visible when monitoring
+            webcamFeed.style.display = 'block'; 
+            webcamFeed.classList.add('visible');
+
+            // Reset buffers and frameCount for new session
+            signalBuffer = []; // CLEAR buffer for current window when starting new recording
+            fullSessionSignal = []; // IMPORTANT: CLEAR full session buffer for new recording
+            filteredSignalBuffer = [];
+            frameCount = 0;
+            dominantFrequency = 0;
+            
+            // Start the animation loop if not already running
+            if (!animationFrameId) {
+                animationFrameId = requestAnimationFrame(processFrame);
+            }
+        }
+
+        function stopPlayback() {
+             isPlayingFromFile = false;
+             if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            fileSignalIndex = 0; // Reset index for next playback
+            playSignalButton.textContent = 'Програти з файлу';
+            playSignalButton.disabled = false; // Re-enable play button
+            startButton.disabled = false; // Re-enable start camera button
+
+            // Ensure status is updated and graphs cleared/reset
+            heartRateDisplay.textContent = '--';
+            heartRateDisplay.classList.remove('calculating');
+            statusMessage.textContent = 'Відтворення з файлу зупинено/завершено.';
+            drawSignalGraph(); // Redraw with current (potentially incomplete) buffer
+            drawFFTSpectrum([],0,0); // Clear FFT graph
+            
+            webcamFeed.style.display = 'block'; // Show webcam feed back
+            webcamFeed.classList.add('visible'); // Make visible again if needed
+
+            // When playback stops, the current signalBuffer contains the last window of playback.
+            // If the user wants to save the *entire* played signal, we'd need to accumulate it
+            // separately during playback, similar to fullSessionSignal.
+            // For now, `saveSignalToFile` will save `fullSessionSignal` if monitoring,
+            // or `signalBuffer` if not monitoring (which would be the last window of playback).
+            // To save the *entire* loaded file playback, you'd need a `fullPlaybackSignal` array.
+            // Let's assume for this request that if they stop playback, they either save the last window
+            // or restart live monitoring.
+        }
+
+
+        // --- File Operations ---
+        function saveSignalToFile() {
+            // ALWAYS save fullSessionSignal if available and not empty, otherwise current window buffer
+            const dataToSave = fullSessionSignal.length > 0 ? fullSessionSignal : signalBuffer;
+            
+            if (dataToSave.length === 0) {
+                alert('Немає даних для збереження. Почніть моніторинг або завантажте файл.');
+                return;
+            }
+            const csvContent = "data:text/csv;charset=utf-8,"
+                             + dataToSave.map(value => value.toFixed(4)).join("\n"); // Format to 4 decimal places
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "pulse_signal.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            statusMessage.textContent = 'Сигнал збережено в pulse_signal.csv';
+            statusMessage.classList.remove('hidden');
+        }
+
+        function loadSignalFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                try {
+                    fileSignalData = text.split('\n')
+                                         .map(line => parseFloat(line.trim()))
+                                         .filter(value => !isNaN(value)); // Filter out invalid numbers
+                    if (fileSignalData.length > 0) {
+                        statusMessage.textContent = `Завантажено ${fileSignalData.length} точок даних.`;
+                        statusMessage.classList.remove('hidden');
+                        playSignalButton.disabled = false; // Enable play button
+                        startButton.disabled = false; // Also enable start button, as data is available for processing
+                    } else {
+                        statusMessage.textContent = 'Помилка: Файл порожній або не містить числових даних.';
+                        statusMessage.classList.remove('hidden');
+                        playSignalButton.disabled = true;
+                    }
+                } catch (error) {
+                    statusMessage.textContent = 'Помилка читання файлу CSV.';
+                    statusMessage.classList.remove('hidden');
+                    console.error('Error parsing CSV:', error);
+                    playSignalButton.disabled = true;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function playSignalFromFile() {
+            if (fileSignalData.length === 0) {
+                alert('Немає завантажених даних для відтворення. Будь ласка, спочатку завантажте файл.');
+                return;
+            }
+
+            if (isPlayingFromFile) { // If currently playing, pause it
+                stopPlayback(); // Use the dedicated stopPlayback function
+            } else { // Start playing
+                stopAllMonitoring(); // Ensure everything else is stopped
+                isPlayingFromFile = true;
+                fileSignalIndex = 0; // Reset index to start from beginning
+                
+                // When playing from file, initialize signalBuffer with the start of fileSignalData
+                // This ensures the current window for analysis is correctly filled from the file.
+                signalBuffer = fileSignalData.slice(0, BUFFER_SIZE); 
+                filteredSignalBuffer = []; // Reset filtered buffer for fresh calculation
+                frameCount = 0;
+                dominantFrequency = 0;
+
+                heartRateDisplay.textContent = '--';
+                heartRateDisplay.classList.add('calculating');
+                statusMessage.textContent = 'Відтворення сигналу з файлу...';
+                playSignalButton.textContent = 'Призупинити відтворення';
+                startButton.disabled = true; // Disable start camera button while playing file
+
+                webcamFeed.classList.remove('visible'); // Hide webcam feed
+                webcamFeed.style.display = 'none';
+
+                if (!animationFrameId) {
+                    animationFrameId = requestAnimationFrame(processFrame);
+                }
+            }
+        }
+
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', () => {
+            if (isMonitoring) {
+                stopAllMonitoring(); // Use combined stop function
+            } else {
+                startMonitoring();
+            }
+        });
+
+        redGreenFilterButton.addEventListener('click', () => {
+            redGreenFilterEnabled = !redGreenFilterEnabled;
+            if (redGreenFilterEnabled) {
+                redGreenFilterButton.textContent = 'Колірний фільтр (Увімк.)';
+                redGreenFilterButton.classList.add('active-filter');
+            } else {
+                redGreenFilterButton.textContent = 'Колірний фільтр (Вимк.)';
+                redGreenFilterButton.classList.remove('active-filter');
+            }
+            // When filter changes, reset buffer and re-collect data
+            if (isMonitoring || isPlayingFromFile) {
+                resetMonitoringForFilterChange();
+            }
+        });
+
+        timeWindowSlider.addEventListener('input', (event) => {
+            BUFFER_SECONDS = parseInt(event.target.value);
+            timeWindowValueSpan.textContent = BUFFER_SECONDS;
+            BUFFER_SIZE = SAMPLE_RATE * BUFFER_SECONDS;
+
+            // When time window changes, reset buffer and re-collect data
+            if (isMonitoring) { // Only reset signalBuffer for live monitoring
+                signalBuffer = [];
+                filteredSignalBuffer = [];
+                frameCount = 0;
+                heartRateDisplay.textContent = '--';
+                heartRateDisplay.classList.add('calculating');
+                statusMessage.textContent = `Часове вікно змінено на ${BUFFER_SECONDS}с. Збір нових даних...`;
+                dominantFrequency = 0;
+                // Re-evaluate HR immediately if buffer is full enough after resize
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); }
+            } else if (isPlayingFromFile) {
+                // If playing from file, just adjust BUFFER_SIZE but don't reset signalBuffer if it holds file data
+                // The next frame will automatically adjust the buffer length as needed.
+                statusMessage.textContent = `Часове вікно змінено на ${BUFFER_SECONDS}с.`;
+            }
+        });
+
+        // Add event listeners for filter controls
+        hpfOrderRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentHpfOrder = parseInt(e.target.value);
+                if (isMonitoring || isPlayingFromFile) { resetMonitoringForFilterChange(); }
+                // Redraw FFT to show new filter response immediately if enough data
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); } else { drawFFTSpectrum([],0,0); }
+            });
+        });
+        hpfCutoffRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentHpfCutoff = parseFloat(e.target.value);
+                if (isMonitoring || isPlayingFromFile) { resetMonitoringForFilterChange(); }
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); } else { drawFFTSpectrum([],0,0); }
+            });
+        });
+        lpfOrderRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentLpfOrder = parseInt(e.target.value);
+                if (isMonitoring || isPlayingFromFile) { resetMonitoringForFilterChange(); }
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); } else { drawFFTSpectrum([],0,0); }
+            });
+        });
+        lpfCutoffRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentLpfCutoff = parseFloat(e.target.value);
+                if (isMonitoring || isPlayingFromFile) { resetMonitoringForFilterChange(); }
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); } else { drawFFTSpectrum([],0,0); }
+            });
+        });
+
+        hrMethodRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentHrMethod = e.target.value;
+                if (isMonitoring || isPlayingFromFile) { resetMonitoringForFilterChange(); } // Re-calculate with new method
+                if (signalBuffer.length >= BUFFER_SIZE) { calculateHeartRate(); } else { drawFFTSpectrum([],0,0); }
+            });
+        });
+
+        function resetMonitoringForFilterChange() {
+            // This function is for when filter parameters change, forcing a re-collection for accurate filtering
+            signalBuffer = []; // Clear buffer to re-fill with new filter applied data
+            filteredSignalBuffer = [];
+            frameCount = 0;
+            heartRateDisplay.textContent = '--';
+            heartRateDisplay.classList.add('calculating');
+            const sourceStatus = isPlayingFromFile ? `Відтворення...` : `Камера.`;
+            statusMessage.textContent = `Параметри фільтра змінено. ${sourceStatus} Збір нових даних...`;
+            dominantFrequency = 0;
+            // If playing from file, we need to restart playback to apply new filters from the beginning of the file data
+            if (isPlayingFromFile) {
+                // To re-apply filters from start of file, we need to restart the file playback.
+                // This will re-initialize signalBuffer from fileSignalData
+                playSignalFromFile();
+            }
+        }
+
+        // File related event listeners
+        saveSignalButton.addEventListener('click', saveSignalToFile);
+        loadSignalButton.addEventListener('click', () => loadSignalInput.click()); // Trigger hidden input click
+        loadSignalInput.addEventListener('change', loadSignalFromFile);
+        playSignalButton.addEventListener('click', playSignalFromFile);
+
+
+        // Initialize camera on page load
+        window.addEventListener('load', setupCamera);
+
+        // Resize graph canvases on window resize
+        window.addEventListener('resize', () => {
+            drawSignalGraph(); // Redraw signal graph with current data
+            // Re-draw FFT spectrum with current data, if available
+            if (signalBuffer.length >= BUFFER_SIZE) {
+                let data = [...signalBuffer];
+                // Re-apply filters for display based on current settings
+                if (currentHpfOrder > 0) {
+                    data = applyCascadedFilter(data, currentHpfOrder, currentHpfCutoff, SAMPLE_RATE, 'HPF');
+                } else {
+                    data = detrend(data, SAMPLE_RATE * 2);
+                }
+                if (currentLpfOrder > 0) {
+                    data = applyCascadedFilter(data, currentLpfOrder, currentLpfCutoff, SAMPLE_RATE, 'LPF');
+                }
+                // Apply Hanning window for FFT calculation only
+                for (let i = 0; i < data.length; i++) {
+                    data[i] *= 0.5 * (1 - Math.cos(2 * Math.PI * i / (data.length - 1)));
+                }
+                const spectrum = fft(data);
+                const fftSize = spectrum.length;
+                const freqResolution = SAMPLE_RATE / fftSize;
+                
+                let harmonicFrequencies = [];
+                if (currentHrMethod === 'harmonic' && dominantFrequency > 0) {
+                     // Recalculate harmonics' magnitudes from current spectrum
+                     for (let h = 1; h <= 5; h++) {
+                        const harmonicFreq = dominantFrequency * h;
+                        if (harmonicFreq > SAMPLE_RATE / 2) break;
+                        const harmonicIndex = Math.round(harmonicFreq / freqResolution);
+                        if (harmonicIndex >= 0 && harmonicIndex < spectrum.length) {
+                            harmonicFrequencies.push({freq: harmonicFreq, magnitude: spectrum[harmonicIndex].magnitude()});
+                        }
+                    }
+                }
+                drawFFTSpectrum(spectrum, fftSize, freqResolution, harmonicFrequencies);
+            } else {
+                // Clear the FFT canvas if not enough data
+                fftSpectrumContext.clearRect(0, 0, fftSpectrumCanvas.width, fftSpectrumCanvas.height);
+            }
+        });
+    </script>
+</body>
+</html>

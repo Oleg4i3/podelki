@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Plasma Mantle - Incompressible Fluid</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', sans-serif; }
+        #info {
+            position: absolute; top: 10px; width: 100%; text-align: center;
+            color: white; pointer-events: none; text-shadow: 1px 1px 2px black;
+            font-size: 14px; opacity: 0.9; z-index: 10;
+        }
+        #stats-panel {
+            position: absolute; bottom: 10px; left: 10px;
+            color: #0f0; background: rgba(0, 20, 0, 0.8);
+            padding: 10px; border: 1px solid #0f0;
+            font-size: 12px; pointer-events: none;
+            width: 320px;
+        }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .val { font-weight: bold; color: #fff; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="info">
+        <b>Плазменная Мантия: Incompressible Fluid</b><br>
+        Модель несжимаемой жидкости. Вращение создает ячейки конвекции.<br>
+        Включите "Show Trail", чтобы увидеть пути миграции.
+    </div>
+
+    <div id="stats-panel">
+        <div style="text-align:center; margin-bottom:5px; color:#aaa">--- СТАТИСТИКА (Скользящее среднее) ---</div>
+        
+        <div style="color:#ffaa00; margin-top:5px">ЭКВАТОР (< 20° широты):</div>
+        <div class="stat-row"><span>Угл. скорость (ω):</span> <span id="eq-omega" class="val">0.0</span></div>
+        <div class="stat-row"><span>Поток ВВЕРХ (%):</span> <span id="eq-up" class="val">0</span></div>
+        <div class="stat-row"><span>Поток ВНИЗ (%):</span> <span id="eq-down" class="val">0</span></div>
+
+        <div style="color:#00aaff; margin-top:5px">ПОЛЮСА (> 60° широты):</div>
+        <div class="stat-row"><span>Угл. скорость (ω):</span> <span id="po-omega" class="val">0.0</span></div>
+        <div class="stat-row"><span>Поток ВВЕРХ (%):</span> <span id="po-up" class="val">0</span></div>
+        <div class="stat-row"><span>Поток ВНИЗ (%):</span> <span id="po-down" class="val">0</span></div>
+    </div>
+
+<script>
+// --- КОНФИГУРАЦИЯ ---
+const params = {
+    particleCount: 6000,
+    rotationSpeed: 6.0,       // Увеличили для эффекта
+    tempGradient: 5.0,        
+    viscosity: 0.92,          // Более высокая вязкость для жидкости
+    gravity: 0.5,             
+    buoyancy: 2.0,            
+    pressure: 2.5,            // Жесткость жидкости (Stiffness)
+    restDensity: 0.0,         // Будет вычислено автоматически
+    gridRes: 24,              // Чуть выше разрешение
+    coolingRate: 0.005,       
+    timeScale: 1.0,           
+    rotatingFrame: false,     
+    showTrail: false,         
+    coreRadius: 12,
+    mantleRadius: 40
+};
+
+let scene, camera, renderer, controls;
+let particlesMesh;
+let dummy = new THREE.Object3D();
+let color = new THREE.Color();
+
+// Данные частиц
+let positions, velocities, temperatures;
+let count = params.particleCount;
+
+// Сетка плотности
+let densityGrid; 
+let pressureGrid; // Новая сетка для хранения скалярного давления
+let gridSize, cellSize;
+
+// Трек
+let trailLine;
+let trailPositions = [];
+let trackedParticleIndex = 0;
+
+// Статистика
+const stats = {
+    eqOmega: 0, poOmega: 0,
+    eqUp: 0, eqDown: 0,
+    poUp: 0, poDown: 0,
+    samples: 0
+};
+
+// Сцена
+let coreMesh, mantleMesh, cameraContainer;
+
+function init() {
+    scene = new THREE.Scene();
+    
+    cameraContainer = new THREE.Object3D();
+    scene.add(cameraContainer);
+    
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 100);
+    cameraContainer.add(camera);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Освещение
+    scene.add(new THREE.AmbientLight(0x202020));
+    const pl = new THREE.PointLight(0xffaa00, 1.5, 300);
+    scene.add(pl);
+    const bl = new THREE.PointLight(0x0044ff, 0.5, 300); // Синяя подсветка снаружи
+    bl.position.set(50,50,50);
+    scene.add(bl);
+
+    // Геометрия
+    const coreGeo = new THREE.SphereGeometry(params.coreRadius, 32, 32);
+    const coreMat = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0x551100, roughness: 0.4 });
+    coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    scene.add(coreMesh);
+
+    const mantleGeo = new THREE.SphereGeometry(params.mantleRadius, 40, 40);
+    const mantleMat = new THREE.MeshBasicMaterial({ color: 0x4444ff, wireframe: true, opacity: 0.08, transparent: true });
+    mantleMesh = new THREE.Mesh(mantleGeo, mantleMat);
+    scene.add(mantleMesh);
+
+    // Линия трека
+    const trailGeo = new THREE.BufferGeometry();
+    const trailMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+    trailLine = new THREE.Line(trailGeo, trailMat);
+    scene.add(trailLine);
+
+    initParticles();
+    initGrid();
+    setupGUI();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
+    animate();
+}
+
+function initGrid() {
+    gridSize = params.gridRes;
+    const bounds = params.mantleRadius * 2.1; 
+    cellSize = bounds / gridSize;
+    // Массив плотности
+    densityGrid = new Float32Array(gridSize * gridSize * gridSize);
+    // Массив давления (скалярное поле)
+    pressureGrid = new Float32Array(gridSize * gridSize * gridSize);
+    
+    // Расчет целевой плотности (Rest Density)
+    // Объем оболочки V = 4/3*pi*(R_out^3 - R_in^3)
+    // Объем ячейки V_cell = cellSize^3
+    // Среднее число частиц на ячейку
+    const shellVol = (4/3) * Math.PI * (Math.pow(params.mantleRadius, 3) - Math.pow(params.coreRadius, 3));
+    const totalCellsInShell = shellVol / Math.pow(cellSize, 3);
+    // Устанавливаем целевую плотность чуть выше средней, чтобы создать давление
+    params.restDensity = (params.particleCount / totalCellsInShell) * 1.0; 
+}
+
+function initParticles() {
+    if (particlesMesh) scene.remove(particlesMesh);
+
+    count = Math.floor(params.particleCount);
+    positions = new Float32Array(count * 3);
+    velocities = new Float32Array(count * 3);
+    temperatures = new Float32Array(count);
+
+    const pGeo = new THREE.SphereGeometry(0.6, 6, 6);
+    const pMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+
+    particlesMesh = new THREE.InstancedMesh(pGeo, pMat, count);
+    particlesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(particlesMesh);
+
+    for (let i = 0; i < count; i++) {
+        let r, x, y, z;
+        do {
+            x = (Math.random() - 0.5) * 2 * params.mantleRadius;
+            y = (Math.random() - 0.5) * 2 * params.mantleRadius;
+            z = (Math.random() - 0.5) * 2 * params.mantleRadius;
+            r = Math.sqrt(x*x + y*y + z*z);
+        } while (r < params.coreRadius || r > params.mantleRadius);
+
+        positions[i*3] = x;
+        positions[i*3+1] = y;
+        positions[i*3+2] = z;
+        
+        // Старт без начальной скорости для уменьшения хаоса
+        velocities[i*3] = 0; 
+        velocities[i*3+1] = 0;
+        velocities[i*3+2] = 0;
+        
+        // Случайная температура
+        temperatures[i] = Math.random();
+    }
+    
+    trackedParticleIndex = Math.floor(Math.random() * count);
+    trailPositions = [];
+    
+    // Пересчитываем целевую плотность при рестарте
+    if(cellSize) {
+        const shellVol = (4/3) * Math.PI * (Math.pow(params.mantleRadius, 3) - Math.pow(params.coreRadius, 3));
+        const totalCellsInShell = shellVol / Math.pow(cellSize, 3);
+        params.restDensity = (count / totalCellsInShell) * 1.1; 
+    }
+}
+
+// --- ФИЗИКА НЕСЖИМАЕМОСТИ ---
+
+function updateGridPhysics() {
+    densityGrid.fill(0);
+    pressureGrid.fill(0);
+
+    const boundary = params.mantleRadius * 1.05; 
+    const limit = gridSize - 1;
+
+    // 1. SPLATTING: Заполняем сетку плотности
+    for (let i = 0; i < count; i++) {
+        let x = positions[i*3];
+        let y = positions[i*3+1];
+        let z = positions[i*3+2];
+
+        let gx = Math.floor((x + boundary) / cellSize);
+        let gy = Math.floor((y + boundary) / cellSize);
+        let gz = Math.floor((z + boundary) / cellSize);
+
+        if (gx >= 0 && gx <= limit && gy >= 0 && gy <= limit && gz >= 0 && gz <= limit) {
+            let idx = gx + gy * gridSize + gz * gridSize * gridSize;
+            densityGrid[idx] += 1;
+        }
+    }
+
+    // 2. ВЫЧИСЛЕНИЕ СКАЛЯРНОГО ДАВЛЕНИЯ (EOS)
+    // P = k * (rho - rho_0)
+    for (let i = 0; i < densityGrid.length; i++) {
+        let rho = densityGrid[i];
+        if (rho > params.restDensity) {
+            // Нелинейная реакция для жесткости (Tait equation style)
+            // Чем сильнее сжатие, тем экспоненциально выше сила
+            let delta = rho - params.restDensity;
+            pressureGrid[i] = params.pressure * delta; // Пропорциональное давление
+        } else {
+            pressureGrid[i] = 0;
+        }
+    }
+}
+
+function getPressureGradient(i, gradOut) {
+    const boundary = params.mantleRadius * 1.05; 
+    let x = positions[i*3];
+    let y = positions[i*3+1];
+    let z = positions[i*3+2];
+
+    let gx = Math.floor((x + boundary) / cellSize);
+    let gy = Math.floor((y + boundary) / cellSize);
+    let gz = Math.floor((z + boundary) / cellSize);
+
+    gx = Math.max(1, Math.min(gridSize - 2, gx));
+    gy = Math.max(1, Math.min(gridSize - 2, gy));
+    gz = Math.max(1, Math.min(gridSize - 2, gz));
+
+    let idx = gx + gy * gridSize + gz * gridSize * gridSize;
+
+    // Берем градиент от поля ДАВЛЕНИЯ, а не плотности
+    // Это заставляет частицы течь из зон высокого давления (сжатия) в низкое
+    let p_xp = pressureGrid[idx + 1];
+    let p_xm = pressureGrid[idx - 1];
+    let p_yp = pressureGrid[idx + gridSize];
+    let p_ym = pressureGrid[idx - gridSize];
+    let p_zp = pressureGrid[idx + gridSize * gridSize];
+    let p_zm = pressureGrid[idx - gridSize * gridSize];
+
+    gradOut.x = (p_xp - p_xm) * 0.5;
+    gradOut.y = (p_yp - p_ym) * 0.5;
+    gradOut.z = (p_zp - p_zm) * 0.5;
+}
+
+function updatePhysics() {
+    const dt = 0.15 * params.timeScale; // Чуть больше шаг для стабильности
+    const omega = params.rotationSpeed * 0.02;
+
+    updateGridPhysics();
+
+    let gradP = { x:0, y:0, z:0 };
+
+    // Сброс счетчиков статистики на этот кадр
+    let s_eq_w = 0, s_eq_c = 0, s_eq_up = 0, s_eq_down = 0;
+    let s_po_w = 0, s_po_c = 0, s_po_up = 0, s_po_down = 0;
+
+    for (let i = 0; i < count; i++) {
+        let ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+
+        let x = positions[ix];
+        let y = positions[iy];
+        let z = positions[iz];
+        let vx = velocities[ix];
+        let vy = velocities[iy];
+        let vz = velocities[iz];
+
+        let r = Math.sqrt(x*x + y*y + z*z);
+        let r_xz = Math.sqrt(x*x + z*z);
+
+        // -- ТЕМПЕРАТУРА --
+        let distNorm = (r - params.coreRadius) / (params.mantleRadius - params.coreRadius);
+        // Нагрев у ядра более интенсивный
+        if (r < params.coreRadius + 4) temperatures[i] += params.tempGradient * 0.08 * dt;
+        temperatures[i] -= params.coolingRate * dt; 
+        
+        // Охлаждение у поверхности
+        if (r > params.mantleRadius - 2) temperatures[i] -= params.coolingRate * 2 * dt;
+
+        temperatures[i] = Math.max(0, Math.min(1, temperatures[i]));
+        const T = temperatures[i];
+
+        // -- СИЛЫ --
+
+        // 1. Давление жидкости (Градаиент давления)
+        getPressureGradient(i, gradP);
+        // F_pressure = - Gradient(Pressure)
+        // Если градиент большой (рядом стена из частиц), сила отталкивания огромная
+        let fpX = -gradP.x;
+        let fpY = -gradP.y;
+        let fpZ = -gradP.z;
+
+        // 2. Гравитация + Архимед
+        // Холодное тонет, горячее всплывает
+        // F_buoyancy = Gravity * (DensityDifference) ~ Gravity * (-alpha * T)
+        let gDirX = -x/r;
+        let gDirY = -y/r;
+        let gDirZ = -z/r;
+        
+        // Базовая гравитация + Архимед (T=1 -> сила вверх, T=0 -> сила вниз)
+        let effectiveG = params.gravity;
+        let buoyancyForce = params.buoyancy * T; 
+        
+        let fgX = gDirX * effectiveG + (-gDirX) * buoyancyForce;
+        let fgY = gDirY * effectiveG + (-gDirY) * buoyancyForce;
+        let fgZ = gDirZ * effectiveG + (-gDirZ) * buoyancyForce;
+
+        // 3. Кориолис (2 * v x Omega) и Центробежная (Omega^2 * r)
+        // Вращение вокруг Y
+        let corX = -2 * omega * vz; // was -
+        let corZ =  2 * omega * vx; //was +
+        
+        let cenX = x * omega * omega;
+        let cenZ = z * omega * omega;
+
+        // Сумма сил
+        let ax = fpX + fgX + corX + cenX;
+        let ay = fpY + fgY; // Кориолис по Y = 0
+        let az = fpZ + fgZ + corZ + cenZ;
+
+        vx += ax * dt;
+        vy += ay * dt;
+        vz += az * dt;
+
+        // Вязкость (Fluid friction)
+        vx *= params.viscosity;
+        vy *= params.viscosity;
+        vz *= params.viscosity;
+
+        x += vx * dt;
+        y += vy * dt;
+        z += vz * dt;
+
+        // -- ГРАНИЦЫ (жесткие) --
+        let newR = Math.sqrt(x*x + y*y + z*z);
+        if (newR < params.coreRadius) {
+            let f = (params.coreRadius / newR) + 0.01;
+            x *= f; y *= f; z *= f;
+            // Радикальный сброс скорости при ударе об ядро (прилипание)
+            let nX = x/newR, nY = y/newR, nZ = z/newR;
+            let dot = vx*nX + vy*nY + vz*nZ;
+            vx -= 1.1 * dot * nX; vy -= 1.1 * dot * nY; vz -= 1.1 * dot * nZ;
+            temperatures[i] = 1.0; 
+        } else if (newR > params.mantleRadius) {
+            let f = (params.mantleRadius / newR) - 0.01;
+            x *= f; y *= f; z *= f;
+            let nX = x/newR, nY = y/newR, nZ = z/newR;
+            let dot = vx*nX + vy*nY + vz*nZ;
+            vx -= 1.1 * dot * nX; vy -= 1.1 * dot * nY; vz -= 1.1 * dot * nZ;
+        }
+
+        positions[ix] = x; positions[iy] = y; positions[iz] = z;
+        velocities[ix] = vx; velocities[iy] = vy; velocities[iz] = vz;
+
+        // -- СБОР СТАТИСТИКИ --
+        // Расчет угловой скорости (вокруг оси Y)
+        // v_tan = (vx*z - vz*x) / r_xz (компонента перпендикулярная радиусу)
+        // omega = v_tan / r_xz
+        if (r_xz > 1.0) {
+            let w_particle = (vx * z - vz * x) / (r_xz * r_xz); // (Cross product Y component) / r^2
+            
+            // Расчет радиальной скорости (от центра планеты)
+            let v_rad = (vx*x + vy*y + vz*z) / r;
+
+            let lat = Math.abs(Math.asin(y / r) * (180 / Math.PI));
+
+            if (lat < 40) { // Экватор
+                s_eq_w += w_particle;
+                s_eq_c++;
+                if (v_rad > 0.05) s_eq_up++;
+                if (v_rad < -0.05) s_eq_down++;
+            } else if (lat > 50) { // Полюс
+                s_po_w += w_particle;
+                s_po_c++;
+                if (v_rad > 0.05) s_po_up++;
+                if (v_rad < -0.05) s_po_down++;
+            }
+        }
+
+        // Рендер
+        dummy.position.set(x, y, z);
+        dummy.updateMatrix();
+        particlesMesh.setMatrixAt(i, dummy.matrix);
+
+        // Цвет: Синий (холодный) -> Красный (горячий) -> Белый (ядро)
+        // color.setHSL(0.66 - (T * 0.66), 1.0, 0.5 + T*0.2);
+        // Более плазменный вид
+        if (T > 0.8) color.setHex(0xffffaa);
+        else if (T > 0.5) color.setHex(0xffaa00);
+        else if (T > 0.2) color.setHex(0xaa0000);
+        else color.setHex(0x110033);
+        
+        particlesMesh.setColorAt(i, color);
+
+        if (params.showTrail && i === trackedParticleIndex) {
+            trailPositions.push(x, y, z);
+            if(trailPositions.length > 500) trailPositions.splice(0,3);
+        }
+    }
+
+    particlesMesh.instanceMatrix.needsUpdate = true;
+    if (particlesMesh.instanceColor) particlesMesh.instanceColor.needsUpdate = true;
+
+    if (params.showTrail) {
+        trailLine.visible = true;
+        trailLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(trailPositions, 3));
+    } else {
+        trailLine.visible = false;
+    }
+
+    updateStats(s_eq_w, s_eq_c, s_eq_up, s_eq_down, s_po_w, s_po_c, s_po_up, s_po_down);
+}
+
+function updateStats(eqW, eqC, eqUp, eqDown, poW, poC, poUp, poDown) {
+    // Скользящее среднее (Exponential Moving Average)
+    const factor = 0.05;
+
+    // Экватор
+    let avgEqW = eqC > 0 ? (eqW / eqC) : 0;
+    // Нормализация процентов
+    let pctEqUp = eqC > 0 ? (eqUp / eqC * 100) : 0;
+    let pctEqDown = eqC > 0 ? (eqDown / eqC * 100) : 0;
+
+    stats.eqOmega = stats.eqOmega * (1-factor) + avgEqW * factor;
+    stats.eqUp = stats.eqUp * (1-factor) + pctEqUp * factor;
+    stats.eqDown = stats.eqDown * (1-factor) + pctEqDown * factor;
+
+    // Полюс
+    let avgPoW = poC > 0 ? (poW / poC) : 0;
+    let pctPoUp = poC > 0 ? (poUp / poC * 100) : 0;
+    let pctPoDown = poC > 0 ? (poDown / poC * 100) : 0;
+
+    stats.poOmega = stats.poOmega * (1-factor) + avgPoW * factor;
+    stats.poUp = stats.poUp * (1-factor) + pctPoUp * factor;
+    stats.poDown = stats.poDown * (1-factor) + pctPoDown * factor;
+
+    // Обновление DOM
+    // Угловая скорость: умножаем на -1000 для удобства чтения (т.к. значения малы) или оставляем как есть
+    // Отрицательная скорость означает отставание от вращения системы координат (если таковая была бы)
+    document.getElementById('eq-omega').innerText = (stats.eqOmega * 100+params.rotationSpeed).toFixed(3);
+    document.getElementById('eq-up').innerText = stats.eqUp.toFixed(1) + '%';
+    document.getElementById('eq-down').innerText = stats.eqDown.toFixed(1) + '%';
+
+    document.getElementById('po-omega').innerText = (stats.poOmega * 100+params.rotationSpeed).toFixed(3);
+    document.getElementById('po-up').innerText = stats.poUp.toFixed(1) + '%';
+    document.getElementById('po-down').innerText = stats.poDown.toFixed(1) + '%';
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    updatePhysics();
+
+    if (params.rotatingFrame) {
+        cameraContainer.rotation.y -= params.rotationSpeed * 0.02 * 0.1 * params.timeScale; //was y +=
+    } else {
+        cameraContainer.rotation.y = 0;
+    }
+
+    renderer.render(scene, camera);
+}
+
+function setupGUI() {
+    const gui = new dat.GUI({ width: 300 });
+    
+    const f1 = gui.addFolder('Среда');
+    f1.add(params, 'particleCount', 2000, 10000).step(100).onFinishChange(initParticles);
+    f1.add(params, 'viscosity', 0.85, 0.99).name('Вязкость (Stability)');
+    f1.add(params, 'pressure', 0.1, 10.0).name('Несжимаемость');
+    f1.open();
+
+    const f2 = gui.addFolder('Силы');
+    f2.add(params, 'rotationSpeed', 0.0, 20.0).name('Вращение');
+    f2.add(params, 'gravity', 0.0, 2.0).name('Гравитация');
+    f2.add(params, 'buoyancy', 0.0, 5.0).name('Архимед (Конвекция)');
+    f2.open();
+
+    const f3 = gui.addFolder('Тепло');
+    f3.add(params, 'tempGradient', 1.0, 20.0);
+    f3.add(params, 'coolingRate', 0.000, 0.02);
+    f3.open();
+
+    gui.add(params, 'rotatingFrame').name('Вращ. камера');
+    gui.add(params, 'showTrail').name('Show Trail').onChange(v => {
+        if(v) { trailPositions=[]; trackedParticleIndex = Math.floor(Math.random()*count); }
+    });
+}
+
+init();
+</script>
+</body>
+</html>
