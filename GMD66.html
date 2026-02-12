@@ -633,6 +633,9 @@ function switchTab(name) {
         document.getElementById('ui-panel').style.display = 'none';
         document.getElementById('legend').style.display = 'none';
         document.getElementById('help-btn').style.display = 'none';
+		
+		// 1. ДОБАВИТЬ ЭТУ СТРОКУ НИЖЕ:
+        if (ff_renderer) ff_renderer.domElement.style.display = 'block'; // <--- ПОКАЗЫВАЕМ CANVAS
     } else {
         document.getElementById('ff-ui-panel').style.display = 'none';
         document.getElementById('legend-panel').style.display = 'none';
@@ -641,6 +644,8 @@ function switchTab(name) {
         document.getElementById('legend').style.display = 'block';
         document.getElementById('help-btn').style.display = 'block';
         document.getElementById(`controls-${name}`).style.display = 'flex';
+		// ВСТАВИТЬ СЮДА: Скрываем canvas вмороженности
+        if (ff_renderer) ff_renderer.domElement.style.display = 'none';
     }
 
     groupFrozen.visible = (name === 'frozen');
