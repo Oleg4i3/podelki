@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Путь к LUCA: Интерактивная Кладистика</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e74c3c;
+            --bg: #ecf0f1;
+            --card-bg: #ffffff;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            max-width: 600px;
+        }
+
+        /* Меню выбора */
+        #start-screen {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .start-btn {
+            background: var(--card-bg);
+            border: 2px solid var(--primary);
+            border-radius: 15px;
+            padding: 20px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-align: center;
+            width: 150px;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .start-icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        /* Основной интерфейс */
+        #game-interface {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .rank-badge {
+            background-color: var(--accent);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .comparison-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .organism-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            width: 45%;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .organism-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+        }
+
+        .organism-name {
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .organism-desc {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .vs-badge {
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .info-box {
+            background: #d5dbdb;
+            border-left: 5px solid var(--primary);
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 25px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .info-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: var(--primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        button.nav-btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-next {
+            background-color: var(--primary);
+            color: white;
+        }
+        .btn-next:hover { background-color: #34495e; }
+
+        .btn-prev {
+            background-color: #bdc3c7;
+            color: var(--text);
+        }
+        .btn-prev:hover { background-color: #a0a6ad; }
+
+        .progress-container {
+            width: 100%;
+            background-color: #bdc3c7;
+            height: 10px;
+            border-radius: 5px;
+            margin-top: 30px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--accent);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        /* Анимация появления */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 600px) {
+            .comparison-container {
+                flex-direction: column;
+            }
+            .organism-card {
+                width: 90%;
+            }
+            .vs-badge {
+                transform: rotate(90deg);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🧬 Путь к LUCA</h1>
+    <p class="subtitle">Выберите ветвь эволюции и пройдите путь от современности до начала жизни, объединяя родственные группы.</p>
+
+    <div id="start-screen">
+        <div class="start-btn" onclick="startGame('cat')">
+            <span class="start-icon">🐈</span>
+            <div>Кошачья ветвь</div>
+        </div>
+        <div class="start-btn" onclick="startGame('plant')">
+            <span class="start-icon">🌹</span>
+            <div>Растительная ветвь</div>
+        </div>
+    </div>
+
+    <div id="game-interface" class="fade-in">
+        <div class="rank-badge" id="rank-display">Уровень: Порода</div>
+
+        <div class="comparison-container">
+            <div class="organism-card">
+                <div class="organism-icon" id="left-icon">🐱</div>
+                <div class="organism-name" id="left-name">Сиамский</div>
+                <div class="organism-desc" id="left-desc">Ваш исходный организм</div>
+            </div>
+
+            <div class="vs-badge">VS</div>
+
+            <div class="organism-card">
+                <div class="organism-icon" id="right-icon">🦁</div>
+                <div class="organism-name" id="right-name">Персидский</div>
+                <div class="organism-desc" id="right-desc">Сестринская группа</div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <span class="info-title" id="group-name">Объединяем в: Вид (Felis catus)</span>
+            <span id="explanation">Здесь будет объяснение, почему они вместе.</span>
+        </div>
+
+        <div class="controls">
+            <button class="nav-btn btn-prev" onclick="prevStep()" id="prev-btn" disabled>Назад</button>
+            <button class="nav-btn btn-next" onclick="nextStep()" id="next-btn">Подняться выше ⬆️</button>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        // Данные сценариев
+        const scenarios = {
+            cat: [
+                {
+                    rank: "Порода / Разновидность",
+                    left: { name: "Сиамский кот", icon: "🐈", desc: "Короткошерстный, восточный" },
+                    right: { name: "Персидский кот", icon: "🐈‍⬛", desc: "Длинношерстный, массивный" },
+                    group: "ВИД: Кошка домашняя (Felis catus)",
+                    explanation: "Несмотря на внешние различия, они могут скрещиваться и давать плодовитое потомство. Это один вид."
+                },
+                {
+                    rank: "Вид",
+                    left: { name: "Домашняя кошка", icon: "🐈", desc: "Felis catus" },
+                    right: { name: "Камышовый кот", icon: "🐾", desc: "Felis chaus (Дикий)" },
+                    group: "РОД: Кошки (Felis)",
+                    explanation: "Это разные виды: они редко скрещиваются в природе. Но они разделяют общие черты строения и мурлыкают на вдохе и выдохе."
+                },
+                {
+                    rank: "Род",
+                    left: { name: "Род Felis", icon: "🐈", desc: "Малые кошки" },
+                    right: { name: "Тигр (Panthera)", icon: "🐅", desc: "Большие кошки (рычащие)" },
+                    group: "СЕМЕЙСТВО: Кошачьи (Felidae)",
+                    explanation: "Объединяет всех кошек. У них у всех втяжные когти (почти), округлые головы и специфические зубы."
+                },
+                {
+                    rank: "Семейство",
+                    left: { name: "Кошачьи", icon: "🐅", desc: "Облигатные хищники" },
+                    right: { name: "Псовые (Собаки/Волки)", icon: "🐕", desc: "Canidae" },
+                    group: "ОТРЯД: Хищные (Carnivora)",
+                    explanation: "И кошки, и собаки имеют общего предка-хищника (миациды). У них особые 'хищнические зубы' для разрывания мяса."
+                },
+                {
+                    rank: "Отряд",
+                    left: { name: "Хищные", icon: "🐺", desc: "Плотоядные" },
+                    right: { name: "Приматы (Люди)", icon: "🧍", desc: "Всеядные / Растительноядные" },
+                    group: "КЛАСС: Млекопитающие (Mammalia)",
+                    explanation: "Мы все кормим детей молоком, имеем шерсть (волосы) и теплокровность. Мы разошлись около 80-90 млн лет назад."
+                },
+                {
+                    rank: "Класс",
+                    left: { name: "Млекопитающие", icon: "🦇", desc: "Шерсть + Молоко" },
+                    right: { name: "Рептилии/Птицы", icon: "🦎", desc: "Чешуя / Перья" },
+                    group: "ТИП: Хордовые (Амниоты)",
+                    explanation: "У нас есть позвоночник и зародышевые оболочки (амнион), позволяющие размножаться на суше, а не в воде."
+                },
+                {
+                    rank: "Тип",
+                    left: { name: "Хордовые", icon: "🦕", desc: "Позвоночные" },
+                    right: { name: "Членистоногие", icon: "🦋", desc: "Пауки, крабы, насекомые" },
+                    group: "ЦАРСТВО: Животные (Animalia)",
+                    explanation: "Мы многоклеточные гетеротрофы (едим других). Мы разошлись, когда предок разделился на первичноротых (насекомые) и вторичноротых (мы)."
+                },
+                {
+                    rank: "Царство",
+                    left: { name: "Животные", icon: "🐋", desc: "Двигаются и едят" },
+                    right: { name: "Грибы", icon: "🍄", desc: "Всасывают питательные вещества" },
+                    group: "ГРУППА: Опистоконты",
+                    explanation: "Удивительно, но грибы — наши ближайшие родственники среди 'не-животных', ближе чем растения. Мы разделяем строение жгутика сперматозоида."
+                },
+                {
+                    rank: "Надцарство",
+                    left: { name: "Опистоконты", icon: "🍄", desc: "Грибы + Животные" },
+                    right: { name: "Растения", icon: "🌿", desc: "Фотосинтез" },
+                    group: "ДОМЕН: Эукариоты",
+                    explanation: "Все мы имеем клетки со сложным ЯДРОМ. Это отличает нас от бактерий."
+                },
+                {
+                    rank: "Домен",
+                    left: { name: "Эукариоты", icon: "🧬", desc: "Клетки с ядром" },
+                    right: { name: "Бактерии и Археи", icon: "🦠", desc: "Прокариоты" },
+                    group: "ЖИЗНЬ: Потомки L.U.C.A.",
+                    explanation: "Последний универсальный общий предок. Мы все используем ДНК, РНК и одинаковый генетический код."
+                }
+            ],
+            plant: [
+                 {
+                    rank: "Сорт",
+                    left: { name: "Роза 'Красная'", icon: "🌹", desc: "Декоративная" },
+                    right: { name: "Роза 'Кордана'", icon: "🥀", desc: "Мелкая, растет в вазонах" },
+                    group: "ВИД: Роза китайская (Rosa chinensis)",
+                    explanation: "Разные сорта, выведенные человеком, но один биологический вид."
+                },
+                {
+                    rank: "Вид",
+                    left: { name: "Роза китайская", icon: "🌹", desc: "Культурная" },
+                    right: { name: "Шиповник собачий", icon: "🌸", desc: "Дикая форма" },
+                    group: "РОД: Шиповник (Rosa)",
+                    explanation: "Все розы по сути — шиповники. Общее строение цветка и плода."
+                },
+                {
+                    rank: "Род",
+                    left: { name: "Шиповник", icon: "🌹", desc: "Колючие кустарники" },
+                    right: { name: "Земляника", icon: "🍓", desc: "Травянистые" },
+                    group: "СЕМЕЙСТВО: Розовые",
+                    explanation: "Включает яблони, сливы, вишни, малину. У всех похожий цветок с 5 лепестками."
+                },
+                {
+                    rank: "Семейство",
+                    left: { name: "Розовые", icon: "🍒", desc: "Двудольные" },
+                    right: { name: "Бобовые", icon: "🥜", desc: "Горох, акация" },
+                    group: "КЛАСС: Розиды (Эвдикоты)",
+                    explanation: "Большая группа цветковых растений. У них две семядоли при прорастании."
+                },
+                {
+                    rank: "Класс",
+                    left: { name: "Цветковые", icon: "🌻", desc: "Есть цветы и плоды" },
+                    right: { name: "Голосеменные", icon: "🌲", desc: "Ели, сосны" },
+                    group: "ОТДЕЛ: Семенные растения",
+                    explanation: "Они размножаются семенами, а не спорами. Это позволило им завоевать сушу."
+                },
+                {
+                    rank: "Отдел",
+                    left: { name: "Семенные", icon: "🌲", desc: "Семена" },
+                    right: { name: "Папоротники", icon: "🌿", desc: "Споры" },
+                    group: "ГРУППА: Сосудистые растения",
+                    explanation: "У них появились сосуды (трубопроводы) внутри стебля для перекачки воды на высоту."
+                },
+                {
+                    rank: "Надотдел",
+                    left: { name: "Сосудистые", icon: "🌿", desc: "Стебли и листья" },
+                    right: { name: "Мхи", icon: "🌱", desc: "Нет настоящих корней" },
+                    group: "ЦАРСТВО: Растения (Embryophyta)",
+                    explanation: "Высшие растения, вышедшие на сушу."
+                },
+                {
+                    rank: "Царство",
+                    left: { name: "Растения", icon: "🌳", desc: "Наземные" },
+                    right: { name: "Зеленые водоросли", icon: "🦠", desc: "Водные" },
+                    group: "ГРУППА: Архепластиды",
+                    explanation: "Их общий предок первым в истории захватил цианобактерию и превратил её в хлоропласт."
+                },
+                {
+                    rank: "Надгруппа",
+                    left: { name: "Архепластиды", icon: "🥗", desc: "Фотосинтетики" },
+                    right: { name: "Опистоконты", icon: "🦁", desc: "Животные + Грибы" },
+                    group: "ДОМЕН: Эукариоты",
+                    explanation: "Мы разошлись очень давно, но у нас одинаково устроены клетки."
+                },
+                {
+                    rank: "Домен",
+                    left: { name: "Эукариоты", icon: "🧬", desc: "Сложные клетки" },
+                    right: { name: "Бактерии", icon: "💊", desc: "Простые клетки" },
+                    group: "ЖИЗНЬ: LUCA",
+                    explanation: "Начало всего."
+                }
+            ]
+        };
+
+        let currentScenario = [];
+        let currentIndex = 0;
+
+        function startGame(type) {
+            currentScenario = scenarios[type];
+            currentIndex = 0;
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-interface').style.display = 'flex';
+            
+            updateUI();
+        }
+
+        function updateUI() {
+            const step = currentScenario[currentIndex];
+            
+            // Анимация смены контента
+            const container = document.querySelector('.comparison-container');
+            container.style.opacity = 0;
+            
+            setTimeout(() => {
+                document.getElementById('rank-display').innerText = `Текущий уровень сравнения: ${step.rank}`;
+                
+                // Левая карта
+                document.getElementById('left-name').innerText = step.left.name;
+                document.getElementById('left-icon').innerText = step.left.icon;
+                document.getElementById('left-desc').innerText = step.left.desc;
+                
+                // Правая карта
+                document.getElementById('right-name').innerText = step.right.name;
+                document.getElementById('right-icon').innerText = step.right.icon;
+                document.getElementById('right-desc').innerText = step.right.desc;
+                
+                // Инфо
+                document.getElementById('group-name').innerText = `Общий предок / Группа: ${step.group}`;
+                document.getElementById('explanation').innerText = step.explanation;
+
+                // Кнопки
+                document.getElementById('prev-btn').disabled = currentIndex === 0;
+                
+                const nextBtn = document.getElementById('next-btn');
+                if (currentIndex === currentScenario.length - 1) {
+                    nextBtn.innerText = "Финиш (LUCA)";
+                    nextBtn.disabled = true;
+                    nextBtn.style.backgroundColor = "#27ae60";
+                    confettiEffect();
+                } else {
+                    nextBtn.innerText = "Подняться выше ⬆️";
+                    nextBtn.disabled = false;
+                    nextBtn.style.backgroundColor = "";
+                }
+
+                // Прогресс бар
+                const progress = ((currentIndex + 1) / currentScenario.length) * 100;
+                document.getElementById('progress-bar').style.width = `${progress}%`;
+
+                container.style.opacity = 1;
+                container.classList.add('fade-in');
+            }, 200);
+        }
+
+        function nextStep() {
+            if (currentIndex < currentScenario.length - 1) {
+                currentIndex++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateUI();
+            }
+        }
+
+        function confettiEffect() {
+            document.getElementById('group-name').innerText = "🎉 ПОЗДРАВЛЯЕМ! ВЫ ДОШЛИ ДО НАЧАЛА ЖИЗНИ! 🎉";
+            document.getElementById('explanation').innerText = "Все живое на Земле связано единым корнем. Вы только что прошли путь длиной в 4 миллиарда лет.";
+        }
+    </script>
+</body>
+</html>
