@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оптимізатор наповнення ванни v2.0 🛁</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #1a1a2e; --text: #e0e0e0; --accent: #16213e; --highlight: #0f3460; --red: #e94560; --green: #4ecca3; --yellow: #f9d342; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); padding: 20px; margin: 0; line-height: 1.5; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .panel { background-color: var(--accent); padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        
+        /* Нові стилі для верхньої панелі з теорією */
+        .info-panel { grid-column: 1 / -1; margin-bottom: 5px; }
+        .illustration { display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 2.2em; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 10px; margin: 20px 0; flex-wrap: wrap;}
+        .emoji-text { font-size: 0.4em; display: block; text-align: center; color: var(--green); margin-top: 5px; font-family: monospace;}
+        .formula-box { background: rgba(0,0,0,0.25); padding: 15px; border-left: 4px solid var(--red); border-radius: 5px; margin: 15px 0; font-family: 'Courier New', Courier, monospace; overflow-x: auto; }
+        .math-var { color: var(--yellow); font-style: italic; }
+        ul.models-list { padding-left: 20px; }
+        ul.models-list li { margin-bottom: 12px; }
+
+        h2, h3 { margin-top: 0; color: var(--red); border-bottom: 2px solid var(--highlight); padding-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9em; opacity: 0.8; margin-top: 10px; }
+        input, select { width: 100%; padding: 8px; background: var(--highlight); border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box;}
+        button { width: 100%; padding: 12px; background-color: var(--red); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 15px; font-size: 1.05em; }
+        button:hover { filter: brightness(1.1); }
+        .result-box { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 5px; border-left: 4px solid var(--green); }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; }
+        .val { font-weight: bold; color: var(--green); }
+        canvas { background: #eeeeee; border-radius: 5px; margin-top: 10px;}
+        
+        @media (max-width: 800px) { .container { grid-template-columns: 1fr; } .info-panel { grid-column: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="panel info-panel">
+        <h2>Постановка задачі</h2>
+        <p>Необхідно максимально швидко наповнити ванну водою комфортної цільової температури (наприклад, 40°C), використовуючи стандартну газову плиту на 4 конфорки та холодну воду з-під крана. Процес обтяжений фізичними обмеженнями: чим вище ми нагріваємо воду на плиті, тим більші втрати на випаровування; крім того, налита у ванну вода постійно віддає тепло в повітря, поки гріється наступна партія. Завдання полягає у пошуку оптимального балансу (екстремуму) між об'ємом посуду та температурою нагріву.</p>
+        
+        <div class="illustration">
+            <div>🚰<span class="emoji-text">Кран (5°C)</span></div>
+            <div>➕</div>
+            <div>♨️🍲<span class="emoji-text">Плита (4 конфорки)</span></div>
+            <div>➡️</div>
+            <div>🛁<span class="emoji-text">Ванна (120л, 40°C)</span></div>
+        </div>
+
+        <h3>Математичні моделі та фізика процесу</h3>
+        <ul class="models-list">
+            <li>
+                <strong>Цільова функція (Мінімізація часу):</strong> Алгоритм мінімізує сумарний час роботи плити з урахуванням штрафів за недогрів або перелив.<br>
+                <div class="formula-box">F(<span class="math-var">T<sub>hot</sub></span>, <span class="math-var">V<sub>pot</sub></span>) = <span class="math-var">t<sub>Σ</sub></span> ⟶ min</div>
+            </li>
+            <li>
+                <strong>Ефективність нагрівання (Оптимум об'єму):</strong> Існує фізичний оптимум для об'єму каструлі. Якщо <span class="math-var">V<sub>pot</sub></span> занадто малий — полум'я виходить за межі дна і гріє повітря. Якщо занадто великий — зростає площа бокових стінок і втрати на теплове випромінювання. Емпірична модель ККД:<br>
+                <div class="formula-box">η = 0.6 × (1 - e<sup>-<span class="math-var">V</span> / 1.5</sup>) × (1 - 0.02 × <span class="math-var">V</span>)</div>
+            </li>
+            <li>
+                <strong>Втрати на випаровування (на плиті):</strong> При наближенні до температури кипіння (100°C) значна частина енергії йде не на нагрівання води, а на фазовий перехід (пароутворення). Це експоненціально знижує ефективну потужність плити:<br>
+                <div class="formula-box">E<sub>evap_penalty</sub> ∝ e<sup>(<span class="math-var">T</span> - 98) / 5</sup></div>
+            </li>
+            <li>
+                <strong>Закон охолодження Ньютона-Ріхмана (у ванні):</strong> Швидкість охолодження води у ванні пропорційна площі поверхні відкритої води та різниці температур між водою і повітрям.<br>
+                <div class="formula-box">Q<sub>loss</sub> = k × S × (<span class="math-var">T<sub>curr</sub></span> - <span class="math-var">T<sub>air</sub></span>) × Δt</div>
+            </li>
+        </ul>
+        <p><strong>Змінні оптимізації:</strong> <span class="math-var">T<sub>hot</sub></span> (до якої температури гріти воду на плиті) та <span class="math-var">V<sub>pot</sub></span> (оптимальний об'єм однієї каструлі). <strong>Константи:</strong> теплоємність води (c = 4186 Дж/(кг·К)), площа ванни (~1.5 м²), коефіцієнт тепловіддачі (k = 12 Вт/(м²·К)).</p>
+    </div>
+
+    <div class="panel">
+        <h2>Параметри</h2>
+        
+        <label>Стратегія доливання холодної води</label>
+        <select id="strategy">
+            <option value="mix">Мікс (Доливати до кожної партії)</option>
+            <option value="start">На початку (Зробити "подушку")</option>
+            <option value="end">В кінці (Розбавити окріп)</option>
+        </select>
+
+        <label>Об'єм ванни (л)</label>
+        <input type="number" id="bathVol" value="120">
+
+        <label>Цільова t° ванни (°C)</label>
+        <input type="number" id="targetTemp" value="40">
+
+        <label>t° води в крані (°C)</label>
+        <input type="number" id="tapTemp" value="5">
+
+        <label>t° повітря (°C)</label>
+        <input type="number" id="airTemp" value="15">
+
+        <label>Потужність плити (кВт, сумарно)</label>
+        <input type="number" id="stovePower" value="7.0">
+
+        <h3>Алгоритм оптимізації</h3>
+        <select id="algo">
+            <option value="pso">Рій частинок (PSO) - Точніше</option>
+            <option value="sgd">Стохастичний спуск (SGD)</option>
+        </select>
+
+        <button onclick="startSimulation()">Знайти оптимальне рішення 🚀</button>
+        
+        <div class="result-box" id="results">
+            Натисніть кнопку для розрахунку
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Симуляція процесу 📈</h2>
+        <canvas id="optChart" height="140"></canvas>
+        <div style="margin-top: 15px; font-size: 0.9em; opacity: 0.7; line-height: 1.5;">
+            <p>Графік показує прогрес пошуку мінімального часу наповнення. 
+            Симулятор прораховує теплові втрати кожну секунду, враховуючи поточний об'єм води у ванні та її температуру залежно від обраної стратегії.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- ФИЗИЧЕСКИЙ ДВИЖОК ---
+
+const PHYSICS = {
+    c_water: 4186, // Дж/(кг*К)
+    
+    // Возвращает объект { time: minutes, details: object }
+    simulate: function(T_heat, V_pot, params) {
+        // --- 1. Проверка граничных условий ---
+        if (T_heat <= params.tapTemp + 5) return { time: 1e6, penalty: true };
+        if (T_heat > 100) T_heat = 100;
+        if (V_pot < 0.5) return { time: 1e6, penalty: true };
+
+        // --- 2. Расчет баланса масс и энергии (ИДЕАЛЬНЫЙ СЛУЧАЙ) ---
+        // V_hot * T_heat + V_cold * T_tap = V_total * T_target
+        let V_total = params.bathVol;
+        
+        // Сколько нужно горячей воды теоретически (без потерь)
+        let V_hot_needed = V_total * (params.targetTemp - params.tapTemp) / (T_heat - params.tapTemp);
+        
+        // Если горячей нужно больше чем объем ванны (недогрев), это плохой вариант, но считаем
+        if (V_hot_needed > V_total) V_hot_needed = V_total; 
+        
+        let V_cold_needed = V_total - V_hot_needed;
+
+        // --- 3. Параметры оборудования ---
+        // КПД конфорки от объема (оптимум 4-6л)
+        let efficiency = 0.6 * (1 - Math.exp(-V_pot / 1.5)) * (1 - 0.02 * V_pot);
+        if (efficiency < 0.1) efficiency = 0.1;
+
+        // Потери на испарение при НАГРЕВЕ (штраф за t > 90)
+        let evapFactor = Math.exp((T_heat - 98)/5); // Резкий рост у 100
+        if (T_heat < 90) evapFactor = 0;
+        
+        // Эффективная мощность
+        let effectivePower = (params.stovePower * 1000 * efficiency) / (1 + 0.5 * evapFactor);
+
+        // Объем одной партии (4 кастрюли)
+        let batchVol = 4 * V_pot;
+        
+        // Количество ходок (округляем вверх)
+        let cycles = Math.ceil(V_hot_needed / batchVol);
+        if (cycles < 1) cycles = 1;
+
+        // Время нагрева одной партии
+        let energyPerBatch = batchVol * this.c_water * (T_heat - params.tapTemp);
+        let timePerBatch = energyPerBatch / effectivePower; // секунды
+
+        // --- 4. СИМУЛЯЦИЯ ПО ШАГАМ (с учетом стратегии) ---
+        
+        let currentVol = 0;
+        let currentEnergy = 0; // относительно 0 Kelvin (условно Дж) -> храним m*c*T
+        let totalTimeSec = 0;
+
+        // Реализация стратегии
+        if (params.strategy === 'start') {
+            currentVol += V_cold_needed;
+            currentEnergy += V_cold_needed * this.c_water * params.tapTemp;
+        }
+
+        // Цикл ходок
+        for (let i = 0; i < cycles; i++) {
+            // Пока греем партию, то, что в ванной - остывает (или греется, если t < t_air)
+            totalTimeSec += timePerBatch;
+            
+            if (currentVol > 0) {
+                // Текущая T
+                let T_curr = currentEnergy / (currentVol * this.c_water);
+                
+                // Потери: k * S * dT * time
+                // S ванны грубо 1.5 м2. k = 15 (с учетом испарения с поверхности ванны)
+                // Если закрываем пленкой - k меньше. Допустим пользователь умный и прикрывает (k=8)
+                // Если не прикрывает k=20. Возьмем среднее 12.
+                let lossJ = 12 * 1.5 * (T_curr - params.airTemp) * timePerBatch;
+                currentEnergy -= lossJ;
+            }
+
+            // Добавляем горячую
+            currentVol += batchVol;
+            currentEnergy += batchVol * this.c_water * T_heat;
+
+            // Стратегия Mix
+            if (params.strategy === 'mix') {
+                let coldChunk = V_cold_needed / cycles;
+                currentVol += coldChunk;
+                currentEnergy += coldChunk * this.c_water * params.tapTemp;
+            }
+        }
+
+        // Стратегия End
+        if (params.strategy === 'end') {
+            // Добавляем холодную мгновенно в конце
+            currentVol += V_cold_needed;
+            currentEnergy += V_cold_needed * this.c_water * params.tapTemp;
+        }
+
+        // --- 5. Финальная проверка ---
+        let finalTemp = currentEnergy / (currentVol * this.c_water);
+        
+        // Штраф, если итоговая температура упала ниже целевой из-за потерь
+        if (finalTemp < params.targetTemp) {
+            // Нужно догреть (штрафное время)
+            let missingEnergy = currentVol * this.c_water * (params.targetTemp - finalTemp);
+            totalTimeSec += missingEnergy / effectivePower;
+        }
+
+        // Результат
+        let result = {
+            time: totalTimeSec / 60, // мин
+            cycles: cycles,
+            coldAdded: V_cold_needed,
+            hotTotal: cycles * batchVol,
+            tempTarg: T_heat,
+            volPot: V_pot
+        };
+
+        return result;
+    },
+
+    // Обертка для оптимизатора (возвращает только value)
+    calcFitness: function(t, v, p) {
+        return this.simulate(t, v, p).time;
+    }
+};
+
+// --- ОПТИМИЗАТОРЫ ---
+
+class Optimizer {
+    constructor(updateChartCallback) {
+        this.updateChart = updateChartCallback;
+    }
+    getParams() {
+        return {
+            bathVol: parseFloat(document.getElementById('bathVol').value),
+            targetTemp: parseFloat(document.getElementById('targetTemp').value),
+            tapTemp: parseFloat(document.getElementById('tapTemp').value),
+            airTemp: parseFloat(document.getElementById('airTemp').value),
+            stovePower: parseFloat(document.getElementById('stovePower').value),
+            strategy: document.getElementById('strategy').value
+        };
+    }
+}
+
+class SGD extends Optimizer {
+    async run() {
+        let p = this.getParams();
+        let x = { t: 85, v: 5 }; // Старт
+        let best = { time: Infinity, ...x };
+        let lr = 1.0;
+
+        for (let i = 0; i < 80; i++) {
+            let time = PHYSICS.calcFitness(x.t, x.v, p);
+            
+            if (time < best.time) best = { time: time, t: x.t, v: x.v };
+            this.updateChart(i, time);
+
+            // Градиент
+            let h = 0.5;
+            let dt = (PHYSICS.calcFitness(x.t + h, x.v, p) - time) / h;
+            let dv = (PHYSICS.calcFitness(x.t, x.v + h, p) - time) / h;
+
+            // Менее агрессивный шум
+            let noiseT = (Math.random() - 0.5) * 0.5; 
+            let noiseV = (Math.random() - 0.5) * 0.1;
+
+            x.t -= lr * dt + noiseT;
+            x.v -= (lr * 0.2) * dv + noiseV;
+
+            // Constraints
+            x.t = Math.max(50, Math.min(100, x.t));
+            x.v = Math.max(1, Math.min(15, x.v));
+            
+            lr *= 0.95; // Decay
+            await new Promise(r => setTimeout(r, 15));
+        }
+        return best;
+    }
+}
+
+class PSO extends Optimizer {
+    async run() {
+        let p = this.getParams();
+        const particleCount = 50; // Увеличили популяцию
+        let particles = [];
+        let globalBest = { time: Infinity, t: 0, v: 0 };
+
+        for(let i=0; i<particleCount; i++) {
+            particles.push({
+                t: 45 + Math.random() * 55,
+                v: 2 + Math.random() * 12,
+                vt: 0, vv: 0,
+                bestT: 0, bestV: 0, bestTime: Infinity
+            });
+        }
+
+        for (let iter = 0; iter < 50; iter++) {
+            for(let part of particles) {
+                let time = PHYSICS.calcFitness(part.t, part.v, p);
+
+                if (time < part.bestTime) {
+                    part.bestTime = time;
+                    part.bestT = part.t;
+                    part.bestV = part.v;
+                }
+
+                if (time < globalBest.time) {
+                    globalBest.time = time;
+                    globalBest.t = part.t;
+                    globalBest.v = part.v;
+                }
+            }
+
+            this.updateChart(iter, globalBest.time);
+
+            let w = 0.6; // инерция
+            let c1 = 1.0; // когнитивный (чуть меньше)
+            let c2 = 1.5; // социальный (чуть больше - тянемся к лидеру)
+
+            for(let part of particles) {
+                let r1 = Math.random();
+                let r2 = Math.random();
+
+                part.vt = w * part.vt + c1 * r1 * (part.bestT - part.t) + c2 * r2 * (globalBest.t - part.t);
+                part.vv = w * part.vv + c1 * r1 * (part.bestV - part.v) + c2 * r2 * (globalBest.v - part.v);
+
+                part.t += part.vt;
+                part.v += part.vv;
+
+                if (part.t > 100) { part.t = 100; part.vt *= -0.5; }
+                if (part.t < 50) { part.t = 50; part.vt *= -0.5; }
+                if (part.v > 15) { part.v = 15; part.vv *= -0.5; }
+                if (part.v < 1) { part.v = 1; part.vv *= -0.5; }
+            }
+            await new Promise(r => setTimeout(r, 30));
+        }
+        return globalBest;
+    }
+}
+
+// --- UI ---
+let myChart = null;
+
+function initChart() {
+    const ctx = document.getElementById('optChart').getContext('2d');
+    if (myChart) myChart.destroy();
+    
+    myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Час (хв)',
+                data: [],
+                borderColor: '#4ecca3',
+                backgroundColor: 'rgba(78, 204, 163, 0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.1
+            }]
+        },
+        options: {
+            animation: false,
+            scales: {
+                x: { display: false },
+                y: { title: {display: true, text: 'Хвилини'} }
+            },
+            plugins: { legend: {display: false} }
+        }
+    });
+}
+
+async function startSimulation() {
+    initChart();
+    const resultBox = document.getElementById('results');
+    resultBox.innerHTML = "Йде оптимізація...";
+    
+    const algoType = document.getElementById('algo').value;
+    let optimizer = (algoType === 'sgd') 
+        ? new SGD((i,v) => { myChart.data.labels.push(i); myChart.data.datasets[0].data.push(v); if(i%5===0) myChart.update(); })
+        : new PSO((i,v) => { myChart.data.labels.push(i); myChart.data.datasets[0].data.push(v); myChart.update(); });
+
+    // 1. Находим оптимум
+    const bestParams = await optimizer.run();
+    myChart.update();
+
+    // 2. Детальный пересчет для вывода статистики
+    const fullParams = optimizer.getParams();
+    const details = PHYSICS.simulate(bestParams.t, bestParams.v, fullParams);
+
+    resultBox.innerHTML = `
+        <div class="stat-row"><span>Мін. час:</span> <span class="val">${details.time.toFixed(1)} хв</span></div>
+        <div class="stat-row"><span>К-ть ходок (4 каструлі):</span> <span class="val">${details.cycles}</span></div>
+        <div class="stat-row"><span>Холодної води (з крана):</span> <span class="val">${details.coldAdded.toFixed(1)} л</span></div>
+        <div style="margin-top:15px; border-top:1px dashed #555; paddingTop:10px">
+            <strong>Оптимальна стратегія:</strong><br>
+            Гріти до <span class="val">${bestParams.t.toFixed(1)}°C</span> у каструлях об'ємом <span class="val">${bestParams.v.toFixed(1)} л</span>.
+        </div>
+    `;
+}
+
+initChart();
+</script>
+</body>
+</html>
