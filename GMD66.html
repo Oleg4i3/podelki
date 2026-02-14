@@ -945,7 +945,7 @@ function ff_updateParticles(dt) {
         const outerCyl = ff_cylinders[p.cylIndex + 1];
         const I = outerCyl.currentI;
         
-        const speed = -I * 2.0 * dt; 
+        const speed = I * 2.0 * dt; 
         p.phase += speed;
         
         if (p.phase > 4) p.phase -= 4;
