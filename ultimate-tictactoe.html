@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Tic-Tac-Toe</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        :root {
+            --border-color: #333; --highlight: #fff3cd; --x-color: #dc3545; --o-color: #0d6efd;
+        }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f8f9fa; margin: 0; padding: 20px; }
+        
+        #menu { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        button { padding: 10px 15px; cursor: pointer; border: 1px solid #ccc; border-radius: 5px; background: white; font-weight: bold; }
+        button:hover { background: #e9ecef; }
+        input { padding: 9px; border: 1px solid #ccc; border-radius: 5px; }
+        
+        .status { font-size: 1.2rem; margin-bottom: 20px; font-weight: bold; }
+        
+        .game-board { 
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; 
+            background: var(--border-color); padding: 8px; border-radius: 5px; width: 90vw; max-width: 500px;
+        }
+        
+        .big-cell { 
+            display: grid; grid-template-columns: repeat(3, 1fr); background: white; 
+            position: relative; gap: 2px; padding: 2px; aspect-ratio: 1 / 1; 
+        }
+        
+        .big-cell.active { background: var(--highlight); }
+        .big-cell.won::after {
+            content: attr(data-winner);
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 4rem; font-weight: bold; background: rgba(255,255,255,0.85);
+            color: var(--border-color); z-index: 10;
+        }
+        .big-cell.won[data-winner="X"]::after { color: var(--x-color); }
+        .big-cell.won[data-winner="O"]::after { color: var(--o-color); }
+
+        .small-cell { 
+            background: white; border: 1px solid #ddd; display: flex; 
+            justify-content: center; align-items: center; font-size: 1.5rem; 
+            cursor: pointer; font-weight: bold; aspect-ratio: 1 / 1; 
+            box-sizing: border-box; width: 100%; height: 100%; overflow: hidden;
+        }
+        .small-cell:hover { background: #f1f1f1; }
+        .small-cell.x { color: var(--x-color); }
+        .small-cell.o { color: var(--o-color); }
+        
+        #webrtc-ui { display: none; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .room-controls { display: flex; gap: 10px; align-items: center; }
+		
+		/* Стилі для спойлера з правилами */
+.rules-spoiler {
+    width: 90vw;
+    max-width: 500px;
+    margin: 0 auto 20px auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    text-align: left;
+}
+
+.rules-spoiler summary {
+    padding: 12px 15px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #e9ecef;
+    border-radius: 5px;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.rules-spoiler summary:hover {
+    background: #dde2e6;
+}
+
+.rules-spoiler[open] summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 1px solid #ccc;
+}
+
+.rules-content {
+    padding: 15px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #333;
+}
+
+.rules-content p {
+    margin: 0 0 10px 0;
+}
+
+.rules-content ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.rules-content li {
+    margin-bottom: 6px;
+}
+
+.rules-content hr {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin: 15px 0;
+}
+    </style>
+</head>
+<body>
+
+    <h1>Супер Крестики-Нолики</h1>
+    <details class="rules-spoiler">
+    <summary>Правила гри / Game Rules</summary>
+    <div class="rules-content">
+        <p><strong>🇺🇦 Як грати:</strong></p>
+        <ul>
+            <li>Гра йде на великому полі 3x3, кожна клітинка якого містить мале поле 3x3.</li>
+            <li>Ваш хід на малому полі визначає, куди піде суперник. Якщо ви ставите знак у <b>верхній правий кут</b> малого поля, суперник зобов'язаний ходити на <b>верхньому правому</b> великому полі.</li>
+            <li>Перемога на малому полі (3 в ряд) приносить перемогу у відповідній великій клітинці.</li>
+            <li>Якщо вас відправили на поле, яке вже виграно або повністю заповнено, ви отримуєте право ходити на <b>будь-якому</b> вільному полі.</li>
+            <li><b>Мета:</b> виграти 3 великі клітинки в ряд.</li>
+        </ul>
+        <hr>
+        <p><strong>🇬🇧 How to play:</strong></p>
+        <ul>
+            <li>The game is played on a 3x3 global board, where each cell contains a smaller 3x3 local board.</li>
+            <li>Your move on a local board determines where your opponent goes next. If you play in the <b>top-right</b> cell of a small board, your opponent must play on the <b>top-right</b> local board.</li>
+            <li>Winning a local board (3 in a row) wins that large cell.</li>
+            <li>If you are sent to a board that is already won or full, you can play in <b>any</b> available cell.</li>
+            <li><b>Goal:</b> Win 3 large cells in a row.</li>
+        </ul>
+    </div>
+</details>
+    <div id="menu">
+        <button onclick="startGame('local')">2 Игрока (Локально)</button>
+        <button onclick="startGame('ai')">Игра с ИИ</button>
+        <button onclick="showNetworkUI()">P2P по Сети (WebRTC)</button>
+    </div>
+
+    <div id="webrtc-ui">
+        <div class="room-controls">
+            <input type="text" id="room-id" placeholder="Название комнаты" />
+            <button onclick="hostGame()">Создать (Хост - X)</button>
+            <button onclick="joinGame()">Войти (Гость - O)</button>
+        </div>
+        <div id="network-status" style="margin-top: 10px; font-size: 0.9em; color: #666;"></div>
+    </div>
+
+    <div class="status" id="status">Выберите режим игры</div>
+    <div class="game-board" id="board"></div>
+
+    <script>
+        // --- 1. ЛОГИКА ИГРЫ ---
+        let cells = [];
+        let bigBoard = [];
+        let currentPlayer = 'X';
+        let activeBoard = null; 
+        let gameMode = 'local'; 
+        let myRole = 'X'; 
+        let isGameOver = false;
+
+        const winPatterns = [
+            [0,1,2], [3,4,5], [6,7,8], [0,3,6], [1,4,7], [2,5,8], [0,4,8], [2,4,6]
+        ];
+
+        const boardEl = document.getElementById('board');
+        const statusEl = document.getElementById('status');
+
+        function initBoard() {
+            boardEl.innerHTML = '';
+            cells = Array.from({length: 9}, () => Array(9).fill(null));
+            bigBoard = Array(9).fill(null);
+            
+            for (let i = 0; i < 9; i++) {
+                const bigCell = document.createElement('div');
+                bigCell.className = 'big-cell';
+                bigCell.id = `big-${i}`;
+                for (let j = 0; j < 9; j++) {
+                    const smallCell = document.createElement('div');
+                    smallCell.className = 'small-cell';
+                    smallCell.onclick = () => handleMove(i, j);
+                    bigCell.appendChild(smallCell);
+                }
+                boardEl.appendChild(bigCell);
+            }
+            updateUI();
+        }
+
+        function startGame(mode) {
+            gameMode = mode;
+            currentPlayer = 'X';
+            activeBoard = null;
+            isGameOver = false;
+            document.getElementById('webrtc-ui').style.display = 'none';
+            initBoard();
+            updateStatus();
+        }
+
+        function handleMove(boardIdx, cellIdx, isSystemAction = false) {
+            if (isGameOver) return;
+            if (gameMode === 'ai' && currentPlayer === 'O' && !isSystemAction) return;
+            if (gameMode === 'p2p' && currentPlayer !== myRole && !isSystemAction) return;
+
+            if (bigBoard[boardIdx] !== null || cells[boardIdx][cellIdx] !== null) return; 
+            if (activeBoard !== null && activeBoard !== boardIdx) return;
+
+            cells[boardIdx][cellIdx] = currentPlayer;
+            
+            if (gameMode === 'p2p' && !isSystemAction && dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({ type: 'move', boardIdx, cellIdx }));
+            }
+
+            if (checkWin(cells[boardIdx], currentPlayer)) bigBoard[boardIdx] = currentPlayer;
+            else if (!cells[boardIdx].includes(null)) bigBoard[boardIdx] = 'D';
+
+            if (checkWin(bigBoard, currentPlayer)) {
+                isGameOver = true;
+                updateUI();
+                statusEl.innerText = `Победил игрок ${currentPlayer}!`;
+                return;
+            }
+
+            activeBoard = cellIdx;
+            if (bigBoard[activeBoard] !== null) activeBoard = null; 
+
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateUI();
+            updateStatus();
+
+            if (gameMode === 'ai' && currentPlayer === 'O' && !isGameOver) {
+                setTimeout(makeAIMove, 400); 
+            }
+        }
+
+        function checkWin(boardArray, player) {
+            return winPatterns.some(pattern => pattern.every(index => boardArray[index] === player));
+        }
+
+        function updateUI() {
+            for (let i = 0; i < 9; i++) {
+                const bigCell = document.getElementById(`big-${i}`);
+                if (!isGameOver && bigBoard[i] === null && (activeBoard === null || activeBoard === i)) bigCell.classList.add('active');
+                else bigCell.classList.remove('active');
+
+                if (bigBoard[i] && bigBoard[i] !== 'D') {
+                    bigCell.classList.add('won');
+                    bigCell.setAttribute('data-winner', bigBoard[i]);
+                }
+
+                const smallCells = bigCell.children;
+                for (let j = 0; j < 9; j++) {
+                    const val = cells[i][j];
+                    smallCells[j].innerText = val || '';
+                    smallCells[j].className = `small-cell ${val ? val.toLowerCase() : ''}`;
+                }
+            }
+        }
+
+        function updateStatus() {
+            if (isGameOver) return;
+            if (gameMode === 'p2p') statusEl.innerText = currentPlayer === myRole ? "Ваш ход!" : "Ожидание хода противника...";
+            else statusEl.innerText = `Ход: ${currentPlayer}`;
+        }
+
+        function makeAIMove() {
+            let availableMoves = [];
+            for (let i = 0; i < 9; i++) {
+                if (activeBoard !== null && activeBoard !== i) continue;
+                if (bigBoard[i] !== null) continue;
+                for (let j = 0; j < 9; j++) {
+                    if (cells[i][j] === null) availableMoves.push({boardIdx: i, cellIdx: j});
+                }
+            }
+            if (availableMoves.length === 0) return;
+            const move = availableMoves[Math.floor(Math.random() * availableMoves.length)];
+            handleMove(move.boardIdx, move.cellIdx, true);
+        }
+
+        // --- 2. WEBRTC + MQTT СИГНАЛИНГ ---
+        let peerConnection;
+        let dataChannel;
+        let mqttClient;
+        let roomTopic;
+        let myId = Math.random().toString(36).substring(7);
+
+        // Используем надежный брокер EMQX
+        const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        function showNetworkUI() {
+            document.getElementById('webrtc-ui').style.display = 'block';
+            document.getElementById('network-status').innerText = 'Введите название комнаты для игры по сети.';
+        }
+
+        function setupWebRTC() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+            
+            peerConnection.onicecandidate = event => {
+                if (event.candidate && mqttClient) {
+                    mqttClient.publish(roomTopic, JSON.stringify({
+                        type: 'ice',
+                        candidate: event.candidate,
+                        sender: myId
+                    }));
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                if (peerConnection.connectionState === 'connected') {
+                    document.getElementById('network-status').innerText = '🟢 P2P Соединение установлено! Можно играть.';
+                    // Отключаем MQTT, дальше общаемся напрямую
+                    if (mqttClient) {
+                        mqttClient.end();
+                        mqttClient = null;
+                    }
+                }
+            };
+        }
+
+        function setupDataChannel(channel) {
+            channel.onopen = () => {
+                startGame('p2p'); 
+            };
+            channel.onmessage = event => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'move') {
+                    handleMove(msg.boardIdx, msg.cellIdx, true);
+                }
+            };
+        }
+
+        function initMQTT(roomId, onReady) {
+            document.getElementById('network-status').innerText = 'Подключение к брокеру...';
+            roomTopic = `superttt/game/${roomId}`;
+            
+            mqttClient = mqtt.connect(MQTT_BROKER);
+            
+            mqttClient.on('connect', () => {
+                mqttClient.subscribe(roomTopic);
+                onReady();
+            });
+
+            mqttClient.on('message', async (topic, message) => {
+                const data = JSON.parse(message.toString());
+                if (data.sender === myId) return; // Игнорируем свои сообщения
+
+                try {
+                    if (data.type === 'guest_joined' && myRole === 'X') {
+                        // Хост видит, что зашел гость -> создает Offer
+                        document.getElementById('network-status').innerText = 'Гость найден! Установка связи...';
+                        const offer = await peerConnection.createOffer();
+                        await peerConnection.setLocalDescription(offer);
+                        mqttClient.publish(roomTopic, JSON.stringify({ type: 'offer', offer: peerConnection.localDescription, sender: myId }));
+                    } 
+                    else if (data.type === 'offer' && myRole === 'O') {
+                        // Гость получает Offer -> создает Answer
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+                        mqttClient.publish(roomTopic, JSON.stringify({ type: 'answer', answer: peerConnection.localDescription, sender: myId }));
+                    } 
+                    else if (data.type === 'answer' && myRole === 'X') {
+                        // Хост получает Answer
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    } 
+                    else if (data.type === 'ice') {
+                        // Обмен ICE кандидатами (маршрутами)
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                } catch (err) {
+                    console.error("Ошибка WebRTC:", err);
+                }
+            });
+            
+            mqttClient.on('error', (err) => {
+                console.error("MQTT Ошибка:", err);
+                document.getElementById('network-status').innerText = '❌ Ошибка подключения к серверу.';
+            });
+        }
+
+        function hostGame() {
+            const roomId = document.getElementById('room-id').value.trim();
+            if (!roomId) return alert("Введите имя комнаты");
+            
+            myRole = 'X';
+            setupWebRTC();
+            dataChannel = peerConnection.createDataChannel('game');
+            setupDataChannel(dataChannel);
+
+            initMQTT(roomId, () => {
+                document.getElementById('network-status').innerText = `⏳ Комната "${roomId}" создана. Ждем второго игрока...`;
+            });
+        }
+
+        function joinGame() {
+            const roomId = document.getElementById('room-id').value.trim();
+            if (!roomId) return alert("Введите имя комнаты");
+            
+            myRole = 'O';
+            setupWebRTC();
+            
+            peerConnection.ondatachannel = event => {
+                dataChannel = event.channel;
+                setupDataChannel(dataChannel);
+            };
+
+            initMQTT(roomId, () => {
+                document.getElementById('network-status').innerText = 'Стучимся к Хосту...';
+                // Сообщаем хосту, что мы готовы принимать Offer
+                mqttClient.publish(roomTopic, JSON.stringify({ type: 'guest_joined', sender: myId }));
+            });
+        }
+
+        initBoard();
+    </script>
+</body>
+</html>
