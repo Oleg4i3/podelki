@@ -176,6 +176,8 @@
             <button onclick="downloadMusicXML()">Save MusicXML</button>
             <button onclick="document.getElementById('fileInput').click()">Load ABC</button>
             <input type="file" id="fileInput" accept=".abc" style="display:none;" onchange="loadABC(event)">
+            <button onclick="document.getElementById('musicxmlInput').click()">Load MusicXML</button>
+            <input type="file" id="musicxmlInput" accept=".musicxml,.xml,.mxl" style="display:none;" onchange="importMusicXML(event)">
         </div>
         
         <div id="channelsContainer"></div>
@@ -744,7 +746,6 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             if (contextNoteIndex === -1) return;
             modifyNote(contextNoteIndex, (note) => {
                 if (note.pitches) note.pitches.forEach(p => {
-                    // Toggle: same accidental clicked again → clear it
                     p.accidental = (p.accidental === acc) ? '' : acc;
                 });
             });
@@ -1547,33 +1548,6 @@ function addNoteSync(noteBase, rowShift) {
             }
         }
 
-        // Remove hairpin directives that have no matching pair (orphaned after deletions)
-        function removeOrphanedHairpins(notes) {
-            const openers = ['!crescendo(!', '!diminuendo(!'];
-            const closers = ['!crescendo)!', '!diminuendo)!'];
-
-            // Forward pass: remove closers that have no preceding opener
-            let openStack = [];
-            let toRemove = new Set();
-            for (let i = 0; i < notes.length; i++) {
-                let n = notes[i];
-                if (n.type !== 'directive') continue;
-                if (openers.includes(n.text)) {
-                    openStack.push(i);
-                } else if (closers.includes(n.text)) {
-                    if (openStack.length > 0) {
-                        openStack.pop(); // matched
-                    } else {
-                        toRemove.add(i); // orphaned closer
-                    }
-                }
-            }
-            // Any remaining unmatched openers
-            for (let i of openStack) toRemove.add(i);
-
-            return notes.filter((_, i) => !toRemove.has(i));
-        }
-
         function deleteSelection() {
             if (!activeTrack) return;
             if (synchroMode) {
@@ -1586,7 +1560,6 @@ function addNoteSync(noteBase, rowShift) {
                 for (let key of activeKeys) voicesData[key].notes = removeInvisibleRests(voicesData[key].notes);
                 let activeNotes = voicesData[activeKey].notes;
                 activeNotes.splice(sel.start, sel.end - sel.start + 1);
-                activeNotes = removeOrphanedHairpins(activeNotes);
                 activeNotes = splitLongNotes(activeNotes, measureCapacity);
                 let newActiveNotes = rebuildWithTacts(activeNotes, measureCapacity);
                 voicesData[activeKey].notes = newActiveNotes;
@@ -1620,6 +1593,8 @@ function addNoteSync(noteBase, rowShift) {
                 } else { selection.start = -1; selection.end = -1; }
                 selectionAtStart = false;
                 removeEmptyMeasures();
+                // Clean up orphaned hairpin directives
+                for (let key of activeKeys) cleanupOrphanedHairpins(key);
                 updateScore();
             }
         }
@@ -1693,13 +1668,16 @@ function deleteSelectionSync() {
         articulations: []
     };
     newActiveNotes.splice(pauseInsertIdx, 0, pauseNote);
-    newActiveNotes = removeOrphanedHairpins(newActiveNotes);
     voicesData[activeTrack].notes = newActiveNotes;
 
     // Остальные треки не изменяем
 
     // Перестраиваем все треки и удаляем пустые такты
     rebuildAllTracks();
+
+    // Clean up orphaned hairpin directives
+    let activeKeysForCleanup = Object.keys(voicesData).filter(k => voicesData[k].active);
+    for (let key of activeKeysForCleanup) cleanupOrphanedHairpins(key);
 
     // Устанавливаем новое выделение на начало паузы (или предыдущую ноту)
     let newSelIdx = findIndexAtTime(activeTrack, startTime) - 1;
@@ -1769,7 +1747,7 @@ function deleteSelectionSync() {
                 articulations: []
             };
             newNotes.splice(pauseInsertIdx, 0, pauseNote);
-            voicesData[trackKey].notes = removeOrphanedHairpins(newNotes);
+            voicesData[trackKey].notes = newNotes;
         }
 
         function pasteSelection() {
@@ -2671,7 +2649,21 @@ function generateMIDIWithBend() {
 
         function addRepeatToAllVoices(type) {
             let measureIdx = getCurrentMeasureIndex();
-            if (measureRepeats[measureIdx] === type) delete measureRepeats[measureIdx]; else measureRepeats[measureIdx] = type;
+            let current = measureRepeats[measureIdx];
+            if (type === 'start') {
+                if (current === 'start') delete measureRepeats[measureIdx];
+                else if (current === 'end') measureRepeats[measureIdx] = 'double';
+                else if (current === 'double') measureRepeats[measureIdx] = 'end';
+                else measureRepeats[measureIdx] = 'start';
+            } else if (type === 'end') {
+                if (current === 'end') delete measureRepeats[measureIdx];
+                else if (current === 'start') measureRepeats[measureIdx] = 'double';
+                else if (current === 'double') measureRepeats[measureIdx] = 'start';
+                else measureRepeats[measureIdx] = 'end';
+            } else {
+                if (current === type) delete measureRepeats[measureIdx];
+                else measureRepeats[measureIdx] = type;
+            }
             updateScore();
         }
 
@@ -2691,23 +2683,100 @@ function generateMIDIWithBend() {
         function addArticulationToSelection(type) {
             if (!activeTrack) return;
             let sel = getSelectionIndices(); if (!sel) return;
-            let notes = getNotes(); const dynamics = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff', 'staccato'];
+            let notes = getNotes();
+            const dynLevels = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'];
+            const isDynamic = dynLevels.includes(type);
             for (let i = sel.start; i <= sel.end; i++) {
                 if (!notes[i] || notes[i].type === 'directive' || notes[i].type === 'barline') continue;
                 if (!notes[i].articulations) notes[i].articulations = [];
-                if (dynamics.includes(type) && type !== 'staccato' && type !== 'accent') notes[i].articulations = notes[i].articulations.filter(a => !dynamics.includes(a) || a === 'staccato' || a === 'accent');
-                let idx = notes[i].articulations.indexOf(type);
-                if (idx >= 0) notes[i].articulations.splice(idx, 1); else notes[i].articulations.push(type);
+                if (isDynamic) {
+                    // Toggle: if already has this dynamic, remove it; otherwise replace any existing dynamic with this one
+                    let hasThis = notes[i].articulations.includes(type);
+                    notes[i].articulations = notes[i].articulations.filter(a => !dynLevels.includes(a));
+                    if (!hasThis) notes[i].articulations.push(type);
+                } else {
+                    let idx = notes[i].articulations.indexOf(type);
+                    if (idx >= 0) notes[i].articulations.splice(idx, 1); else notes[i].articulations.push(type);
+                }
             }
             updateScore();
         }
 
         function addCrescendo() { addHairpin('crescendo'); }
         function addDiminuendo() { addHairpin('diminuendo'); }
+
+        const DYN_LEVELS = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'];
+
+        function applyHairpinDynamics(notes, startIdx, endIdx, type) {
+            // Collect actual notes (not directives) in range
+            let noteIndices = [];
+            for (let i = startIdx; i <= endIdx; i++) {
+                let n = notes[i];
+                if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                if (n.pitches && (n.pitches[0].pitch === 'z' || n.pitches[0].pitch === 'x')) continue;
+                noteIndices.push(i);
+            }
+            if (noteIndices.length === 0) return;
+
+            // Find current dynamic level at start
+            let startDynIdx = 3; // default 'mp'
+            let firstNote = notes[noteIndices[0]];
+            if (firstNote && firstNote.articulations) {
+                let d = firstNote.articulations.find(a => DYN_LEVELS.includes(a));
+                if (d) startDynIdx = DYN_LEVELS.indexOf(d);
+            }
+
+            // Determine target: 3 levels up for crescendo, 3 levels down for diminuendo
+            let endDynIdx;
+            if (type === 'crescendo') {
+                endDynIdx = Math.min(DYN_LEVELS.length - 1, startDynIdx + 3);
+            } else {
+                endDynIdx = Math.max(0, startDynIdx - 3);
+            }
+
+            // Interpolate dynamics across notes
+            let count = noteIndices.length;
+            for (let k = 0; k < count; k++) {
+                let t = count === 1 ? 0 : k / (count - 1);
+                let dynIdx = Math.round(startDynIdx + t * (endDynIdx - startDynIdx));
+                let dyn = DYN_LEVELS[dynIdx];
+                let n = notes[noteIndices[k]];
+                if (!n.articulations) n.articulations = [];
+                // Remove existing dynamics, add new one
+                n.articulations = n.articulations.filter(a => !DYN_LEVELS.includes(a));
+                n.articulations.push(dyn);
+            }
+        }
+
+        function cleanupOrphanedHairpins(vKey) {
+            let notes = voicesData[vKey].notes;
+            const hairpinTypes = ['crescendo', 'diminuendo'];
+            for (let hp of hairpinTypes) {
+                let openTag = `!${hp}(!`;
+                let closeTag = `!${hp})!`;
+                // Count opens and closes
+                let opens = notes.filter(n => n.type === 'directive' && n.text === openTag).length;
+                let closes = notes.filter(n => n.type === 'directive' && n.text === closeTag).length;
+                // Remove excess unmatched tags greedily
+                if (opens !== closes) {
+                    // Remove all if mismatched - simplest safe approach
+                    voicesData[vKey].notes = voicesData[vKey].notes.filter(n => {
+                        if (n.type !== 'directive') return true;
+                        if (n.text === openTag || n.text === closeTag) return false;
+                        return true;
+                    });
+                }
+            }
+        }
+
         function addHairpin(type) {
             if (!activeTrack) return;
             let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) return; 
             let notes = getNotes();
+
+            // Apply gradual dynamics to selected notes before inserting directives
+            applyHairpinDynamics(notes, sel.start, sel.end, type);
+
             notes.splice(sel.end + 1, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo)!' : '!diminuendo)!' });
             notes.splice(sel.start, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo(!' : '!diminuendo(!' });
             selection.start = sel.start; selection.end = sel.end + 2;
@@ -2857,10 +2926,9 @@ function generateMIDIWithBend() {
                 else {
                     for (let mIdx = 0; mIdx < measures.length; mIdx++) {
                         let measure = measures[mIdx];
-                        if (mIdx === 0 || measure.repeat === 'start' || measure.volta) {
-                            if (measure.repeat === 'start') vStr += "|: ";
-                            if (measure.volta) vStr += `[${measure.volta} `;
-                        }
+                        // Only add |: prefix for first measure (for other measures, |: comes from previous measure's trailing barline)
+                        if (mIdx === 0 && measure.repeat === 'start') vStr += "|: ";
+                        if (measure.volta) vStr += `[${measure.volta} `;
                         if (measure.items.length === 0) vStr += "x16 ";
                         else {
                             let groupCounter = 0;
@@ -2884,9 +2952,12 @@ function generateMIDIWithBend() {
                             }
                         }
                         let repeat = measure.repeat;
-                        if (repeat === 'end') vStr += ":| ";
-                        else if (repeat === 'double') vStr += ":: ";
+                        let nextRepeat = (mIdx + 1 < measures.length) ? measures[mIdx + 1].repeat : null;
+                        if (repeat === 'end' && nextRepeat === 'start') vStr += ":|: ";
+                        else if (repeat === 'double') vStr += ":|: ";
+                        else if (repeat === 'end') vStr += ":| ";
                         else if (repeat === 'final') vStr += "|] ";
+                        else if (nextRepeat === 'start') vStr += "|: ";
                         else vStr += "| ";
                     }
                 }
@@ -3466,6 +3537,253 @@ function generateMIDIWithBend() {
                 return c;
             });
         }
+
+        // ==================== MUSICXML IMPORT ====================
+        function importMusicXML(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try { _parseMusicXML(e.target.result); }
+                catch(err) { alert('MusicXML import error: ' + err.message); console.error(err); }
+            };
+            reader.readAsText(file);
+        }
+
+        function _parseMusicXML(xmlText) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlText, 'application/xml');
+            const parseErr = doc.querySelector('parsererror');
+            if (parseErr) throw new Error('Invalid XML: ' + parseErr.textContent.slice(0, 120));
+            if (doc.querySelector('score-timewise'))
+                throw new Error('score-timewise format is not supported. Please convert to score-partwise.');
+
+            const skipped = new Set();
+            const txt = (el, sel) => { const n = el.querySelector(sel); return n ? n.textContent.trim() : null; };
+
+            // ── Helpers: abcUnits = durationInQuarters / 0.25  (L:1/16 baseline) ──
+            const toAbcUnits = (dq) => dq / 0.25;
+
+            // ── Global settings from first measure ──
+            const firstMeasure = doc.querySelector('part > measure');
+            let globalDivisions = 1;
+
+            if (firstMeasure) {
+                const divEl = firstMeasure.querySelector('attributes > divisions');
+                if (divEl) globalDivisions = parseFloat(divEl.textContent) || 1;
+
+                const fifthsEl = firstMeasure.querySelector('attributes > key > fifths');
+                if (fifthsEl) {
+                    const fifthsToKey = {0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'Cb'};
+                    const k = fifthsToKey[String(parseInt(fifthsEl.textContent))];
+                    if (k) document.getElementById('keySig').value = k;
+                }
+
+                const beats = txt(firstMeasure, 'attributes > time > beats');
+                const beatType = txt(firstMeasure, 'attributes > time > beat-type');
+                if (beats && beatType) {
+                    const tsEl = document.getElementById('timeSig');
+                    const tsVal = beats + '/' + beatType;
+                    if (Array.from(tsEl.options).find(o => o.value === tsVal)) tsEl.value = tsVal;
+                    else skipped.add('Time signature ' + tsVal + ' (not in UI list — defaulted to current)');
+                }
+
+                let tempo = null;
+                const soundEl = firstMeasure.querySelector('sound[tempo]');
+                if (soundEl) tempo = Math.round(parseFloat(soundEl.getAttribute('tempo')));
+                if (!tempo) { const pm = txt(firstMeasure, 'direction metronome per-minute'); if (pm) tempo = Math.round(parseFloat(pm)); }
+                if (tempo) document.getElementById('tempo').value = tempo;
+            }
+
+            const workTitle = txt(doc.documentElement, 'work work-title') ||
+                              txt(doc.documentElement, 'movement-title') ||
+                              txt(doc.documentElement, 'credit credit-words');
+            const titleEl = document.getElementById('title');
+            if (workTitle && titleEl) titleEl.value = workTitle;
+
+            // ── Reset state ──
+            if (typeof stopAll === 'function') try { stopAll(); } catch(_) {}
+            voicesData = {};
+            activeTrack = null;
+            measureRepeats = {};
+            measureVoltas = {};
+            document.getElementById('channelsContainer').innerHTML = '';
+
+            // ── Alter → ABC accidental ──
+            const alterToAcc = (alter) => {
+                const r = Math.round(alter * 2) / 2;
+                if (r !== alter) skipped.add('Microtonal alterations (rounded to nearest semitone)');
+                return {'-2':'__','-1':'_','0':'','1':'^','2':'^^'}[String(r)] ?? '';
+            };
+
+            // ── MIDI octave → ABC octave string ──
+            // In this app: capital letter + '' = octave 4 (middle C = C4)
+            //   apostrophes shift up, commas shift down
+            const octToStr = (octNum) => {
+                const diff = octNum - 4;
+                if (diff > 0) return "'".repeat(Math.min(diff, 6));
+                if (diff < 0) return ','.repeat(Math.min(-diff, 6));
+                return '';
+            };
+
+            // ── Parts ──
+            const partListEls = doc.querySelectorAll('part-list > score-part');
+            const partEls     = doc.querySelectorAll('score > part, score-partwise > part');
+
+            partListEls.forEach((scorePart, partIdx) => {
+                const partId  = scorePart.getAttribute('id');
+                const partEl  = Array.from(partEls).find(p => p.getAttribute('id') === partId);
+                if (!partEl) return;
+
+                const partName = txt(scorePart, 'part-name') || ('Part ' + (partIdx + 1));
+                let program = 0;
+                const midiProg = txt(scorePart, 'midi-instrument midi-program');
+                if (midiProg) program = Math.max(0, parseInt(midiProg) - 1);
+
+                const partFirstMeasure = partEl.querySelector('measure');
+                let clef = 'treble';
+                if (partFirstMeasure) {
+                    const clefSign = txt(partFirstMeasure, 'attributes clef sign');
+                    if (clefSign === 'F') clef = 'bass';
+                    if (clefSign === 'percussion') skipped.add('Percussion clef (imported as treble)');
+                    if (clefSign === 'TAB')  skipped.add('TAB clef (imported as treble)');
+                    if (clefSign === 'C')    skipped.add('C / alto clef (imported as treble)');
+                }
+
+                const key = 'ch' + Date.now() + partIdx + Math.floor(Math.random() * 1000);
+                voicesData[key] = { id: 'V' + (Object.keys(voicesData).length + 1), short: partName.substring(0,3), name: partName, clef, program, active: true, notes: [], visible: true, volume: 100 };
+                if (!activeTrack) activeTrack = key;
+
+                let localDivisions = globalDivisions;
+                let lastNoteRef = null;
+
+                partEl.querySelectorAll('measure').forEach((measureEl, mIdx) => {
+                    const newDiv = measureEl.querySelector('attributes > divisions');
+                    if (newDiv) localDivisions = parseFloat(newDiv.textContent) || localDivisions;
+
+                    if (mIdx > 0 && measureEl.querySelector('attributes > key'))  skipped.add('Mid-piece key signature change (only first-measure key imported)');
+                    if (mIdx > 0 && measureEl.querySelector('attributes > time')) skipped.add('Mid-piece time signature change (only first-measure time imported)');
+                    if (mIdx > 0 && measureEl.querySelector('attributes > clef')) skipped.add('Mid-piece clef change (ignored)');
+
+                    // Repeats & voltas (from first part only, to avoid duplicates)
+                    if (partIdx === 0) {
+                        let hasForward = false, hasBackward = false, hasFinal = false;
+                        measureEl.querySelectorAll('barline').forEach(bl => {
+                            const loc = bl.getAttribute('location') || 'right';
+                            const rep = bl.querySelector('repeat');
+                            if (rep) {
+                                if (rep.getAttribute('direction') === 'forward')  hasForward  = true;
+                                if (rep.getAttribute('direction') === 'backward') hasBackward = true;
+                            }
+                            const barStyle = txt(bl, 'bar-style');
+                            if (barStyle === 'light-heavy' && !rep) hasFinal = true;
+                            const ending = bl.querySelector('ending');
+                            if (ending && ending.getAttribute('type') === 'start') {
+                                const num = parseInt(ending.getAttribute('number')) || 1;
+                                if (num === 1 || num === 2) measureVoltas[mIdx] = num;
+                                else skipped.add('Volta bracket beyond 2nd ending (ignored)');
+                            }
+                        });
+                        if      (hasForward && hasBackward) measureRepeats[mIdx] = 'double';
+                        else if (hasForward)                measureRepeats[mIdx] = 'start';
+                        else if (hasBackward)               measureRepeats[mIdx] = 'end';
+                        else if (hasFinal)                  measureRepeats[mIdx] = 'final';
+                    }
+
+                    // Notes
+                    measureEl.querySelectorAll('note').forEach(noteEl => {
+                        if (noteEl.querySelector('grace')) { skipped.add('Grace notes'); return; }
+
+                        const isChord = !!noteEl.querySelector('chord');
+                        const isRest  = !!noteEl.querySelector('rest');
+                        const durRaw  = parseFloat((noteEl.querySelector('duration') || {}).textContent || localDivisions);
+                        const durationInQuarters = durRaw / localDivisions;
+                        // *** KEY FIX: abcUnits must be set — it's what the ABC renderer uses ***
+                        const abcUnits = toAbcUnits(durationInQuarters);
+
+                        // Pitch
+                        let pitchObj = { pitch: 'z', octave: '', accidental: '' };
+                        if (!isRest) {
+                            const pitchEl = noteEl.querySelector('pitch');
+                            if (pitchEl) {
+                                const step   = txt(pitchEl, 'step') || 'C';
+                                const octNum = parseInt(txt(pitchEl, 'octave') || '4');
+                                const alter  = parseFloat(txt(pitchEl, 'alter') || '0');
+                                pitchObj = { pitch: step, octave: octToStr(octNum), accidental: alterToAcc(alter) };
+                            }
+                        }
+
+                        // Tuplet
+                        let isTriplet = false;
+                        const timeMod = noteEl.querySelector('time-modification');
+                        if (timeMod) {
+                            const actual = parseInt(txt(timeMod, 'actual-notes'));
+                            const normal = parseInt(txt(timeMod, 'normal-notes'));
+                            if (actual === 3 && normal === 2) isTriplet = true;
+                            else skipped.add(`Tuplet ${actual}:${normal} (not a standard triplet — duration approximated)`);
+                        }
+
+                        // Tie
+                        const tieStart = Array.from(noteEl.querySelectorAll('tie')).some(t => t.getAttribute('type') === 'start');
+
+                        // Articulations & dynamics
+                        const arts = [];
+                        if (noteEl.querySelector('notations articulations staccato')) arts.push('staccato');
+                        if (noteEl.querySelector('notations articulations accent'))   arts.push('accent');
+                        if (noteEl.querySelector('notations articulations tenuto'))   { arts.push('tenuto'); skipped.add('Tenuto (stored but may not render in abcjs)'); }
+                        for (const d of ['ppp','pp','p','mp','mf','f','ff','fff'])
+                            if (noteEl.querySelector(`notations dynamics ${d}`)) { arts.push(d); break; }
+
+                        // Skipped notations
+                        if (noteEl.querySelector('notations technical other-technical')) skipped.add('Pitch bend data (not imported)');
+                        if (noteEl.querySelector('notations slur'))      skipped.add('Slurs');
+                        if (noteEl.querySelector('notations ornaments')) skipped.add('Ornaments (trill, mordent, turn, etc.)');
+                        if (noteEl.querySelector('notations fermata'))   skipped.add('Fermata');
+                        if (noteEl.querySelector('lyric'))               skipped.add('Lyrics');
+
+                        // Build note / add to chord
+                        if (isChord && lastNoteRef && !isRest) {
+                            lastNoteRef.pitches.push(pitchObj);
+                        } else {
+                            const noteObj = { pitches: [pitchObj], durationInQuarters, abcUnits, tie: tieStart, triplet: isTriplet, articulations: arts };
+                            voicesData[key].notes.push(noteObj);
+                            lastNoteRef = noteObj;
+                        }
+                    });
+
+                    // Measure-level skips
+                    if (measureEl.querySelector('direction direction-type pedal'))        skipped.add('Sustain pedal marks');
+                    if (measureEl.querySelector('direction direction-type wedge'))        skipped.add('Hairpin dynamics (crescendo / decrescendo)');
+                    if (measureEl.querySelector('direction direction-type words'))        skipped.add('Text directions (tempo text, rehearsal marks, etc.)');
+                    if (measureEl.querySelector('direction direction-type octave-shift')) skipped.add('Ottava lines (8va, 8vb, 15ma)');
+                    if (measureEl.querySelector('harmony'))                               skipped.add('Chord symbols / harmony');
+                    if (measureEl.querySelector('figured-bass'))                         skipped.add('Figured bass');
+                });
+
+                renderChannelRow(key);
+            });
+
+            // ── Finalize ──
+            updateVoiceUI();
+            clearSelection();
+            if (activeTrack) changeTrack(activeTrack);
+            if (synchroMode) rebuildAllTracks();
+            removeEmptyMeasures();
+            updateScore();
+            updateNoteButtonIcons();
+            preloadInstruments();
+            hasUnsavedChanges = false;
+
+            // ── Report skipped features ──
+            if (skipped.size > 0) {
+                alert('✅ MusicXML imported successfully!\n\n⚠️ The following features were found in the file but are NOT supported in this beta and were skipped:\n\n' +
+                    Array.from(skipped).map(s => '  • ' + s).join('\n'));
+            } else {
+                alert('✅ MusicXML imported successfully!');
+            }
+        }
+        // ==================== END MUSICXML IMPORT ====================
 
         function keySigToFifths(key) {
             const map = { 'C':0, 'G':1, 'D':2, 'A':3, 'E':4, 'B':5, 'F#':6, 'C#':7, 'F':-1, 'Bb':-2, 'Eb':-3, 'Ab':-4, 'Db':-5, 'Gb':-6, 'Cb':-7 };
