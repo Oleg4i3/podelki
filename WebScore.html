@@ -1914,7 +1914,8 @@ function deleteSelectionSync() {
 
 // ==================== MIDI EXPORT (with detailed logging for debugging) ====================
 function generateMIDIWithBend() {
-    console.log("========== START MIDI EXPORT ==========");
+    console.log("========== START MIDI EXPORT WITH BEND ==========");
+
     const measureCapacity = getMeasureCapacity();
     const tempo = parseInt(document.getElementById('tempo').value) || 120;
     const ticksPerBeat = 480;
@@ -1934,7 +1935,7 @@ function generateMIDIWithBend() {
     let voiceNotes = {};
     let pedalEvents = {};
 
-    // Collect notes and pedal events per voice
+    // === Сбор нот и педалей ===
     for (let vKey of orderedKeys) {
         if (!voicesData[vKey].active) continue;
         let voice = voicesData[vKey];
@@ -1954,9 +1955,8 @@ function generateMIDIWithBend() {
             }
         }
         pedalEvents[vKey].sort((a, b) => a.time - b.time);
-        console.log(`Voice ${vKey} (${voice.name}) pedal events:`, pedalEvents[vKey].map(e => `${e.type} at ${e.time}Q`));
 
-        // Apply dynamics propagation (last dynamic persists)
+        // Propagation динамики
         let lastDynamic = null;
         for (let n of raw) {
             let dyn = n.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
@@ -1967,7 +1967,7 @@ function generateMIDIWithBend() {
             }
         }
 
-        // Unroll by sequence
+        // Разворачиваем по sequence (повторы, D.S., volta и т.д.)
         let unrolled = [];
         let playQ = 0;
         for (let seqM of sequence) {
@@ -1986,13 +1986,14 @@ function generateMIDIWithBend() {
 
     let tracks = [];
     let channelIndex = 0;
+
     function nextChannel() {
         let ch = channelIndex % 16;
-        while (ch === 9) { channelIndex++; ch = channelIndex % 16; } // skip drum channel
+        while (ch === 9) { channelIndex++; ch = channelIndex % 16; } // пропускаем ударные
         return ch;
     }
 
-    // Tempo track (track 0)
+    // ==================== TEMPO TRACK ====================
     let tempoTrackEvents = [];
     let lastTick = 0;
     function addTempoEvent(tick, bytes) {
@@ -2001,6 +2002,7 @@ function generateMIDIWithBend() {
         tempoTrackEvents.push(...bytes);
         lastTick = Math.round(tick);
     }
+
     let tempoVal = Math.round(60000000 / bpm);
     addTempoEvent(0, [0xFF, 0x51, 0x03, (tempoVal >> 16) & 0xFF, (tempoVal >> 8) & 0xFF, tempoVal & 0xFF]);
     let timeNum = parseInt(document.getElementById('timeSig').value.split('/')[0]);
@@ -2008,60 +2010,53 @@ function generateMIDIWithBend() {
     let timeDenLog = Math.log2(timeDen);
     addTempoEvent(0, [0xFF, 0x58, 0x04, timeNum, timeDenLog, 24, 8]);
     addTempoEvent(0, [0xFF, 0x2F, 0x00]);
+
     let tempoTrackLen = tempoTrackEvents.length;
-    let tempoTrackHeader = [
-        0x4D, 0x54, 0x72, 0x6B,
-        (tempoTrackLen >> 24) & 0xFF,
-        (tempoTrackLen >> 16) & 0xFF,
-        (tempoTrackLen >> 8) & 0xFF,
-        tempoTrackLen & 0xFF
-    ];
+    let tempoTrackHeader = [0x4D, 0x54, 0x72, 0x6B,
+        (tempoTrackLen >> 24) & 0xFF, (tempoTrackLen >> 16) & 0xFF,
+        (tempoTrackLen >> 8) & 0xFF, tempoTrackLen & 0xFF];
     tracks.push(...tempoTrackHeader, ...tempoTrackEvents);
 
-    // Voice tracks
+    // ==================== VOICE TRACKS ====================
     for (let vKey of orderedKeys) {
         let voice = voicesData[vKey];
         if (!voice.active) continue;
-        let events = [];
-        lastTick = 0;
-        let channel = nextChannel();
-        channelIndex++;
-        console.log(`Voice ${vKey} (${voice.name}) assigned to MIDI channel ${channel+1}`);
 
-        function addEvent(tick, bytes) {
-            let delta = Math.max(0, Math.round(tick) - lastTick);
-            pushVLQ(events, delta);
-            events.push(...bytes);
-            lastTick = Math.round(tick);
+        let trackEvents = [];                     // ← главное исправление
+
+        function schedule(tick, bytes) {
+            trackEvents.push({ tick: Math.round(tick), bytes: bytes.slice() });
         }
 
-        // Program change
-        addEvent(0, [0xC0 + channel, voice.program]);
+        let channel = nextChannel();
+        channelIndex++;
+        console.log(`Voice ${vKey} (${voice.name}) → MIDI channel ${channel+1}`);
 
-        // Pitch bend range if needed
+        // Program Change
+        schedule(0, [0xC0 + channel, voice.program]);
+
+        // Pitch Bend Range (RPN)
         let maxBendRange = 0;
         for (let n of voiceNotes[vKey]) {
             if (n.bend && n.bend.maxCents > maxBendRange) maxBendRange = n.bend.maxCents;
         }
         if (maxBendRange > 0) {
             let semitones = Math.ceil(maxBendRange / 100);
-            addEvent(0, [0xB0 + channel, 101, 0]);
-            addEvent(0, [0xB0 + channel, 100, 0]);
-            addEvent(0, [0xB0 + channel, 6, semitones]);
-            console.log(`Pitch bend range set to ${semitones} semitones on ch ${channel+1}`);
+            schedule(0, [0xB0 + channel, 101, 0]);
+            schedule(0, [0xB0 + channel, 100, 0]);
+            schedule(0, [0xB0 + channel, 6, semitones]);
         }
 
         let sortedNotes = [...voiceNotes[vKey]].sort((a,b) => a.playStartQ - b.playStartQ);
-        let noteEnds = []; // array of { tick, pitch, channel }
+        let noteEnds = [];
         let pedalSchedule = pedalEvents[vKey].map(ev => ({
             tick: ev.time * ticksPerBeat,
             type: ev.type
-        }));
-        pedalSchedule.sort((a,b) => a.tick - b.tick);
+        })).sort((a,b) => a.tick - b.tick);
+
         let pedalIndex = 0;
         let sustainOn = false;
 
-        // Process each note
         for (let note of sortedNotes) {
             let startTick = note.playStartQ * ticksPerBeat;
             let rawEndTick = (note.playStartQ + note.durationInQuarters) * ticksPerBeat;
@@ -2069,44 +2064,24 @@ function generateMIDIWithBend() {
                 rawEndTick = startTick + (note.durationInQuarters * ticksPerBeat * 0.25);
             }
             let endTick = rawEndTick;
-            console.log(`Note: startQ=${note.playStartQ.toFixed(2)} dur=${note.durationInQuarters} startTick=${startTick} rawEndTick=${rawEndTick}`);
 
-            // Handle pedal events that occur before this note's start
+            // Педаль до начала ноты
             while (pedalIndex < pedalSchedule.length && pedalSchedule[pedalIndex].tick <= startTick) {
                 let ev = pedalSchedule[pedalIndex];
-                if (ev.type === 'on') {
-                    sustainOn = true;
-                    addEvent(ev.tick, [0xB0 + channel, 64, 127]);
-                    console.log(`  Pedal ON at tick ${ev.tick} (before note)`);
-                } else {
-                    sustainOn = false;
-                    addEvent(ev.tick, [0xB0 + channel, 64, 0]);
-                    console.log(`  Pedal OFF at tick ${ev.tick} (before note)`);
-                }
+                schedule(ev.tick, [0xB0 + channel, 64, ev.type === 'on' ? 127 : 0]);
+                sustainOn = (ev.type === 'on');
                 pedalIndex++;
             }
 
-            // If sustain is on, find the next pedal off after note start to possibly extend note
+            // Продлеваем ноту педалью, если нужно
             if (sustainOn) {
-                let nextOff = null;
-                for (let i = pedalIndex; i < pedalSchedule.length; i++) {
-                    if (pedalSchedule[i].type === 'off') {
-                        nextOff = pedalSchedule[i];
-                        break;
-                    }
-                }
-                if (nextOff && nextOff.tick > endTick) {
-                    endTick = nextOff.tick;
-                    console.log(`  Note extended to pedal-off at tick ${endTick}`);
-                }
+                let nextOff = pedalSchedule.slice(pedalIndex).find(ev => ev.type === 'off');
+                if (nextOff && nextOff.tick > endTick) endTick = nextOff.tick;
             }
 
             let velocity = 100;
             for (let a of note.articulations) {
-                if (dynVelocity[a] !== undefined) {
-                    velocity = dynVelocity[a];
-                    break;
-                }
+                if (dynVelocity[a] !== undefined) { velocity = dynVelocity[a]; break; }
             }
             velocity = Math.round(velocity * (voice.volume / 100));
 
@@ -2114,95 +2089,103 @@ function generateMIDIWithBend() {
                 if (p.pitch === 'z' || p.pitch === 'x') continue;
                 let midiPitch = abcPitchToMidi(p.pitch, p.octave, p.accidental);
                 if (!midiPitch) continue;
-                midiPitch += 12; // adjust to correct octave
+                midiPitch += 12;
 
-                // Note on
-                addEvent(startTick, [0x90 + channel, midiPitch, velocity]);
-                console.log(`  Note ON: pitch ${midiPitch} at tick ${startTick} vel ${velocity}`);
+                schedule(startTick, [0x90 + channel, midiPitch, velocity]);
                 noteEnds.push({ tick: endTick, pitch: midiPitch, channel });
 
-                // Pitch bend if any
+                // === PITCH BEND ===
                 if (note.bend) {
                     let points = note.bend.points;
                     let maxCents = note.bend.maxCents;
                     let durTicks = endTick - startTick;
                     const fps = 30;
-                    let totalFrames = Math.max(2, Math.floor(note.durationInQuarters * (bpm/60) * fps));
-                    console.log(`  Applying bend: ${totalFrames} frames, maxCents=${maxCents}`);
+                    let totalFrames = Math.max(2, Math.floor(note.durationInQuarters * (bpm / 60) * fps));
+
                     for (let i = 0; i <= totalFrames; i++) {
                         let progress = i / totalFrames;
                         let tick = startTick + progress * durTicks;
+
                         let y = 0.5;
                         if (progress <= 0) y = points[0].y;
                         else if (progress >= 1) y = points[8].y;
                         else {
                             let idx = Math.floor(progress * 8);
                             let t = (progress * 8) - idx;
-                            y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
+                            y = points[idx].y + (points[idx + 1].y - points[idx].y) * t;
                         }
+
                         let centsOffset = (0.5 - y) * 2 * maxCents;
                         let ratio = centsOffset / maxBendRange;
                         let pbValue = 8192 + Math.round(ratio * 8191);
                         pbValue = Math.max(0, Math.min(16383, pbValue));
+
                         let lsb = pbValue & 0x7F;
                         let msb = (pbValue >> 7) & 0x7F;
-                        addEvent(tick, [0xE0 + channel, lsb, msb]);
+                        schedule(tick, [0xE0 + channel, lsb, msb]);
                     }
                 }
             }
         }
 
-        // Process remaining pedal events after all notes
+        // Оставшаяся педаль после всех нот
         while (pedalIndex < pedalSchedule.length) {
             let ev = pedalSchedule[pedalIndex];
-            if (ev.type === 'on') {
-                addEvent(ev.tick, [0xB0 + channel, 64, 127]);
-                console.log(`Pedal ON at tick ${ev.tick} (after notes)`);
-            } else {
-                addEvent(ev.tick, [0xB0 + channel, 64, 0]);
-                console.log(`Pedal OFF at tick ${ev.tick} (after notes)`);
-            }
+            schedule(ev.tick, [0xB0 + channel, 64, ev.type === 'on' ? 127 : 0]);
             pedalIndex++;
         }
 
-        // Sort note ends by tick and add note-off events
-        noteEnds.sort((a,b) => a.tick - b.tick);
+        // Note Off
         for (let n of noteEnds) {
-            addEvent(n.tick, [0x80 + n.channel, n.pitch, 0]);
-            console.log(`Note OFF: pitch ${n.pitch} at tick ${n.tick}`);
+            schedule(n.tick, [0x80 + n.channel, n.pitch, 0]);
         }
 
-        // All notes off at the end of track to prevent hanging notes
-        addEvent(lastTick, [0xB0 + channel, 123, 0]);
-        console.log(`All notes off at tick ${lastTick}`);
+        // All Notes Off + End of Track
+        let finalTick = trackEvents.length ? Math.max(...trackEvents.map(e => e.tick)) + 10 : 480;
+        schedule(finalTick, [0xB0 + channel, 123, 0]);
+        schedule(finalTick + 1, [0xFF, 0x2F, 0x00]);
 
-        addEvent(lastTick, [0xFF, 0x2F, 0x00]); // end of track
+        // === САМОЕ ВАЖНОЕ ИСПРАВЛЕНИЕ ===
+        // Сортируем все события по времени и строим правильные delta
+        trackEvents.sort((a, b) => a.tick - b.tick);
 
+        let events = [];
+        lastTick = 0;
+        for (let ev of trackEvents) {
+            let delta = Math.max(0, ev.tick - lastTick);
+            pushVLQ(events, delta);
+            events.push(...ev.bytes);
+            lastTick = ev.tick;
+        }
+
+        // Записываем трек в файл
         let trackData = events;
         let trackLen = trackData.length;
-        let trackHeader = [
-            0x4D, 0x54, 0x72, 0x6B,
-            (trackLen >> 24) & 0xFF,
-            (trackLen >> 16) & 0xFF,
-            (trackLen >> 8) & 0xFF,
-            trackLen & 0xFF
-        ];
+        let trackHeader = [0x4D, 0x54, 0x72, 0x6B,
+            (trackLen >> 24) & 0xFF, (trackLen >> 16) & 0xFF,
+            (trackLen >> 8) & 0xFF, trackLen & 0xFF];
+
         tracks.push(...trackHeader, ...trackData);
     }
 
-    let numTracks = 1 + orderedKeys.length;
+    // ==================== HEADER ====================
+    let numTracks = 1 + orderedKeys.filter(k => voicesData[k].active).length;
     let header = [
-        0x4D, 0x54, 0x68, 0x64,
-        0x00, 0x00, 0x00, 0x06,
+        0x4D, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06,
         0x00, 0x01,
         (numTracks >> 8) & 0xFF, numTracks & 0xFF,
-        0x01, 0xE0 // ticks per quarter = 480
+        0x01, 0xE0   // 480 ticks per quarter note
     ];
 
     let midiBytes = new Uint8Array([...header, ...tracks]);
     let blob = new Blob([midiBytes], { type: "audio/midi" });
     let url = URL.createObjectURL(blob);
-    let a = document.createElement("a"); a.href = url; a.download = "score.mid"; a.click(); URL.revokeObjectURL(url);
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "score.mid";
+    a.click();
+    URL.revokeObjectURL(url);
+
     console.log("========== MIDI EXPORT COMPLETED ==========");
 }
 
