@@ -339,7 +339,9 @@
         let baseOctaveShift = 0;
 
         let measureRepeats = {}; 
-        let measureVoltas = {}; 
+        let measureVoltas = {};
+        // Navigation marks stored per measure index (never inline in notes arrays)
+        let measureDirectives = {};
 
         let synchroMode = false;
 
@@ -372,6 +374,7 @@ function pushUndoState() {
         voicesData: voicesData,
         measureRepeats: measureRepeats,
         measureVoltas: measureVoltas,
+        measureDirectives: measureDirectives,
         activeTrack: activeTrack,
         selection: selection,
         selectionAtStart: selectionAtStart
@@ -384,6 +387,7 @@ function pushUndoState() {
         voicesData: JSON.parse(JSON.stringify(voicesData)),
         measureRepeats: JSON.parse(JSON.stringify(measureRepeats)),
         measureVoltas: JSON.parse(JSON.stringify(measureVoltas)),
+        measureDirectives: JSON.parse(JSON.stringify(measureDirectives)),
         activeTrack: activeTrack,
         selection: { ...selection },
         selectionAtStart: selectionAtStart
@@ -401,6 +405,7 @@ function undo() {
     voicesData = JSON.parse(JSON.stringify(prevState.voicesData));
     measureRepeats = JSON.parse(JSON.stringify(prevState.measureRepeats));
     measureVoltas = JSON.parse(JSON.stringify(prevState.measureVoltas));
+    measureDirectives = JSON.parse(JSON.stringify(prevState.measureDirectives || {}));
     activeTrack = prevState.activeTrack;
     selection = { ...prevState.selection };
     selectionAtStart = prevState.selectionAtStart;
@@ -745,9 +750,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         function contextAccidental(acc) {
             if (contextNoteIndex === -1) return;
             modifyNote(contextNoteIndex, (note) => {
-                if (note.pitches) note.pitches.forEach(p => {
-                    p.accidental = (p.accidental === acc) ? '' : acc;
-                });
+                if (note.pitches) note.pitches.forEach(p => { p.accidental = (p.accidental === acc) ? '' : acc; });
             });
             hideContextMenu();
         }
@@ -1131,10 +1134,11 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function shiftMeasureMarkers(fromMeasure, delta) {
-            let newRepeats = {}, newVoltas = {};
+            let newRepeats = {}, newVoltas = {}, newDirs = {};
             for (let r in measureRepeats) { let idx = parseInt(r); if (idx >= fromMeasure) newRepeats[idx + delta] = measureRepeats[idx]; else newRepeats[idx] = measureRepeats[idx]; }
             for (let v in measureVoltas) { let idx = parseInt(v); if (idx >= fromMeasure) newVoltas[idx + delta] = measureVoltas[idx]; else newVoltas[idx] = measureVoltas[idx]; }
-            measureRepeats = newRepeats; measureVoltas = newVoltas;
+            for (let d in measureDirectives) { let idx = parseInt(d); if (idx >= fromMeasure) newDirs[idx + delta] = measureDirectives[idx]; else newDirs[idx] = measureDirectives[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs;
         }
 
         // ==================== CORE EDITING FUNCTIONS ====================
@@ -1593,8 +1597,6 @@ function addNoteSync(noteBase, rowShift) {
                 } else { selection.start = -1; selection.end = -1; }
                 selectionAtStart = false;
                 removeEmptyMeasures();
-                // Clean up orphaned hairpin directives
-                for (let key of activeKeys) cleanupOrphanedHairpins(key);
                 updateScore();
             }
         }
@@ -1674,10 +1676,6 @@ function deleteSelectionSync() {
 
     // Перестраиваем все треки и удаляем пустые такты
     rebuildAllTracks();
-
-    // Clean up orphaned hairpin directives
-    let activeKeysForCleanup = Object.keys(voicesData).filter(k => voicesData[k].active);
-    for (let key of activeKeysForCleanup) cleanupOrphanedHairpins(key);
 
     // Устанавливаем новое выделение на начало паузы (или предыдущую ноту)
     let newSelIdx = findIndexAtTime(activeTrack, startTime) - 1;
@@ -1842,7 +1840,7 @@ function deleteSelectionSync() {
 
         // ==================== FILE I/O ====================
         function downloadABC() {
-            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas };
+            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives };
             let stateStr = "\n% EDITOR_STATE: " + JSON.stringify(state);
             const blob = new Blob([window.lastAbcString + stateStr], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
@@ -1864,6 +1862,14 @@ function deleteSelectionSync() {
                         voicesData = state.voices || {};
                         measureRepeats = state.repeats || {};
                         measureVoltas = state.voltas || {};
+                        measureDirectives = state.navDirs || {};
+                        // Migrate old inline navigation directives out of notes arrays
+                        const NAV_CODES = ['s','+','fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
+                        for (let vKey in voicesData) {
+                            voicesData[vKey].notes = (voicesData[vKey].notes || []).filter(n =>
+                                !(n.type === 'directive' && NAV_CODES.includes(n.text))
+                            );
+                        }
                         for (let key in voicesData) {
                             if (voicesData[key].visible === undefined) voicesData[key].visible = true;
                             if (voicesData[key].volume === undefined) voicesData[key].volume = 100;
@@ -2551,17 +2557,18 @@ function generateMIDIWithBend() {
         }
 
         function getDirectivesMapping(measureCapacity) {
-            if (!activeTrack) return { mapping: {}, maxM: 0 };
-            let mapping = {}, maxM = 0;
-            let notes = voicesData[activeTrack].notes;
-            let currentQ = 0;
-            for (let n of notes) {
-                let mIdx = Math.floor((currentQ + 0.001) / measureCapacity);
-                if (n.type === 'directive') { if (!mapping[mIdx]) mapping[mIdx] = []; mapping[mIdx].push(n.text); }
-                if (n.durationInQuarters) currentQ += n.durationInQuarters;
-                if (mIdx > maxM) maxM = mIdx;
+            let maxM = 0;
+            for (let m in measureDirectives) { let idx = parseInt(m); if (idx > maxM) maxM = idx; }
+            for (let m in measureRepeats)   { let idx = parseInt(m); if (idx > maxM) maxM = idx; }
+            for (let m in measureVoltas)    { let idx = parseInt(m); if (idx > maxM) maxM = idx; }
+            // Also count from notes duration
+            if (activeTrack && voicesData[activeTrack]) {
+                let cum = 0;
+                for (let n of voicesData[activeTrack].notes) if (n.durationInQuarters) cum += n.durationInQuarters;
+                let fromNotes = Math.max(0, Math.ceil(cum / measureCapacity) - 1);
+                if (fromNotes > maxM) maxM = fromNotes;
             }
-            return { mapping, maxM: Math.max(maxM, Object.keys(measureRepeats).length) };
+            return { mapping: measureDirectives, maxM };
         }
 
         function buildNavigationSequence(measureCapacity, maxEndQ) {
@@ -2674,9 +2681,20 @@ function generateMIDIWithBend() {
         }
 
         function addMeasureDirective(text) {
-            if (!activeTrack) return;
-            let sel = getSelectionIndices(); let pos = (sel && sel.start !== -1) ? sel.start : 0;
-            for (let vKey in voicesData) if (voicesData[vKey].active) voicesData[vKey].notes.splice(pos, 0, { type: 'directive', text: text });
+            let measureIdx = getCurrentMeasureIndex();
+            if (!measureDirectives[measureIdx]) measureDirectives[measureIdx] = [];
+            let arr = measureDirectives[measureIdx];
+            // Exclusive groups: fine/DC/DS can't coexist in same measure, toggle off if same
+            const NAV_EXCLUSIVE = ['fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
+            let existingIdx = arr.indexOf(text);
+            if (existingIdx >= 0) {
+                arr.splice(existingIdx, 1); // toggle off
+            } else {
+                if (NAV_EXCLUSIVE.includes(text)) arr = arr.filter(t => !NAV_EXCLUSIVE.includes(t));
+                arr.push(text);
+            }
+            if (arr.length === 0) delete measureDirectives[measureIdx];
+            else measureDirectives[measureIdx] = arr;
             updateScore();
         }
 
@@ -2684,13 +2702,12 @@ function generateMIDIWithBend() {
             if (!activeTrack) return;
             let sel = getSelectionIndices(); if (!sel) return;
             let notes = getNotes();
-            const dynLevels = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'];
+            const dynLevels = ['ppp','pp','p','mp','mf','f','ff','fff'];
             const isDynamic = dynLevels.includes(type);
             for (let i = sel.start; i <= sel.end; i++) {
                 if (!notes[i] || notes[i].type === 'directive' || notes[i].type === 'barline') continue;
                 if (!notes[i].articulations) notes[i].articulations = [];
                 if (isDynamic) {
-                    // Toggle: if already has this dynamic, remove it; otherwise replace any existing dynamic with this one
                     let hasThis = notes[i].articulations.includes(type);
                     notes[i].articulations = notes[i].articulations.filter(a => !dynLevels.includes(a));
                     if (!hasThis) notes[i].articulations.push(type);
@@ -2705,10 +2722,9 @@ function generateMIDIWithBend() {
         function addCrescendo() { addHairpin('crescendo'); }
         function addDiminuendo() { addHairpin('diminuendo'); }
 
-        const DYN_LEVELS = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'];
+        const DYN_LEVELS = ['ppp','pp','p','mp','mf','f','ff','fff'];
 
         function applyHairpinDynamics(notes, startIdx, endIdx, type) {
-            // Collect actual notes (not directives) in range
             let noteIndices = [];
             for (let i = startIdx; i <= endIdx; i++) {
                 let n = notes[i];
@@ -2717,66 +2733,40 @@ function generateMIDIWithBend() {
                 noteIndices.push(i);
             }
             if (noteIndices.length === 0) return;
-
-            // Find current dynamic level at start
             let startDynIdx = 3; // default 'mp'
-            let firstNote = notes[noteIndices[0]];
-            if (firstNote && firstNote.articulations) {
-                let d = firstNote.articulations.find(a => DYN_LEVELS.includes(a));
-                if (d) startDynIdx = DYN_LEVELS.indexOf(d);
-            }
-
-            // Determine target: 3 levels up for crescendo, 3 levels down for diminuendo
-            let endDynIdx;
-            if (type === 'crescendo') {
-                endDynIdx = Math.min(DYN_LEVELS.length - 1, startDynIdx + 3);
-            } else {
-                endDynIdx = Math.max(0, startDynIdx - 3);
-            }
-
-            // Interpolate dynamics across notes
+            let firstArts = notes[noteIndices[0]].articulations || [];
+            let d = firstArts.find(a => DYN_LEVELS.includes(a));
+            if (d) startDynIdx = DYN_LEVELS.indexOf(d);
+            let endDynIdx = type === 'crescendo' ? Math.min(7, startDynIdx + 3) : Math.max(0, startDynIdx - 3);
             let count = noteIndices.length;
             for (let k = 0; k < count; k++) {
                 let t = count === 1 ? 0 : k / (count - 1);
                 let dynIdx = Math.round(startDynIdx + t * (endDynIdx - startDynIdx));
-                let dyn = DYN_LEVELS[dynIdx];
                 let n = notes[noteIndices[k]];
                 if (!n.articulations) n.articulations = [];
-                // Remove existing dynamics, add new one
                 n.articulations = n.articulations.filter(a => !DYN_LEVELS.includes(a));
-                n.articulations.push(dyn);
+                n.articulations.push(DYN_LEVELS[dynIdx]);
             }
         }
 
         function cleanupOrphanedHairpins(vKey) {
             let notes = voicesData[vKey].notes;
-            const hairpinTypes = ['crescendo', 'diminuendo'];
-            for (let hp of hairpinTypes) {
-                let openTag = `!${hp}(!`;
-                let closeTag = `!${hp})!`;
-                // Count opens and closes
-                let opens = notes.filter(n => n.type === 'directive' && n.text === openTag).length;
-                let closes = notes.filter(n => n.type === 'directive' && n.text === closeTag).length;
-                // Remove excess unmatched tags greedily
+            for (let hp of ['crescendo','diminuendo']) {
+                let opens = notes.filter(n => n.type === 'directive' && n.text === `!${hp}(!`).length;
+                let closes = notes.filter(n => n.type === 'directive' && n.text === `!${hp})!`).length;
                 if (opens !== closes) {
-                    // Remove all if mismatched - simplest safe approach
-                    voicesData[vKey].notes = voicesData[vKey].notes.filter(n => {
-                        if (n.type !== 'directive') return true;
-                        if (n.text === openTag || n.text === closeTag) return false;
-                        return true;
-                    });
+                    voicesData[vKey].notes = voicesData[vKey].notes.filter(n =>
+                        !(n.type === 'directive' && (n.text === `!${hp}(!` || n.text === `!${hp})!`))
+                    );
                 }
             }
         }
 
         function addHairpin(type) {
             if (!activeTrack) return;
-            let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) return; 
+            let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) return;
             let notes = getNotes();
-
-            // Apply gradual dynamics to selected notes before inserting directives
             applyHairpinDynamics(notes, sel.start, sel.end, type);
-
             notes.splice(sel.end + 1, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo)!' : '!diminuendo)!' });
             notes.splice(sel.start, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo(!' : '!diminuendo(!' });
             selection.start = sel.start; selection.end = sel.end + 2;
@@ -2784,6 +2774,19 @@ function generateMIDIWithBend() {
         }
 
         // ==================== ABC BUILDING & RENDERING ====================
+        // Map internal navigation codes → valid ABC notation for rendering
+        const NAV_ABC_MAP = {
+            's':         '!segno!',
+            '+':         '!coda!',
+            'fine':      '!fine!',
+            'DCalfine':  '"D.C. al Fine"',
+            'DCalcoda':  '"D.C. al Coda"',
+            'DSalfine':  '"D.S. al Fine"',
+            'DSalcoda':  '"D.S. al Coda"'
+        };
+        // These codes must NEVER appear inline in notes arrays
+        const NAV_CODES = ['s','+','fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
+
         function buildAbcString() {
             const key = document.getElementById('keySig').value;
             const time = document.getElementById('timeSig').value;
@@ -2818,7 +2821,7 @@ function generateMIDIWithBend() {
 
                 while (i < notes.length) {
                     let n = notes[i];
-                    if (n.type === 'directive') { currentMeasure.push({ type: 'directive', text: n.text }); i++; continue; }
+                    if (n.type === 'directive') { if (!NAV_CODES.includes(n.text)) currentMeasure.push({ type: 'directive', text: n.text }); i++; continue; }
 
                     let articulationStr = '';
                     let hasStaccato = false;
@@ -2926,11 +2929,22 @@ function generateMIDIWithBend() {
                 else {
                     for (let mIdx = 0; mIdx < measures.length; mIdx++) {
                         let measure = measures[mIdx];
-                        // Only add |: prefix for first measure (for other measures, |: comes from previous measure's trailing barline)
-                        if (mIdx === 0 && measure.repeat === 'start') vStr += "|: ";
+                        let navDirs = measureDirectives[mIdx] || [];
+                        // Opening barline / repeat / volta
+                        if (mIdx === 0) {
+                            if (measure.repeat === 'start' || measure.repeat === 'double') vStr += "|: ";
+                        }
                         if (measure.volta) vStr += `[${measure.volta} `;
-                        if (measure.items.length === 0) vStr += "x16 ";
-                        else {
+
+                        // Nav marks that go at START of measure (segno, coda)
+                        for (let nd of navDirs) {
+                            if (nd === 's' || nd === '+') vStr += NAV_ABC_MAP[nd] + " ";
+                        }
+
+                        // Measure content
+                        if (measure.items.length === 0) {
+                            vStr += "x16 ";
+                        } else {
                             let groupCounter = 0;
                             for (let item of measure.items) {
                                 if (item.type === 'directive') {
@@ -2941,24 +2955,29 @@ function generateMIDIWithBend() {
                                     let durMatch = item.text.match(/\d+/);
                                     if (groupSize > 0 && durMatch && parseInt(durMatch[0]) < 4 && !item.text.includes('z') && !item.text.includes('x')) {
                                         groupCounter++;
-                                        if (groupCounter % groupSize === 0) {
-                                            vStr += " ";
-                                        }
-                                    } else {
-                                        vStr += " ";
-                                        groupCounter = 0;
-                                    }
+                                        if (groupCounter % groupSize === 0) vStr += " ";
+                                    } else { vStr += " "; groupCounter = 0; }
                                 }
                             }
                         }
+
+                        // Nav marks that go at END of measure (fine, DC, DS) – before barline
+                        for (let nd of navDirs) {
+                            if (nd !== 's' && nd !== '+') vStr += NAV_ABC_MAP[nd] + " ";
+                        }
+
+                        // Barline
                         let repeat = measure.repeat;
                         let nextRepeat = (mIdx + 1 < measures.length) ? measures[mIdx + 1].repeat : null;
-                        if (repeat === 'end' && nextRepeat === 'start') vStr += ":|: ";
-                        else if (repeat === 'double') vStr += ":|: ";
-                        else if (repeat === 'end') vStr += ":| ";
-                        else if (repeat === 'final') vStr += "|] ";
-                        else if (nextRepeat === 'start') vStr += "|: ";
-                        else vStr += "| ";
+                        if (repeat === 'end' || repeat === 'double') {
+                            if (nextRepeat === 'start' || nextRepeat === 'double') vStr += ":|: ";
+                            else vStr += ":| ";
+                        } else if (repeat === 'final') {
+                            vStr += "|] ";
+                        } else {
+                            if (nextRepeat === 'start' || nextRepeat === 'double') vStr += "|: ";
+                            else vStr += "| ";
+                        }
                     }
                 }
                 voiceStrings.push(vStr.trim());
@@ -2982,6 +3001,7 @@ function generateMIDIWithBend() {
                 for (let vKey of activeKeys) {
                     let meas = voicesMeasures[vKey][m];
                     if (meas) { for (let item of meas) { let n = item.note; if (n.type === 'directive') { empty = false; break; } if (n.pitches && n.pitches[0].pitch !== 'x') { empty = false; break; } } } else { empty = false; break; }
+                    if (empty && measureDirectives[m] && measureDirectives[m].length > 0) empty = false;
                     if (!empty) break;
                 }
                 if (empty) emptyMeasures.push(m);
@@ -3006,10 +3026,11 @@ function generateMIDIWithBend() {
                 }
                 voicesData[vKey].notes = newNotes;
             }
-            let newRepeats = {}, newVoltas = {};
+            let newRepeats = {}, newVoltas = {}, newDirs = {};
             for (let r in measureRepeats) { let idx = parseInt(r); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newRepeats[idx - shift] = measureRepeats[idx]; }
             for (let v in measureVoltas) { let idx = parseInt(v); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newVoltas[idx - shift] = measureVoltas[idx]; }
-            measureRepeats = newRepeats; measureVoltas = newVoltas;
+            for (let d in measureDirectives) { let idx = parseInt(d); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newDirs[idx - shift] = measureDirectives[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs;
         }
 
         function normalizeAllMeasures() {
