@@ -1,0 +1,3485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Score Creator + Pitch Bend + pedal</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-basic-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-midi-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 10px; background: #eceff1; margin: 0; -webkit-tap-highlight-color: transparent; }
+        details { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        summary { cursor: pointer; font-weight: bold; outline: none; }
+        
+        .toolbar { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        button { padding: 8px 10px; cursor: pointer; border: 1px solid #ccc; background: #fafafa; border-radius: 4px; font-weight: bold; font-size: 14px; user-select: none; transition: 0.1s; }
+        button:hover { background: #eee; }
+        button:active { background: #ddd; transform: scale(0.95); }
+        button.active { background: #00bcd4; color: white; border-color: #008ba3; }
+        button.danger { background: #ffcdd2; border-color: #e57373; color: #b71c1c; }
+        button.danger:hover { background: #ef9a9a; }
+        
+        .play-btn { background: #4caf50; color: white; border-color: #388e3c; min-width: 100px; padding: 8px 0; text-align: center; }
+        .play-btn:hover { background: #43a047; }
+        .play-btn.playing { background: #81c784; border-color: #4caf50; cursor: default; }
+        .play-btn.loading { background: #ffb300; border-color: #ff8f00; cursor: wait; }
+        .stop-btn { background: #f44336; color: white; border-color: #d32f2f; min-width: 80px; padding: 8px 0; text-align: center; }
+        .stop-btn:hover { background: #d32f2f; }
+        .chord-btn { background: #cccccc; color: white; border-color: #e65100; font-size: 13px; }
+        .chord-btn.active { background: #99aacc; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
+
+        .keyboard-row { display: flex; gap: 5px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; align-items: center; justify-content: flex-start; }
+        .group { display: flex; gap: 2px; border-right: 2px solid #ccc; padding-right: 8px; margin-right: 3px; align-items: center; }
+        .group:last-child { border-right: none; }
+        .btn-small { min-width: 60px; height: 70px; padding: 0; text-align: center; font-size: 11px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+        .btn-small .note-icon { width: 100%; height: 54px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .btn-small .note-icon svg { width: 100%; height: 100%; display: block; object-fit: contain; }
+        .btn-small .note-letter { font-size: 10px; font-weight: normal; margin-top: 2px; }
+
+        .group .mod-btn, .group .dur-btn, .group .oct-btn { min-width: 32px; height: 32px; padding: 0; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; }
+        .group .dur-btn { font-size: 24px; }
+
+        .control-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-right: 8px; align-items: center; }
+        .control-btn { min-width: 48px; height: 32px; padding: 0; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+
+        #paper { background: #fff; padding: 10px; border-radius: 8px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; user-select: none; cursor: pointer; touch-action: manipulation; position: relative; min-height: 0; height: auto; }
+        
+        .selection-box { position: absolute; background: rgba(0, 188, 212, 0.15); border: 1px solid #00bcd4; border-radius: 4px; pointer-events: none; z-index: 10; }
+        .incomplete-mark { position: absolute; width: 10px; height: 10px; border-radius: 50%; background-color: #f44336; pointer-events: none; z-index: 5; }
+        
+        #channelsContainer { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; }
+        .channel-row { display: flex; gap: 8px; align-items: center; padding: 6px 10px; cursor: pointer; border-radius: 4px; border-left: 3px solid transparent; transition: 0.2s; background: white; }
+        .channel-row:hover { background: #f0f0f0; }
+        .channel-row.active { background: #e0f7fa; border-left-color: #00bcd4; font-weight: bold; }
+        .channel-row .channel-name { cursor: pointer; flex: 0 0 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .channel-row .visibility-btn { background: none; border: none; font-size: 18px; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; }
+        .channel-row .visibility-btn:hover { background: #ddd; }
+        .channel-row .volume-slider { flex: 1; min-width: 80px; }
+        .channel-row .remove-btn { background: none; border: none; font-size: 16px; color: #b71c1c; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+        .channel-row .remove-btn:hover { background: #ffcdd2; }
+
+        .mod-btn.active { background: #00bcd4; color: white; border-color: #008ba3; }
+        .control-panel { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 5px; 
+            align-items: center; 
+            position: sticky; 
+            bottom: 0; 
+            background: #eceff1; 
+            padding: 10px 0; 
+            z-index: 1000; 
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+        }
+        .note-panel { flex: 1; }
+
+        .symbols-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+        .symbols-grid button { min-width: 40px; height: 40px; font-size: 16px; padding: 4px; }
+        .section-title { font-weight: bold; margin: 8px 0 4px; }
+        
+        .abcjs-annotation {
+            fill: #d32f2f !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+            font-family: sans-serif !important;
+            stroke: none !important;
+        }
+        /* Context menu */
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+            padding: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            z-index: 2000;
+            max-width: 300px;
+        }
+        .context-menu button {
+            padding: 6px 8px;
+            font-size: 14px;
+            min-width: 36px;
+        }
+        /* Modal window for bend editor */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+        .bend-editor {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 90%;
+        }
+        .bend-editor h3 { margin-top: 0; }
+        .bend-editor canvas {
+            border: 1px solid #cfd8dc;
+            border-radius: 4px;
+            cursor: ns-resize;
+            width: 100%;
+            height: auto;
+            background: #fafafa;
+        }
+        .bend-editor .controls {
+            display: flex;
+            gap: 20px;
+            margin: 15px 0;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .bend-editor label { font-size: 14px; display: flex; align-items: center; gap: 5px; }
+        .bend-editor input { width: 80px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+        .bend-editor .actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .bend-editor button { padding: 8px 16px; }
+    </style>
+</head>
+<body>
+
+    <details>
+        <summary>🔧   <sup>inspired by Score Creator </sup>      </summary>
+        <div style="margin-top: 10px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+            <label>Title: <input type="text" id="title" value="Untitled" onchange="updateScore()" style="width: 140px;"></label>
+            <label>Key: 
+                <select id="keySig" onchange="updateScore()">
+                    <option value="C">C / Am</option><option value="G">G / Em</option><option value="D">D / Bm</option>
+                    <option value="A">A / F#m</option><option value="E">E / C#m</option><option value="B">B / G#m</option>
+                    <option value="F#">F# / D#m</option><option value="C#">C# / A#m</option>
+                    <option value="F">F / Dm</option><option value="Bb">Bb / Gm</option><option value="Eb">Eb / Cm</option>
+                    <option value="Ab">Ab / Fm</option><option value="Db">Db / Bbm</option><option value="Gb">Gb / Ebm</option>
+                    <option value="Cb">Cb / Abm</option>
+                </select>
+            </label>
+            <label>Time: <select id="timeSig" onchange="updateScore()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option></select></label>
+            <label>Tempo: <input type="number" id="tempo" value="120" style="width: 60px;" onchange="updateScore()"></label>
+            <label>Beaming: 
+                <select id="beaming" onchange="updateScore()"><option value="0">None</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+            </label>
+            <label>Measures per line: 
+                <select id="measuresPerLine" onchange="updateScore()">
+                    <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option>
+                </select>
+            </label>
+            <button onclick="downloadABC()">Save ABC</button>
+            <button onclick="downloadMIDI()">Save MIDI</button>
+            <button onclick="downloadMusicXML()">Save MusicXML</button>
+            <button onclick="document.getElementById('fileInput').click()">Load ABC</button>
+            <input type="file" id="fileInput" accept=".abc" style="display:none;" onchange="loadABC(event)">
+        </div>
+        
+        <div id="channelsContainer"></div>
+        <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center;">
+            <select id="instrumentSelect" style="flex: 1;"></select>
+            <select id="clefSelect">
+                <option value="treble">𝄞 Treble</option>
+                <option value="bass">𝄢 Bass</option>
+            </select>
+            <button onclick="addChannelFromSelect()">+ Add Channel</button>
+        </div>
+    </details>
+
+    <div id="paper"></div>
+
+    <div class="control-panel">
+        <div class="control-grid">
+            <button id="chordModeBtn" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
+            <button class="control-btn mod-btn" id="btn-vshift" onclick="toggleVShift(this)" title="Select (Shift)">Sel</button>
+            <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
+            <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
+            <button class="control-btn" onclick="tieSelection()" title="Tie (T)">
+                <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/>
+                </svg>
+            </button>
+            <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
+            <button id="playBtn" class="play-btn" onclick="playCustom()" title="Play Selection">▶ Play</button>
+            <button id="stopBtn" class="stop-btn" onclick="stopCustomPlayback()" title="Stop">⏹ Stop</button>
+            <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
+            <label style="display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+                <input type="checkbox" id="synchroModeCheckbox" onchange="toggleSynchroMode(this.checked)"> Synchro
+            </label>
+			<button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z) press 2 times">↩ Undo</button>
+        </div>
+
+        <div class="note-panel">
+            <div class="keyboard-row" style="padding-bottom: 0;">
+                <div class="group">
+                    <button class="btn-small note-btn" data-note="C" data-row-shift="1" onclick="addNoteEx('C', 1)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                    <button class="btn-small note-btn" data-note="D" data-row-shift="1" onclick="addNoteEx('D', 1)"><span class="note-icon"></span><small class="note-letter">D</small></button>
+                    <button class="btn-small note-btn" data-note="E" data-row-shift="1" onclick="addNoteEx('E', 1)"><span class="note-icon"></span><small class="note-letter">E</small></button>
+                    <button class="btn-small note-btn" data-note="F" data-row-shift="1" onclick="addNoteEx('F', 1)"><span class="note-icon"></span><small class="note-letter">F</small></button>
+                    <button class="btn-small note-btn" data-note="G" data-row-shift="1" onclick="addNoteEx('G', 1)"><span class="note-icon"></span><small class="note-letter">G</small></button>
+                    <button class="btn-small note-btn" data-note="A" data-row-shift="1" onclick="addNoteEx('A', 1)"><span class="note-icon"></span><small class="note-letter">A</small></button>
+                    <button class="btn-small note-btn" data-note="B" data-row-shift="1" onclick="addNoteEx('B', 1)"><span class="note-icon"></span><small class="note-letter">B</small></button>
+                    <button class="btn-small note-btn" data-note="C" data-row-shift="2" onclick="addNoteEx('C', 2)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                </div>
+                <div class="group">
+                    <button class="btn-small dur-btn" data-val="4" onclick="setDur(4.0, this)" title="Whole">𝅝</button>
+                    <button class="btn-small dur-btn" data-val="2" onclick="setDur(2.0, this)" title="Half">𝅗𝅥</button>
+                    <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
+                    <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
+                    <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
+                    <button class="btn-small mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                    <button class="btn-small mod-btn" id="mod-trip" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
+                </div>
+            </div>
+            <div class="keyboard-row">
+                <div class="group">
+                    <button class="btn-small note-btn" data-note="C" data-row-shift="0" onclick="addNoteEx('C', 0)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                    <button class="btn-small note-btn" data-note="D" data-row-shift="0" onclick="addNoteEx('D', 0)"><span class="note-icon"></span><small class="note-letter">D</small></button>
+                    <button class="btn-small note-btn" data-note="E" data-row-shift="0" onclick="addNoteEx('E', 0)"><span class="note-icon"></span><small class="note-letter">E</small></button>
+                    <button class="btn-small note-btn" data-note="F" data-row-shift="0" onclick="addNoteEx('F', 0)"><span class="note-icon"></span><small class="note-letter">F</small></button>
+                    <button class="btn-small note-btn" data-note="G" data-row-shift="0" onclick="addNoteEx('G', 0)"><span class="note-icon"></span><small class="note-letter">G</small></button>
+                    <button class="btn-small note-btn" data-note="A" data-row-shift="0" onclick="addNoteEx('A', 0)"><span class="note-icon"></span><small class="note-letter">A</small></button>
+                    <button class="btn-small note-btn" data-note="B" data-row-shift="0" onclick="addNoteEx('B', 0)"><span class="note-icon"></span><small class="note-letter">B</small></button>
+                    <button class="btn-small note-btn" data-note="z" data-row-shift="0" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
+                </div>
+                <div class="group">
+                    <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                    <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
+                    <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                </div>
+                <div class="group">
+                    <button class="btn-small mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
+                    <button class="btn-small mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
+                    <button class="btn-small mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
+                    <button class="btn-small mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
+                    <button class="btn-small mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <details style="margin-top: 5px;">
+        <summary>Current measure / selected note (𝄆, 𝆐𝆑...)</summary>
+        <div class="section-title">Measure symbols</div>
+        <div class="symbols-grid">
+            <button onclick="addRepeatToAllVoices('start')" title="Repeat start">𝄆</button>
+            <button onclick="addRepeatToAllVoices('end')" title="Repeat end">𝄇</button>
+            <button onclick="addRepeatToAllVoices('final')" title="Final Barline">𝄂</button>
+            <button onclick="addVolta(1)" title="1st volta">1.</button>
+            <button onclick="addVolta(2)" title="2nd volta">2.</button>
+            <button onclick="addMeasureDirective('s')" title="Segno">𝄋</button>
+            <button onclick="addMeasureDirective('+')" title="Coda">𝄌</button>
+            <button onclick="addMeasureDirective('fine')" title="Fine">fine</button>
+            <button onclick="addMeasureDirective('DCalfine')" title="D.C. al Fine">D.C. al Fine</button>
+            <button onclick="addMeasureDirective('DCalcoda')" title="D.C. al Coda">D.C. al Coda</button>
+            <button onclick="addMeasureDirective('DSalfine')" title="D.S. al Fine">D.S. al Fine</button>
+            <button onclick="addMeasureDirective('DSalcoda')" title="D.S. al Coda">D.S. al Coda</button>
+            <button onclick="togglePedalStart()" title="Pedal start">𝒫ℯ𝒹.</button>
+            <button onclick="togglePedalEnd()" title="Pedal end">✽</button>
+        </div>
+        <div class="section-title">Note dynamics / articulations</div>
+        <div class="symbols-grid">
+            <button onclick="addArticulationToSelection('staccato')" title="Staccato">.</button>
+            <button onclick="addArticulationToSelection('accent')" title="Accent">></button>
+            <button onclick="addArticulationToSelection('ppp')" title="ppp">ppp</button>
+            <button onclick="addArticulationToSelection('pp')" title="pp">pp</button>
+            <button onclick="addArticulationToSelection('p')" title="p">p</button>
+            <button onclick="addArticulationToSelection('mp')" title="mp">mp</button>
+            <button onclick="addArticulationToSelection('mf')" title="mf">mf</button>
+            <button onclick="addArticulationToSelection('f')" title="f">f</button>
+            <button onclick="addArticulationToSelection('ff')" title="ff">ff</button>
+            <button onclick="addArticulationToSelection('fff')" title="fff">fff</button>
+            <button onclick="addCrescendo()" title="Crescendo (selected range)">𝆒</button>
+            <button onclick="addDiminuendo()" title="Diminuendo (selected range)">𝆓</button>
+        </div>
+		
+		
+    </details>
+
+    <div id="contextMenu" class="context-menu" style="display: none;"></div>
+
+    <div id="bendModal" class="modal-overlay" style="display: none;">
+        <div class="bend-editor">
+            <h3>Pitch Bend Editor</h3>
+            <canvas id="bendCanvas" width="800" height="300"></canvas>
+            <div class="controls">
+                <label>Max cents: <input type="number" id="bendMaxCents" value="200" min="0" max="1200" step="50"></label>
+                <label>Note duration (sec): <span id="bendNoteDuration">2.0</span></label>
+            </div>
+            <div class="actions">
+                <button onclick="closeBendEditor()">Cancel</button>
+                <button onclick="saveBend()" style="background:#4caf50; color:white;">OK</button>
+            </div>
+			
+      </div>
+		
+		
+    </div>
+
+    <script>
+		let hasUnsavedChanges = true;
+        // ==================== DATA STRUCTURES ====================
+        let voicesData = {};  
+        let activeTrack = null; 
+        let clipboard = [];
+        let selection = { start: -1, end: -1 };
+        let selectionAtStart = false;
+        
+        let currentDurQuarters = 1.0; 
+        let nextMods = { accidental: '', dot: false };
+        let tripletNotesLeft = 0; 
+        let isChordMode = false;
+        
+        let isVirtualShift = false;
+        let baseOctaveShift = 0;
+
+        let measureRepeats = {}; 
+        let measureVoltas = {}; 
+
+        let synchroMode = false;
+
+        let audioContext = null;
+        let activeAudioNodes = [];
+        let loadedInstruments = {}; 
+        
+        let playbackAnimationId = null;
+        let isCustomPlaying = false;
+        let isPreparingPlayback = false;
+        let playStartAcTime = 0;
+        let currentTempo = 120;
+        let currentCursorTrack = [];
+        let unrolledPlaybackMaxQ = 0;
+
+        let bendPoints = Array.from({ length: 9 }, (_, i) => ({ x: i / 8, y: 0.5 }));
+        let draggedPointIndex = null;
+        let bendNoteIndex = -1;
+		// История команд (Undo)
+let undoStack = [];
+let undoLimit = 20;               // максимум шагов отмены
+let isUndoing = false;            // флаг, чтобы не сохранять снимок при отмене
+let _skipUndo = false;            // флаг для пропуска сохранения (например, при resize)
+let lastStateHash = null;
+function pushUndoState() {
+    if (isUndoing || _skipUndo) return;
+
+    // Создаём объект текущего состояния для сравнения
+    const currentState = {
+        voicesData: voicesData,
+        measureRepeats: measureRepeats,
+        measureVoltas: measureVoltas,
+        activeTrack: activeTrack,
+        selection: selection,
+        selectionAtStart: selectionAtStart
+    };
+    const hash = JSON.stringify(currentState);
+    if (hash === lastStateHash) return; // ничего не изменилось – не сохраняем
+
+    // Сохраняем глубокую копию
+    const stateCopy = {
+        voicesData: JSON.parse(JSON.stringify(voicesData)),
+        measureRepeats: JSON.parse(JSON.stringify(measureRepeats)),
+        measureVoltas: JSON.parse(JSON.stringify(measureVoltas)),
+        activeTrack: activeTrack,
+        selection: { ...selection },
+        selectionAtStart: selectionAtStart
+    };
+    undoStack.push(stateCopy);
+    if (undoStack.length > undoLimit) undoStack.shift();
+
+    lastStateHash = hash;
+}
+function undo() {
+    if (undoStack.length === 0) return;
+    isUndoing = true;
+    const prevState = undoStack.pop();
+
+    voicesData = JSON.parse(JSON.stringify(prevState.voicesData));
+    measureRepeats = JSON.parse(JSON.stringify(prevState.measureRepeats));
+    measureVoltas = JSON.parse(JSON.stringify(prevState.measureVoltas));
+    activeTrack = prevState.activeTrack;
+    selection = { ...prevState.selection };
+    selectionAtStart = prevState.selectionAtStart;
+
+    // Перерисовываем интерфейс
+    document.getElementById('channelsContainer').innerHTML = '';
+    for (let key in voicesData) renderChannelRow(key);
+    updateVoiceUI();
+    if (activeTrack) setBaseOctave(0, null);
+
+    lastStateHash = null; // сброс хеша
+    updateScore();
+
+    isUndoing = false;
+}
+        const gmInstruments = [
+            { num: 0, name: 'Acoustic Grand Piano' }, { num: 1, name: 'Bright Acoustic Piano' },
+            { num: 2, name: 'Electric Grand Piano' }, { num: 3, name: 'Honky-tonk Piano' },
+            { num: 4, name: 'Electric Piano 1' }, { num: 5, name: 'Electric Piano 2' },
+            { num: 6, name: 'Harpsichord' }, { num: 7, name: 'Clavinet' },
+            { num: 8, name: 'Celesta' }, { num: 9, name: 'Glockenspiel' },
+            { num: 10, name: 'Music Box' }, { num: 11, name: 'Vibraphone' },
+            { num: 12, name: 'Marimba' }, { num: 13, name: 'Xylophone' },
+            { num: 14, name: 'Tubular Bells' }, { num: 15, name: 'Dulcimer' },
+            { num: 16, name: 'Drawbar Organ' }, { num: 17, name: 'Percussive Organ' },
+            { num: 18, name: 'Rock Organ' }, { num: 19, name: 'Church Organ' },
+            { num: 20, name: 'Reed Organ' }, { num: 21, name: 'Accordion' },
+            { num: 22, name: 'Harmonica' }, { num: 23, name: 'Tango Accordion' },
+            { num: 24, name: 'Acoustic Guitar (nylon)' }, { num: 25, name: 'Acoustic Guitar (steel)' },
+            { num: 26, name: 'Electric Guitar (jazz)' }, { num: 27, name: 'Electric Guitar (clean)' },
+            { num: 28, name: 'Electric Guitar (muted)' }, { num: 29, name: 'Overdriven Guitar' },
+            { num: 30, name: 'Distortion Guitar' }, { num: 31, name: 'Guitar Harmonics' },
+            { num: 32, name: 'Acoustic Bass' }, { num: 33, name: 'Electric Bass (finger)' },
+            { num: 34, name: 'Electric Bass (pick)' }, { num: 35, name: 'Fretless Bass' },
+            { num: 36, name: 'Slap Bass 1' }, { num: 37, name: 'Slap Bass 2' },
+            { num: 38, name: 'Synth Bass 1' }, { num: 39, name: 'Synth Bass 2' },
+            { num: 40, name: 'Violin' }, { num: 41, name: 'Viola' },
+            { num: 42, name: 'Cello' }, { num: 43, name: 'Contrabass' },
+            { num: 44, name: 'Tremolo Strings' }, { num: 45, name: 'Pizzicato Strings' },
+            { num: 46, name: 'Orchestral Harp' }, { num: 47, name: 'Timpani' },
+            { num: 48, name: 'String Ensemble 1' }, { num: 49, name: 'String Ensemble 2' },
+            { num: 50, name: 'Synth Strings 1' }, { num: 51, name: 'Synth Strings 2' },
+            { num: 52, name: 'Choir Aahs' }, { num: 53, name: 'Voice Oohs' },
+            { num: 54, name: 'Synth Voice' }, { num: 55, name: 'Orchestra Hit' },
+            { num: 56, name: 'Trumpet' }, { num: 57, name: 'Trombone' },
+            { num: 58, name: 'Tuba' }, { num: 59, name: 'Muted Trumpet' },
+            { num: 60, name: 'French Horn' }, { num: 61, name: 'Brass Section' },
+            { num: 62, name: 'Synth Brass 1' }, { num: 63, name: 'Synth Brass 2' },
+            { num: 64, name: 'Soprano Sax' }, { num: 65, name: 'Alto Sax' },
+            { num: 66, name: 'Tenor Sax' }, { num: 67, name: 'Baritone Sax' },
+            { num: 68, name: 'Oboe' }, { num: 69, name: 'English Horn' },
+            { num: 70, name: 'Bassoon' }, { num: 71, name: 'Clarinet' },
+            { num: 72, name: 'Piccolo' }, { num: 73, name: 'Flute' },
+            { num: 74, name: 'Recorder' }, { num: 75, name: 'Pan Flute' },
+            { num: 76, name: 'Blown Bottle' }, { num: 77, name: 'Shakuhachi' },
+            { num: 78, name: 'Whistle' }, { num: 79, name: 'Ocarina' },
+            { num: 80, name: 'Lead 1 (square)' }, { num: 81, name: 'Lead 2 (sawtooth)' },
+            { num: 82, name: 'Lead 3 (calliope)' }, { num: 83, name: 'Lead 4 (chiff)' },
+            { num: 84, name: 'Lead 5 (charang)' }, { num: 85, name: 'Lead 6 (voice)' },
+            { num: 86, name: 'Lead 7 (fifths)' }, { num: 87, name: 'Lead 8 (bass + lead)' },
+            { num: 88, name: 'Pad 1 (new age)' }, { num: 89, name: 'Pad 2 (warm)' },
+            { num: 90, name: 'Pad 3 (polysynth)' }, { num: 91, name: 'Pad 4 (choir)' },
+            { num: 92, name: 'Pad 5 (bowed)' }, { num: 93, name: 'Pad 6 (metallic)' },
+            { num: 94, name: 'Pad 7 (halo)' }, { num: 95, name: 'Pad 8 (sweep)' },
+            { num: 96, name: 'FX 1 (rain)' }, { num: 97, name: 'FX 2 (soundtrack)' },
+            { num: 98, name: 'FX 3 (crystal)' }, { num: 99, name: 'FX 4 (atmosphere)' },
+            { num: 100, name: 'FX 5 (brightness)' }, { num: 101, name: 'FX 6 (goblins)' },
+            { num: 102, name: 'FX 7 (echoes)' }, { num: 103, name: 'FX 8 (sci-fi)' },
+            { num: 104, name: 'Sitar' }, { num: 105, name: 'Banjo' },
+            { num: 106, name: 'Shamisen' }, { num: 107, name: 'Koto' },
+            { num: 108, name: 'Kalimba' }, { num: 109, name: 'Bagpipe' },
+            { num: 110, name: 'Fiddle' }, { num: 111, name: 'Shanai' },
+            { num: 112, name: 'Tinkle Bell' }, { num: 113, name: 'Agogo' },
+            { num: 114, name: 'Steel Drums' }, { num: 115, name: 'Woodblock' },
+            { num: 116, name: 'Taiko Drum' }, { num: 117, name: 'Melodic Tom' },
+            { num: 118, name: 'Synth Drum' }, { num: 119, name: 'Reverse Cymbal' },
+            { num: 120, name: 'Guitar Fret Noise' }, { num: 121, name: 'Breath Noise' },
+            { num: 122, name: 'Seashore' }, { num: 123, name: 'Bird Tweet' },
+            { num: 124, name: 'Telephone Ring' }, { num: 125, name: 'Helicopter' },
+            { num: 126, name: 'Applause' }, { num: 127, name: 'Gunshot' }
+        ];
+
+        const gmProgramToSoundfont = {
+            0: 'acoustic_grand_piano', 1: 'bright_acoustic_piano', 2: 'electric_grand_piano',
+            3: 'honkytonk_piano', 4: 'electric_piano_1', 5: 'electric_piano_2',
+            6: 'harpsichord', 7: 'clavinet', 8: 'celesta', 9: 'glockenspiel',
+            10: 'music_box', 11: 'vibraphone', 12: 'marimba', 13: 'xylophone',
+            14: 'tubular_bells', 15: 'dulcimer', 16: 'drawbar_organ', 17: 'percussive_organ',
+            18: 'rock_organ', 19: 'church_organ', 20: 'reed_organ', 21: 'accordion',
+            22: 'harmonica', 23: 'tango_accordion', 24: 'acoustic_guitar_nylon',
+            25: 'acoustic_guitar_steel', 26: 'electric_guitar_jazz', 27: 'electric_guitar_clean',
+            28: 'electric_guitar_muted', 29: 'overdriven_guitar', 30: 'distortion_guitar',
+            31: 'guitar_harmonics', 32: 'acoustic_bass', 33: 'electric_bass_finger',
+            34: 'electric_bass_pick', 35: 'fretless_bass', 36: 'slap_bass_1',
+            37: 'slap_bass_2', 38: 'synth_bass_1', 39: 'synth_bass_2',
+            40: 'violin', 41: 'viola', 42: 'cello', 43: 'contrabass',
+            44: 'tremolo_strings', 45: 'pizzicato_strings', 46: 'orchestral_harp',
+            47: 'timpani', 48: 'string_ensemble_1', 49: 'string_ensemble_2',
+            50: 'synth_strings_1', 51: 'synth_strings_2', 52: 'choir_aahs',
+            53: 'voice_oohs', 54: 'synth_voice', 55: 'orchestra_hit',
+            56: 'trumpet', 57: 'trombone', 58: 'tuba', 59: 'muted_trumpet',
+            60: 'french_horn', 61: 'brass_section', 62: 'synth_brass_1',
+            63: 'synth_brass_2', 64: 'soprano_sax', 65: 'alto_sax',
+            66: 'tenor_sax', 67: 'baritone_sax', 68: 'oboe', 69: 'english_horn',
+            70: 'bassoon', 71: 'clarinet', 72: 'piccolo', 73: 'flute',
+            74: 'recorder', 75: 'pan_flute', 76: 'blown_bottle', 77: 'shakuhachi',
+            78: 'whistle', 79: 'ocarina', 80: 'lead_1_square', 81: 'lead_2_sawtooth',
+            82: 'lead_3_callope', 83: 'lead_4_chiff', 84: 'lead_5_charang',
+            85: 'lead_6_voice', 86: 'lead_7_fifths', 87: 'lead_8_bass_lead',
+            88: 'pad_1_new_age', 89: 'pad_2_warm', 90: 'pad_3_polysynth',
+            91: 'pad_4_choir', 92: 'pad_5_bowed', 93: 'pad_6_metallic',
+            94: 'pad_7_halo', 95: 'pad_8_sweep', 96: 'fx_1_rain',
+            97: 'fx_2_soundtrack', 98: 'fx_3_crystal', 99: 'fx_4_atmosphere',
+            100: 'fx_5_brightness', 101: 'fx_6_goblins', 102: 'fx_7_echoes',
+            103: 'fx_8_sci_fi', 104: 'sitar', 105: 'banjo', 106: 'shamisen',
+            107: 'koto', 108: 'kalimba', 109: 'bagpipe', 110: 'fiddle',
+            111: 'shanai', 112: 'tinkle_bell', 113: 'agogo', 114: 'steel_drums',
+            115: 'woodblock', 116: 'taiko_drum', 117: 'melodic_tom',
+            118: 'synth_drum', 119: 'reverse_cymbal', 120: 'guitar_fret_noise',
+            121: 'breath_noise', 122: 'seashore', 123: 'bird_tweet',
+            124: 'telephone_ring', 125: 'helicopter', 126: 'applause',
+            127: 'gunshot'
+        };
+
+        // ==================== CHANNEL MANAGEMENT ====================
+        function populateInstrumentSelect() {
+            const select = document.getElementById('instrumentSelect');
+            select.innerHTML = '';
+            gmInstruments.forEach(inst => {
+                const option = document.createElement('option');
+                option.value = inst.num;
+                option.textContent = inst.name;
+                select.appendChild(option);
+            });
+        }
+
+        function addChannelFromSelect() {
+            const select = document.getElementById('instrumentSelect');
+            const program = parseInt(select.value);
+            const name = select.options[select.selectedIndex].text;
+            const clef = document.getElementById('clefSelect').value;
+            addChannel(program, clef, name);
+        }
+
+        function addChannel(program, clef, displayName) {
+            const key = 'ch' + Date.now() + Math.floor(Math.random() * 1000);
+            voicesData[key] = {
+                id: 'V' + (Object.keys(voicesData).length + 1),
+                short: displayName.substring(0, 3),
+                name: displayName,
+                clef: clef,
+                program: program,
+                active: true,
+                notes: [],
+                visible: true,
+                volume: 100
+            };
+            renderChannelRow(key);
+            if (!activeTrack) activeTrack = key;
+            updateVoiceUI();
+            preloadInstruments();
+            if (synchroMode) rebuildAllTracks();
+            updateScore();
+        }
+
+        function removeChannel(key) {
+            if (!voicesData[key]) return;
+            delete voicesData[key];
+            const row = document.querySelector(`.channel-row[data-key="${key}"]`);
+            if (row) row.remove();
+            if (activeTrack === key) {
+                const remaining = Object.keys(voicesData);
+                activeTrack = remaining.length > 0 ? remaining[0] : null;
+            }
+            if (synchroMode) rebuildAllTracks();
+            updateScore();
+        }
+
+        function renderChannelRow(key) {
+            const v = voicesData[key];
+            const container = document.getElementById('channelsContainer');
+            const row = document.createElement('div');
+            row.className = 'channel-row' + (activeTrack === key ? ' active' : '');
+            row.setAttribute('data-key', key);
+            row.innerHTML = `
+                <input type="checkbox" class="channel-check" ${v.active ? 'checked' : ''} onclick="toggleVoice('${key}'); event.stopPropagation()">
+                <span class="channel-name" onclick="changeTrack('${key}'); event.stopPropagation()">${v.name}</span>
+                <button class="visibility-btn" onclick="toggleVisibility('${key}'); event.stopPropagation()">${v.visible ? '👁' : '🙈'}</button>
+                <input type="range" min="0" max="100" value="${v.volume}" class="volume-slider" oninput="setVolume('${key}', this.value)" onclick="event.stopPropagation()">
+                <button class="remove-btn" onclick="removeChannel('${key}'); event.stopPropagation()">✖</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function toggleVoice(vKey) {
+            voicesData[vKey].active = !voicesData[vKey].active;
+            const chk = document.querySelector(`.channel-row[data-key="${vKey}"] .channel-check`);
+            if (chk) chk.checked = voicesData[vKey].active;
+            preloadInstruments();
+            if (synchroMode) rebuildAllTracks();
+            updateScore();
+        }
+
+        function toggleVisibility(vKey) {
+            voicesData[vKey].visible = !voicesData[vKey].visible;
+            const btn = document.querySelector(`.channel-row[data-key="${vKey}"] .visibility-btn`);
+            if (btn) btn.textContent = voicesData[vKey].visible ? '👁' : '🙈';
+            updateScore();
+        }
+
+        function setVolume(vKey, value) {
+            voicesData[vKey].volume = parseInt(value);
+        }
+
+        function changeTrack(vKey) {
+            if (!voicesData[vKey]) return;
+            if (!voicesData[vKey].active) {
+                voicesData[vKey].active = true;
+                const chk = document.querySelector(`.channel-row[data-key="${vKey}"] .channel-check`);
+                if (chk) chk.checked = true;
+                preloadInstruments();
+                if (synchroMode) rebuildAllTracks();
+            }
+            activeTrack = vKey;
+            clearSelection();
+            document.querySelectorAll('.channel-row').forEach(el => el.classList.remove('active'));
+            const row = document.querySelector(`.channel-row[data-key="${vKey}"]`);
+            if (row) row.classList.add('active');
+            setBaseOctave(0, null);
+            updateScore();
+        }
+
+        function updateVoiceUI() {
+            for (let key in voicesData) {
+                const row = document.querySelector(`.channel-row[data-key="${key}"]`);
+                if (!row) { renderChannelRow(key); continue; }
+                const chk = row.querySelector('.channel-check');
+                if (chk) chk.checked = voicesData[key].active;
+                const visBtn = row.querySelector('.visibility-btn');
+                if (visBtn) visBtn.textContent = voicesData[key].visible ? '👁' : '🙈';
+                const slider = row.querySelector('.volume-slider');
+                if (slider) slider.value = voicesData[key].volume;
+                if (activeTrack === key) row.classList.add('active');
+                else row.classList.remove('active');
+            }
+        }
+
+        function getNotes() { return activeTrack ? voicesData[activeTrack].notes : []; }
+
+function tryInsertIntoPause(trackKey, insertTime, newNote) {
+    let notes = voicesData[trackKey].notes;
+    let dur = newNote.durationInQuarters;
+    let startIdx = findIndexAtTime(trackKey, insertTime);
+
+    // Собираем последовательность невидимых пауз, начиная с startIdx
+    let pauseIndices = [];
+    let totalPauseDur = 0;
+    let i = startIdx;
+    while (i < notes.length && totalPauseDur < dur - 0.001) {
+        let n = notes[i];
+        if (n.type === 'directive' || n.type === 'barline') {
+            i++;
+            continue;
+        }
+        if (n.pitches && n.pitches[0].pitch === 'x') {
+            pauseIndices.push(i);
+            totalPauseDur += n.durationInQuarters;
+            i++;
+        } else {
+            // Встретилась реальная нота или рест – недостаточно пауз
+            return false;
+        }
+    }
+    if (totalPauseDur < dur - 0.001) return false;
+
+    // Теперь удаляем все эти паузы
+    notes.splice(startIdx, pauseIndices.length);
+
+    // Вставляем новую ноту
+    notes.splice(startIdx, 0, JSON.parse(JSON.stringify(newNote)));
+
+    // Если осталась лишняя длительность, добавляем остаточную паузу
+    let remainingPause = totalPauseDur - dur;
+    if (remainingPause > 0.001) {
+        let restPause = {
+            pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+            durationInQuarters: remainingPause,
+            abcUnits: remainingPause / 0.25,
+            triplet: false,
+            tie: false,
+            articulations: []
+        };
+        notes.splice(startIdx + 1, 0, restPause);
+    }
+
+    return true;
+}
+        // ==================== INITIALIZE DEFAULT CHANNELS ====================
+        function initDefaultChannels() {
+            addChannel(0, 'treble', 'Piano RH');
+            addChannel(0, 'bass', 'Piano LH');
+        }
+
+        // ==================== CONTEXT MENU ====================
+        let contextNoteIndex = -1;
+        let contextMenuVisible = false;
+
+        function showContextMenu(e, noteIndex) {
+            e.preventDefault();
+            contextNoteIndex = noteIndex;
+            const menu = document.getElementById('contextMenu');
+            menu.style.display = 'flex';
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+            menu.innerHTML = `
+                <button onclick="contextAccidental('^')" title="Sharp">#</button>
+                <button onclick="contextAccidental('_')" title="Flat">b</button>
+                <button onclick="contextAccidental('=')" title="Natural">♮</button>
+                <button onclick="contextPitchShift(1)" title="Up">⬆</button>
+                <button onclick="contextPitchShift(-1)" title="Down">⬇</button>
+                <button onclick="contextDurationShift(2)" title="Double duration">➡</button>
+                <button onclick="contextDurationShift(0.5)" title="Half duration">⬅</button>
+            `;
+            contextMenuVisible = true;
+        }
+
+        function hideContextMenu() {
+            document.getElementById('contextMenu').style.display = 'none';
+            contextMenuVisible = false;
+        }
+
+        // Global click to hide context menu
+        document.addEventListener('click', function(e) {
+            if (contextMenuVisible) {
+                const menu = document.getElementById('contextMenu');
+                if (!menu.contains(e.target)) {
+                    hideContextMenu();
+                }
+            }
+        });
+
+        function contextAccidental(acc) {
+            if (contextNoteIndex === -1) return;
+            modifyNote(contextNoteIndex, (note) => {
+                if (note.pitches) note.pitches.forEach(p => { p.accidental = acc; });
+            });
+            hideContextMenu();
+        }
+
+        function contextPitchShift(delta) {
+            if (contextNoteIndex === -1) return;
+            modifyNote(contextNoteIndex, (note) => {
+                if (note.pitches) {
+                    note.pitches.forEach(p => {
+                        if (p.pitch === 'z' || p.pitch === 'x') return;
+                        const scale = ['C','D','E','F','G','A','B'];
+                        let idx = scale.indexOf(p.pitch);
+                        if (idx === -1) return;
+                        let newIdx = idx + delta;
+                        let octShift = 0;
+                        while (newIdx < 0) { newIdx += 7; octShift -= 1; }
+                        while (newIdx > 6) { newIdx -= 7; octShift += 1; }
+                        p.pitch = scale[newIdx];
+                        let octave = p.octave || '';
+                        let commas = (octave.match(/,/g) || []).length;
+                        let apostr = (octave.match(/'/g) || []).length;
+                        let octNum = apostr - commas + octShift;
+                        if (octNum >= 0) p.octave = "'".repeat(octNum);
+                        else p.octave = ",".repeat(-octNum);
+                    });
+                }
+            });
+            hideContextMenu();
+        }
+
+        function contextDurationShift(factor) {
+            if (contextNoteIndex === -1) return;
+            modifyNote(contextNoteIndex, (note) => {
+                if (note.durationInQuarters) {
+                    let newDur = note.durationInQuarters * factor;
+                    if (newDur < 0.125) newDur = 0.125;
+                    if (newDur > 4.0) newDur = 4.0;
+                    note.durationInQuarters = newDur;
+                    note.abcUnits = newDur / 0.25;
+                }
+            });
+            hideContextMenu();
+        }
+
+        function modifyNote(index, modifier) {
+            if (!activeTrack) return;
+            let notes = getNotes();
+            if (index < 0 || index >= notes.length) return;
+            let noteCopy = JSON.parse(JSON.stringify(notes[index]));
+            modifier(noteCopy);
+            notes.splice(index, 1, noteCopy);
+            normalizeAllMeasures();
+            selection.start = index;
+            selection.end = index;
+            updateScore();
+        }
+
+        // ==================== PEDAL ====================
+        function togglePedalStart() {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices();
+            if (!sel || sel.start !== sel.end) {
+                alert("Please select a single note to set pedal start.");
+                return;
+            }
+            let notes = getNotes();
+            let note = notes[sel.start];
+            if (note.type === 'directive' || note.type === 'barline' || (note.pitches && note.pitches[0].pitch === 'z')) {
+                alert("Cannot set pedal on a rest or directive.");
+                return;
+            }
+            note.pedalStart = !note.pedalStart;
+            updateScore();
+        }
+
+        function togglePedalEnd() {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices();
+            if (!sel || sel.start !== sel.end) {
+                alert("Please select a single note to set pedal end.");
+                return;
+            }
+            let notes = getNotes();
+            let note = notes[sel.start];
+            if (note.type === 'directive' || note.type === 'barline' || (note.pitches && note.pitches[0].pitch === 'z')) {
+                alert("Cannot set pedal on a rest or directive.");
+                return;
+            }
+            note.pedalEnd = !note.pedalEnd;
+            updateScore();
+        }
+
+        // ==================== BEND EDITOR ====================
+        function openBendEditor() {
+            if (!activeTrack) { alert("No active track."); return; }
+            let sel = getSelectionIndices();
+            if (!sel || sel.start !== sel.end) {
+                alert("Please select a single note to edit bend.");
+                return;
+            }
+            let notes = getNotes();
+            let note = notes[sel.start];
+            if (note.type === 'directive' || note.type === 'barline' || (note.pitches && note.pitches[0].pitch === 'z')) {
+                alert("Cannot apply bend to a rest or directive.");
+                return;
+            }
+            bendNoteIndex = sel.start;
+
+            if (note.bend) {
+                bendPoints = note.bend.points.map(p => ({ ...p }));
+                document.getElementById('bendMaxCents').value = note.bend.maxCents;
+            } else {
+                bendPoints = Array.from({ length: 9 }, (_, i) => ({ x: i / 8, y: 0.5 }));
+                document.getElementById('bendMaxCents').value = 200;
+            }
+
+            let tempo = parseInt(document.getElementById('tempo').value) || 120;
+            let durSec = note.durationInQuarters * (60 / tempo);
+            document.getElementById('bendNoteDuration').innerText = durSec.toFixed(2);
+
+            drawBendCanvas();
+            document.getElementById('bendModal').style.display = 'flex';
+        }
+
+        function closeBendEditor() {
+            document.getElementById('bendModal').style.display = 'none';
+            bendNoteIndex = -1;
+        }
+
+        function saveBend() {
+            if (bendNoteIndex === -1) return;
+            let notes = getNotes();
+            let note = notes[bendNoteIndex];
+            note.bend = {
+                points: bendPoints.map(p => ({ x: p.x, y: p.y })),
+                maxCents: parseInt(document.getElementById('bendMaxCents').value)
+            };
+            closeBendEditor();
+            updateScore();
+        }
+
+        function drawBendCanvas() {
+            const canvas = document.getElementById('bendCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const maxCents = parseInt(document.getElementById('bendMaxCents').value);
+
+            ctx.clearRect(0, 0, width, height);
+
+            const steps = Math.floor(maxCents / 100);
+            for (let i = -steps; i <= steps; i++) {
+                const y = (0.5 - (i * 100) / (2 * maxCents)) * height;
+                ctx.strokeStyle = i === 0 ? '#ff5252' : '#eceff1';
+                ctx.lineWidth = i === 0 ? 2 : 1;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+                ctx.fillStyle = i === 0 ? '#ff5252' : '#90a4ae';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(i > 0 ? `+${i*100}c` : `${i*100}c`, 5, y - 5);
+            }
+
+            ctx.strokeStyle = '#eceff1';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 8; i++) {
+                const x = (i / 8) * width;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#00bcd4';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(bendPoints[0].x * width, bendPoints[0].y * height);
+            for (let i = 1; i < bendPoints.length; i++) {
+                ctx.lineTo(bendPoints[i].x * width, bendPoints[i].y * height);
+            }
+            ctx.stroke();
+
+            bendPoints.forEach((p, i) => {
+                ctx.beginPath();
+                ctx.arc(p.x * width, p.y * height, 6, 0, Math.PI * 2);
+                ctx.fillStyle = draggedPointIndex === i ? '#ff5252' : '#00bcd4';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+
+        function setupBendCanvasEvents() {
+            const canvas = document.getElementById('bendCanvas');
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = (e.clientX - rect.left) * scaleX;
+                const mouseY = (e.clientY - rect.top) * scaleY;
+                let minDist = Infinity;
+                let idx = -1;
+                bendPoints.forEach((p, i) => {
+                    const dist = Math.hypot(mouseX - p.x * canvas.width, mouseY - p.y * canvas.height);
+                    if (dist < minDist) { minDist = dist; idx = i; }
+                });
+                if (minDist < 20) {
+                    draggedPointIndex = idx;
+                    bendPoints[idx].y = Math.max(0, Math.min(1, mouseY / canvas.height));
+                    drawBendCanvas();
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (draggedPointIndex !== null) {
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleY = canvas.height / rect.height;
+                    const mouseY = (e.clientY - rect.top) * scaleY;
+                    bendPoints[draggedPointIndex].y = Math.max(0, Math.min(1, mouseY / canvas.height));
+                    drawBendCanvas();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                draggedPointIndex = null;
+                drawBendCanvas();
+            });
+
+            document.getElementById('bendMaxCents').addEventListener('input', drawBendCanvas);
+        }
+
+        // ==================== OTHER FUNCTIONS ====================
+        function toggleVShift(btn) { isVirtualShift = !isVirtualShift; if (isVirtualShift) btn.classList.add('active'); else btn.classList.remove('active'); }
+        function setBaseOctave(shift, btn) {
+            baseOctaveShift = shift;
+            document.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            else document.querySelectorAll('.oct-btn').forEach(b => { if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`(${shift},`)) b.classList.add('active'); });
+        }
+        function toggleChordMode() { isChordMode = !isChordMode; let btn = document.getElementById('chordModeBtn'); if (isChordMode) btn.classList.add('active'); else btn.classList.remove('active'); }
+        function setDur(quarters, btn) {
+            currentDurQuarters = quarters;
+            document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            else { let target = document.querySelector(`.dur-btn[data-val="${quarters}"]`); if(target) target.classList.add('active'); }
+            updateNoteButtonIcons();
+        }
+        function toggleMod(type, val, btn) {
+            if (type === 'accidental') {
+                ['mod-sharp','mod-flat','mod-nat','mod-dblsharp','mod-dblflat'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+                if (nextMods.accidental === val) nextMods.accidental = ''; else { nextMods.accidental = val; btn.classList.add('active'); }
+            } else if (type === 'dot') {
+                if (nextMods.dot === val) { nextMods.dot = false; btn.classList.remove('active'); } else { nextMods.dot = true; btn.classList.add('active'); }
+            }
+            updateNoteButtonIcons();
+        }
+        function toggleTriplet(btn) {
+            if (tripletNotesLeft > 0) { tripletNotesLeft = 0; btn.classList.remove('active'); } else { tripletNotesLeft = 3; btn.classList.add('active'); }
+        }
+        function resetMods() {
+            nextMods = { accidental: '', dot: false };
+            ['mod-sharp','mod-flat','mod-nat','mod-dblsharp','mod-dblflat','mod-dot'].forEach(id => { let el = document.getElementById(id); if (el) el.classList.remove('active'); });
+            updateNoteButtonIcons();
+        }
+        function updateNoteButtonIcons() {
+            if (!activeTrack) return;
+            let clef = voicesData[activeTrack].clef;
+            let baseUnits = currentDurQuarters / 0.25;
+            let durStr = baseUnits + (nextMods.dot ? '.' : '');
+            document.querySelectorAll('.note-btn').forEach(btn => {
+                let note = btn.dataset.note; let rowShift = parseInt(btn.dataset.rowShift);
+                let clefShift = (clef === 'bass' ? -2 : 0);
+                let totalShift = rowShift + clefShift;
+                let octaveStr = '';
+                if (note !== 'z') {
+                    if (totalShift <= -3) octaveStr = ',,,'; else if (totalShift === -2) octaveStr = ',,'; else if (totalShift === -1) octaveStr = ','; else if (totalShift === 0) octaveStr = ''; else if (totalShift === 1) octaveStr = "'"; else if (totalShift === 2) octaveStr = "''"; else if (totalShift >= 3) octaveStr = "'''";
+                }
+                let abcLine = note === 'z' ? `z${durStr}` : `${note}${octaveStr}${durStr}`;
+                let abc = `X:1\nL:1/16\nK:C clef=${clef}\n${abcLine}`;
+                let iconSpan = btn.querySelector('.note-icon');
+                if (!iconSpan) return;
+                iconSpan.innerHTML = '';
+                try { ABCJS.renderAbc(iconSpan, abc, { responsive: 'resize', staffwidth: 70 }); } catch (e) {}
+                let letterSpan = btn.querySelector('.note-letter');
+                if (letterSpan) {
+                    let letter = note;
+                    if (note !== 'z') {
+                        let acc = nextMods.accidental;
+                        if (acc === '^') letter += '#'; else if (acc === '_') letter += 'b'; else if (acc === '=') letter += '♮'; else if (acc === '^^') letter += '##'; else if (acc === '__') letter += 'bb';
+                    }
+                    letterSpan.innerText = letter;
+                }
+            });
+        }
+
+        // ==================== MEASURE UTILITIES ====================
+        function getMeasureCapacity() {
+            const time = document.getElementById('timeSig').value;
+            const [num, den] = time.split('/').map(Number);
+            return num * (4 / den);
+        }
+
+        function getMeasuresFromNotes(vKey) {
+            const measureCapacity = getMeasureCapacity();
+            let notes = voicesData[vKey].notes;
+            let measures = [];
+            let currentMeasure = [];
+            let currentLength = 0;
+            for (let i = 0; i < notes.length; i++) {
+                let n = notes[i];
+                if (n.type === 'directive') {
+                    currentMeasure.push({ index: i, note: n });
+                    continue;
+                }
+                if (n.durationInQuarters) {
+                    currentMeasure.push({ index: i, note: n });
+                    currentLength += n.durationInQuarters;
+                    if (currentLength >= measureCapacity - 0.001) {
+                        measures.push(currentMeasure);
+                        currentMeasure = [];
+                        currentLength = 0;
+                    }
+                }
+            }
+            if (currentMeasure.length > 0) measures.push(currentMeasure);
+            return measures;
+        }
+
+        function getMeasureInfo(notes, index) {
+            const measureCapacity = getMeasureCapacity();
+            let cumQ = 0;
+            let measureIdx = 0;
+            for (let i = 0; i < index; i++) {
+                if (notes[i].durationInQuarters) cumQ += notes[i].durationInQuarters;
+                if (cumQ >= measureCapacity) { measureIdx++; cumQ -= measureCapacity; }
+            }
+            return { measureIndex: measureIdx, offsetInMeasure: cumQ, remainingInMeasure: measureCapacity - cumQ, measureStart: measureIdx * measureCapacity, measureEnd: (measureIdx + 1) * measureCapacity };
+        }
+
+        function compactMeasure(notes, measureIndex) {
+            const measureCapacity = getMeasureCapacity();
+            let startIdx = -1, endIdx = -1;
+            let cumQ = 0;
+            for (let i = 0; i < notes.length; i++) {
+                if (notes[i].durationInQuarters) {
+                    let prev = cumQ; cumQ += notes[i].durationInQuarters;
+                    if (prev < (measureIndex+1)*measureCapacity && cumQ > measureIndex*measureCapacity) {
+                        if (startIdx === -1) startIdx = i; endIdx = i;
+                    }
+                }
+            }
+            if (startIdx === -1) return;
+            let measureItems = notes.slice(startIdx, endIdx+1);
+            let realNotes = measureItems.filter(item => item.pitches && item.pitches[0].pitch !== 'x' && item.pitches[0].pitch !== 'z');
+            let directives = measureItems.filter(item => item.type === 'directive');
+            let realDur = realNotes.reduce((acc, n) => acc + n.durationInQuarters, 0);
+            if (realDur > measureCapacity) realDur = measureCapacity;
+            let remaining = measureCapacity - realDur;
+            let newItems = [...directives, ...realNotes];
+            if (remaining > 0.001) newItems.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: remaining, abcUnits: remaining / 0.25, triplet: false, tie: false, articulations: [] });
+            notes.splice(startIdx, endIdx - startIdx + 1, ...newItems);
+        }
+
+        function isLastMeasure(measureIndex) {
+            const measureCapacity = getMeasureCapacity();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            for (let vKey of activeKeys) {
+                let notes = voicesData[vKey].notes;
+                let cum = 0;
+                for (let i = 0; i < notes.length; i++) {
+                    if (notes[i].durationInQuarters) {
+                        let m = Math.floor(cum / measureCapacity);
+                        cum += notes[i].durationInQuarters;
+                        if (m > measureIndex) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function shiftMeasureMarkers(fromMeasure, delta) {
+            let newRepeats = {}, newVoltas = {};
+            for (let r in measureRepeats) { let idx = parseInt(r); if (idx >= fromMeasure) newRepeats[idx + delta] = measureRepeats[idx]; else newRepeats[idx] = measureRepeats[idx]; }
+            for (let v in measureVoltas) { let idx = parseInt(v); if (idx >= fromMeasure) newVoltas[idx + delta] = measureVoltas[idx]; else newVoltas[idx] = measureVoltas[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas;
+        }
+
+        // ==================== CORE EDITING FUNCTIONS ====================
+        function handleInvisiblePaste(index, newNote) {
+            let notes = getNotes();
+            let target = notes[index];
+            if (!target || !target.pitches || target.pitches[0].pitch !== 'x') return false;
+            let targetDur = target.durationInQuarters;
+            if (newNote.durationInQuarters <= targetDur + 0.001) {
+                if (Math.abs(newNote.durationInQuarters - targetDur) < 0.001) {
+                    notes[index] = newNote; selection.start = index; selection.end = index;
+                } else {
+                    let remainingDur = targetDur - newNote.durationInQuarters;
+                    let restNote = { pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: remainingDur, abcUnits: remainingDur / 0.25, triplet: false, tie: false, articulations: [] };
+                    notes.splice(index, 1, newNote, restNote); selection.start = index; selection.end = index;
+                }
+                return true;
+            } else { notes.splice(index, 1); return false; }
+        }
+
+        function removeInvisibleRests(notes) {
+            return notes.filter(n => { if (n.type === 'directive' || n.type === 'barline') return true; return !(n.pitches && n.pitches[0].pitch === 'x'); });
+        }
+
+        function getTimeAtNoteIndex(trackKey, noteIndex) {
+            let notes = voicesData[trackKey].notes;
+            let time = 0;
+            for (let i = 0; i < noteIndex && i < notes.length; i++) {
+                if (notes[i].durationInQuarters) time += notes[i].durationInQuarters;
+            }
+            return time;
+        }
+
+        function findIndexAtTime(trackKey, timeInQuarters) {
+            let notes = voicesData[trackKey].notes;
+            let cum = 0;
+            for (let i = 0; i < notes.length; i++) {
+                if (notes[i].durationInQuarters) {
+                    if (timeInQuarters < cum + notes[i].durationInQuarters - 0.001) return i;
+                    cum += notes[i].durationInQuarters;
+                }
+            }
+            return notes.length;
+        }
+
+        function insertEmptyMeasuresIntoTrack(trackKey, measureIndex, count) {
+            if (count <= 0) return;
+            const measureCapacity = getMeasureCapacity();
+            let notes = voicesData[trackKey].notes;
+            let targetTime = measureIndex * measureCapacity;
+            let insertIdx = findIndexAtTime(trackKey, targetTime);
+            let emptyNotes = [];
+            for (let i = 0; i < count; i++) {
+                emptyNotes.push({
+                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                    durationInQuarters: measureCapacity,
+                    abcUnits: measureCapacity / 0.25,
+                    triplet: false,
+                    tie: false,
+                    articulations: []
+                });
+            }
+            notes.splice(insertIdx, 0, ...emptyNotes);
+        }
+
+        function rebuildAllTracks() {
+            const measureCapacity = getMeasureCapacity();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            for (let key of activeKeys) {
+                let notes = voicesData[key].notes;
+                notes = splitLongNotes(notes, measureCapacity);
+                notes = rebuildWithTacts(notes, measureCapacity);
+                voicesData[key].notes = notes;
+            }
+            removeEmptyMeasures();
+            if (synchroMode) {
+                padTracksToSameLength();
+            }
+			
+			 removeEmptyMeasures(); 
+        }
+
+        function padTracksToSameLength() {
+            const measureCapacity = getMeasureCapacity();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            if (activeKeys.length === 0) return;
+            let trackDurations = {};
+            for (let key of activeKeys) {
+                let notes = voicesData[key].notes;
+                let total = 0;
+                for (let n of notes) if (n.durationInQuarters) total += n.durationInQuarters;
+                trackDurations[key] = total;
+            }
+            let maxDuration = Math.max(...Object.values(trackDurations));
+            for (let key of activeKeys) {
+                if (trackDurations[key] < maxDuration - 0.001) {
+                    let needed = maxDuration - trackDurations[key];
+                    let fullMeasures = Math.floor(needed / measureCapacity);
+                    let remainder = needed % measureCapacity;
+                    let notes = voicesData[key].notes;
+                    for (let i = 0; i < fullMeasures; i++) {
+                        notes.push({
+                            pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                            durationInQuarters: measureCapacity,
+                            abcUnits: measureCapacity / 0.25,
+                            triplet: false,
+                            tie: false,
+                            articulations: []
+                        });
+                    }
+                    if (remainder > 0.001) {
+                        notes.push({
+                            pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                            durationInQuarters: remainder,
+                            abcUnits: remainder / 0.25,
+                            triplet: false,
+                            tie: false,
+                            articulations: []
+                        });
+                    }
+                }
+            }
+        }
+
+function addNoteSync(noteBase, rowShift) {
+    if (!activeTrack) return;
+
+    // Определяем длительность новой ноты
+    let baseQuarters = currentDurQuarters;
+    if (nextMods.dot) baseQuarters *= 1.5;
+    if (tripletNotesLeft > 0) baseQuarters *= (2/3);
+
+    let newNote = {
+        pitches: [{ pitch: noteBase, octave: '', accidental: nextMods.accidental }],
+        durationInQuarters: baseQuarters,
+        abcUnits: baseQuarters / 0.25,
+        triplet: tripletNotesLeft > 0,
+        tie: false,
+        articulations: [],
+        pedalStart: false,
+        pedalEnd: false
+    };
+
+    // Определяем октаву
+    if (noteBase !== 'z' && noteBase !== 'x') {
+        let clefShift = voicesData[activeTrack].clef === 'bass' ? -2 : 0;
+        let totalShift = baseOctaveShift + rowShift + clefShift;
+        if (totalShift <= -3) newNote.pitches[0].octave = ',,,';
+        else if (totalShift === -2) newNote.pitches[0].octave = ',,';
+        else if (totalShift === -1) newNote.pitches[0].octave = ',';
+        else if (totalShift === 0) newNote.pitches[0].octave = '';
+        else if (totalShift === 1) newNote.pitches[0].octave = "'";
+        else if (totalShift === 2) newNote.pitches[0].octave = "''";
+        else if (totalShift >= 3) newNote.pitches[0].octave = "'''";
+    }
+
+    // Воспроизводим превью
+    if (noteBase !== 'z' && noteBase !== 'x') {
+        playSingleNote(noteBase, newNote.pitches[0].octave, nextMods.accidental, baseQuarters);
+    }
+
+    // Определяем время вставки
+    let insertTime = 0;
+    if (selectionAtStart) {
+        insertTime = 0;
+        selectionAtStart = false;
+    } else if (selection.start !== -1 && selection.end !== -1) {
+        insertTime = getTimeAtNoteIndex(activeTrack, Math.max(selection.start, selection.end) + 1);
+    } else {
+        let notes = getNotes();
+        insertTime = notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+    }
+
+    // Пытаемся вставить ноту в существующие паузы активного трека (без сдвига)
+    let insertedInPause = tryInsertIntoPause(activeTrack, insertTime, newNote);
+
+    if (insertedInPause) {
+        // Вставка прошла успешно без изменения длительности других треков
+        // Перестраиваем только активный трек (можно вызвать rebuildAllTracks для чистоты)
+        rebuildAllTracks();
+    } else {
+        // Не хватило пауз – выполняем вставку со сдвигом во все активные треки
+        const measureCapacity = getMeasureCapacity();
+        let currentMeasure = Math.floor(insertTime / measureCapacity);
+        let offsetInMeasure = insertTime - currentMeasure * measureCapacity;
+        let remainingInMeasure = measureCapacity - offsetInMeasure;
+
+        // Если не хватает места в текущем такте – добавляем пустые такты во все активные треки
+        if (baseQuarters > remainingInMeasure + 0.001) {
+            let neededMeasures = Math.ceil((baseQuarters - remainingInMeasure) / measureCapacity);
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            for (let key of activeKeys) {
+                insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
+            }
+            shiftMeasureMarkers(currentMeasure + 1, neededMeasures);
+            insertTime = (currentMeasure + 1) * measureCapacity;
+        }
+
+        // Вставляем ноту во все активные треки
+        let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+        for (let key of activeKeys) {
+            let notes = voicesData[key].notes;
+            let insertIdx = findIndexAtTime(key, insertTime);
+            if (key === activeTrack) {
+                notes.splice(insertIdx, 0, JSON.parse(JSON.stringify(newNote)));
+            } else {
+                let pauseNote = {
+                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                    durationInQuarters: baseQuarters,
+                    abcUnits: baseQuarters / 0.25,
+                    triplet: false,
+                    tie: false,
+                    articulations: []
+                };
+                notes.splice(insertIdx, 0, pauseNote);
+            }
+        }
+
+        rebuildAllTracks();
+    }
+
+    // Находим индекс вставленной ноты в активном треке и обновляем выделение
+    let newSelIdx = findIndexAtTime(activeTrack, insertTime);
+    selection.start = newSelIdx;
+    selection.end = newSelIdx;
+
+    if (tripletNotesLeft > 0) {
+        tripletNotesLeft--;
+        if (tripletNotesLeft === 0) document.getElementById('mod-trip').classList.remove('active');
+    }
+    resetMods();
+    updateScore();
+}
+        // ==================== MAIN EDITING FUNCTIONS ====================
+        function insertNotes(activeKey, insertIdx, notesToInsert) {
+            const measureCapacity = getMeasureCapacity();
+            let beforeDur = 0;
+            let oldNotes = voicesData[activeKey].notes;
+            for (let i = 0; i < insertIdx && i < oldNotes.length; i++) if (oldNotes[i].durationInQuarters) beforeDur += oldNotes[i].durationInQuarters;
+            let insertedDur = notesToInsert.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            for (let key of activeKeys) voicesData[key].notes = removeInvisibleRests(voicesData[key].notes);
+            let activeNotes = voicesData[activeKey].notes;
+            let left = activeNotes.slice(0, insertIdx);
+            let right = activeNotes.slice(insertIdx);
+            let combined = left.concat(notesToInsert).concat(right);
+            combined = splitLongNotes(combined, measureCapacity);
+            let newActiveNotes = rebuildWithTacts(combined, measureCapacity);
+            voicesData[activeKey].notes = newActiveNotes;
+            for (let key of activeKeys) {
+                if (key === activeKey) continue;
+                let otherNotes = voicesData[key].notes;
+                otherNotes = splitLongNotes(otherNotes, measureCapacity);
+                let newOtherNotes = rebuildWithTacts(otherNotes, measureCapacity);
+                voicesData[key].notes = newOtherNotes;
+            }
+            let maxMeasures = 0, measuresPerVoice = {};
+            for (let key of activeKeys) {
+                let notes = voicesData[key].notes;
+                let totalDur = 0;
+                for (let n of notes) if (n.durationInQuarters) totalDur += n.durationInQuarters;
+                let measureCount = Math.ceil(totalDur / measureCapacity);
+                measuresPerVoice[key] = measureCount;
+                if (measureCount > maxMeasures) maxMeasures = measureCount;
+            }
+            for (let key of activeKeys) {
+                let notes = voicesData[key].notes;
+                let currentCount = measuresPerVoice[key];
+                if (currentCount < maxMeasures) {
+                    for (let i = currentCount; i < maxMeasures; i++) notes.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity, abcUnits: measureCapacity / 0.25, triplet: false, tie: false, articulations: [] });
+                }
+            }
+            let indices = findInsertedIndices(voicesData[activeKey].notes, beforeDur, insertedDur);
+            if (indices.start !== -1 && indices.end !== -1) { selection.start = indices.start; selection.end = indices.end; }
+            else { selection.start = -1; selection.end = -1; }
+            selectionAtStart = false;
+            removeEmptyMeasures();
+            updateScore();
+        }
+
+        function findInsertedIndices(notes, beforeDur, insertedDur) {
+            let cum = 0, startIdx = -1, endIdx = -1, inInserted = false;
+            for (let i = 0; i < notes.length; i++) {
+                let n = notes[i];
+                if (n.type === 'directive' || n.type === 'barline') continue;
+                let dur = n.durationInQuarters || 0;
+                if (!inInserted && cum + 0.001 >= beforeDur && cum - 0.001 <= beforeDur) { startIdx = i; inInserted = true; }
+                if (inInserted) { if (cum + dur - 0.001 <= beforeDur + insertedDur) endIdx = i; else break; }
+                cum += dur;
+            }
+            return { start: startIdx, end: endIdx };
+        }
+
+        function splitLongNotes(notes, measureCapacity) {
+            let result = [];
+            for (let n of notes) {
+                if (n.type === 'directive' || n.type === 'barline') { result.push(n); continue; }
+                let dur = n.durationInQuarters;
+                if (dur > measureCapacity) {
+                    let remaining = dur;
+                    while (remaining > 0) {
+                        let partDur = Math.min(remaining, measureCapacity);
+                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: (remaining - partDur > 0), articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
+                        result.push(partNote);
+                        remaining -= partDur;
+                    }
+                } else result.push(JSON.parse(JSON.stringify(n)));
+            }
+            return result;
+        }
+
+        function rebuildWithTacts(notes, measureCapacity) {
+            let result = [], cur = 0;
+            for (let n of notes) {
+                if (n.type === 'directive' || n.type === 'barline') { result.push(n); continue; }
+                let dur = n.durationInQuarters;
+                if (dur <= measureCapacity - cur) { result.push(n); cur += dur; }
+                else {
+                    if (cur < measureCapacity) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity - cur, abcUnits: (measureCapacity - cur) / 0.25, triplet: false, tie: false, articulations: [] });
+                    result.push(n); cur = dur;
+                }
+            }
+            if (cur > 0 && cur < measureCapacity) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity - cur, abcUnits: (measureCapacity - cur) / 0.25, triplet: false, tie: false, articulations: [] });
+            return result;
+        }
+
+        // ==================== MODIFIED FUNCTIONS WITH SYNCHRO MODE ====================
+        function toggleSynchroMode(checked) {
+            synchroMode = checked;
+            if (synchroMode) rebuildAllTracks();
+            updateScore();
+        }
+
+        function addNoteEx(noteBase, rowShift) {
+            if (!activeTrack) return;
+            if (synchroMode) {
+                addNoteSync(noteBase, rowShift);
+            } else {
+                // Asynchronous mode (original)
+                let finalOctaveStr = "";
+                if (noteBase !== 'z' && noteBase !== 'x') {
+                    let clefShift = voicesData[activeTrack].clef === 'bass' ? -2 : 0;
+                    let totalShift = baseOctaveShift + rowShift + clefShift;
+                    if (totalShift <= -3) finalOctaveStr = ",,,";
+                    else if (totalShift === -2) finalOctaveStr = ",,";
+                    else if (totalShift === -1) finalOctaveStr = ",";
+                    else if (totalShift === 0) finalOctaveStr = "";
+                    else if (totalShift === 1) finalOctaveStr = "'";
+                    else if (totalShift === 2) finalOctaveStr = "''";
+                    else if (totalShift >= 3) finalOctaveStr = "'''";
+                }
+                let baseQuarters = currentDurQuarters;
+                if (nextMods.dot) baseQuarters *= 1.5;
+                let isTriplet = tripletNotesLeft > 0;
+                if (isTriplet) baseQuarters *= (2/3);
+                let newNote = {
+                    pitches: [{ pitch: noteBase, octave: finalOctaveStr, accidental: nextMods.accidental }],
+                    durationInQuarters: baseQuarters,
+                    abcUnits: baseQuarters / 0.25,
+                    triplet: isTriplet,
+                    tie: false,
+                    articulations: [],
+                    pedalStart: false,
+                    pedalEnd: false
+                };
+                if (noteBase !== 'z' && noteBase !== 'x') playSingleNote(noteBase, finalOctaveStr, nextMods.accidental, baseQuarters);
+                let notes = getNotes();
+                let insertIdx;
+                if (isChordMode) {
+                    let lastRealNoteIndex = -1;
+                    for (let i = notes.length - 1; i >= 0; i--) {
+                        let n = notes[i];
+                        if (n.type === 'directive' || n.type === 'barline') continue;
+                        if (n.pitches && n.pitches[0].pitch !== 'z' && n.pitches[0].pitch !== 'x') { lastRealNoteIndex = i; break; }
+                    }
+                    if (lastRealNoteIndex !== -1) {
+                        let groupStart = lastRealNoteIndex, groupEnd = lastRealNoteIndex;
+                        for (let i = lastRealNoteIndex - 1; i >= 0; i--) {
+                            let prev = notes[i];
+                            if (prev.type === 'directive' || prev.type === 'barline') break;
+                            if (!prev.pitches || prev.pitches.length === 0) break;
+                            if (!prev.tie) break;
+                            let curFirst = notes[i+1].pitches[0], prevFirst = prev.pitches[0];
+                            if (curFirst.pitch === prevFirst.pitch && curFirst.octave === prevFirst.octave && curFirst.accidental === prevFirst.accidental) groupStart = i;
+                            else break;
+                        }
+                        for (let i = lastRealNoteIndex + 1; i < notes.length; i++) {
+                            let next = notes[i];
+                            if (next.type === 'directive' || next.type === 'barline') break;
+                            if (!next.pitches || next.pitches.length === 0) break;
+                            if (!notes[i-1].tie) break;
+                            let prevFirst = notes[i-1].pitches[0], nextFirst = next.pitches[0];
+                            if (prevFirst.pitch === nextFirst.pitch && prevFirst.octave === nextFirst.octave && prevFirst.accidental === nextFirst.accidental) groupEnd = i;
+                            else break;
+                        }
+                        let newPitch = { pitch: noteBase, octave: finalOctaveStr, accidental: nextMods.accidental };
+                        for (let i = groupStart; i <= groupEnd; i++) {
+                            let n = notes[i];
+                            if (n.pitches) n.pitches.push({ ...newPitch });
+                        }
+                        selection.start = groupEnd; selection.end = groupEnd;
+                        updateScore(); resetMods(); return;
+                    }
+                }
+                if (selectionAtStart) { insertIdx = 0; selectionAtStart = false; }
+                else if (selection.start !== -1 && selection.end !== -1) insertIdx = Math.max(selection.start, selection.end) + 1;
+                else insertIdx = notes.length;
+                insertNotes(activeTrack, insertIdx, [newNote]);
+                if (isTriplet) { tripletNotesLeft--; if (tripletNotesLeft === 0) document.getElementById('mod-trip').classList.remove('active'); }
+                resetMods();
+            }
+        }
+
+        function deleteSelection() {
+            if (!activeTrack) return;
+            if (synchroMode) {
+                deleteSelectionSync();
+            } else {
+                let sel = getSelectionIndices(); if (!sel) return;
+                const measureCapacity = getMeasureCapacity();
+                let activeKey = activeTrack;
+                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                for (let key of activeKeys) voicesData[key].notes = removeInvisibleRests(voicesData[key].notes);
+                let activeNotes = voicesData[activeKey].notes;
+                activeNotes.splice(sel.start, sel.end - sel.start + 1);
+                activeNotes = splitLongNotes(activeNotes, measureCapacity);
+                let newActiveNotes = rebuildWithTacts(activeNotes, measureCapacity);
+                voicesData[activeKey].notes = newActiveNotes;
+                for (let key of activeKeys) {
+                    if (key === activeKey) continue;
+                    let otherNotes = voicesData[key].notes;
+                    otherNotes = splitLongNotes(otherNotes, measureCapacity);
+                    let newOtherNotes = rebuildWithTacts(otherNotes, measureCapacity);
+                    voicesData[key].notes = newOtherNotes;
+                }
+                let maxMeasures = 0, measuresPerVoice = {};
+                for (let key of activeKeys) {
+                    let notes = voicesData[key].notes;
+                    let totalDur = 0;
+                    for (let n of notes) if (n.durationInQuarters) totalDur += n.durationInQuarters;
+                    let measureCount = Math.ceil(totalDur / measureCapacity);
+                    measuresPerVoice[key] = measureCount;
+                    if (measureCount > maxMeasures) maxMeasures = measureCount;
+                }
+                for (let key of activeKeys) {
+                    let notes = voicesData[key].notes;
+                    let currentCount = measuresPerVoice[key];
+                    if (currentCount < maxMeasures) {
+                        for (let i = currentCount; i < maxMeasures; i++) notes.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity, abcUnits: measureCapacity / 0.25, triplet: false, tie: false, articulations: [] });
+                    }
+                }
+                if (sel.start > 0) {
+                    let prevIdx = sel.start - 1;
+                    while (prevIdx >= 0) { let n = voicesData[activeKey].notes[prevIdx]; if (n.pitches && n.pitches[0].pitch !== 'x' && n.pitches[0].pitch !== 'z') break; prevIdx--; }
+                    if (prevIdx >= 0) { selection.start = prevIdx; selection.end = prevIdx; } else { selection.start = -1; selection.end = -1; }
+                } else { selection.start = -1; selection.end = -1; }
+                selectionAtStart = false;
+                removeEmptyMeasures();
+                updateScore();
+            }
+        }
+
+function deleteSelectionSync() {
+    if (!activeTrack) return;
+    let sel = getSelectionIndices();
+    if (!sel) return;
+
+    // Определяем временной интервал удаления (в четвертях)
+    let startTime = getTimeAtNoteIndex(activeTrack, sel.start);
+    let endTime = getTimeAtNoteIndex(activeTrack, sel.end) + (voicesData[activeTrack].notes[sel.end].durationInQuarters || 0);
+    let rangeDur = endTime - startTime;
+
+    // В активном треке заменяем удаляемый интервал невидимой паузой
+    let activeNotes = voicesData[activeTrack].notes;
+    let newActiveNotes = [];
+    let cum = 0;
+    for (let i = 0; i < activeNotes.length; i++) {
+        let n = activeNotes[i];
+        if (!n.durationInQuarters) {
+            newActiveNotes.push(n);
+            continue;
+        }
+        let noteStart = cum;
+        let noteEnd = cum + n.durationInQuarters;
+
+        if (noteEnd <= startTime || noteStart >= endTime) {
+            // Нота полностью вне интервала – оставляем
+            newActiveNotes.push(n);
+        } else {
+            // Нота пересекается с интервалом – разрезаем
+            if (noteStart < startTime) {
+                let leftDur = startTime - noteStart;
+                if (leftDur > 0.001) {
+                    let leftNote = { ...n, durationInQuarters: leftDur, abcUnits: leftDur / 0.25 };
+                    leftNote.tie = false;
+                    newActiveNotes.push(leftNote);
+                }
+            }
+            if (noteEnd > endTime) {
+                let rightDur = noteEnd - endTime;
+                if (rightDur > 0.001) {
+                    let rightNote = { ...n, durationInQuarters: rightDur, abcUnits: rightDur / 0.25 };
+                    rightNote.tie = false;
+                    newActiveNotes.push(rightNote);
+                }
+            }
+        }
+        cum = noteEnd;
+    }
+
+    // Вставляем невидимую паузу на место удалённого интервала
+    let pauseInsertIdx = 0;
+    cum = 0;
+    for (let i = 0; i < newActiveNotes.length; i++) {
+        if (newActiveNotes[i].durationInQuarters) {
+            if (cum + newActiveNotes[i].durationInQuarters > startTime) {
+                pauseInsertIdx = i;
+                break;
+            }
+            cum += newActiveNotes[i].durationInQuarters;
+        }
+    }
+    let pauseNote = {
+        pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+        durationInQuarters: rangeDur,
+        abcUnits: rangeDur / 0.25,
+        triplet: false,
+        tie: false,
+        articulations: []
+    };
+    newActiveNotes.splice(pauseInsertIdx, 0, pauseNote);
+    voicesData[activeTrack].notes = newActiveNotes;
+
+    // Остальные треки не изменяем
+
+    // Перестраиваем все треки и удаляем пустые такты
+    rebuildAllTracks();
+
+    // Устанавливаем новое выделение на начало паузы (или предыдущую ноту)
+    let newSelIdx = findIndexAtTime(activeTrack, startTime) - 1;
+    if (newSelIdx >= 0) {
+        selection.start = newSelIdx;
+        selection.end = newSelIdx;
+    } else {
+        selection.start = -1;
+        selection.end = -1;
+    }
+    updateScore();
+}
+
+
+        function deleteRangeFromTrack(trackKey, startTime, endTime) {
+            let notes = voicesData[trackKey].notes;
+            let newNotes = [];
+            let cum = 0;
+            let rangeDur = endTime - startTime;
+            for (let i = 0; i < notes.length; i++) {
+                let n = notes[i];
+                if (!n.durationInQuarters) {
+                    newNotes.push(n);
+                    continue;
+                }
+                let noteStart = cum;
+                let noteEnd = cum + n.durationInQuarters;
+                if (noteEnd <= startTime || noteStart >= endTime) {
+                    newNotes.push(n);
+                } else {
+                    if (noteStart < startTime) {
+                        let leftDur = startTime - noteStart;
+                        if (leftDur > 0.001) {
+                            let leftNote = { ...n, durationInQuarters: leftDur, abcUnits: leftDur / 0.25 };
+                            leftNote.tie = false;
+                            newNotes.push(leftNote);
+                        }
+                    }
+                    if (noteEnd > endTime) {
+                        let rightDur = noteEnd - endTime;
+                        if (rightDur > 0.001) {
+                            let rightNote = { ...n, durationInQuarters: rightDur, abcUnits: rightDur / 0.25 };
+                            rightNote.tie = false;
+                            newNotes.push(rightNote);
+                        }
+                    }
+                }
+                cum = noteEnd;
+            }
+            let pauseInsertIdx = 0;
+            cum = 0;
+            for (let i = 0; i < newNotes.length; i++) {
+                if (newNotes[i].durationInQuarters) {
+                    if (cum + newNotes[i].durationInQuarters > startTime) {
+                        pauseInsertIdx = i;
+                        break;
+                    }
+                    cum += newNotes[i].durationInQuarters;
+                }
+            }
+            let pauseNote = {
+                pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                durationInQuarters: rangeDur,
+                abcUnits: rangeDur / 0.25,
+                triplet: false,
+                tie: false,
+                articulations: []
+            };
+            newNotes.splice(pauseInsertIdx, 0, pauseNote);
+            voicesData[trackKey].notes = newNotes;
+        }
+
+        function pasteSelection() {
+            if (!activeTrack) return;
+            if (clipboard.length === 0) return;
+            if (synchroMode) {
+                pasteSelectionSync();
+            } else {
+                let notes = getNotes();
+                let insertIdx;
+                if (selectionAtStart) { insertIdx = 0; selectionAtStart = false; }
+                else if (selection.start !== -1 && selection.end !== -1) insertIdx = Math.max(selection.start, selection.end) + 1;
+                else insertIdx = notes.length;
+                let notesToInsert = clipboard.map(n => JSON.parse(JSON.stringify(n)));
+                insertNotes(activeTrack, insertIdx, notesToInsert);
+            }
+        }
+
+        function pasteSelectionSync() {
+            if (!activeTrack || clipboard.length === 0) return;
+
+            let insertTime = 0;
+            if (selectionAtStart) {
+                insertTime = 0;
+                selectionAtStart = false;
+            } else if (selection.start !== -1 && selection.end !== -1) {
+                insertTime = getTimeAtNoteIndex(activeTrack, Math.max(selection.start, selection.end) + 1);
+            } else {
+                let notes = getNotes();
+                insertTime = notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+            }
+
+            let pasteDur = clipboard.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+            if (pasteDur <= 0) return;
+
+            const measureCapacity = getMeasureCapacity();
+            let currentMeasure = Math.floor(insertTime / measureCapacity);
+            let offsetInMeasure = insertTime - currentMeasure * measureCapacity;
+            let remainingInMeasure = measureCapacity - offsetInMeasure;
+
+            if (pasteDur > remainingInMeasure + 0.001) {
+                let neededMeasures = Math.ceil((pasteDur - remainingInMeasure) / measureCapacity);
+                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                for (let key of activeKeys) {
+                    insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
+                }
+                shiftMeasureMarkers(currentMeasure + 1, neededMeasures);
+                insertTime = (currentMeasure + 1) * measureCapacity;
+            }
+
+            let activeNotes = voicesData[activeTrack].notes;
+            let insertIdx = findIndexAtTime(activeTrack, insertTime);
+            let notesToInsert = clipboard.map(n => JSON.parse(JSON.stringify(n)));
+            activeNotes.splice(insertIdx, 0, ...notesToInsert);
+
+            rebuildAllTracks();
+
+            let newStartIdx = findIndexAtTime(activeTrack, insertTime);
+            let newEndIdx = findIndexAtTime(activeTrack, insertTime + pasteDur) - 1;
+            if (newEndIdx < newStartIdx) newEndIdx = newStartIdx;
+            selection.start = newStartIdx;
+            selection.end = newEndIdx;
+            updateScore();
+        }
+
+        // ==================== OTHER FUNCTIONS ====================
+        function copySelection() {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices(); let notes = getNotes(); if (!sel) return;
+            clipboard = notes.slice(sel.start, sel.end + 1).map(n => JSON.parse(JSON.stringify(n)));
+        }
+
+        function tieSelection() {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) { alert("Please select at least two notes to tie."); return; }
+            let notes = getNotes();
+            for (let i = sel.start; i <= sel.end; i++) { let n = notes[i]; if (n.type === 'directive' || n.type === 'barline' || (n.pitches && n.pitches[0].pitch === 'z')) { alert("Cannot tie rests or directives."); return; } }
+            let firstPitch = notes[sel.start].pitches[0];
+            for (let i = sel.start + 1; i <= sel.end; i++) { let p = notes[i].pitches[0]; if (p.pitch !== firstPitch.pitch || p.octave !== firstPitch.octave || p.accidental !== firstPitch.accidental) { alert("All selected notes must have the same pitch to tie."); return; } }
+            for (let i = sel.start; i < sel.end; i++) notes[i].tie = true;
+            notes[sel.end].tie = false;
+            selection.start = sel.end; selection.end = sel.end;
+            updateScore();
+        }
+
+        function getSelectionIndices() {
+            if (selection.start === -1 || selection.end === -1) return null;
+            return { start: Math.min(selection.start, selection.end), end: Math.max(selection.start, selection.end) };
+        }
+
+        function clearSelection() { selectionAtStart = false; selection = { start: -1, end: -1 }; }
+
+        // ==================== FILE I/O ====================
+        function downloadABC() {
+            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas };
+            let stateStr = "\n% EDITOR_STATE: " + JSON.stringify(state);
+            const blob = new Blob([window.lastAbcString + stateStr], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'score.abc'; a.click(); 
+            URL.revokeObjectURL(url);
+			hasUnsavedChanges = false;
+        }
+
+        function loadABC(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const contents = e.target.result;
+                const match = contents.match(/% EDITOR_STATE:\s*(.*)/);
+                if (match && match[1]) {
+                    try {
+                        let state = JSON.parse(match[1]);
+                        voicesData = state.voices || {};
+                        measureRepeats = state.repeats || {};
+                        measureVoltas = state.voltas || {};
+                        for (let key in voicesData) {
+                            if (voicesData[key].visible === undefined) voicesData[key].visible = true;
+                            if (voicesData[key].volume === undefined) voicesData[key].volume = 100;
+                        }
+                        document.getElementById('channelsContainer').innerHTML = '';
+                        for (let key in voicesData) renderChannelRow(key);
+                        updateVoiceUI();
+                        let keyMatch = contents.match(/K:(.*)/);
+                        if (keyMatch) document.getElementById('keySig').value = keyMatch[1].trim();
+                        let timeMatch = contents.match(/M:(.*)/);
+                        if (timeMatch) document.getElementById('timeSig').value = timeMatch[1].trim();
+                        let tempoMatch = contents.match(/Q:1\/4=(.*)/);
+                        if (tempoMatch) document.getElementById('tempo').value = tempoMatch[1].trim();
+                        let titleMatch = contents.match(/T:(.*)/);
+                        if (titleMatch) document.getElementById('title').value = titleMatch[1].trim();
+                        clearSelection();
+                        let firstActive = Object.keys(voicesData).find(k => voicesData[k].active) || Object.keys(voicesData)[0];
+                        if (firstActive) changeTrack(firstActive);
+                        if (synchroMode) rebuildAllTracks();
+                        removeEmptyMeasures();
+                        updateScore();
+                        updateNoteButtonIcons();
+                        preloadInstruments();
+                    } catch (err) { alert("Error reading saved file!"); console.error(err); }
+                } else alert("This ABC file was created in another program. Direct import of foreign files is not supported yet.");
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ==================== MIDI EXPORT (with fixed sustain and all notes off) ====================
+        function downloadMIDI() {
+            let hasBend = false;
+            for (let vKey in voicesData) {
+                if (voicesData[vKey].active) {
+                    for (let n of voicesData[vKey].notes) {
+                        if (n.bend) { hasBend = true; break; }
+                    }
+                }
+                if (hasBend) break;
+            }
+            if (hasBend) {
+                generateMIDIWithBend();
+            } else {
+                let abcString = window.lastAbcString || buildAbcString();
+                if (!abcString) { alert("No score to export."); return; }
+                try {
+                    let visualObjs = ABCJS.renderAbc("*", abcString);
+                    if (!visualObjs || visualObjs.length === 0) throw new Error("Failed to parse ABC");
+                    let visualObj = visualObjs[0];
+                    let getMidiFile = ABCJS.synth?.getMidiFile || ABCJS.getMidiFile;
+                    if (!getMidiFile) throw new Error("MIDI export method not available");
+                    let midiDataUrl = getMidiFile(visualObj, { midiOutputType: "encoded" });
+                    let a = document.createElement('a'); a.href = midiDataUrl; a.download = 'score.mid'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                } catch (e) { console.error("MIDI export error:", e); alert("Failed to generate MIDI: " + e.message); }
+            }
+        }
+
+// ==================== MIDI EXPORT (with detailed logging for debugging) ====================
+function generateMIDIWithBend() {
+    console.log("========== START MIDI EXPORT ==========");
+    const measureCapacity = getMeasureCapacity();
+    const tempo = parseInt(document.getElementById('tempo').value) || 120;
+    const ticksPerBeat = 480;
+    const bpm = tempo;
+
+    const dynVelocity = {
+        'ppp': 20, 'pp': 40, 'p': 60, 'mp': 70,
+        'mf': 80, 'f': 100, 'ff': 115, 'fff': 127
+    };
+
+    let { mapping: dirs, maxM } = getDirectivesMapping(measureCapacity);
+    let measures = maxM + 1;
+    let sequence = buildNavigationSequence(measureCapacity, measures * measureCapacity);
+    if (!sequence) sequence = Array.from({ length: measures }, (_, i) => i);
+
+    const orderedKeys = getOrderedActiveKeys();
+    let voiceNotes = {};
+    let pedalEvents = {};
+
+    // Collect notes and pedal events per voice
+    for (let vKey of orderedKeys) {
+        if (!voicesData[vKey].active) continue;
+        let voice = voicesData[vKey];
+        let notes = voice.notes;
+        let raw = [];
+        let currentQ = 0;
+        pedalEvents[vKey] = [];
+
+        for (let n of notes) {
+            if (n.type !== 'directive' && n.type !== 'barline') {
+                if (n.pitches && n.pitches[0].pitch !== 'z') {
+                    raw.push({ ...n, scoreStartQ: currentQ });
+                }
+                if (n.pedalStart) pedalEvents[vKey].push({ time: currentQ, type: 'on' });
+                if (n.pedalEnd) pedalEvents[vKey].push({ time: currentQ, type: 'off' });
+                if (n.durationInQuarters) currentQ += n.durationInQuarters;
+            }
+        }
+        pedalEvents[vKey].sort((a, b) => a.time - b.time);
+        console.log(`Voice ${vKey} (${voice.name}) pedal events:`, pedalEvents[vKey].map(e => `${e.type} at ${e.time}Q`));
+
+        // Apply dynamics propagation (last dynamic persists)
+        let lastDynamic = null;
+        for (let n of raw) {
+            let dyn = n.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
+            if (dyn) lastDynamic = dyn;
+            else if (lastDynamic && !n.articulations.includes('staccato') && !n.articulations.includes('accent')) {
+                if (!n.articulations) n.articulations = [];
+                if (!n.articulations.includes(lastDynamic)) n.articulations.push(lastDynamic);
+            }
+        }
+
+        // Unroll by sequence
+        let unrolled = [];
+        let playQ = 0;
+        for (let seqM of sequence) {
+            let mStart = seqM * measureCapacity;
+            let mEnd = mStart + measureCapacity;
+            let notesInMeasure = raw.filter(n => n.scoreStartQ >= mStart - 0.001 && n.scoreStartQ < mEnd - 0.001);
+            notesInMeasure.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
+            for (let n of notesInMeasure) {
+                let offset = n.scoreStartQ - mStart;
+                unrolled.push({ ...n, playStartQ: playQ + offset });
+            }
+            playQ += measureCapacity;
+        }
+        voiceNotes[vKey] = unrolled;
+    }
+
+    let tracks = [];
+    let channelIndex = 0;
+    function nextChannel() {
+        let ch = channelIndex % 16;
+        while (ch === 9) { channelIndex++; ch = channelIndex % 16; } // skip drum channel
+        return ch;
+    }
+
+    // Tempo track (track 0)
+    let tempoTrackEvents = [];
+    let lastTick = 0;
+    function addTempoEvent(tick, bytes) {
+        let delta = Math.max(0, Math.round(tick) - lastTick);
+        pushVLQ(tempoTrackEvents, delta);
+        tempoTrackEvents.push(...bytes);
+        lastTick = Math.round(tick);
+    }
+    let tempoVal = Math.round(60000000 / bpm);
+    addTempoEvent(0, [0xFF, 0x51, 0x03, (tempoVal >> 16) & 0xFF, (tempoVal >> 8) & 0xFF, tempoVal & 0xFF]);
+    let timeNum = parseInt(document.getElementById('timeSig').value.split('/')[0]);
+    let timeDen = parseInt(document.getElementById('timeSig').value.split('/')[1]);
+    let timeDenLog = Math.log2(timeDen);
+    addTempoEvent(0, [0xFF, 0x58, 0x04, timeNum, timeDenLog, 24, 8]);
+    addTempoEvent(0, [0xFF, 0x2F, 0x00]);
+    let tempoTrackLen = tempoTrackEvents.length;
+    let tempoTrackHeader = [
+        0x4D, 0x54, 0x72, 0x6B,
+        (tempoTrackLen >> 24) & 0xFF,
+        (tempoTrackLen >> 16) & 0xFF,
+        (tempoTrackLen >> 8) & 0xFF,
+        tempoTrackLen & 0xFF
+    ];
+    tracks.push(...tempoTrackHeader, ...tempoTrackEvents);
+
+    // Voice tracks
+    for (let vKey of orderedKeys) {
+        let voice = voicesData[vKey];
+        if (!voice.active) continue;
+        let events = [];
+        lastTick = 0;
+        let channel = nextChannel();
+        channelIndex++;
+        console.log(`Voice ${vKey} (${voice.name}) assigned to MIDI channel ${channel+1}`);
+
+        function addEvent(tick, bytes) {
+            let delta = Math.max(0, Math.round(tick) - lastTick);
+            pushVLQ(events, delta);
+            events.push(...bytes);
+            lastTick = Math.round(tick);
+        }
+
+        // Program change
+        addEvent(0, [0xC0 + channel, voice.program]);
+
+        // Pitch bend range if needed
+        let maxBendRange = 0;
+        for (let n of voiceNotes[vKey]) {
+            if (n.bend && n.bend.maxCents > maxBendRange) maxBendRange = n.bend.maxCents;
+        }
+        if (maxBendRange > 0) {
+            let semitones = Math.ceil(maxBendRange / 100);
+            addEvent(0, [0xB0 + channel, 101, 0]);
+            addEvent(0, [0xB0 + channel, 100, 0]);
+            addEvent(0, [0xB0 + channel, 6, semitones]);
+            console.log(`Pitch bend range set to ${semitones} semitones on ch ${channel+1}`);
+        }
+
+        let sortedNotes = [...voiceNotes[vKey]].sort((a,b) => a.playStartQ - b.playStartQ);
+        let noteEnds = []; // array of { tick, pitch, channel }
+        let pedalSchedule = pedalEvents[vKey].map(ev => ({
+            tick: ev.time * ticksPerBeat,
+            type: ev.type
+        }));
+        pedalSchedule.sort((a,b) => a.tick - b.tick);
+        let pedalIndex = 0;
+        let sustainOn = false;
+
+        // Process each note
+        for (let note of sortedNotes) {
+            let startTick = note.playStartQ * ticksPerBeat;
+            let rawEndTick = (note.playStartQ + note.durationInQuarters) * ticksPerBeat;
+            if (note.articulations.includes('staccato')) {
+                rawEndTick = startTick + (note.durationInQuarters * ticksPerBeat * 0.25);
+            }
+            let endTick = rawEndTick;
+            console.log(`Note: startQ=${note.playStartQ.toFixed(2)} dur=${note.durationInQuarters} startTick=${startTick} rawEndTick=${rawEndTick}`);
+
+            // Handle pedal events that occur before this note's start
+            while (pedalIndex < pedalSchedule.length && pedalSchedule[pedalIndex].tick <= startTick) {
+                let ev = pedalSchedule[pedalIndex];
+                if (ev.type === 'on') {
+                    sustainOn = true;
+                    addEvent(ev.tick, [0xB0 + channel, 64, 127]);
+                    console.log(`  Pedal ON at tick ${ev.tick} (before note)`);
+                } else {
+                    sustainOn = false;
+                    addEvent(ev.tick, [0xB0 + channel, 64, 0]);
+                    console.log(`  Pedal OFF at tick ${ev.tick} (before note)`);
+                }
+                pedalIndex++;
+            }
+
+            // If sustain is on, find the next pedal off after note start to possibly extend note
+            if (sustainOn) {
+                let nextOff = null;
+                for (let i = pedalIndex; i < pedalSchedule.length; i++) {
+                    if (pedalSchedule[i].type === 'off') {
+                        nextOff = pedalSchedule[i];
+                        break;
+                    }
+                }
+                if (nextOff && nextOff.tick > endTick) {
+                    endTick = nextOff.tick;
+                    console.log(`  Note extended to pedal-off at tick ${endTick}`);
+                }
+            }
+
+            let velocity = 100;
+            for (let a of note.articulations) {
+                if (dynVelocity[a] !== undefined) {
+                    velocity = dynVelocity[a];
+                    break;
+                }
+            }
+            velocity = Math.round(velocity * (voice.volume / 100));
+
+            for (let p of note.pitches) {
+                if (p.pitch === 'z' || p.pitch === 'x') continue;
+                let midiPitch = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                if (!midiPitch) continue;
+                midiPitch += 12; // adjust to correct octave
+
+                // Note on
+                addEvent(startTick, [0x90 + channel, midiPitch, velocity]);
+                console.log(`  Note ON: pitch ${midiPitch} at tick ${startTick} vel ${velocity}`);
+                noteEnds.push({ tick: endTick, pitch: midiPitch, channel });
+
+                // Pitch bend if any
+                if (note.bend) {
+                    let points = note.bend.points;
+                    let maxCents = note.bend.maxCents;
+                    let durTicks = endTick - startTick;
+                    const fps = 30;
+                    let totalFrames = Math.max(2, Math.floor(note.durationInQuarters * (bpm/60) * fps));
+                    console.log(`  Applying bend: ${totalFrames} frames, maxCents=${maxCents}`);
+                    for (let i = 0; i <= totalFrames; i++) {
+                        let progress = i / totalFrames;
+                        let tick = startTick + progress * durTicks;
+                        let y = 0.5;
+                        if (progress <= 0) y = points[0].y;
+                        else if (progress >= 1) y = points[8].y;
+                        else {
+                            let idx = Math.floor(progress * 8);
+                            let t = (progress * 8) - idx;
+                            y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
+                        }
+                        let centsOffset = (0.5 - y) * 2 * maxCents;
+                        let ratio = centsOffset / maxBendRange;
+                        let pbValue = 8192 + Math.round(ratio * 8191);
+                        pbValue = Math.max(0, Math.min(16383, pbValue));
+                        let lsb = pbValue & 0x7F;
+                        let msb = (pbValue >> 7) & 0x7F;
+                        addEvent(tick, [0xE0 + channel, lsb, msb]);
+                    }
+                }
+            }
+        }
+
+        // Process remaining pedal events after all notes
+        while (pedalIndex < pedalSchedule.length) {
+            let ev = pedalSchedule[pedalIndex];
+            if (ev.type === 'on') {
+                addEvent(ev.tick, [0xB0 + channel, 64, 127]);
+                console.log(`Pedal ON at tick ${ev.tick} (after notes)`);
+            } else {
+                addEvent(ev.tick, [0xB0 + channel, 64, 0]);
+                console.log(`Pedal OFF at tick ${ev.tick} (after notes)`);
+            }
+            pedalIndex++;
+        }
+
+        // Sort note ends by tick and add note-off events
+        noteEnds.sort((a,b) => a.tick - b.tick);
+        for (let n of noteEnds) {
+            addEvent(n.tick, [0x80 + n.channel, n.pitch, 0]);
+            console.log(`Note OFF: pitch ${n.pitch} at tick ${n.tick}`);
+        }
+
+        // All notes off at the end of track to prevent hanging notes
+        addEvent(lastTick, [0xB0 + channel, 123, 0]);
+        console.log(`All notes off at tick ${lastTick}`);
+
+        addEvent(lastTick, [0xFF, 0x2F, 0x00]); // end of track
+
+        let trackData = events;
+        let trackLen = trackData.length;
+        let trackHeader = [
+            0x4D, 0x54, 0x72, 0x6B,
+            (trackLen >> 24) & 0xFF,
+            (trackLen >> 16) & 0xFF,
+            (trackLen >> 8) & 0xFF,
+            trackLen & 0xFF
+        ];
+        tracks.push(...trackHeader, ...trackData);
+    }
+
+    let numTracks = 1 + orderedKeys.length;
+    let header = [
+        0x4D, 0x54, 0x68, 0x64,
+        0x00, 0x00, 0x00, 0x06,
+        0x00, 0x01,
+        (numTracks >> 8) & 0xFF, numTracks & 0xFF,
+        0x01, 0xE0 // ticks per quarter = 480
+    ];
+
+    let midiBytes = new Uint8Array([...header, ...tracks]);
+    let blob = new Blob([midiBytes], { type: "audio/midi" });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a"); a.href = url; a.download = "score.mid"; a.click(); URL.revokeObjectURL(url);
+    console.log("========== MIDI EXPORT COMPLETED ==========");
+}
+
+
+
+        function getOrderedActiveKeys() {
+            const rows = Array.from(document.querySelectorAll('#channelsContainer .channel-row'));
+            const keysFromDOM = rows.map(row => row.getAttribute('data-key')).filter(k => k && voicesData[k] && voicesData[k].active);
+            if (keysFromDOM.length === 0) {
+                return Object.keys(voicesData).filter(k => voicesData[k].active);
+            }
+            return keysFromDOM;
+        }
+
+        function pushVLQ(arr, value) {
+            let v = value;
+            let buffer = [v & 0x7F];
+            while (v >>= 7) buffer.unshift((v & 0x7F) | 0x80);
+            arr.push(...buffer);
+        }
+
+        // ==================== PLAYBACK with dynamic propagation ====================
+        async function playCustom() {
+            if (isCustomPlaying || isPreparingPlayback) return;
+            if (!activeTrack) return;
+            
+            let sel = getSelectionIndices();
+            if (!sel) {
+                let notes = getNotes();
+                if (notes.length === 0) return;
+                sel = { start: 0, end: notes.length - 1 };
+            }
+
+            currentTempo = parseInt(document.getElementById('tempo').value) || 120;
+            const timeStr = document.getElementById('timeSig').value;
+            const [num, den] = timeStr.split('/').map(Number);
+            const measureCapacity = num * (4 / den);
+
+            let maxEndQ = 0;
+            let rawTimeline = [];
+            let pedalEventsPerVoice = {};
+
+            for (let vKey in voicesData) {
+                if (!voicesData[vKey].active) continue;
+                let voice = voicesData[vKey];
+                let currentQ = 0;
+                pedalEventsPerVoice[vKey] = [];
+                for (let n of voice.notes) {
+                    if (n.type !== 'directive' && n.type !== 'barline') {
+                        if (n.pitches && n.pitches[0].pitch !== 'z') {
+                            rawTimeline.push({ 
+                                voiceId: vKey, 
+                                scoreStartQ: currentQ, 
+                                duration: n.durationInQuarters, 
+                                pitches: n.pitches, 
+                                program: voice.program, 
+                                articulations: n.articulations || [],
+                                tie: n.tie || false,
+                                volume: voice.volume,
+                                bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined
+                            });
+                        }
+                        if (n.pedalStart) pedalEventsPerVoice[vKey].push({ time: currentQ, type: 'on' });
+                        if (n.pedalEnd) pedalEventsPerVoice[vKey].push({ time: currentQ, type: 'off' });
+                        if (n.durationInQuarters) currentQ += n.durationInQuarters;
+                    }
+                }
+                if (currentQ > maxEndQ) maxEndQ = currentQ;
+                pedalEventsPerVoice[vKey].sort((a, b) => a.time - b.time);
+            }
+
+            if (rawTimeline.length === 0) return;
+
+            // Apply dynamics propagation for playback
+            let lastDynamicPerVoice = {};
+            for (let note of rawTimeline) {
+                let dyn = note.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
+                if (dyn) lastDynamicPerVoice[note.voiceId] = dyn;
+                else if (lastDynamicPerVoice[note.voiceId] && !note.articulations.includes('staccato') && !note.articulations.includes('accent')) {
+                    if (!note.articulations) note.articulations = [];
+                    if (!note.articulations.includes(lastDynamicPerVoice[note.voiceId])) note.articulations.push(lastDynamicPerVoice[note.voiceId]);
+                }
+            }
+
+            // Apply pedal extension
+            let modifiedTimeline = [];
+            for (let note of rawTimeline) {
+                let noteCopy = { ...note, pitches: note.pitches.map(p => ({ ...p })) };
+                let voicePedal = pedalEventsPerVoice[note.voiceId] || [];
+                if (voicePedal.length > 0) {
+                    let pedalActive = false;
+                    let nextOff = null;
+                    for (let ev of voicePedal) {
+                        if (ev.type === 'on' && ev.time <= note.scoreStartQ + 0.001) pedalActive = true;
+                        if (ev.type === 'off' && ev.time > note.scoreStartQ) {
+                            nextOff = ev;
+                            break;
+                        }
+                    }
+                    if (pedalActive && nextOff) {
+                        let newDuration = nextOff.time - note.scoreStartQ;
+                        if (isFinite(newDuration) && newDuration > note.duration) {
+                            noteCopy.duration = newDuration;
+                        }
+                    }
+                }
+                modifiedTimeline.push(noteCopy);
+            }
+            rawTimeline = modifiedTimeline;
+
+            maxEndQ = 0;
+            for (let note of rawTimeline) {
+                let end = note.scoreStartQ + note.duration;
+                if (isFinite(end) && end > maxEndQ) maxEndQ = end;
+            }
+
+            let sequence = buildNavigationSequence(measureCapacity, maxEndQ);
+            if (!sequence) {
+                let mCount = Math.ceil(maxEndQ / measureCapacity);
+                sequence = Array.from({length: mCount}, (_, i) => i);
+            }
+
+            let unrolledTimeline = [];
+            let currentUnrolledQ = 0;
+            for (let seqM of sequence) {
+                let mStartQ = seqM * measureCapacity;
+                let mEndQ = mStartQ + measureCapacity;
+                let notesInMeasure = rawTimeline.filter(n => n.scoreStartQ >= mStartQ - 0.001 && n.scoreStartQ < mEndQ - 0.001);
+                notesInMeasure.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
+                for (let n of notesInMeasure) {
+                    let offset = n.scoreStartQ - mStartQ;
+                    unrolledTimeline.push({ ...n, playStartQ: currentUnrolledQ + offset });
+                }
+                currentUnrolledQ += measureCapacity;
+            }
+            unrolledPlaybackMaxQ = currentUnrolledQ;
+
+            let activeNotes = voicesData[activeTrack].notes;
+            let selStartScoreQ = 0;
+            for(let i=0; i<sel.start; i++) selStartScoreQ += (activeNotes[i].durationInQuarters || 0);
+            let selEndScoreQ = selStartScoreQ;
+            if (sel.start !== sel.end) {
+                for(let i=sel.start; i<=sel.end; i++) selEndScoreQ += (activeNotes[i].durationInQuarters || 0);
+            }
+
+            let playBoundaryStart = 0, playBoundaryEnd = unrolledPlaybackMaxQ;
+            let firstMatch = unrolledTimeline.find(n => Math.abs(n.scoreStartQ - selStartScoreQ) < 0.001);
+            if (firstMatch) playBoundaryStart = firstMatch.playStartQ;
+            if (sel.start !== sel.end) {
+                let lastMatch = [...unrolledTimeline].reverse().find(n => n.scoreStartQ < selEndScoreQ - 0.001 && n.scoreStartQ >= selStartScoreQ);
+                if (lastMatch) playBoundaryEnd = lastMatch.playStartQ + lastMatch.duration;
+            }
+
+            unrolledTimeline = unrolledTimeline.filter(n => n.playStartQ >= playBoundaryStart && n.playStartQ < playBoundaryEnd);
+            unrolledTimeline = mergeTiedNotes(unrolledTimeline);
+            if (unrolledTimeline.length === 0) return;
+
+            isPreparingPlayback = true;
+            let playBtn = document.getElementById('playBtn');
+            playBtn.classList.add('loading');
+            playBtn.innerText = '⏳ Load...';
+
+            try {
+                await ensureAudioAndPreload(); 
+                if (!isPreparingPlayback) return; 
+                isCustomPlaying = true;
+                isPreparingPlayback = false;
+                playBtn.classList.remove('loading');
+                playBtn.classList.add('playing');
+                playBtn.innerText = '▶ Playing';
+
+                playStartAcTime = audioContext.currentTime;
+                buildCursorTrack(sequence, measureCapacity, playBoundaryStart, playBoundaryEnd);
+
+                let secondsPerQuarter = 60 / currentTempo;
+                const dynMap = {
+                    'ppp': 0.2, 'pp': 0.3, 'p': 0.5, 'mp': 0.6,
+                    'mf': 0.7, 'f': 0.8, 'ff': 0.9, 'fff': 1.0
+                };
+
+                for (let note of unrolledTimeline) {
+                    let playTimeAc = playStartAcTime + (note.playStartQ - playBoundaryStart) * secondsPerQuarter;
+                    let inst = loadedInstruments[note.program];
+                    if (inst && inst !== "loading") {
+                        let dynGain = 1.0;
+                        for (let a of note.articulations) {
+                            if (dynMap[a] !== undefined) {
+                                dynGain = dynMap[a];
+                                break;
+                            }
+                        }
+                        let baseGain = note.volume / 100;
+                        let finalGain = baseGain * dynGain;
+
+                        for (let p of note.pitches) {
+                            let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                            if (midiNote) midiNote += 12;
+                            
+                            if (midiNote) {
+                                let durSeconds = note.duration * secondsPerQuarter;
+                                if (note.articulations.includes('staccato')) durSeconds *= 0.25;
+                                
+                                let audioNode = inst.play(midiNote, playTimeAc, { duration: durSeconds, gain: finalGain });
+                                activeAudioNodes.push(audioNode);
+
+                                if (note.bend && audioNode.source) {
+                                    let source = audioNode.source;
+                                    let points = note.bend.points;
+                                    let maxCents = note.bend.maxCents;
+                                    let startTime = playTimeAc;
+                                    let endTime = playTimeAc + durSeconds;
+                                    source.playbackRate.setValueAtTime(1.0, startTime);
+                                    const fps = 30;
+                                    let totalFrames = Math.max(2, Math.floor(durSeconds * fps));
+                                    for (let i = 0; i <= totalFrames; i++) {
+                                        let progress = i / totalFrames;
+                                        let time = startTime + progress * durSeconds;
+                                        let y = 0.5;
+                                        if (progress <= 0) y = points[0].y;
+                                        else if (progress >= 1) y = points[8].y;
+                                        else {
+                                            let idx = Math.floor(progress * 8);
+                                            let t = (progress * 8) - idx;
+                                            y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
+                                        }
+                                        let centsOffset = (0.5 - y) * 2 * maxCents;
+                                        let playbackRate = Math.pow(2, centsOffset / 1200);
+                                        source.playbackRate.linearRampToValueAtTime(playbackRate, time);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                requestAnimationFrame(() => animateCursor(playBoundaryStart, playBoundaryEnd));
+            } catch (err) {
+                console.error(err);
+                stopCustomPlayback();
+            }
+        }
+
+        function buildCursorTrack(sequence, measureCapacity, playBoundaryStart, playBoundaryEnd) {
+            currentCursorTrack = [];
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            if (activeKeys.length === 0 || !activeTrack) return;
+            let refVoiceKey = activeTrack;
+            let visualElements = Array.from(document.querySelectorAll(`.abcjs-v${activeKeys.indexOf(refVoiceKey)}.abcjs-note, .abcjs-v${activeKeys.indexOf(refVoiceKey)}.abcjs-rest`));
+            let currentQ = 0, noteMap = [], visIdx = 0;
+            for (let n of voicesData[refVoiceKey].notes) {
+                if (n.type === 'directive' || n.type === 'barline') continue;
+                if (n.pitches && n.pitches[0].pitch === 'x') { currentQ += (n.durationInQuarters || 0); continue; }
+                if (visIdx < visualElements.length) {
+                    noteMap.push({ scoreStartQ: currentQ, duration: n.durationInQuarters || 0, el: visualElements[visIdx], measureIdx: Math.floor((currentQ + 0.001) / measureCapacity) });
+                }
+                currentQ += (n.durationInQuarters || 0); visIdx++;
+            }
+            let playbackQ = 0;
+            for (let seqM of sequence) {
+                let mNotes = noteMap.filter(n => n.measureIdx === seqM);
+                for (let mn of mNotes) if (mn.el) {
+                    let offset = mn.scoreStartQ - (seqM * measureCapacity);
+                    let pStart = playbackQ + offset, pEnd = pStart + mn.duration;
+                    if (pEnd > playBoundaryStart && pStart < playBoundaryEnd) currentCursorTrack.push({ playStartQ: pStart, playEndQ: pEnd, el: mn.el });
+                }
+                playbackQ += measureCapacity;
+            }
+            currentCursorTrack.sort((a,b) => a.playStartQ - b.playStartQ);
+        }
+
+        function animateCursor(playBoundaryStart, playBoundaryEnd) {
+            if (!isCustomPlaying || !audioContext) return;
+            let elapsed = audioContext.currentTime - playStartAcTime;
+            let secondsPerQuarter = 60 / currentTempo;
+            let currentPlayQ = playBoundaryStart + elapsed / secondsPerQuarter;
+            if (currentPlayQ >= playBoundaryEnd) { stopCustomPlayback(); return; }
+            updateCursorPosition(currentPlayQ);
+            playbackAnimationId = requestAnimationFrame(() => animateCursor(playBoundaryStart, playBoundaryEnd));
+        }
+
+        function updateCursorPosition(currentPlayQ) {
+            if (!currentCursorTrack.length) return;
+            let svg = document.querySelector("#paper svg");
+            if (!svg) return;
+            let svgRect = svg.getBoundingClientRect();
+            let itemIdx = currentCursorTrack.findIndex(c => currentPlayQ >= c.playStartQ && currentPlayQ < c.playEndQ);
+            if (itemIdx === -1) { if (currentPlayQ < currentCursorTrack[0].playStartQ) itemIdx = 0; else itemIdx = currentCursorTrack.length - 1; }
+            let item = currentCursorTrack[itemIdx];
+            let rect = item.el.getBoundingClientRect();
+            let duration = item.playEndQ - item.playStartQ;
+            let progress = duration > 0 ? (currentPlayQ - item.playStartQ) / duration : 0;
+            progress = Math.max(0, Math.min(1, progress));
+            let nextItem = currentCursorTrack[itemIdx + 1];
+            let targetX = rect.right;
+            if (nextItem && nextItem.el) {
+                let nextRect = nextItem.el.getBoundingClientRect();
+                if (Math.abs(nextRect.top - rect.top) < 60) targetX = nextRect.left; 
+                else targetX = rect.right + 30; 
+            }
+            let x = rect.left + (targetX - rect.left) * progress - svgRect.left;
+            let staves = Array.from(svg.querySelectorAll('.abcjs-staff'));
+            let systems = [], currentSystem = [], lastY = -1000;
+            staves.forEach(staff => {
+                let r = staff.getBoundingClientRect();
+                if (r.top - lastY > 60) { if (currentSystem.length) systems.push(currentSystem); currentSystem = []; }
+                currentSystem.push(staff); lastY = r.top;
+            });
+            if (currentSystem.length) systems.push(currentSystem);
+            let noteY = rect.top + rect.height / 2;
+            let activeSystem = systems.find(sys => { let top = sys[0].getBoundingClientRect().top; let bottom = sys[sys.length - 1].getBoundingClientRect().bottom; return noteY >= top - 40 && noteY <= bottom + 40; }) || systems[0];
+            if (!activeSystem) return;
+            let y1 = activeSystem[0].getBoundingClientRect().top - svgRect.top;
+            let y2 = activeSystem[activeSystem.length - 1].getBoundingClientRect().bottom - svgRect.top;
+            let cursor = document.getElementById("custom-cursor");
+            if (!cursor) {
+                cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                cursor.setAttribute("id", "custom-cursor");
+                cursor.setAttribute("stroke", "#f44336");
+                cursor.setAttribute("stroke-width", "2");
+                cursor.style.pointerEvents = "none";
+                svg.appendChild(cursor);
+            }
+            cursor.setAttribute("x1", x); cursor.setAttribute("x2", x);
+            cursor.setAttribute("y1", y1 - 20); cursor.setAttribute("y2", y2 + 20);
+        }
+
+        function stopCustomPlayback() {
+            isCustomPlaying = false; isPreparingPlayback = false;
+            activeAudioNodes.forEach(n => { if(n.stop) n.stop(); });
+            activeAudioNodes = [];
+            if (playbackAnimationId) cancelAnimationFrame(playbackAnimationId);
+            let cursor = document.getElementById("custom-cursor");
+            if (cursor) cursor.remove();
+            let playBtn = document.getElementById('playBtn');
+            if (playBtn) { playBtn.classList.remove('playing', 'loading'); playBtn.innerText = '▶ Play'; }
+        }
+
+        function getDirectivesMapping(measureCapacity) {
+            if (!activeTrack) return { mapping: {}, maxM: 0 };
+            let mapping = {}, maxM = 0;
+            let notes = voicesData[activeTrack].notes;
+            let currentQ = 0;
+            for (let n of notes) {
+                let mIdx = Math.floor((currentQ + 0.001) / measureCapacity);
+                if (n.type === 'directive') { if (!mapping[mIdx]) mapping[mIdx] = []; mapping[mIdx].push(n.text); }
+                if (n.durationInQuarters) currentQ += n.durationInQuarters;
+                if (mIdx > maxM) maxM = mIdx;
+            }
+            return { mapping, maxM: Math.max(maxM, Object.keys(measureRepeats).length) };
+        }
+
+        function buildNavigationSequence(measureCapacity, maxEndQ) {
+            let { mapping: dirs, maxM } = getDirectivesMapping(measureCapacity);
+            let measures = Math.max(maxM + 1, Math.ceil(maxEndQ / measureCapacity));
+            let hasSegno = false, segnoM = -1, hasCoda = false, codaM = -1, hasFine = false, fineM = -1;
+            let alCodaCount = 0, alFineCount = 0, dsCount = 0;
+            for(let m=0; m<measures; m++) {
+                let mDirs = dirs[m] || [];
+                if (mDirs.includes('s')) { hasSegno = true; segnoM = m; }
+                if (mDirs.includes('+')) { hasCoda = true; codaM = m; }
+                if (mDirs.includes('fine')) { hasFine = true; fineM = m; }
+                if (mDirs.includes('DSalfine') || mDirs.includes('DSalcoda')) dsCount++;
+                if (mDirs.includes('DCalcoda') || mDirs.includes('DSalcoda')) alCodaCount++;
+                if (mDirs.includes('DCalfine') || mDirs.includes('DSalfine')) alFineCount++;
+            }
+            if (dsCount > 0 && !hasSegno) { alert("Playback Warning: D.S. requires a Segno (𝄋). Playing linearly."); return null; }
+            if (alCodaCount > 0 && !hasCoda) { alert("Playback Warning: al Coda requires a Coda (𝄌). Playing linearly."); return null; }
+            if (alFineCount > 0 && !hasFine) { alert("Playback Warning: al Fine requires a Fine. Playing linearly."); return null; }
+            let volta1s = Object.keys(measureVoltas).filter(m => measureVoltas[m] === 1);
+            let volta2s = Object.keys(measureVoltas).filter(m => measureVoltas[m] === 2);
+            if (volta2s.length > 0 && volta1s.length === 0) { alert("Playback Warning: Volta 2 requires Volta 1. Playing linearly."); return null; }
+            let sequence = [], m = 0, repeatStart = 0, visited = {}, jumpingFromDalSegno = false;
+            while(m < measures && m >= 0) {
+                if (visited[m] > 5) break; 
+                visited[m] = (visited[m] || 0) + 1;
+                let repeat = measureRepeats[m], volta = measureVoltas[m], mDirs = dirs[m] || [];
+                if (volta === 1 && visited[m] > 1) { let v2 = Object.keys(measureVoltas).find(k => measureVoltas[k] === 2 && parseInt(k) > m); if (v2) { m = parseInt(v2); continue; } }
+                if (repeat === 'start' || repeat === 'double') repeatStart = m;
+                sequence.push(m);
+                if (mDirs.includes('fine') && jumpingFromDalSegno) break; 
+                if (mDirs.includes('+') && jumpingFromDalSegno && alCodaCount > 0) { m = codaM; jumpingFromDalSegno = false; continue; }
+                if ((repeat === 'end' || repeat === 'double') && visited[m] === 1) { m = repeatStart; continue; }
+                if (mDirs.includes('DCalfine')) { m = 0; jumpingFromDalSegno = true; continue; }
+                if (mDirs.includes('DCalcoda')) { m = 0; jumpingFromDalSegno = true; continue; }
+                if (mDirs.includes('DSalfine')) { m = segnoM; jumpingFromDalSegno = true; continue; }
+                if (mDirs.includes('DSalcoda')) { m = segnoM; jumpingFromDalSegno = true; continue; }
+                m++;
+            }
+            return sequence;
+        }
+
+        function mergeTiedNotes(timeline) {
+            if (timeline.length === 0) return timeline;
+            let merged = [], current = null;
+            for (let note of timeline) {
+                if (current === null) { current = { ...note }; continue; }
+                if (current.voiceId === note.voiceId && current.tie && pitchesEqual(current.pitches[0], note.pitches[0])) {
+                    current.duration += note.duration;
+                    current.articulations = [...new Set([...current.articulations, ...note.articulations])];
+                    current.tie = note.tie;
+                    if (note.bend) current.bend = note.bend;
+                } else { merged.push(current); current = { ...note }; }
+            }
+            if (current) merged.push(current);
+            return merged;
+        }
+
+        function pitchesEqual(p1, p2) { return p1.pitch === p2.pitch && p1.octave === p2.octave && p1.accidental === p2.accidental; }
+
+        function abcPitchToMidi(pitch, octaveStr, accidental) {
+            if (pitch === 'z') return null;
+            const baseMidi = { 'C':48, 'D':50, 'E':52, 'F':53, 'G':55, 'A':57, 'B':59, 'c':60, 'd':62, 'e':64, 'f':65, 'g':67, 'a':69, 'b':71 };
+            let midi = baseMidi[pitch];
+            if (!midi) return null;
+            if (accidental === '^') midi += 1; else if (accidental === '^^') midi += 2; else if (accidental === '_') midi -= 1; else if (accidental === '__') midi -= 2;
+            let octShift = 0;
+            for (let char of octaveStr) { if (char === ',') octShift -= 12; if (char === "'") octShift += 12; }
+            return midi + octShift;
+        }
+
+        // ==================== MEASURE SYMBOLS & ARTICULATIONS ====================
+        function getCurrentMeasureIndex() {
+            if (!activeTrack) return 0;
+            let sel = getSelectionIndices();
+            if (!sel) return 0;
+            let notes = getNotes();
+            let totalQuarters = 0;
+            for (let i = 0; i < sel.start && i < notes.length; i++) if (notes[i] && notes[i].durationInQuarters) totalQuarters += notes[i].durationInQuarters;
+            const time = document.getElementById('timeSig').value;
+            const [num, den] = time.split('/').map(Number);
+            const measureCapacity = num * (4 / den);
+            return Math.floor(totalQuarters / measureCapacity);
+        }
+
+        function addRepeatToAllVoices(type) {
+            let measureIdx = getCurrentMeasureIndex();
+            if (measureRepeats[measureIdx] === type) delete measureRepeats[measureIdx]; else measureRepeats[measureIdx] = type;
+            updateScore();
+        }
+
+        function addVolta(num) {
+            let measureIdx = getCurrentMeasureIndex();
+            if (measureVoltas[measureIdx] === num) delete measureVoltas[measureIdx]; else measureVoltas[measureIdx] = num;
+            updateScore();
+        }
+
+        function addMeasureDirective(text) {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices(); let pos = (sel && sel.start !== -1) ? sel.start : 0;
+            for (let vKey in voicesData) if (voicesData[vKey].active) voicesData[vKey].notes.splice(pos, 0, { type: 'directive', text: text });
+            updateScore();
+        }
+
+        function addArticulationToSelection(type) {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices(); if (!sel) return;
+            let notes = getNotes(); const dynamics = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff', 'staccato'];
+            for (let i = sel.start; i <= sel.end; i++) {
+                if (!notes[i] || notes[i].type === 'directive' || notes[i].type === 'barline') continue;
+                if (!notes[i].articulations) notes[i].articulations = [];
+                if (dynamics.includes(type) && type !== 'staccato' && type !== 'accent') notes[i].articulations = notes[i].articulations.filter(a => !dynamics.includes(a) || a === 'staccato' || a === 'accent');
+                let idx = notes[i].articulations.indexOf(type);
+                if (idx >= 0) notes[i].articulations.splice(idx, 1); else notes[i].articulations.push(type);
+            }
+            updateScore();
+        }
+
+        function addCrescendo() { addHairpin('crescendo'); }
+        function addDiminuendo() { addHairpin('diminuendo'); }
+        function addHairpin(type) {
+            if (!activeTrack) return;
+            let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) return; 
+            let notes = getNotes();
+            notes.splice(sel.end + 1, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo)!' : '!diminuendo)!' });
+            notes.splice(sel.start, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo(!' : '!diminuendo(!' });
+            selection.start = sel.start; selection.end = sel.end + 2;
+            updateScore();
+        }
+
+        // ==================== ABC BUILDING & RENDERING ====================
+        function buildAbcString() {
+            const key = document.getElementById('keySig').value;
+            const time = document.getElementById('timeSig').value;
+            const tempo = document.getElementById('tempo').value;
+            const title = document.getElementById('title').value || 'Untitled';
+            const groupSize = parseInt(document.getElementById('beaming').value);
+            const [num, den] = time.split('/').map(Number);
+            const measureCapacity = num * (4 / den);
+
+            for (let vKey in voicesData) {
+                let notes = voicesData[vKey].notes;
+                for (let i = 0; i < notes.length; i++) {
+                    let n = notes[i];
+                    if (n.type === 'directive' || n.type === 'barline') continue;
+                    if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
+                    if (n.abcUnits !== undefined && isNaN(n.abcUnits)) { n.abcUnits = 1; }
+                }
+            }
+
+            let voicesMeasures = {}, maxMeasures = 0;
+
+            const visibleKeys = Object.keys(voicesData).filter(k => voicesData[k].active && voicesData[k].visible);
+            for (let vKey of visibleKeys) {
+                let voice = voicesData[vKey];
+                let notes = voice.notes;
+                let measures = [];
+                let currentMeasure = [];
+                let currentMeasureLength = 0;
+                let measuresCount = 0;
+                let activeTripletCount = 0;
+                let i = 0;
+
+                while (i < notes.length) {
+                    let n = notes[i];
+                    if (n.type === 'directive') { currentMeasure.push({ type: 'directive', text: n.text }); i++; continue; }
+
+                    let articulationStr = '';
+                    let hasStaccato = false;
+                    if (n.articulations && n.articulations.length) {
+                        articulationStr = n.articulations.map(a => {
+                            if (a === 'staccato') { hasStaccato = true; return ''; }
+                            if (a === 'accent') return '!accent!';
+                            if (a === 'ppp') return '!ppp!';
+                            if (a === 'pp') return '!pp!';
+                            if (a === 'p') return '!p!';
+                            if (a === 'mp') return '!mp!';
+                            if (a === 'mf') return '!mf!';
+                            if (a === 'f') return '!f!';
+                            if (a === 'ff') return '!ff!';
+                            if (a === 'fff') return '!fff!';
+                            return '';
+                        }).filter(s => s).join(' ');
+                        if (articulationStr) articulationStr += ' ';
+                    }
+
+                    let prefix = "";
+                    if (n.triplet) {
+                        if (activeTripletCount === 0) {
+                            let consecutiveTriplets = 1;
+                            while (i + consecutiveTriplets < notes.length && notes[i + consecutiveTriplets].triplet && consecutiveTriplets < 3) consecutiveTriplets++;
+                            if (consecutiveTriplets === 3) { prefix = "(3"; activeTripletCount = 2; }
+                            else if (consecutiveTriplets === 2) { prefix = "(2"; activeTripletCount = 1; }
+                            else { prefix = "(3:2:1 "; activeTripletCount = 0; }
+                        } else activeTripletCount--;
+                    } else activeTripletCount = 0;
+
+                    let needTie = false;
+                    if (n.tie && i + 1 < notes.length && n.pitches[0].pitch !== 'z' && n.pitches[0].pitch !== 'x') {
+                        let next = notes[i + 1];
+                        if (next.pitches && next.pitches.length > 0 && n.pitches.length > 0) {
+                            let p1 = n.pitches[0], p2 = next.pitches[0];
+                            if (p1.pitch !== 'z' && p2.pitch !== 'z' && p1.pitch === p2.pitch && p1.octave === p2.octave && p1.accidental === p2.accidental) needTie = true;
+                        }
+                    }
+                    let tieStr = needTie ? "-" : "";
+
+                    let noteCore = "";
+                    if (n.pitches.length > 1) {
+                        noteCore += "[";
+                        n.pitches.forEach(p => {
+                            if (p.pitch === 'x' || p.pitch === 'z') noteCore += p.pitch;
+                            else { let acc = p.accidental || ''; let oct = p.octave || ''; noteCore += acc + p.pitch + oct; }
+                        });
+                        noteCore += `]${n.abcUnits}${tieStr}`;
+                    } else {
+                        let p = n.pitches[0];
+                        if (p.pitch === 'x') noteCore = `x${n.abcUnits}`;
+                        else if (p.pitch === 'z') noteCore = `z${n.abcUnits}`;
+                        else { let acc = p.accidental || ''; let oct = p.octave || ''; noteCore = `${acc}${p.pitch}${oct}${n.abcUnits}${tieStr}`; }
+                    }
+
+                    if (hasStaccato) noteCore = "." + noteCore;
+
+                    if (n.bend) {
+                        currentMeasure.push({ type: 'directive', text: '"bend"' });
+                    }
+
+                    if (n.pedalStart) { currentMeasure.push({ type: 'directive', text: '!pedal!' }); currentMeasure.push({ type: 'directive', text: '"𝒫ℯ𝒹."' }); }
+
+                    currentMeasure.push({ type: 'note', text: articulationStr + prefix + noteCore, duration: n.durationInQuarters, isInvisible: (n.pitches && n.pitches[0].pitch === 'x') });
+
+                    if (n.pedalEnd) { currentMeasure.push({ type: 'directive', text: '!*pedal!' }); currentMeasure.push({ type: 'directive', text: '"✽"' }); }
+
+                    currentMeasureLength += n.durationInQuarters;
+                    i++;
+
+                    if (currentMeasureLength >= measureCapacity - 0.001) {
+                        let repeat = measureRepeats[measuresCount];
+                        let volta = measureVoltas[measuresCount];
+                        measures.push({ items: currentMeasure, repeat: repeat, volta: volta });
+                        currentMeasure = []; currentMeasureLength = 0; measuresCount++; activeTripletCount = 0;
+                    }
+                }
+
+                if (currentMeasure.length > 0 || currentMeasureLength > 0) {
+                    let repeat = measureRepeats[measuresCount];
+                    let volta = measureVoltas[measuresCount];
+                    measures.push({ items: currentMeasure, repeat: repeat, volta: volta });
+                    measuresCount++;
+                }
+
+                voicesMeasures[vKey] = measures;
+                if (measuresCount > maxMeasures) maxMeasures = measuresCount;
+            }
+
+            for (let vKey in voicesMeasures) {
+                let measures = voicesMeasures[vKey];
+                while (measures.length < maxMeasures) measures.push({ items: [], repeat: null, volta: null });
+            }
+
+            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/16\nQ:1/4=${tempo}\nK:${key}\n`;
+            let voiceStrings = [];
+
+            for (let vKey of visibleKeys) {
+                let voice = voicesData[vKey];
+                let measures = voicesMeasures[vKey];
+                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.short || voice.name}"\n`;
+                vStr += `%%MIDI program ${voice.program}\n`;
+                if (measures.length === 0) vStr += "x16 |";
+                else {
+                    for (let mIdx = 0; mIdx < measures.length; mIdx++) {
+                        let measure = measures[mIdx];
+                        if (mIdx === 0 || measure.repeat === 'start' || measure.volta) {
+                            if (measure.repeat === 'start') vStr += "|: ";
+                            if (measure.volta) vStr += `[${measure.volta} `;
+                        }
+                        if (measure.items.length === 0) vStr += "x16 ";
+                        else {
+                            let groupCounter = 0;
+                            for (let item of measure.items) {
+                                if (item.type === 'directive') {
+                                    vStr += item.text + " ";
+                                    groupCounter = 0;
+                                } else {
+                                    vStr += item.text;
+                                    let durMatch = item.text.match(/\d+/);
+                                    if (groupSize > 0 && durMatch && parseInt(durMatch[0]) < 4 && !item.text.includes('z') && !item.text.includes('x')) {
+                                        groupCounter++;
+                                        if (groupCounter % groupSize === 0) {
+                                            vStr += " ";
+                                        }
+                                    } else {
+                                        vStr += " ";
+                                        groupCounter = 0;
+                                    }
+                                }
+                            }
+                        }
+                        let repeat = measure.repeat;
+                        if (repeat === 'end') vStr += ":| ";
+                        else if (repeat === 'double') vStr += ":: ";
+                        else if (repeat === 'final') vStr += "|] ";
+                        else vStr += "| ";
+                    }
+                }
+                voiceStrings.push(vStr.trim());
+            }
+
+            abcString += voiceStrings.join('\n');
+            return abcString;
+        }
+
+        function removeEmptyMeasures() {
+            const measureCapacity = getMeasureCapacity();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            if (activeKeys.length === 0) return;
+            let voicesMeasures = {};
+            for (let vKey of activeKeys) voicesMeasures[vKey] = getMeasuresFromNotes(vKey);
+            let maxMeasures = 0;
+            for (let vKey of activeKeys) if (voicesMeasures[vKey].length > maxMeasures) maxMeasures = voicesMeasures[vKey].length;
+            let emptyMeasures = [];
+            for (let m = 0; m < maxMeasures; m++) {
+                let empty = true;
+                for (let vKey of activeKeys) {
+                    let meas = voicesMeasures[vKey][m];
+                    if (meas) { for (let item of meas) { let n = item.note; if (n.type === 'directive') { empty = false; break; } if (n.pitches && n.pitches[0].pitch !== 'x') { empty = false; break; } } } else { empty = false; break; }
+                    if (!empty) break;
+                }
+                if (empty) emptyMeasures.push(m);
+            }
+            if (emptyMeasures.length === 0) return;
+            let emptySet = new Set(emptyMeasures);
+            for (let vKey of activeKeys) {
+                let oldNotes = voicesData[vKey].notes;
+                let newNotes = [], cum = 0;
+                for (let i = 0; i < oldNotes.length; i++) {
+                    let n = oldNotes[i];
+                    if (n.type === 'directive' || n.type === 'barline') {
+                        let m = Math.floor(cum / measureCapacity);
+                        if (!emptySet.has(m)) newNotes.push(n);
+                        continue;
+                    }
+                    if (n.durationInQuarters) {
+                        let startMeasure = Math.floor(cum / measureCapacity);
+                        if (!emptySet.has(startMeasure)) newNotes.push(n);
+                        cum += n.durationInQuarters;
+                    }
+                }
+                voicesData[vKey].notes = newNotes;
+            }
+            let newRepeats = {}, newVoltas = {};
+            for (let r in measureRepeats) { let idx = parseInt(r); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newRepeats[idx - shift] = measureRepeats[idx]; }
+            for (let v in measureVoltas) { let idx = parseInt(v); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newVoltas[idx - shift] = measureVoltas[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas;
+        }
+
+        function normalizeAllMeasures() {
+            const measureCapacity = getMeasureCapacity();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            for (let vKey of activeKeys) {
+                let oldNotes = voicesData[vKey].notes;
+                let newNotes = [], currentQ = 0;
+                for (let n of oldNotes) {
+                    if (n.type === 'directive' || n.type === 'barline') { newNotes.push(n); continue; }
+                    if (!n.durationInQuarters) continue;
+                    let remaining = n.durationInQuarters;
+                    while (remaining > 0.001) {
+                        let measureStart = Math.floor(currentQ / measureCapacity) * measureCapacity;
+                        let nextMeasureStart = measureStart + measureCapacity;
+                        let available = nextMeasureStart - currentQ;
+                        let partDur = Math.min(remaining, available);
+                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: (remaining - partDur > 0.001), articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
+                        newNotes.push(partNote);
+                        remaining -= partDur;
+                        currentQ += partDur;
+                    }
+                }
+                voicesData[vKey].notes = newNotes;
+            }
+        }
+
+        function updateScore() {
+			if (!_skipUndo && !isUndoing) {
+             pushUndoState();
+             }
+            window.lastAbcString = buildAbcString();
+            console.log("ABC String:", window.lastAbcString);
+            for (let vKey in voicesData) for (let n of voicesData[vKey].notes) {
+                if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
+                if (n.abcUnits !== undefined && isNaN(n.abcUnits)) n.abcUnits = 1;
+            }
+            let paperDiv = document.getElementById('paper');
+            let containerWidth = paperDiv.clientWidth;
+            let padding = 20; 
+            let measuresPerLine = parseInt(document.getElementById('measuresPerLine').value);
+            let options = { responsive: "resize", add_classes: true, staffwidth: containerWidth - padding, scale: 1.0 };
+            if (measuresPerLine > 0) options.wrap = { minSpacing: 0, maxSpacing: 0, preferredMeasuresPerLine: measuresPerLine };
+            ABCJS.renderAbc("paper", window.lastAbcString, options)[0];
+            setTimeout(() => {
+                let annotations = document.querySelectorAll('.abcjs-annotation');
+                console.log('Found annotations:', annotations.length);
+                annotations.forEach(el => console.log('Annotation text:', el.textContent));
+            }, 500);
+            drawVisualSelection();
+            highlightIncompleteMeasures();
+            updateNoteButtonIcons();
+        }
+
+        function highlightIncompleteMeasures() {
+            document.querySelectorAll('.incomplete-mark').forEach(el => el.remove());
+            if (!activeTrack || !voicesData[activeTrack].active) return;
+            const measureCapacity = getMeasureCapacity();
+            let notes = getNotes();
+            let measures = getMeasuresFromNotes(activeTrack);
+            let svg = document.querySelector('#paper svg');
+            if (!svg) return;
+            let bars = Array.from(svg.querySelectorAll('.abcjs-bar'));
+            if (bars.length === 0) return;
+            let svgRect = svg.getBoundingClientRect();
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let maxRealMeasure = -1;
+            for (let vKey of activeKeys) {
+                let vNotes = voicesData[vKey].notes, cum = 0;
+                for (let n of vNotes) {
+                    if (n.durationInQuarters) {
+                        let m = Math.floor(cum / measureCapacity);
+                        if (n.pitches && n.pitches[0].pitch !== 'x') if (m > maxRealMeasure) maxRealMeasure = m;
+                        cum += n.durationInQuarters;
+                    }
+                }
+            }
+            for (let m = 0; m < measures.length; m++) {
+                let measure = measures[m];
+                let realDur = 0;
+                for (let item of measure) { let n = item.note; if (n.pitches && n.pitches[0].pitch !== 'x') realDur += n.durationInQuarters; }
+                if (realDur > 0.001 && realDur < measureCapacity - 0.001 && m < maxRealMeasure) {
+                    let barElement = bars[m];
+                    if (!barElement && m === measures.length - 1) {
+                        let lastNote = svg.querySelector('.abcjs-note:last-child, .abcjs-rest:last-child');
+                        if (lastNote) { let rect = lastNote.getBoundingClientRect(); let x = rect.right - svgRect.left; let y = rect.top - svgRect.top; addMark(x, y); }
+                    } else if (barElement) { let rect = barElement.getBoundingClientRect(); let x = rect.right - svgRect.left; let y = rect.top - svgRect.top; addMark(x, y); }
+                }
+            }
+            function addMark(x, y) { let mark = document.createElement('div'); mark.className = 'incomplete-mark'; mark.style.left = (x + 5) + 'px'; mark.style.top = (y - 10) + 'px'; document.getElementById('paper').appendChild(mark); }
+        }
+
+        // ==================== VISUAL SELECTION ====================
+        document.getElementById('paper').addEventListener('pointerdown', function(e) {
+            let svg = document.querySelector('#paper svg'); if (!svg) return;
+            let elements = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest, .abcjs-clef, .abcjs-time-signature, .abcjs-key-signature'));
+            if (elements.length === 0) return;
+            let x = e.clientX; let y = e.clientY;
+            let minDistance = Infinity; let closestEl = null;
+            elements.forEach((el) => {
+                let rect = el.getBoundingClientRect();
+                let cx = rect.left + rect.width / 2; let cy = rect.top + rect.height / 2;
+                let dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow((y - cy) * 3, 2));
+                if (dist < minDistance) { minDistance = dist; closestEl = el; }
+            });
+            if (closestEl) {
+                let cls = closestEl.getAttribute('class') || '';
+                let match = cls.match(/abcjs-v(\d+)/); 
+                if (match) {
+                    let vIdx = parseInt(match[1]);
+                    let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                    if (vIdx < activeKeys.length) {
+                        let targetKey = activeKeys[vIdx];
+                        if (activeTrack !== targetKey) changeTrack(targetKey);
+                        if (cls.includes('abcjs-clef') || cls.includes('abcjs-time-signature') || cls.includes('abcjs-key-signature')) {
+                            selectionAtStart = true; selection.start = 0; selection.end = 0; drawVisualSelection(); return;
+                        }
+                        let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+                        let visualToArrayMap = [];
+                        let tNotes = voicesData[targetKey].notes;
+                        for (let i = 0; i < tNotes.length; i++) {
+                            let n = tNotes[i];
+                            if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i);
+                        }
+                        let noteMinDist = Infinity; let closestVisIdx = -1;
+                        trackEls.forEach((el, idx) => {
+                            let rect = el.getBoundingClientRect();
+                            let cx = rect.left + rect.width / 2; let cy = rect.top + rect.height / 2;
+                            let dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - cy, 2));
+                            if (dist < noteMinDist) { noteMinDist = dist; closestVisIdx = idx; }
+                        });
+                        if (noteMinDist < 60 && closestVisIdx !== -1) {
+                            let actualArrayIdx = visualToArrayMap[closestVisIdx];
+                            if (actualArrayIdx !== undefined) {
+                                if ((e.shiftKey || isVirtualShift) && selection.start !== -1) {
+                                    selection.end = actualArrayIdx;
+                                    if (isVirtualShift) { isVirtualShift = false; let vBtn = document.getElementById('btn-vshift'); if (vBtn) vBtn.classList.remove('active'); }
+                                } else { selection.start = actualArrayIdx; selection.end = actualArrayIdx; selectionAtStart = false; }
+                            }
+                        }
+                    } else clearSelection();
+                    drawVisualSelection();
+                }
+            } else { clearSelection(); drawVisualSelection(); }
+        });
+
+        function drawVisualSelection() {
+            document.querySelectorAll('.selection-box').forEach(el => el.remove());
+            let allNotes = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest'));
+            allNotes.forEach(el => el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#000000')));
+            let sel = getSelectionIndices(); 
+            if (selectionAtStart) {
+                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                let vIdx = activeKeys.indexOf(activeTrack);
+                if (vIdx !== -1) {
+                    let clefEl = document.querySelector(`.abcjs-v${vIdx}.abcjs-clef`);
+                    let timeEl = document.querySelector(`.abcjs-v${vIdx}.abcjs-time-signature`);
+                    let keyEl = document.querySelector(`.abcjs-v${vIdx}.abcjs-key-signature`);
+                    let targetEl = clefEl || timeEl || keyEl;
+                    if (targetEl) {
+                        let paper = document.getElementById('paper');
+                        let paperRect = paper.getBoundingClientRect();
+                        let rect = targetEl.getBoundingClientRect();
+                        let box = document.createElement('div');
+                        box.className = 'selection-box';
+                        let top = rect.top - paperRect.top + paper.scrollTop - 5;
+                        let left = rect.left - paperRect.left + paper.scrollLeft - 5;
+                        box.style.top = top + 'px'; box.style.left = left + 'px';
+                        box.style.width = (rect.width + 10) + 'px'; box.style.height = (rect.height + 10) + 'px';
+                        paper.appendChild(box);
+                        return;
+                    }
+                }
+            }
+            if (!sel) return;
+            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let vIdx = activeKeys.indexOf(activeTrack); if (vIdx === -1) return;
+            let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+            let paper = document.getElementById('paper');
+            let paperRect = paper.getBoundingClientRect();
+            let visualToArrayMap = [];
+            let tNotes = voicesData[activeTrack].notes;
+            for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i); }
+            for (let i = sel.start; i <= sel.end; i++) {
+                let visIdx = visualToArrayMap.indexOf(i);
+                if (visIdx !== -1 && visIdx < trackEls.length) {
+                    let el = trackEls[visIdx];
+                    el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#00bcd4'));
+                    let rect = el.getBoundingClientRect();
+                    let box = document.createElement('div'); box.className = 'selection-box';
+                    let top = rect.top - paperRect.top + paper.scrollTop - 5;
+                    let left = rect.left - paperRect.left + paper.scrollLeft - 5;
+                    box.style.top = top + 'px'; box.style.left = left + 'px';
+                    box.style.width = (rect.width + 10) + 'px'; box.style.height = (rect.height + 10) + 'px';
+                    paper.appendChild(box);
+                }
+            }
+        }
+
+        // ==================== KEYBOARD SHORTCUTS ====================
+        document.addEventListener('keydown', function(e) {
+            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+            if (e.key === ' ' || (e.ctrlKey && e.key.startsWith('Arrow'))) e.preventDefault();
+            const keyNoteMap = { 'c':'C', 'd':'D', 'e':'E', 'f':'F', 'g':'G', 'a':'A', 'b':'B', 'z':'z' };
+            let letter = e.key.toLowerCase();
+            if (keyNoteMap[letter] && !e.ctrlKey) { let rowShift = (e.shiftKey && letter !== 'z') ? 1 : 0; addNoteEx(keyNoteMap[letter], rowShift); return; }
+            if (e.key === 'X' || e.key === 'x') { toggleChordMode(); return; }
+            if (e.key === 'Delete') { deleteSelection(); return; }
+            if (e.key === '3') { toggleTriplet(document.getElementById('mod-trip')); return; }
+            if (e.key === ' ') { playCustom(); return; } 
+            if (e.key === 't' || e.key === 'T') { tieSelection(); return; }
+            if (e.ctrlKey) {
+                if (letter === 'c') { copySelection(); e.preventDefault(); return; }
+                if (letter === 'v') { pasteSelection(); e.preventDefault(); return; }
+                const durOrder = [4.0, 2.0, 1.0, 0.5, 0.25];
+                let currentIdx = durOrder.indexOf(currentDurQuarters);
+                if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { if (currentIdx > 0) setDur(durOrder[currentIdx - 1], null); }
+                if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { if (currentIdx !== -1 && currentIdx < durOrder.length - 1) setDur(durOrder[currentIdx + 1], null); }
+            }
+        });
+
+        // ==================== INITIALIZATION ====================
+        window.addEventListener('load', function() { 
+            populateInstrumentSelect();
+            initDefaultChannels();
+            updateNoteButtonIcons(); 
+            updateScore();
+            setupBendCanvasEvents();
+        });
+
+       window.addEventListener('resize', function() {
+    _skipUndo = true;
+    updateScore();
+    _skipUndo = false;
+});
+
+        window.addEventListener('pointerdown', ensureAudioAndPreload, { once: true });
+
+        async function ensureAudioAndPreload() {
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') await audioContext.resume();
+            preloadInstruments();
+        }
+
+        async function preloadInstruments() {
+            if (!audioContext) return;
+            let promises = [];
+            for (let vKey in voicesData) {
+                if (voicesData[vKey].active) {
+                    let prog = voicesData[vKey].program;
+                    if (!loadedInstruments[prog]) {
+                        loadedInstruments[prog] = "loading";
+                        let sfName = gmProgramToSoundfont[prog] || 'acoustic_grand_piano';
+                        promises.push(Soundfont.instrument(audioContext, sfName).then(inst => { loadedInstruments[prog] = inst; }).catch(err => { console.error("Soundfont load error:", err); delete loadedInstruments[prog]; }));
+                    }
+                }
+            }
+            await Promise.all(promises);
+        }
+
+        async function playSingleNote(pitchBase, octaveStr, accidental, durationQuarters, articulations = []) {
+            if (!activeTrack || !voicesData[activeTrack].active || pitchBase === 'z') return;
+            await ensureAudioAndPreload();
+            let prog = voicesData[activeTrack].program;
+            let inst = loadedInstruments[prog];
+            if (inst && inst !== "loading") {
+                let midiNote = abcPitchToMidi(pitchBase, octaveStr, accidental);
+                if (midiNote) midiNote += 12;
+                if (midiNote) {
+                    let tempo = parseInt(document.getElementById('tempo').value) || 120;
+                    let durationSeconds = durationQuarters * (60 / tempo);
+                    if (articulations.includes('staccato')) durationSeconds *= 0.25;
+                    let gain = voicesData[activeTrack].volume / 100;
+                    inst.play(midiNote, audioContext.currentTime, { duration: durationSeconds, gain: gain });
+                }
+            }
+        }
+
+        document.getElementById('paper').addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            let svg = document.querySelector('#paper svg'); if (!svg) return;
+            let elements = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest'));
+            if (elements.length === 0) return;
+            let x = e.clientX; let y = e.clientY;
+            let minDistance = Infinity; let closestEl = null;
+            elements.forEach((el) => {
+                let rect = el.getBoundingClientRect();
+                let cx = rect.left + rect.width / 2; let cy = rect.top + rect.height / 2;
+                let dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow((y - cy) * 3, 2));
+                if (dist < minDistance) { minDistance = dist; closestEl = el; }
+            });
+            if (closestEl && minDistance < 60) {
+                let cls = closestEl.getAttribute('class') || '';
+                let match = cls.match(/abcjs-v(\d+)/);
+                if (match) {
+                    let vIdx = parseInt(match[1]);
+                    let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                    if (vIdx < activeKeys.length) {
+                        let targetKey = activeKeys[vIdx];
+                        if (activeTrack !== targetKey) changeTrack(targetKey);
+                        let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+                        let visualToArrayMap = [];
+                        let tNotes = voicesData[targetKey].notes;
+                        for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i); }
+                        let noteIdx = trackEls.indexOf(closestEl);
+                        if (noteIdx !== -1 && noteIdx < visualToArrayMap.length) { let actualArrayIdx = visualToArrayMap[noteIdx]; showContextMenu(e, actualArrayIdx); }
+                    }
+                }
+            }
+        });
+
+        // ==================== MUSICXML EXPORT (fixed) ====================
+        function downloadMusicXML() {
+            let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+            xml += '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
+            xml += '<score-partwise version="3.1">\n';
+
+            xml += '  <part-list>\n';
+            const visibleKeys = Object.keys(voicesData).filter(k => voicesData[k].active && voicesData[k].visible);
+            visibleKeys.forEach((key, index) => {
+                let voice = voicesData[key];
+                xml += `    <score-part id="P${index+1}">\n`;
+                xml += `      <part-name>${escapeXml(voice.name)}</part-name>\n`;
+                xml += `      <part-abbreviation>${escapeXml(voice.short || voice.name.substring(0,3))}</part-abbreviation>\n`;
+                xml += `      <score-instrument id="P${index+1}-I1">\n`;
+                xml += `        <instrument-name>${gmInstruments.find(i => i.num === voice.program)?.name || 'Piano'}</instrument-name>\n`;
+                xml += `      </score-instrument>\n`;
+                xml += `      <midi-instrument id="P${index+1}-I1">\n`;
+                xml += `        <midi-channel>${index+1}</midi-channel>\n`;
+                xml += `        <midi-program>${voice.program}</midi-program>\n`;
+                if (voice.notes.some(n => n.bend)) {
+                    let maxBend = 0;
+                    for (let n of voice.notes) if (n.bend && n.bend.maxCents > maxBend) maxBend = n.bend.maxCents;
+                    if (maxBend > 0) {
+                        let semitones = Math.ceil(maxBend / 100);
+                        xml += `        <pitch-bend>${semitones}</pitch-bend>\n`;
+                    }
+                }
+                xml += `      </midi-instrument>\n`;
+                xml += `    </score-part>\n`;
+            });
+            xml += '  </part-list>\n';
+
+            const measureCapacity = getMeasureCapacity();
+            const divisions = 4;
+            const tempo = parseInt(document.getElementById('tempo').value) || 120;
+            const keySig = document.getElementById('keySig').value;
+            const timeSig = document.getElementById('timeSig').value;
+            const [beats, beatType] = timeSig.split('/').map(Number);
+
+            visibleKeys.forEach((key, partIndex) => {
+                xml += `  <part id="P${partIndex+1}">\n`;
+                let voice = voicesData[key];
+                let notes = voice.notes;
+                let measures = getMeasuresFromNotes(key);
+                let measureNumber = 1;
+                let currentQ = 0;
+
+                for (let measureItems of measures) {
+                    xml += `    <measure number="${measureNumber}">\n`;
+                    if (measureNumber === 1) {
+                        xml += `      <attributes>\n`;
+                        xml += `        <divisions>${divisions}</divisions>\n`;
+                        xml += `        <key>\n`;
+                        let fifths = keySigToFifths(keySig);
+                        xml += `          <fifths>${fifths}</fifths>\n`;
+                        xml += `        </key>\n`;
+                        xml += `        <time>\n`;
+                        xml += `          <beats>${beats}</beats>\n`;
+                        xml += `          <beat-type>${beatType}</beat-type>\n`;
+                        xml += `        </time>\n`;
+                        xml += `        <clef>\n`;
+                        xml += `          <sign>${voice.clef === 'treble' ? 'G' : 'F'}</sign>\n`;
+                        xml += `          <line>${voice.clef === 'treble' ? 2 : 4}</line>\n`;
+                        xml += `        </clef>\n`;
+                        xml += `      </attributes>\n`;
+                        xml += `      <direction placement="above">\n`;
+                        xml += `        <direction-type>\n`;
+                        xml += `          <metronome parentheses="no">\n`;
+                        xml += `            <beat-unit>quarter</beat-unit>\n`;
+                        xml += `            <per-minute>${tempo}</per-minute>\n`;
+                        xml += `          </metronome>\n`;
+                        xml += `        </direction-type>\n`;
+                        xml += `        <sound tempo="${Math.round(60000000/tempo)}"/>\n`;
+                        xml += `      </direction>\n`;
+                    }
+
+                    measureItems.sort((a,b) => a.index - b.index);
+                    let measureDur = 0;
+                    for (let item of measureItems) {
+                        let n = item.note;
+                        if (n.type === 'directive') {
+                            if (n.text === '!pedal!' || n.text === '"𝒫ℯ𝒹."') {
+                                // handled by pedalStart on notes
+                            } else if (n.text === '!*pedal!' || n.text === '"✽"') {
+                                // handled by pedalEnd
+                            } else {
+                                xml += `      <direction placement="above">\n`;
+                                xml += `        <direction-type>\n`;
+                                xml += `          <words>${escapeXml(n.text)}</words>\n`;
+                                xml += `        </direction-type>\n`;
+                                xml += `      </direction>\n`;
+                            }
+                            continue;
+                        }
+                        let duration = n.durationInQuarters * divisions;
+                        let noteType = getNoteType(n.durationInQuarters);
+                        let isRest = n.pitches[0].pitch === 'z' || n.pitches[0].pitch === 'x';
+                        let isChord = n.pitches.length > 1;
+                        let first = true;
+                        // Insert pedal directions just before the note
+                        if (n.pedalStart) {
+                            xml += `      <direction placement="below">\n`;
+                            xml += `        <direction-type>\n`;
+                            xml += `          <pedal type="start" line="yes"/>\n`;
+                            xml += `        </direction-type>\n`;
+                            xml += `      </direction>\n`;
+                        }
+                        if (n.pedalEnd) {
+                            xml += `      <direction placement="below">\n`;
+                            xml += `        <direction-type>\n`;
+                            xml += `          <pedal type="stop" line="yes"/>\n`;
+                            xml += `        </direction-type>\n`;
+                            xml += `      </direction>\n`;
+                        }
+                        for (let pitch of n.pitches) {
+                            xml += `      <note>\n`;
+                            if (!first) xml += `        <chord/>\n`;
+                            if (isRest) {
+                                xml += `        <rest/>\n`;
+                            } else {
+                                let step = pitch.pitch;
+                                let alter = accidentalToAlter(pitch.accidental);
+                                let octave = abcOctaveToNumber(pitch.octave);
+                                xml += `        <pitch>\n`;
+                                xml += `          <step>${step}</step>\n`;
+                                if (alter !== 0) xml += `          <alter>${alter}</alter>\n`;
+                                xml += `          <octave>${octave}</octave>\n`;
+                                xml += `        </pitch>\n`;
+                            }
+                            xml += `        <duration>${Math.round(duration)}</duration>\n`;
+                            if (n.tie && !first) {
+                                xml += `        <tie type="start"/>\n`;
+                            } else if (n.tie && first) {
+                                xml += `        <tie type="start"/>\n`;
+                            }
+                            if (n.triplet) {
+                                xml += `        <time-modification>\n`;
+                                xml += `          <actual-notes>3</actual-notes>\n`;
+                                xml += `          <normal-notes>2</normal-notes>\n`;
+                                xml += `        </time-modification>\n`;
+                            }
+                            if (noteType) xml += `        <type>${noteType}</type>\n`;
+                            if (n.articulations && n.articulations.length) {
+                                xml += `        <notations>\n`;
+                                if (n.articulations.includes('staccato')) {
+                                    xml += `          <articulations>\n`;
+                                    xml += `            <staccato/>\n`;
+                                    xml += `          </articulations>\n`;
+                                }
+                                if (n.articulations.includes('accent')) {
+                                    xml += `          <articulations>\n`;
+                                    xml += `            <accent/>\n`;
+                                    xml += `          </articulations>\n`;
+                                }
+                                let dyn = n.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
+                                if (dyn) {
+                                    xml += `          <dynamics>\n`;
+                                    xml += `            <${dyn}/>\n`;
+                                    xml += `          </dynamics>\n`;
+                                }
+                                if (n.bend) {
+                                    xml += `          <technical>\n`;
+                                    xml += `            <other-technical>${escapeXml(JSON.stringify(n.bend))}</other-technical>\n`;
+                                    xml += `          </technical>\n`;
+                                }
+                                xml += `        </notations>\n`;
+                            }
+                            xml += `      </note>\n`;
+                            first = false;
+                        }
+                        measureDur += n.durationInQuarters;
+                    }
+                    xml += `      <barline location="right">\n`;
+                    if (measureRepeats[measureNumber-1] === 'start') {
+                        xml += `        <bar-style>light-heavy</bar-style>\n`;
+                        xml += `        <repeat direction="forward"/>\n`;
+                    } else if (measureRepeats[measureNumber-1] === 'end') {
+                        xml += `        <bar-style>light-heavy</bar-style>\n`;
+                        xml += `        <repeat direction="backward"/>\n`;
+                    } else if (measureRepeats[measureNumber-1] === 'double') {
+                        xml += `        <bar-style>light-heavy</bar-style>\n`;
+                        xml += `        <repeat direction="forward"/>\n`;
+                        xml += `        <repeat direction="backward"/>\n`;
+                    } else if (measureRepeats[measureNumber-1] === 'final') {
+                        xml += `        <bar-style>light-heavy</bar-style>\n`;
+                    } else {
+                        xml += `        <bar-style>regular</bar-style>\n`;
+                    }
+                    xml += `      </barline>\n`;
+                    xml += `    </measure>\n`;
+                    measureNumber++;
+                }
+                xml += `  </part>\n`;
+            });
+
+            xml += '</score-partwise>';
+
+            let blob = new Blob([xml], { type: 'application/xml' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = 'score.musicxml';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeXml(unsafe) {
+            return unsafe.replace(/[<>&'"]/g, function (c) {
+                if (c === '<') return '&lt;';
+                if (c === '>') return '&gt;';
+                if (c === '&') return '&amp;';
+                if (c === "'") return '&apos;';
+                if (c === '"') return '&quot;';
+                return c;
+            });
+        }
+
+        function keySigToFifths(key) {
+            const map = { 'C':0, 'G':1, 'D':2, 'A':3, 'E':4, 'B':5, 'F#':6, 'C#':7, 'F':-1, 'Bb':-2, 'Eb':-3, 'Ab':-4, 'Db':-5, 'Gb':-6, 'Cb':-7 };
+            return map[key] || 0;
+        }
+
+        function accidentalToAlter(acc) {
+            if (acc === '^') return 1;
+            if (acc === '^^') return 2;
+            if (acc === '_') return -1;
+            if (acc === '__') return -2;
+            if (acc === '=') return 0;
+            return 0;
+        }
+
+        function abcOctaveToNumber(octaveStr) {
+            let commas = (octaveStr.match(/,/g) || []).length;
+            let apostr = (octaveStr.match(/'/g) || []).length;
+            return 4 + apostr - commas;
+        }
+
+        function getNoteType(durationInQuarters) {
+            if (Math.abs(durationInQuarters - 4.0) < 0.01) return 'whole';
+            if (Math.abs(durationInQuarters - 2.0) < 0.01) return 'half';
+            if (Math.abs(durationInQuarters - 1.0) < 0.01) return 'quarter';
+            if (Math.abs(durationInQuarters - 0.5) < 0.01) return 'eighth';
+            if (Math.abs(durationInQuarters - 0.25) < 0.01) return '16th';
+            if (Math.abs(durationInQuarters - 0.125) < 0.01) return '32nd';
+            return null;
+        }
+		
+		window.addEventListener('beforeunload', function (e) {
+    if (hasUnsavedChanges) {
+        // Стандартное сообщение (браузер может показать своё)
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+    }
+});
+    </script>
+</body>
+</html>
