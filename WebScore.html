@@ -21,12 +21,11 @@
         button.danger { background: #ffcdd2; border-color: #e57373; color: #b71c1c; }
         button.danger:hover { background: #ef9a9a; }
         
-        .play-btn { background: #4caf50; color: white; border-color: #388e3c; min-width: 100px; padding: 8px 0; text-align: center; }
+        .play-btn { background: #4caf50; color: white; border-color: #388e3c; min-width: 90px; padding: 8px 0; text-align: center; }
         .play-btn:hover { background: #43a047; }
-        .play-btn.playing { background: #81c784; border-color: #4caf50; cursor: default; }
+        .play-btn.playing { background: #e57373; border-color: #c62828; cursor: pointer; }
+        .play-btn.playing:hover { background: #ef5350; }
         .play-btn.loading { background: #ffb300; border-color: #ff8f00; cursor: wait; }
-        .stop-btn { background: #f44336; color: white; border-color: #d32f2f; min-width: 80px; padding: 8px 0; text-align: center; }
-        .stop-btn:hover { background: #d32f2f; }
         .chord-btn { background: #cccccc; color: white; border-color: #e65100; font-size: 13px; }
         .chord-btn.active { background: #99aacc; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
 
@@ -59,6 +58,8 @@
         .channel-row .volume-slider { flex: 1; min-width: 80px; }
         .channel-row .remove-btn { background: none; border: none; font-size: 16px; color: #b71c1c; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
         .channel-row .remove-btn:hover { background: #ffcdd2; }
+        .order-btn { background: none; border: none; font-size: 10px; padding: 0; width: 18px; height: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 3px; color: #555; }
+        .order-btn:hover { background: #ddd; }
 
         .mod-btn.active { background: #00bcd4; color: white; border-color: #008ba3; }
         .control-panel { 
@@ -77,6 +78,7 @@
 
         .symbols-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
         .symbols-grid button { min-width: 40px; height: 40px; font-size: 16px; padding: 4px; }
+        .symbols-grid button.dyn { font-style: italic; font-weight: bold; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; }
         .section-title { font-weight: bold; margin: 8px 0 4px; }
         
         .abcjs-annotation {
@@ -143,14 +145,81 @@
         .bend-editor input { width: 80px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
         .bend-editor .actions { display: flex; gap: 10px; justify-content: flex-end; }
         .bend-editor button { padding: 8px 16px; }
+
+        /* ===== PIANO KEYBOARD ===== */
+        .input-mode-toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
+        .input-mode-toggle label { font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+        #pianoInputPanel { display: none; flex-direction: column; width: 100%; }
+        #pianoKeyboard {
+            position: relative;
+            height: 110px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            margin-bottom: 6px;
+        }
+        #pianoKeysInner { position: relative; display: inline-flex; height: 110px; }
+        .piano-white {
+            position: relative;
+            width: 36px;
+            height: 108px;
+            background: #fff;
+            border: 1px solid #999;
+            border-radius: 0 0 5px 5px;
+            box-sizing: border-box;
+            z-index: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 4px;
+            font-size: 9px;
+            color: #888;
+            transition: background 0.07s;
+            flex-shrink: 0;
+        }
+        .piano-white:hover { background: #e8f5ff; }
+        .piano-white:active, .piano-white.pressed { background: #b3e5fc; }
+        .piano-black {
+            position: absolute;
+            width: 24px;
+            height: 66px;
+            background: #222;
+            border-radius: 0 0 4px 4px;
+            z-index: 2;
+            cursor: pointer;
+            top: 0;
+            transition: background 0.07s;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+        .piano-black:hover { background: #444; }
+        .piano-black:active, .piano-black.pressed { background: #1565c0; }
+        .piano-controls-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; padding: 4px 0; }
+        .piano-controls-row .group { display: flex; gap: 2px; border-right: 2px solid #ccc; padding-right: 8px; margin-right: 3px; align-items: center; }
+        .piano-controls-row .group:last-child { border-right: none; }
+        /* Dynamic markings — bold italic serif */
+        .dyn-btn { font-style: italic; font-weight: bold; font-family: 'Times New Roman', Times, serif; font-size: 15px !important; }
+        /* Piano mode edit-button row */
+        .piano-edit-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; padding: 5px 0 2px; border-top: 1px solid #ddd; margin-top: 4px; }
+        /* Channel rows: two-line compact layout */
+        #channelsContainer { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 6px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; max-width: 520px; }
+        .channel-row { display: flex; flex-direction: column; gap: 3px; padding: 5px 8px; cursor: pointer; border-radius: 4px; border-left: 3px solid transparent; transition: 0.2s; background: white; }
+        .channel-row:hover { background: #f0f0f0; }
+        .channel-row.active { background: #e0f7fa; border-left-color: #00bcd4; font-weight: bold; }
+        .channel-row-top { display: flex; gap: 6px; align-items: center; }
+        .channel-row-bottom { display: flex; gap: 6px; align-items: center; }
     </style>
 </head>
 <body>
 
     <details>
         <summary>🔧   <sup>inspired by Score Creator </sup>      </summary>
-        <div style="margin-top: 10px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
-            <label>Title: <input type="text" id="title" value="Untitled" onchange="updateScore()" style="width: 140px;"></label>
+        <!-- Row 1: score controls -->
+        <div style="margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <label>Title: <input type="text" id="title" value="New song" onchange="updateScore()" style="width: 140px;"></label>
             <label>Key: 
                 <select id="keySig" onchange="updateScore()">
                     <option value="C">C / Am</option><option value="G">G / Em</option><option value="D">D / Bm</option>
@@ -161,16 +230,22 @@
                     <option value="Cb">Cb / Abm</option>
                 </select>
             </label>
-            <label>Time: <select id="timeSig" onchange="updateScore()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option></select></label>
+            <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="5/8">5/8</option></select></label>
             <label>Tempo: <input type="number" id="tempo" value="120" style="width: 60px;" onchange="updateScore()"></label>
             <label>Beaming: 
                 <select id="beaming" onchange="updateScore()"><option value="0">None</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
             </label>
-            <label>Measures per line: 
+            <label>Measures/line: 
                 <select id="measuresPerLine" onchange="updateScore()">
                     <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option>
                 </select>
             </label>
+            <label title="In Synchro mode all active channels share the same timeline. Inserting a note in one channel shifts all others forward by the same duration — like a multi-track tape recorder. Without Synchro, each channel is edited independently." style="display:flex;align-items:center;gap:4px;cursor:help;">
+                <input type="checkbox" id="synchroModeCheckbox" onchange="toggleSynchroMode(this.checked)"> Synchro ⓘ
+            </label>
+        </div>
+        <!-- Row 2: file buttons -->
+        <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
             <button onclick="downloadABC()">Save ABC</button>
             <button onclick="downloadMIDI()">Save MIDI</button>
             <button onclick="downloadMusicXML()">Save MusicXML</button>
@@ -179,10 +254,15 @@
             <button onclick="document.getElementById('musicxmlInput').click()">Load MusicXML</button>
             <input type="file" id="musicxmlInput" accept=".musicxml,.xml,.mxl" style="display:none;" onchange="importMusicXML(event)">
         </div>
+        <div class="input-mode-toggle" style="margin-top:10px;">
+            <strong>Note input mode:</strong>
+            <label><input type="radio" name="inputMode" value="buttons" checked onchange="switchInputMode('buttons')"> 🎵 Buttons</label>
+            <label><input type="radio" name="inputMode" value="piano" onchange="switchInputMode('piano')"> 🎹 Piano keyboard</label>
+        </div>
         
         <div id="channelsContainer"></div>
-        <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center;">
-            <select id="instrumentSelect" style="flex: 1;"></select>
+        <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;">
+            <select id="instrumentSelect" style="width: 220px;"></select>
             <select id="clefSelect">
                 <option value="treble">𝄞 Treble</option>
                 <option value="bass">𝄢 Bass</option>
@@ -205,59 +285,96 @@
                 </svg>
             </button>
             <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
-            <button id="playBtn" class="play-btn" onclick="playCustom()" title="Play Selection">▶ Play</button>
-            <button id="stopBtn" class="stop-btn" onclick="stopCustomPlayback()" title="Stop">⏹ Stop</button>
+            <button id="playBtn" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
             <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
-            <label style="display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                <input type="checkbox" id="synchroModeCheckbox" onchange="toggleSynchroMode(this.checked)"> Synchro
-            </label>
-			<button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z) press 2 times">↩ Undo</button>
+            <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z) press 2 times">↶ Undo</button>
         </div>
 
         <div class="note-panel">
-            <div class="keyboard-row" style="padding-bottom: 0;">
-                <div class="group">
-                    <button class="btn-small note-btn" data-note="C" data-row-shift="1" onclick="addNoteEx('C', 1)"><span class="note-icon"></span><small class="note-letter">C</small></button>
-                    <button class="btn-small note-btn" data-note="D" data-row-shift="1" onclick="addNoteEx('D', 1)"><span class="note-icon"></span><small class="note-letter">D</small></button>
-                    <button class="btn-small note-btn" data-note="E" data-row-shift="1" onclick="addNoteEx('E', 1)"><span class="note-icon"></span><small class="note-letter">E</small></button>
-                    <button class="btn-small note-btn" data-note="F" data-row-shift="1" onclick="addNoteEx('F', 1)"><span class="note-icon"></span><small class="note-letter">F</small></button>
-                    <button class="btn-small note-btn" data-note="G" data-row-shift="1" onclick="addNoteEx('G', 1)"><span class="note-icon"></span><small class="note-letter">G</small></button>
-                    <button class="btn-small note-btn" data-note="A" data-row-shift="1" onclick="addNoteEx('A', 1)"><span class="note-icon"></span><small class="note-letter">A</small></button>
-                    <button class="btn-small note-btn" data-note="B" data-row-shift="1" onclick="addNoteEx('B', 1)"><span class="note-icon"></span><small class="note-letter">B</small></button>
-                    <button class="btn-small note-btn" data-note="C" data-row-shift="2" onclick="addNoteEx('C', 2)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+            <!-- ===== BUTTON INPUT MODE (default) ===== -->
+            <div id="buttonInputPanel">
+                <div class="keyboard-row" style="padding-bottom: 0;">
+                    <div class="group">
+                        <button class="btn-small note-btn" data-note="C" data-row-shift="1" onclick="addNoteEx('C', 1)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                        <button class="btn-small note-btn" data-note="D" data-row-shift="1" onclick="addNoteEx('D', 1)"><span class="note-icon"></span><small class="note-letter">D</small></button>
+                        <button class="btn-small note-btn" data-note="E" data-row-shift="1" onclick="addNoteEx('E', 1)"><span class="note-icon"></span><small class="note-letter">E</small></button>
+                        <button class="btn-small note-btn" data-note="F" data-row-shift="1" onclick="addNoteEx('F', 1)"><span class="note-icon"></span><small class="note-letter">F</small></button>
+                        <button class="btn-small note-btn" data-note="G" data-row-shift="1" onclick="addNoteEx('G', 1)"><span class="note-icon"></span><small class="note-letter">G</small></button>
+                        <button class="btn-small note-btn" data-note="A" data-row-shift="1" onclick="addNoteEx('A', 1)"><span class="note-icon"></span><small class="note-letter">A</small></button>
+                        <button class="btn-small note-btn" data-note="B" data-row-shift="1" onclick="addNoteEx('B', 1)"><span class="note-icon"></span><small class="note-letter">B</small></button>
+                        <button class="btn-small note-btn" data-note="C" data-row-shift="2" onclick="addNoteEx('C', 2)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small dur-btn" data-val="4" onclick="setDur(4.0, this)" title="Whole">𝅝</button>
+                        <button class="btn-small dur-btn" data-val="2" onclick="setDur(2.0, this)" title="Half">𝅗𝅥</button>
+                        <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
+                        <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
+                        <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
+                        <button class="btn-small mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small mod-btn" id="mod-trip" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
+                    </div>
                 </div>
-                <div class="group">
-                    <button class="btn-small dur-btn" data-val="4" onclick="setDur(4.0, this)" title="Whole">𝅝</button>
-                    <button class="btn-small dur-btn" data-val="2" onclick="setDur(2.0, this)" title="Half">𝅗𝅥</button>
-                    <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
-                    <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
-                    <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
-                    <button class="btn-small mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
-                    <button class="btn-small mod-btn" id="mod-trip" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
+                <div class="keyboard-row">
+                    <div class="group">
+                        <button class="btn-small note-btn" data-note="C" data-row-shift="0" onclick="addNoteEx('C', 0)"><span class="note-icon"></span><small class="note-letter">C</small></button>
+                        <button class="btn-small note-btn" data-note="D" data-row-shift="0" onclick="addNoteEx('D', 0)"><span class="note-icon"></span><small class="note-letter">D</small></button>
+                        <button class="btn-small note-btn" data-note="E" data-row-shift="0" onclick="addNoteEx('E', 0)"><span class="note-icon"></span><small class="note-letter">E</small></button>
+                        <button class="btn-small note-btn" data-note="F" data-row-shift="0" onclick="addNoteEx('F', 0)"><span class="note-icon"></span><small class="note-letter">F</small></button>
+                        <button class="btn-small note-btn" data-note="G" data-row-shift="0" onclick="addNoteEx('G', 0)"><span class="note-icon"></span><small class="note-letter">G</small></button>
+                        <button class="btn-small note-btn" data-note="A" data-row-shift="0" onclick="addNoteEx('A', 0)"><span class="note-icon"></span><small class="note-letter">A</small></button>
+                        <button class="btn-small note-btn" data-note="B" data-row-shift="0" onclick="addNoteEx('B', 0)"><span class="note-icon"></span><small class="note-letter">B</small></button>
+                        <button class="btn-small note-btn" data-note="z" data-row-shift="0" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
+                        <button class="btn-small mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
+                        <button class="btn-small mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
+                        <button class="btn-small mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
+                        <button class="btn-small mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                    </div>
                 </div>
             </div>
-            <div class="keyboard-row">
-                <div class="group">
-                    <button class="btn-small note-btn" data-note="C" data-row-shift="0" onclick="addNoteEx('C', 0)"><span class="note-icon"></span><small class="note-letter">C</small></button>
-                    <button class="btn-small note-btn" data-note="D" data-row-shift="0" onclick="addNoteEx('D', 0)"><span class="note-icon"></span><small class="note-letter">D</small></button>
-                    <button class="btn-small note-btn" data-note="E" data-row-shift="0" onclick="addNoteEx('E', 0)"><span class="note-icon"></span><small class="note-letter">E</small></button>
-                    <button class="btn-small note-btn" data-note="F" data-row-shift="0" onclick="addNoteEx('F', 0)"><span class="note-icon"></span><small class="note-letter">F</small></button>
-                    <button class="btn-small note-btn" data-note="G" data-row-shift="0" onclick="addNoteEx('G', 0)"><span class="note-icon"></span><small class="note-letter">G</small></button>
-                    <button class="btn-small note-btn" data-note="A" data-row-shift="0" onclick="addNoteEx('A', 0)"><span class="note-icon"></span><small class="note-letter">A</small></button>
-                    <button class="btn-small note-btn" data-note="B" data-row-shift="0" onclick="addNoteEx('B', 0)"><span class="note-icon"></span><small class="note-letter">B</small></button>
-                    <button class="btn-small note-btn" data-note="z" data-row-shift="0" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
+
+            <!-- ===== PIANO INPUT MODE ===== -->
+            <div id="pianoInputPanel" style="display:none;">
+                <div id="pianoKeyboard">
+                    <div id="pianoKeysInner"></div>
                 </div>
-                <div class="group">
-                    <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
-                    <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                    <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                <div class="piano-controls-row">
+                    <div class="group">
+                        <button class="btn-small dur-btn" data-val="4" onclick="setDur(4.0, this)" title="Whole">𝅝</button>
+                        <button class="btn-small dur-btn" data-val="2" onclick="setDur(2.0, this)" title="Half">𝅗𝅥</button>
+                        <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
+                        <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
+                        <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
+                        <button class="btn-small mod-btn" id="mod-dot-piano" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small mod-btn" id="mod-trip-piano" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small note-btn" data-note="z" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
+                    </div>
                 </div>
-                <div class="group">
-                    <button class="btn-small mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
-                    <button class="btn-small mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
-                    <button class="btn-small mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
-                    <button class="btn-small mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
-                    <button class="btn-small mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                <!-- 9 action buttons mirroring the control grid -->
+                <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
+                    <button id="chordModeBtnP" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
+                    <button class="control-btn mod-btn" id="btn-vshift-p" onclick="toggleVShiftPiano(this)" title="Select (Shift)">Sel</button>
+                    <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
+                    <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
+                    <button class="control-btn" onclick="tieSelection()" title="Tie (T)"><svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/></svg></button>
+                    <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
+                    <button id="playBtnP" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
+                    <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
+                    <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
                 </div>
             </div>
         </div>
@@ -286,14 +403,14 @@
         <div class="symbols-grid">
             <button onclick="addArticulationToSelection('staccato')" title="Staccato">.</button>
             <button onclick="addArticulationToSelection('accent')" title="Accent">></button>
-            <button onclick="addArticulationToSelection('ppp')" title="ppp">ppp</button>
-            <button onclick="addArticulationToSelection('pp')" title="pp">pp</button>
-            <button onclick="addArticulationToSelection('p')" title="p">p</button>
-            <button onclick="addArticulationToSelection('mp')" title="mp">mp</button>
-            <button onclick="addArticulationToSelection('mf')" title="mf">mf</button>
-            <button onclick="addArticulationToSelection('f')" title="f">f</button>
-            <button onclick="addArticulationToSelection('ff')" title="ff">ff</button>
-            <button onclick="addArticulationToSelection('fff')" title="fff">fff</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('ppp')" title="ppp">ppp</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('pp')" title="pp">pp</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('p')" title="p">p</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('mp')" title="mp">mp</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('mf')" title="mf">mf</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('f')" title="f">f</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('ff')" title="ff">ff</button>
+            <button class="dyn-btn" onclick="addArticulationToSelection('fff')" title="fff">fff</button>
             <button onclick="addCrescendo()" title="Crescendo (selected range)">𝆒</button>
             <button onclick="addDiminuendo()" title="Diminuendo (selected range)">𝆓</button>
         </div>
@@ -342,6 +459,7 @@
         let measureVoltas = {};
         // Navigation marks stored per measure index (never inline in notes arrays)
         let measureDirectives = {};
+        let voiceOrder = []; // ordered array of keys – controls staff order
 
         let synchroMode = false;
 
@@ -375,6 +493,7 @@ function pushUndoState() {
         measureRepeats: measureRepeats,
         measureVoltas: measureVoltas,
         measureDirectives: measureDirectives,
+        voiceOrder: voiceOrder,
         activeTrack: activeTrack,
         selection: selection,
         selectionAtStart: selectionAtStart
@@ -388,6 +507,7 @@ function pushUndoState() {
         measureRepeats: JSON.parse(JSON.stringify(measureRepeats)),
         measureVoltas: JSON.parse(JSON.stringify(measureVoltas)),
         measureDirectives: JSON.parse(JSON.stringify(measureDirectives)),
+        voiceOrder: [...voiceOrder],
         activeTrack: activeTrack,
         selection: { ...selection },
         selectionAtStart: selectionAtStart
@@ -405,6 +525,7 @@ function undo() {
     voicesData = JSON.parse(JSON.stringify(prevState.voicesData));
     measureRepeats = JSON.parse(JSON.stringify(prevState.measureRepeats));
     measureVoltas = JSON.parse(JSON.stringify(prevState.measureVoltas));
+    voiceOrder = [...(prevState.voiceOrder || Object.keys(prevState.voicesData))];
     measureDirectives = JSON.parse(JSON.stringify(prevState.measureDirectives || {}));
     activeTrack = prevState.activeTrack;
     selection = { ...prevState.selection };
@@ -412,7 +533,7 @@ function undo() {
 
     // Перерисовываем интерфейс
     document.getElementById('channelsContainer').innerHTML = '';
-    for (let key in voicesData) renderChannelRow(key);
+    for (let key of getOrderedKeys()) renderChannelRow(key);
     updateVoiceUI();
     if (activeTrack) setBaseOctave(0, null);
 
@@ -530,6 +651,12 @@ function undo() {
             127: 'gunshot'
         };
 
+
+        // ── Voice-order helpers (always use these instead of Object.keys) ──────
+        function getOrderedKeys() { return voiceOrder.filter(k => voicesData[k]); }
+        function getActiveKeys()  { return voiceOrder.filter(k => voicesData[k] && voicesData[k].active); }
+        function getVisibleKeys() { return voiceOrder.filter(k => voicesData[k] && voicesData[k].active && voicesData[k].visible); }
+
         // ==================== CHANNEL MANAGEMENT ====================
         function populateInstrumentSelect() {
             const select = document.getElementById('instrumentSelect');
@@ -553,7 +680,7 @@ function undo() {
         function addChannel(program, clef, displayName) {
             const key = 'ch' + Date.now() + Math.floor(Math.random() * 1000);
             voicesData[key] = {
-                id: 'V' + (Object.keys(voicesData).length + 1),
+                id: 'V' + (voiceOrder.length + 1),
                 short: displayName.substring(0, 3),
                 name: displayName,
                 clef: clef,
@@ -563,6 +690,7 @@ function undo() {
                 visible: true,
                 volume: 100
             };
+            voiceOrder.push(key);
             renderChannelRow(key);
             if (!activeTrack) activeTrack = key;
             updateVoiceUI();
@@ -574,11 +702,11 @@ function undo() {
         function removeChannel(key) {
             if (!voicesData[key]) return;
             delete voicesData[key];
+            voiceOrder = voiceOrder.filter(k => k !== key);
             const row = document.querySelector(`.channel-row[data-key="${key}"]`);
             if (row) row.remove();
             if (activeTrack === key) {
-                const remaining = Object.keys(voicesData);
-                activeTrack = remaining.length > 0 ? remaining[0] : null;
+                activeTrack = voiceOrder.length > 0 ? voiceOrder[0] : null;
             }
             if (synchroMode) rebuildAllTracks();
             updateScore();
@@ -590,14 +718,37 @@ function undo() {
             const row = document.createElement('div');
             row.className = 'channel-row' + (activeTrack === key ? ' active' : '');
             row.setAttribute('data-key', key);
+            row.style.maxWidth = '520px';
             row.innerHTML = `
-                <input type="checkbox" class="channel-check" ${v.active ? 'checked' : ''} onclick="toggleVoice('${key}'); event.stopPropagation()">
-                <span class="channel-name" onclick="changeTrack('${key}'); event.stopPropagation()">${v.name}</span>
-                <button class="visibility-btn" onclick="toggleVisibility('${key}'); event.stopPropagation()">${v.visible ? '👁' : '🙈'}</button>
-                <input type="range" min="0" max="100" value="${v.volume}" class="volume-slider" oninput="setVolume('${key}', this.value)" onclick="event.stopPropagation()">
-                <button class="remove-btn" onclick="removeChannel('${key}'); event.stopPropagation()">✖</button>
+                <div class="channel-row-top" onclick="changeTrack('${key}')">
+                    <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
+                        <button class="order-btn" onclick="moveVoice('${key}',-1);event.stopPropagation()" title="Move up">▲</button>
+                        <button class="order-btn" onclick="moveVoice('${key}',1);event.stopPropagation()" title="Move down">▼</button>
+                    </div>
+                    <input type="checkbox" class="channel-check" ${v.active ? 'checked' : ''} onclick="toggleVoice('${key}'); event.stopPropagation()">
+                    <span class="channel-name" style="flex:1">${v.name}</span>
+                    <button class="visibility-btn" onclick="toggleVisibility('${key}'); event.stopPropagation()">${v.visible ? '👁' : '🙈'}</button>
+                    <button class="remove-btn" onclick="removeChannel('${key}'); event.stopPropagation()">✖</button>
+                </div>
+                <div class="channel-row-bottom" onclick="event.stopPropagation()">
+                    <span style="font-size:11px;color:#888;white-space:nowrap;">Vol</span>
+                    <input type="range" min="0" max="100" value="${v.volume}" class="volume-slider" style="flex:1;max-width:180px;" oninput="setVolume('${key}', this.value)">
+                </div>
             `;
             container.appendChild(row);
+        }
+
+        function moveVoice(key, dir) {
+            let idx = voiceOrder.indexOf(key);
+            if (idx === -1) return;
+            let newIdx = idx + dir;
+            if (newIdx < 0 || newIdx >= voiceOrder.length) return;
+            [voiceOrder[idx], voiceOrder[newIdx]] = [voiceOrder[newIdx], voiceOrder[idx]];
+            // Re-render channel rows in new order
+            const container = document.getElementById('channelsContainer');
+            container.innerHTML = '';
+            for (let k of voiceOrder) if (voicesData[k]) renderChannelRow(k);
+            updateScore();
         }
 
         function toggleVoice(vKey) {
@@ -639,7 +790,7 @@ function undo() {
         }
 
         function updateVoiceUI() {
-            for (let key in voicesData) {
+            for (let key of getOrderedKeys()) {
                 const row = document.querySelector(`.channel-row[data-key="${key}"]`);
                 if (!row) { renderChannelRow(key); continue; }
                 const chk = row.querySelector('.channel-check');
@@ -985,14 +1136,35 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         // ==================== OTHER FUNCTIONS ====================
-        function toggleVShift(btn) { isVirtualShift = !isVirtualShift; if (isVirtualShift) btn.classList.add('active'); else btn.classList.remove('active'); }
+
         function setBaseOctave(shift, btn) {
             baseOctaveShift = shift;
             document.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
             if (btn) btn.classList.add('active');
             else document.querySelectorAll('.oct-btn').forEach(b => { if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`(${shift},`)) b.classList.add('active'); });
         }
-        function toggleChordMode() { isChordMode = !isChordMode; let btn = document.getElementById('chordModeBtn'); if (isChordMode) btn.classList.add('active'); else btn.classList.remove('active'); }
+        function toggleVShift(btn) { isVirtualShift = !isVirtualShift; if (isVirtualShift) btn.classList.add('active'); else btn.classList.remove('active'); }
+        function toggleVShiftPiano(btn) {
+            isVirtualShift = !isVirtualShift;
+            ['btn-vshift','btn-vshift-p'].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) { if (isVirtualShift) el.classList.add('active'); else el.classList.remove('active'); }
+            });
+        }
+        function toggleChordMode() {
+            isChordMode = !isChordMode;
+            ['chordModeBtn','chordModeBtnP'].forEach(id => {
+                let btn = document.getElementById(id);
+                if (btn) { if (isChordMode) btn.classList.add('active'); else btn.classList.remove('active'); }
+            });
+        }
+        function onTimeSigChange() {
+            const ts = document.getElementById('timeSig').value;
+            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
+            const beamSel = document.getElementById('beaming');
+            if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+            updateScore();
+        }
         function setDur(quarters, btn) {
             currentDurQuarters = quarters;
             document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
@@ -1022,6 +1194,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             let clef = voicesData[activeTrack].clef;
             let baseUnits = currentDurQuarters / 0.25;
             let durStr = baseUnits + (nextMods.dot ? '.' : '');
+            const keyAccs = getKeyAccidentals();
             document.querySelectorAll('.note-btn').forEach(btn => {
                 let note = btn.dataset.note; let rowShift = parseInt(btn.dataset.rowShift);
                 let clefShift = (clef === 'bass' ? -2 : 0);
@@ -1040,8 +1213,23 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (letterSpan) {
                     let letter = note;
                     if (note !== 'z') {
-                        let acc = nextMods.accidental;
-                        if (acc === '^') letter += '#'; else if (acc === '_') letter += 'b'; else if (acc === '=') letter += '♮'; else if (acc === '^^') letter += '##'; else if (acc === '__') letter += 'bb';
+                        const userAcc = nextMods.accidental;
+                        let displayAcc = '';
+                        if (userAcc === '^') displayAcc = '#';
+                        else if (userAcc === '_') displayAcc = 'b';
+                        else if (userAcc === '=') {
+                            // Natural: only show ♮ for notes that have a key sig accidental
+                            displayAcc = keyAccs[note] ? '♮' : '';
+                        }
+                        else if (userAcc === '^^') displayAcc = '##';
+                        else if (userAcc === '__') displayAcc = 'bb';
+                        else {
+                            // No user accidental — reflect key signature
+                            const ksAcc = keyAccs[note];
+                            if (ksAcc === '^') displayAcc = '#';
+                            else if (ksAcc === '_') displayAcc = 'b';
+                        }
+                        letter += displayAcc;
                     }
                     letterSpan.innerText = letter;
                 }
@@ -1118,7 +1306,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
 
         function isLastMeasure(measureIndex) {
             const measureCapacity = getMeasureCapacity();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             for (let vKey of activeKeys) {
                 let notes = voicesData[vKey].notes;
                 let cum = 0;
@@ -1172,6 +1360,44 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             return time;
         }
 
+        // Returns the time (in quarters) where the next note would be inserted.
+        function getInsertionTime() {
+            if (!activeTrack) return 0;
+            if (selectionAtStart) return 0;
+            if (selection.start !== -1 && selection.end !== -1) {
+                return getTimeAtNoteIndex(activeTrack, Math.max(selection.start, selection.end) + 1);
+            }
+            let notes = getNotes();
+            return notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+        }
+
+        // Returns effective accidental per letter at the insertion point:
+        // key sig as base, overridden by any explicit accidentals in the current measure
+        // up to (but not including) the insertion position.
+        // '' = natural, '^' = sharp, '_' = flat, etc.
+        function getMeasureEffectiveAccidentals(trackKey, insertionTime) {
+            const result = Object.assign({}, getKeyAccidentals());
+            if (!voicesData[trackKey]) return result;
+            const measureCapacity = getMeasureCapacity();
+            const measureStart = Math.floor(insertionTime / measureCapacity) * measureCapacity;
+            let timePos = 0;
+            for (let n of voicesData[trackKey].notes) {
+                if (n.type === 'directive' || n.type === 'barline') continue;
+                const dur = n.durationInQuarters || 0;
+                if (timePos + dur <= measureStart + 0.001) { timePos += dur; continue; }
+                if (timePos >= insertionTime - 0.001) break;
+                if (n.pitches) {
+                    for (let p of n.pitches) {
+                        if (p.pitch && p.pitch !== 'z' && p.pitch !== 'x' && p.accidental) {
+                            result[p.pitch] = (p.accidental === '=') ? '' : p.accidental;
+                        }
+                    }
+                }
+                timePos += dur;
+            }
+            return result;
+        }
+
         function findIndexAtTime(trackKey, timeInQuarters) {
             let notes = voicesData[trackKey].notes;
             let cum = 0;
@@ -1206,7 +1432,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
 
         function rebuildAllTracks() {
             const measureCapacity = getMeasureCapacity();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             for (let key of activeKeys) {
                 let notes = voicesData[key].notes;
                 notes = splitLongNotes(notes, measureCapacity);
@@ -1223,7 +1449,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
 
         function padTracksToSameLength() {
             const measureCapacity = getMeasureCapacity();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             if (activeKeys.length === 0) return;
             let trackDurations = {};
             for (let key of activeKeys) {
@@ -1329,7 +1555,7 @@ function addNoteSync(noteBase, rowShift) {
         // Если не хватает места в текущем такте – добавляем пустые такты во все активные треки
         if (baseQuarters > remainingInMeasure + 0.001) {
             let neededMeasures = Math.ceil((baseQuarters - remainingInMeasure) / measureCapacity);
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             for (let key of activeKeys) {
                 insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
             }
@@ -1338,7 +1564,7 @@ function addNoteSync(noteBase, rowShift) {
         }
 
         // Вставляем ноту во все активные треки
-        let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+        let activeKeys = getActiveKeys();
         for (let key of activeKeys) {
             let notes = voicesData[key].notes;
             let insertIdx = findIndexAtTime(key, insertTime);
@@ -1379,7 +1605,7 @@ function addNoteSync(noteBase, rowShift) {
             let oldNotes = voicesData[activeKey].notes;
             for (let i = 0; i < insertIdx && i < oldNotes.length; i++) if (oldNotes[i].durationInQuarters) beforeDur += oldNotes[i].durationInQuarters;
             let insertedDur = notesToInsert.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             for (let key of activeKeys) voicesData[key].notes = removeInvisibleRests(voicesData[key].notes);
             let activeNotes = voicesData[activeKey].notes;
             let left = activeNotes.slice(0, insertIdx);
@@ -1509,10 +1735,22 @@ function addNoteSync(noteBase, rowShift) {
                 let insertIdx;
                 if (isChordMode) {
                     let lastRealNoteIndex = -1;
-                    for (let i = notes.length - 1; i >= 0; i--) {
-                        let n = notes[i];
-                        if (n.type === 'directive' || n.type === 'barline') continue;
-                        if (n.pitches && n.pitches[0].pitch !== 'z' && n.pitches[0].pitch !== 'x') { lastRealNoteIndex = i; break; }
+                    // Use selection if available — chord should be added to the SELECTED note,
+                    // not to the last note of the track.
+                    if (selection.start !== -1 && selection.end !== -1) {
+                        let selIdx = Math.max(selection.start, selection.end);
+                        let n = notes[selIdx];
+                        if (n && n.pitches && n.pitches[0].pitch !== 'z' && n.pitches[0].pitch !== 'x') {
+                            lastRealNoteIndex = selIdx;
+                        }
+                    }
+                    // Fallback: scan from end (original behaviour when nothing is selected)
+                    if (lastRealNoteIndex === -1) {
+                        for (let i = notes.length - 1; i >= 0; i--) {
+                            let n = notes[i];
+                            if (n.type === 'directive' || n.type === 'barline') continue;
+                            if (n.pitches && n.pitches[0].pitch !== 'z' && n.pitches[0].pitch !== 'x') { lastRealNoteIndex = i; break; }
+                        }
                     }
                     if (lastRealNoteIndex !== -1) {
                         let groupStart = lastRealNoteIndex, groupEnd = lastRealNoteIndex;
@@ -1560,7 +1798,7 @@ function addNoteSync(noteBase, rowShift) {
                 let sel = getSelectionIndices(); if (!sel) return;
                 const measureCapacity = getMeasureCapacity();
                 let activeKey = activeTrack;
-                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                let activeKeys = getActiveKeys();
                 for (let key of activeKeys) voicesData[key].notes = removeInvisibleRests(voicesData[key].notes);
                 let activeNotes = voicesData[activeKey].notes;
                 activeNotes.splice(sel.start, sel.end - sel.start + 1);
@@ -1788,7 +2026,7 @@ function deleteSelectionSync() {
 
             if (pasteDur > remainingInMeasure + 0.001) {
                 let neededMeasures = Math.ceil((pasteDur - remainingInMeasure) / measureCapacity);
-                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                let activeKeys = getActiveKeys();
                 for (let key of activeKeys) {
                     insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
                 }
@@ -1796,10 +2034,28 @@ function deleteSelectionSync() {
                 insertTime = (currentMeasure + 1) * measureCapacity;
             }
 
+            // Insert clipboard notes into active track
             let activeNotes = voicesData[activeTrack].notes;
             let insertIdx = findIndexAtTime(activeTrack, insertTime);
             let notesToInsert = clipboard.map(n => JSON.parse(JSON.stringify(n)));
             activeNotes.splice(insertIdx, 0, ...notesToInsert);
+
+            // Insert spacer invisible rests into all OTHER active tracks at the same time
+            // (mirrors addNoteSync behavior — without this, other tracks don't shift)
+            let activeKeys = getActiveKeys();
+            for (let key of activeKeys) {
+                if (key === activeTrack) continue;
+                let otherIdx = findIndexAtTime(key, insertTime);
+                let spacer = {
+                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                    durationInQuarters: pasteDur,
+                    abcUnits: pasteDur / 0.25,
+                    triplet: false,
+                    tie: false,
+                    articulations: []
+                };
+                voicesData[key].notes.splice(otherIdx, 0, spacer);
+            }
 
             rebuildAllTracks();
 
@@ -1862,20 +2118,21 @@ function deleteSelectionSync() {
                         voicesData = state.voices || {};
                         measureRepeats = state.repeats || {};
                         measureVoltas = state.voltas || {};
+                        voiceOrder = state.order || Object.keys(voicesData);
                         measureDirectives = state.navDirs || {};
                         // Migrate old inline navigation directives out of notes arrays
                         const NAV_CODES = ['s','+','fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
-                        for (let vKey in voicesData) {
+                        for (let vKey of getOrderedKeys()) {
                             voicesData[vKey].notes = (voicesData[vKey].notes || []).filter(n =>
                                 !(n.type === 'directive' && NAV_CODES.includes(n.text))
                             );
                         }
-                        for (let key in voicesData) {
+                        for (let key of getOrderedKeys()) {
                             if (voicesData[key].visible === undefined) voicesData[key].visible = true;
                             if (voicesData[key].volume === undefined) voicesData[key].volume = 100;
                         }
                         document.getElementById('channelsContainer').innerHTML = '';
-                        for (let key in voicesData) renderChannelRow(key);
+                        for (let key of getOrderedKeys()) renderChannelRow(key);
                         updateVoiceUI();
                         let keyMatch = contents.match(/K:(.*)/);
                         if (keyMatch) document.getElementById('keySig').value = keyMatch[1].trim();
@@ -1886,7 +2143,7 @@ function deleteSelectionSync() {
                         let titleMatch = contents.match(/T:(.*)/);
                         if (titleMatch) document.getElementById('title').value = titleMatch[1].trim();
                         clearSelection();
-                        let firstActive = Object.keys(voicesData).find(k => voicesData[k].active) || Object.keys(voicesData)[0];
+                        let firstActive = voiceOrder.find(k => voicesData[k] && voicesData[k].active) || voiceOrder[0];
                         if (firstActive) changeTrack(firstActive);
                         if (synchroMode) rebuildAllTracks();
                         removeEmptyMeasures();
@@ -1903,7 +2160,7 @@ function deleteSelectionSync() {
         // ==================== MIDI EXPORT (with fixed sustain and all notes off) ====================
         function downloadMIDI() {
             let hasBend = false;
-            for (let vKey in voicesData) {
+            for (let vKey of getOrderedKeys()) {
                 if (voicesData[vKey].active) {
                     for (let n of voicesData[vKey].notes) {
                         if (n.bend) { hasBend = true; break; }
@@ -2228,7 +2485,7 @@ function generateMIDIWithBend() {
             const rows = Array.from(document.querySelectorAll('#channelsContainer .channel-row'));
             const keysFromDOM = rows.map(row => row.getAttribute('data-key')).filter(k => k && voicesData[k] && voicesData[k].active);
             if (keysFromDOM.length === 0) {
-                return Object.keys(voicesData).filter(k => voicesData[k].active);
+                return getActiveKeys();
             }
             return keysFromDOM;
         }
@@ -2261,7 +2518,7 @@ function generateMIDIWithBend() {
             let rawTimeline = [];
             let pedalEventsPerVoice = {};
 
-            for (let vKey in voicesData) {
+            for (let vKey of getOrderedKeys()) {
                 if (!voicesData[vKey].active) continue;
                 let voice = voicesData[vKey];
                 let currentQ = 0;
@@ -2377,18 +2634,20 @@ function generateMIDIWithBend() {
             if (unrolledTimeline.length === 0) return;
 
             isPreparingPlayback = true;
-            let playBtn = document.getElementById('playBtn');
-            playBtn.classList.add('loading');
-            playBtn.innerText = '⏳ Load...';
+            ['playBtn','playBtnP'].forEach(id => {
+                let btn = document.getElementById(id);
+                if (btn) { btn.classList.add('loading'); btn.innerText = '⏳ Load...'; }
+            });
 
             try {
                 await ensureAudioAndPreload(); 
                 if (!isPreparingPlayback) return; 
                 isCustomPlaying = true;
                 isPreparingPlayback = false;
-                playBtn.classList.remove('loading');
-                playBtn.classList.add('playing');
-                playBtn.innerText = '▶ Playing';
+                ['playBtn','playBtnP'].forEach(id => {
+                    let btn = document.getElementById(id);
+                    if (btn) { btn.classList.remove('loading'); btn.classList.add('playing'); btn.innerText = '⏹ Stop'; }
+                });
 
                 playStartAcTime = audioContext.currentTime;
                 buildCursorTrack(sequence, measureCapacity, playBoundaryStart, playBoundaryEnd);
@@ -2463,7 +2722,7 @@ function generateMIDIWithBend() {
 
         function buildCursorTrack(sequence, measureCapacity, playBoundaryStart, playBoundaryEnd) {
             currentCursorTrack = [];
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             if (activeKeys.length === 0 || !activeTrack) return;
             let refVoiceKey = activeTrack;
             let visualElements = Array.from(document.querySelectorAll(`.abcjs-v${activeKeys.indexOf(refVoiceKey)}.abcjs-note, .abcjs-v${activeKeys.indexOf(refVoiceKey)}.abcjs-rest`));
@@ -2552,8 +2811,19 @@ function generateMIDIWithBend() {
             if (playbackAnimationId) cancelAnimationFrame(playbackAnimationId);
             let cursor = document.getElementById("custom-cursor");
             if (cursor) cursor.remove();
-            let playBtn = document.getElementById('playBtn');
-            if (playBtn) { playBtn.classList.remove('playing', 'loading'); playBtn.innerText = '▶ Play'; }
+            // Update both play buttons (main + piano panel)
+            ['playBtn','playBtnP'].forEach(id => {
+                let btn = document.getElementById(id);
+                if (btn) { btn.classList.remove('playing', 'loading'); btn.innerText = '▶ Play'; }
+            });
+        }
+
+        function togglePlayback() {
+            if (isCustomPlaying || isPreparingPlayback) {
+                stopCustomPlayback();
+            } else {
+                playCustom();
+            }
         }
 
         function getDirectivesMapping(measureCapacity) {
@@ -2716,6 +2986,10 @@ function generateMIDIWithBend() {
                     if (idx >= 0) notes[i].articulations.splice(idx, 1); else notes[i].articulations.push(type);
                 }
             }
+            // If a dynamic was changed on start/end of a hairpin, recalculate the hairpin
+            if (isDynamic && sel.start === sel.end) {
+                recalcHairpinsAfterDynChange(notes, sel.start);
+            }
             updateScore();
         }
 
@@ -2774,6 +3048,77 @@ function generateMIDIWithBend() {
         }
 
         // ==================== ABC BUILDING & RENDERING ====================
+        // ── Hairpin utilities ──────────────────────────────────────────────────
+        // Returns [{openIdx, closeIdx, type, realNoteIdxs}] for a notes array
+        function getHairpinRanges(notes) {
+            let ranges = [];
+            let i = 0;
+            while (i < notes.length) {
+                let n = notes[i];
+                if (n.type === 'directive') {
+                    let m = n.text.match(/^!(crescendo|diminuendo)\(!$/);
+                    if (m) {
+                        let hpType = m[1];
+                        // Find matching close
+                        let closeIdx = -1;
+                        for (let j = i + 1; j < notes.length; j++) {
+                            if (notes[j].type === 'directive' && notes[j].text === `!${hpType})!`) {
+                                closeIdx = j; break;
+                            }
+                        }
+                        if (closeIdx !== -1) {
+                            // Collect real (pitched, non-invisible) note indices between
+                            let realNoteIdxs = [];
+                            for (let j = i + 1; j < closeIdx; j++) {
+                                let m2 = notes[j];
+                                if (!m2.type && m2.pitches && m2.pitches[0].pitch !== 'z' && m2.pitches[0].pitch !== 'x')
+                                    realNoteIdxs.push(j);
+                            }
+                            ranges.push({ openIdx: i, closeIdx, type: hpType, realNoteIdxs });
+                            i = closeIdx + 1;
+                            continue;
+                        }
+                    }
+                }
+                i++;
+            }
+            return ranges;
+        }
+
+        // Rebuild hairpin dynamics when start or end note dynamic changes
+        function recalcHairpinsAfterDynChange(notes, changedIdx) {
+            const DYN = ['ppp','pp','p','mp','mf','f','ff','fff'];
+            let ranges = getHairpinRanges(notes);
+            for (let r of ranges) {
+                if (r.realNoteIdxs.length < 2) continue;
+                let firstIdx = r.realNoteIdxs[0];
+                let lastIdx  = r.realNoteIdxs[r.realNoteIdxs.length - 1];
+                if (changedIdx !== firstIdx && changedIdx !== lastIdx) continue;
+                // Determine start/end dynamics
+                let startNote = notes[firstIdx];
+                let endNote   = notes[lastIdx];
+                let startDyn  = (startNote.articulations || []).find(a => DYN.includes(a));
+                let endDyn    = (endNote.articulations   || []).find(a => DYN.includes(a));
+                let startIdx2 = startDyn ? DYN.indexOf(startDyn) : 3;
+                let endIdx2   = endDyn   ? DYN.indexOf(endDyn)   : (r.type === 'crescendo' ? Math.min(7, startIdx2 + 3) : Math.max(0, startIdx2 - 3));
+                // If the changed note is the last, recompute start from end
+                if (changedIdx === lastIdx && changedIdx !== firstIdx) {
+                    endIdx2   = endDyn   ? DYN.indexOf(endDyn)   : 5;
+                    startIdx2 = r.type === 'crescendo' ? Math.max(0, endIdx2 - 3) : Math.min(7, endIdx2 + 3);
+                }
+                // Interpolate
+                let count = r.realNoteIdxs.length;
+                for (let k = 0; k < count; k++) {
+                    let t = count === 1 ? 0 : k / (count - 1);
+                    let dIdx = Math.round(startIdx2 + t * (endIdx2 - startIdx2));
+                    let nd = notes[r.realNoteIdxs[k]];
+                    if (!nd.articulations) nd.articulations = [];
+                    nd.articulations = nd.articulations.filter(a => !DYN.includes(a));
+                    nd.articulations.push(DYN[dIdx]);
+                }
+            }
+        }
+
         // Map internal navigation codes → valid ABC notation for rendering
         const NAV_ABC_MAP = {
             's':         '!segno!',
@@ -2796,7 +3141,7 @@ function generateMIDIWithBend() {
             const [num, den] = time.split('/').map(Number);
             const measureCapacity = num * (4 / den);
 
-            for (let vKey in voicesData) {
+            for (let vKey of getOrderedKeys()) {
                 let notes = voicesData[vKey].notes;
                 for (let i = 0; i < notes.length; i++) {
                     let n = notes[i];
@@ -2808,7 +3153,7 @@ function generateMIDIWithBend() {
 
             let voicesMeasures = {}, maxMeasures = 0;
 
-            const visibleKeys = Object.keys(voicesData).filter(k => voicesData[k].active && voicesData[k].visible);
+            const visibleKeys = getVisibleKeys();
             for (let vKey of visibleKeys) {
                 let voice = voicesData[vKey];
                 let notes = voice.notes;
@@ -2819,24 +3164,28 @@ function generateMIDIWithBend() {
                 let activeTripletCount = 0;
                 let i = 0;
 
+                // Pre-compute hairpin interior note indices (suppress dynamic display there)
+                let hairpinRanges = getHairpinRanges(notes);
+                let hairpinInterior = new Set();
+                for (let hr of hairpinRanges) {
+                    for (let k = 1; k < hr.realNoteIdxs.length - 1; k++)
+                        hairpinInterior.add(hr.realNoteIdxs[k]);
+                }
+
                 while (i < notes.length) {
                     let n = notes[i];
                     if (n.type === 'directive') { if (!NAV_CODES.includes(n.text)) currentMeasure.push({ type: 'directive', text: n.text }); i++; continue; }
 
                     let articulationStr = '';
                     let hasStaccato = false;
+                    const inHairpinInterior = hairpinInterior.has(i);
                     if (n.articulations && n.articulations.length) {
+                        const DYN_NAMES = ['ppp','pp','p','mp','mf','f','ff','fff'];
                         articulationStr = n.articulations.map(a => {
                             if (a === 'staccato') { hasStaccato = true; return ''; }
                             if (a === 'accent') return '!accent!';
-                            if (a === 'ppp') return '!ppp!';
-                            if (a === 'pp') return '!pp!';
-                            if (a === 'p') return '!p!';
-                            if (a === 'mp') return '!mp!';
-                            if (a === 'mf') return '!mf!';
-                            if (a === 'f') return '!f!';
-                            if (a === 'ff') return '!ff!';
-                            if (a === 'fff') return '!fff!';
+                            // suppress dynamics for interior hairpin notes
+                            if (DYN_NAMES.includes(a)) return inHairpinInterior ? '' : `!${a}!`;
                             return '';
                         }).filter(s => s).join(' ');
                         if (articulationStr) articulationStr += ' ';
@@ -2989,7 +3338,7 @@ function generateMIDIWithBend() {
 
         function removeEmptyMeasures() {
             const measureCapacity = getMeasureCapacity();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             if (activeKeys.length === 0) return;
             let voicesMeasures = {};
             for (let vKey of activeKeys) voicesMeasures[vKey] = getMeasuresFromNotes(vKey);
@@ -3035,7 +3384,7 @@ function generateMIDIWithBend() {
 
         function normalizeAllMeasures() {
             const measureCapacity = getMeasureCapacity();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             for (let vKey of activeKeys) {
                 let oldNotes = voicesData[vKey].notes;
                 let newNotes = [], currentQ = 0;
@@ -3064,7 +3413,7 @@ function generateMIDIWithBend() {
              }
             window.lastAbcString = buildAbcString();
             console.log("ABC String:", window.lastAbcString);
-            for (let vKey in voicesData) for (let n of voicesData[vKey].notes) {
+            for (let vKey of getOrderedKeys()) for (let n of voicesData[vKey].notes) {
                 if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
                 if (n.abcUnits !== undefined && isNaN(n.abcUnits)) n.abcUnits = 1;
             }
@@ -3096,7 +3445,7 @@ function generateMIDIWithBend() {
             let bars = Array.from(svg.querySelectorAll('.abcjs-bar'));
             if (bars.length === 0) return;
             let svgRect = svg.getBoundingClientRect();
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             let maxRealMeasure = -1;
             for (let vKey of activeKeys) {
                 let vNotes = voicesData[vKey].notes, cum = 0;
@@ -3141,7 +3490,7 @@ function generateMIDIWithBend() {
                 let match = cls.match(/abcjs-v(\d+)/); 
                 if (match) {
                     let vIdx = parseInt(match[1]);
-                    let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                    let activeKeys = getActiveKeys();
                     if (vIdx < activeKeys.length) {
                         let targetKey = activeKeys[vIdx];
                         if (activeTrack !== targetKey) changeTrack(targetKey);
@@ -3183,7 +3532,7 @@ function generateMIDIWithBend() {
             allNotes.forEach(el => el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#000000')));
             let sel = getSelectionIndices(); 
             if (selectionAtStart) {
-                let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                let activeKeys = getActiveKeys();
                 let vIdx = activeKeys.indexOf(activeTrack);
                 if (vIdx !== -1) {
                     let clefEl = document.querySelector(`.abcjs-v${vIdx}.abcjs-clef`);
@@ -3206,7 +3555,7 @@ function generateMIDIWithBend() {
                 }
             }
             if (!sel) return;
-            let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+            let activeKeys = getActiveKeys();
             let vIdx = activeKeys.indexOf(activeTrack); if (vIdx === -1) return;
             let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
             let paper = document.getElementById('paper');
@@ -3240,7 +3589,7 @@ function generateMIDIWithBend() {
             if (e.key === 'X' || e.key === 'x') { toggleChordMode(); return; }
             if (e.key === 'Delete') { deleteSelection(); return; }
             if (e.key === '3') { toggleTriplet(document.getElementById('mod-trip')); return; }
-            if (e.key === ' ') { playCustom(); return; } 
+            if (e.key === ' ') { togglePlayback(); return; } 
             if (e.key === 't' || e.key === 'T') { tieSelection(); return; }
             if (e.ctrlKey) {
                 if (letter === 'c') { copySelection(); e.preventDefault(); return; }
@@ -3256,6 +3605,11 @@ function generateMIDIWithBend() {
         window.addEventListener('load', function() { 
             populateInstrumentSelect();
             initDefaultChannels();
+            // Set default beaming based on initial time signature
+            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
+            const ts = document.getElementById('timeSig').value;
+            const beamSel = document.getElementById('beaming');
+            if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
             updateNoteButtonIcons(); 
             updateScore();
             setupBendCanvasEvents();
@@ -3278,7 +3632,7 @@ function generateMIDIWithBend() {
         async function preloadInstruments() {
             if (!audioContext) return;
             let promises = [];
-            for (let vKey in voicesData) {
+            for (let vKey of getOrderedKeys()) {
                 if (voicesData[vKey].active) {
                     let prog = voicesData[vKey].program;
                     if (!loadedInstruments[prog]) {
@@ -3327,7 +3681,7 @@ function generateMIDIWithBend() {
                 let match = cls.match(/abcjs-v(\d+)/);
                 if (match) {
                     let vIdx = parseInt(match[1]);
-                    let activeKeys = Object.keys(voicesData).filter(k => voicesData[k].active);
+                    let activeKeys = getActiveKeys();
                     if (vIdx < activeKeys.length) {
                         let targetKey = activeKeys[vIdx];
                         if (activeTrack !== targetKey) changeTrack(targetKey);
@@ -3349,7 +3703,7 @@ function generateMIDIWithBend() {
             xml += '<score-partwise version="3.1">\n';
 
             xml += '  <part-list>\n';
-            const visibleKeys = Object.keys(voicesData).filter(k => voicesData[k].active && voicesData[k].visible);
+            const visibleKeys = getVisibleKeys();
             visibleKeys.forEach((key, index) => {
                 let voice = voicesData[key];
                 xml += `    <score-part id="P${index+1}">\n`;
@@ -3673,7 +4027,8 @@ function generateMIDIWithBend() {
                 }
 
                 const key = 'ch' + Date.now() + partIdx + Math.floor(Math.random() * 1000);
-                voicesData[key] = { id: 'V' + (Object.keys(voicesData).length + 1), short: partName.substring(0,3), name: partName, clef, program, active: true, notes: [], visible: true, volume: 100 };
+                voicesData[key] = { id: 'V' + (voiceOrder.length + 1), short: partName.substring(0,3), name: partName, clef, program, active: true, notes: [], visible: true, volume: 100 };
+                voiceOrder.push(key);
                 if (!activeTrack) activeTrack = key;
 
                 let localDivisions = globalDivisions;
@@ -3811,6 +4166,39 @@ function generateMIDIWithBend() {
             return map[key] || 0;
         }
 
+        // Returns {note: accidental} map for the current key signature
+        // e.g. D major → { F: '^', C: '^' },  Bb major → { B: '_', E: '_' }
+        function getKeyAccidentals() {
+            const key = document.getElementById('keySig').value;
+            const fifths = keySigToFifths(key);
+            const sharpsOrder = ['F','C','G','D','A','E','B'];
+            const flatsOrder  = ['B','E','A','D','G','C','F'];
+            const result = {};
+            if (fifths > 0) {
+                for (let i = 0; i < fifths; i++) result[sharpsOrder[i]] = '^';
+            } else if (fifths < 0) {
+                for (let i = 0; i < -fifths; i++) result[flatsOrder[i]] = '_';
+            }
+            return result;
+        }
+
+        // Given a black key defined by its sharp spelling (sharpNote, '^'),
+        // returns the contextually correct enharmonic spelling for the current key.
+        // Enharmonic pairs (all sharp → flat): C→D, D→E, F→G, G→A, A→B
+        function getSmartBlackKeySpelling(sharpNote) {
+            const enharmonicFlat = { 'C': 'D', 'D': 'E', 'F': 'G', 'G': 'A', 'A': 'B' };
+            const flatNote = enharmonicFlat[sharpNote];
+            if (!flatNote) return { n: sharpNote, acc: '^' };
+
+            const keyAccs = getKeyAccidentals();
+            const fifths  = keySigToFifths(document.getElementById('keySig').value);
+
+            if (keyAccs[sharpNote] === '^') return { n: sharpNote, acc: '^' };  // e.g. F# in G major
+            if (keyAccs[flatNote]  === '_') return { n: flatNote,  acc: '_' };  // e.g. Eb in Bb major
+            // Neither spelling is in the key — use key bias
+            return fifths >= 0 ? { n: sharpNote, acc: '^' } : { n: flatNote, acc: '_' };
+        }
+
         function accidentalToAlter(acc) {
             if (acc === '^') return 1;
             if (acc === '^^') return 2;
@@ -3836,6 +4224,139 @@ function generateMIDIWithBend() {
             return null;
         }
 		
+
+        // ==================== PIANO KEYBOARD ====================
+        (function buildPianoKeyboard() {
+            // 2 octaves: C(row0)..B(row0), C(row1)..B(row1), C(row2)
+            // White keys per octave: C D E F G A B
+            // Black keys (sharps): C# D# F# G# A# — between specific white keys
+            // Black key positions (offset from left of octave in white-key units):
+            //   C#=0.6, D#=1.6, F#=3.6, G#=4.6, A#=5.6
+            const whiteW = 36; // px per white key
+            const blackW = 24;
+            const blackH = 66;
+            const totalWhites = 15; // C..B..C..B..C  (7+7+1)
+
+            // Define the keyboard layout: 2 full octaves
+            // row 0: C D E F G A B  (rowShift=0)
+            // row 1: C D E F G A B  (rowShift=1)
+            // last C: rowShift=2
+            const whites = [
+                {n:'C',r:0},{n:'D',r:0},{n:'E',r:0},{n:'F',r:0},{n:'G',r:0},{n:'A',r:0},{n:'B',r:0},
+                {n:'C',r:1},{n:'D',r:1},{n:'E',r:1},{n:'F',r:1},{n:'G',r:1},{n:'A',r:1},{n:'B',r:1},
+                {n:'C',r:2}
+            ];
+            // black keys: {pos: white-key index offset, n, acc, r}
+            // Pattern per octave: C# between C(0) and D(1), D# between D(1) and E(2),
+            //                     F# between F(3) and G(4), G# between G(4) and A(5), A# between A(5) and B(6)
+            const blackDefs = [
+                // octave 0 (white keys 0-6)
+                {pos:0, n:'C', acc:'^', r:0},
+                {pos:1, n:'D', acc:'^', r:0},
+                {pos:3, n:'F', acc:'^', r:0},
+                {pos:4, n:'G', acc:'^', r:0},
+                {pos:5, n:'A', acc:'^', r:0},
+                // octave 1 (white keys 7-13)
+                {pos:7, n:'C', acc:'^', r:1},
+                {pos:8, n:'D', acc:'^', r:1},
+                {pos:10, n:'F', acc:'^', r:1},
+                {pos:11, n:'G', acc:'^', r:1},
+                {pos:12, n:'A', acc:'^', r:1},
+            ];
+
+            const container = document.getElementById('pianoKeysInner');
+            container.style.position = 'relative';
+            container.style.width = (totalWhites * whiteW) + 'px';
+            container.style.height = '110px';
+            container.style.display = 'block';
+
+            // Draw white keys
+            whites.forEach((k, i) => {
+                const btn = document.createElement('div');
+                btn.className = 'piano-white';
+                btn.style.left = (i * whiteW) + 'px';
+                btn.style.position = 'absolute';
+                btn.style.top = '0';
+                btn.title = k.n + (k.r === 0 ? '' : k.r === 1 ? "'" : "''");
+                const label = document.createElement('span');
+                label.textContent = k.n;
+                btn.appendChild(label);
+
+                const trigger = (e) => {
+                    e.preventDefault();
+                    btn.classList.add('pressed');
+                    setTimeout(() => btn.classList.remove('pressed'), 150);
+                    // White key = the user wants the NATURAL pitch for this letter.
+                    // If the effective accidental at insert position is non-natural (from key sig
+                    // or an earlier in-measure accidental), we must write '=' to cancel it.
+                    const insertTime = getInsertionTime();
+                    const effAccs = getMeasureEffectiveAccidentals(activeTrack, insertTime);
+                    const prevAcc = nextMods.accidental;
+                    nextMods.accidental = (effAccs[k.n] || '') !== '' ? '=' : '';
+                    addNoteEx(k.n, k.r);
+                    nextMods.accidental = prevAcc;
+                };
+                btn.addEventListener('mousedown', trigger);
+                btn.addEventListener('touchstart', trigger, {passive: false});
+                container.appendChild(btn);
+            });
+
+            // Draw black keys on top
+            blackDefs.forEach(k => {
+                const btn = document.createElement('div');
+                btn.className = 'piano-black';
+                // Position: between white key at pos and pos+1
+                // Center black key between two white keys: left = pos*whiteW + whiteW - blackW/2
+                btn.style.left = (k.pos * whiteW + whiteW - blackW / 2) + 'px';
+                btn.style.width = blackW + 'px';
+                btn.style.height = blackH + 'px';
+                btn.style.position = 'absolute';
+                btn.style.top = '0';
+                const noteName = k.n + '#';
+                btn.title = noteName + (k.r === 0 ? '' : "'");
+
+                const trigger = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    btn.classList.add('pressed');
+                    setTimeout(() => btn.classList.remove('pressed'), 150);
+                    // Determine enharmonic spelling from key signature context
+                    const smart = getSmartBlackKeySpelling(k.n); // {n, acc}
+                    // Check what's already in effect at the insertion point for that letter
+                    const insertTime = getInsertionTime();
+                    const effAccs = getMeasureEffectiveAccidentals(activeTrack, insertTime);
+                    const currentEff = effAccs[smart.n] || '';
+                    // Only write explicit accidental if it differs from the current effective
+                    // (if it already matches, ABC will produce the correct pitch without it)
+                    const prevAcc = nextMods.accidental;
+                    nextMods.accidental = (currentEff === smart.acc) ? '' : smart.acc;
+                    addNoteEx(smart.n, k.r);
+                    nextMods.accidental = prevAcc;
+                };
+                btn.addEventListener('mousedown', trigger);
+                btn.addEventListener('touchstart', trigger, {passive: false});
+                container.appendChild(btn);
+            });
+        })();
+
+     function switchInputMode(mode) {
+		const btnPanel = document.getElementById('buttonInputPanel');
+		const pianoPanel = document.getElementById('pianoInputPanel');
+		const controlGrid = document.querySelector('.control-grid');   
+
+		if (mode === 'piano') {
+        btnPanel.style.display = 'none';
+        pianoPanel.style.display = 'flex';
+        pianoPanel.style.flexDirection = 'column';
+        if (controlGrid) controlGrid.style.display = 'none';      
+		} else {
+			btnPanel.style.display = '';
+        pianoPanel.style.display = 'none';
+        if (controlGrid) controlGrid.style.display = '';          
+		}
+	}
+        // ==================== END PIANO KEYBOARD ====================
+
 		window.addEventListener('beforeunload', function (e) {
     if (hasUnsavedChanges) {
         // Стандартное сообщение (браузер может показать своё)
