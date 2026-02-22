@@ -157,6 +157,101 @@
             font-size: 11px;
             color: #666;
         }
+
+        /* ---- CONTEXT MENU (compact icon strip) ---- */
+        #ctx-menu {
+            position: fixed;
+            background: rgba(30,30,30,0.92);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            padding: 6px 8px;
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            max-width: 280px;
+        }
+        #ctx-menu.show { display: flex; }
+
+        /* Row of icon buttons */
+        .ctx-icon-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .ctx-divider-v {
+            width: 1px; height: 22px;
+            background: rgba(255,255,255,0.2);
+            margin: 0 3px;
+            flex-shrink: 0;
+        }
+        .ctx-ic {
+            width: 32px; height: 32px;
+            border-radius: 7px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-size: 15px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .ctx-ic:hover { background: rgba(255,255,255,0.18); }
+        .ctx-ic.danger:hover { background: rgba(220,38,38,0.5); }
+        .ctx-ic[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            top: 36px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 10000;
+        }
+
+        /* Color swatches row */
+        .ctx-swatches-row {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 0 2px;
+        }
+        .ctx-swatch {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.25);
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: 0.15s;
+        }
+        .ctx-swatch:hover, .ctx-swatch.selected {
+            border-color: #fff;
+            transform: scale(1.2);
+        }
+        .ctx-swatch.white-swatch { border-color: rgba(255,255,255,0.5); }
+
+        /* Slider rows */
+        .ctx-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0 2px;
+        }
+        .ctx-slider-label { font-size: 10px; color: rgba(255,255,255,0.6); flex-shrink:0; }
+        .ctx-slider-wrap input[type=range] {
+            flex: 1; cursor: pointer; accent-color: #60a5fa;
+            height: 3px;
+        }
+        .ctx-slider-wrap span { font-size: 10px; color: rgba(255,255,255,0.8); min-width: 26px; text-align: right; }
     </style>
 </head>
 <body>
@@ -254,6 +349,9 @@
           <button class="tool-btn" id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)">↶</button>
 			<button class="tool-btn" id="btn-duplicate" onclick="duplicateSelected()" title="Duplicate selected">❐</button>
 			<button class="tool-btn" id="btn-pin" onclick="togglePin()" title="Pin/UnPin">📌</button>
+            <button class="tool-btn" id="btn-group" onclick="groupSelected()" title="Group selected (Ctrl+G)">⊞</button>
+            <button class="tool-btn" id="btn-ungroup" onclick="ungroupSelected()" title="Ungroup (Ctrl+Shift+G)">⊟</button>
+            <button class="tool-btn" id="btn-crop" onclick="startCropMode()" title="Crop image">✂</button>
 		<button class="tool-btn" id="btn-delete" onclick="deleteSelected()" title="Delete Selected (Del)">✕</button>
             
             <button class="tool-btn" onclick="document.getElementById('img-input').click()" title="Import Image/PDF">🖼</button>
@@ -340,6 +438,40 @@
     <canvas id="c"></canvas>
     <div id="partner-frame" style="position: absolute; border: 2px dashed red; opacity: 0.3; pointer-events: none; display: none;"></div>
 	</div>
+</div>
+
+<!-- CONTEXT MENU (compact icon strip) -->
+<div id="ctx-menu">
+    <!-- Row 1: action icons -->
+    <div class="ctx-icon-row">
+        <button class="ctx-ic" title="Bring to Front" onclick="ctxBringToFront()">⬆</button>
+        <button class="ctx-ic" title="Send to Back"   onclick="ctxSendToBack()">⬇</button>
+        <div class="ctx-divider-v"></div>
+        <button class="ctx-ic" title="Group"     onclick="ctxGroupSelected()">⊞</button>
+        <button class="ctx-ic" title="Ungroup"   onclick="ctxUngroupSelected()">⊟</button>
+        <div class="ctx-divider-v"></div>
+        <button class="ctx-ic" title="Clone"     onclick="ctxClone()">❐</button>
+        <button class="ctx-ic" title="Crop image" onclick="ctxCrop()">✂</button>
+        <div class="ctx-divider-v"></div>
+        <button class="ctx-ic danger" title="Delete" onclick="ctxDelete()">✕</button>
+    </div>
+
+    <!-- Row 2: stroke colors (hidden for images) -->
+    <div id="ctx-stroke-section" class="ctx-swatches-row"></div>
+
+    <!-- Row 3: stroke width slider (hidden for images) -->
+    <div id="ctx-stroke-width-section" class="ctx-slider-wrap">
+        <span class="ctx-slider-label">W</span>
+        <input type="range" id="ctx-stroke-width" min="1" max="20" value="2" oninput="ctxSetStrokeWidth(this.value)">
+        <span id="ctx-stroke-width-val">2</span>
+    </div>
+
+    <!-- Row 4: fill opacity (only for closed shapes) -->
+    <div id="ctx-fill-section" class="ctx-slider-wrap" style="display:none">
+        <span class="ctx-slider-label">α</span>
+        <input type="range" id="ctx-fill-opacity" min="0" max="100" value="0" oninput="ctxSetFillOpacity(this.value)">
+        <span id="ctx-fill-opacity-val">0%</span>
+    </div>
 </div>
 
 <script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
@@ -446,7 +578,10 @@ function enablePaperMode() {
     'btn-undo',      // отмена (нужно дать кнопке id) 
     'btn-duplicate', // дубль (нужно дать кнопке id)
     'btn-pin',       // пин (нужно дать кнопке id)
-    'btn-delete'     // удалить (нужно дать кнопке id)
+    'btn-delete',    // удалить (нужно дать кнопке id)
+    'btn-group',     // группировка
+    'btn-ungroup',   // разгруппировка
+    'btn-crop'       // кроп
 	];
     
     // Отключаем кнопки визуально
@@ -839,51 +974,29 @@ function handleMqttMessage(type, data) {
             break;
             
         case 'object_modified':
-            // 🔥 ИСПРАВЛЕНИЕ: Добавлена проверка существования
             data.__isLocal = true;
-            
-            const existingObj = canvas.getObjects().find(o => o.id === data.id);
-            if (existingObj) {
-                existingObj.set(data);
-                existingObj.setCoords();
-                canvas.requestRenderAll();
-                console.log('✅ Modified object from MQTT:', data.id);
-            } else {
-                console.log('⚠️ Object not found for modification, adding:', data.id);
-                fabric.util.enlivenObjects([data], (objs) => {
-                    const obj = objs[0];
-                    obj.set({
-                        selectable: true,
-                        evented: true,
-                        __isLocal: true
-                    });
-                    
-                    isSendingToMqtt = true;
-                    canvas.add(obj);
-                    setTimeout(() => {
-                        isSendingToMqtt = false;
-                    }, 100);
-                    
-                    canvas.requestRenderAll();
-                });
-            }
+            // Use recursive search — object may be inside a group
+            applyModifiedData(data);
             break;
             
-        case 'object_removed':
-            // 🔥 ИСПРАВЛЕНИЕ: Добавлена блокировка события
-            const objToRemove = canvas.getObjects().find(o => o.id === data.id);
-            if (objToRemove) {
-                objToRemove.__isLocal = true;
-                
+        case 'object_removed': {
+            const mqttObjToRemove = canvas.getObjects().find(o => o.id === data.id);
+            if (mqttObjToRemove) {
+                mqttObjToRemove.__isLocal = true;
                 isSendingToMqtt = true;
-                canvas.remove(objToRemove);
-                setTimeout(() => {
-                    isSendingToMqtt = false;
-                }, 50);
-                
+                canvas.remove(mqttObjToRemove);
+                setTimeout(() => { isSendingToMqtt = false; }, 50);
                 canvas.requestRenderAll();
-                console.log('✅ Removed object from MQTT:', data.id);
             }
+            break;
+        }
+            
+        case 'group_objects':
+            applyGroupOp(data);
+            break;
+            
+        case 'ungroup_objects':
+            applyUngroupOp(data);
             break;
             
         case 'request_state':
@@ -1411,6 +1524,402 @@ function duplicateSelected() {
     });
 }
 
+// ==========================================
+// RECURSIVE OBJECT FINDER (searches inside groups too)
+// ==========================================
+// canvas.getObjects() returns only TOP-LEVEL objects.
+// Objects inside a fabric.Group are NOT top-level — they live in group._objects.
+// This helper searches recursively so we can find and update group children.
+function findObjectById(id, searchIn) {
+    const objects = searchIn || canvas.getObjects();
+    for (let i = 0; i < objects.length; i++) {
+        const obj = objects[i];
+        if (obj.id === id) return obj;
+        if (obj.type === 'group' && obj._objects) {
+            const found = findObjectById(id, obj._objects);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+// Apply received 'modified' data to an object anywhere on canvas (including inside groups).
+//
+// POSITION HANDLING:
+//   Standalone object    → apply everything including left/top (absolute canvas coords).
+//   Inside activeSelection → should not happen on receiving side (partner sees flat objects).
+//   Inside permanent group → skip left/top/scaleX/scaleY/angle.
+//       Reason: style-only updates send only style props (no position).
+//       Position-changing updates (drag/scale) come from object:modified which fires AFTER
+//       toActiveSelection/discardActiveObject, so at that point the object is top-level again.
+function applyModifiedData(data) {
+    const obj = findObjectById(data.id);
+    if (!obj) return false;
+
+    if (obj.group && obj.group.type === 'group') {
+        // Inside a permanent group: only apply style/appearance props, not position.
+        // Setting left/top on a group child would displace it within the group.
+        const POSITION_KEYS = new Set(['left','top','scaleX','scaleY','angle','skewX','skewY']);
+        const safeData = {};
+        Object.keys(data).forEach(k => {
+            if (!POSITION_KEYS.has(k)) safeData[k] = data[k];
+        });
+        obj.set(safeData);
+        obj.dirty = true;
+        obj.group.dirty = true;
+        obj.group.setCoords();
+    } else {
+        obj.set(data);
+        obj.setCoords();
+    }
+    canvas.requestRenderAll();
+    return true;
+}
+
+// Remove an object by id, searching recursively.
+// For objects inside groups: remove from the group's child list and redraw.
+function removeObjectById(id) {
+    const obj = findObjectById(id);
+    if (!obj) return false;
+    if (obj.group) {
+        obj.group.remove(obj);
+        obj.group.dirty = true;
+        obj.group.setCoords();
+        canvas.requestRenderAll();
+    } else {
+        canvas.remove(obj);
+        canvas.requestRenderAll();
+    }
+    return true;
+}
+
+// ==========================================
+// GROUP / UNGROUP  (atomic sync)
+// ==========================================
+// We use a single atomic message type ('group_objects' / 'ungroup_objects')
+// instead of N separate delete + draw messages. This avoids race conditions in
+// Firebase (async push()) and ensures the partner applies the operation
+// in one step, preserving styles and coordinates.
+
+const UNGROUP_EXTRA_PROPS = [
+    'id', 'fill', 'stroke', 'strokeWidth', 'strokeDashArray',
+    'opacity', 'type', 'path', 'points', 'width', 'height',
+    'rx', 'ry', 'src', 'lineType', 'lineX1', 'lineY1', 'lineX2', 'lineY2',
+    'selectable', 'evented'
+];
+
+// Snapshot absolute positions of items currently inside a group.
+function snapshotGroupItems(group) {
+    const groupMtx = group.calcTransformMatrix();
+    const grpDec   = fabric.util.qrDecompose(groupMtx);
+    return group.getObjects().map(obj => {
+        if (!obj.id) obj.id = Math.random().toString(36).substr(2, 9);
+        const data = obj.toObject(UNGROUP_EXTRA_PROPS);
+        const absOrigin = fabric.util.transformPoint({ x: obj.left, y: obj.top }, groupMtx);
+        data.left   = absOrigin.x;
+        data.top    = absOrigin.y;
+        data.scaleX = obj.scaleX * grpDec.scaleX;
+        data.scaleY = obj.scaleY * grpDec.scaleY;
+        data.angle  = obj.angle  + grpDec.angle;
+        return data;
+    });
+}
+
+// Apply a 'group_objects' payload on the receiving side.
+function applyGroupOp(payload) {
+    // Remove each old top-level object
+    payload.oldIds.forEach(id => {
+        const o = findObjectById(id);
+        if (o && !o.group) canvas.remove(o);
+    });
+    // Enliven and add the new group.
+    // enlivenObjects is async; wrap canvas.add in isSendingToFirebase/isSendingToMqtt
+    // guards so the add event doesn't echo back to the network.
+    fabric.util.enlivenObjects([payload.groupData], (objs) => {
+        const g = objs[0];
+        // Guarantee no solid fill on the group wrapper (it may have been serialized
+        // with the fabric.Object default fill:'rgb(0,0,0)').
+        g.set({ selectable: true, evented: true, __isLocal: true, fill: '', backgroundColor: '' });
+        // Also sanitize child path fills: pen/line paths should never have solid fill.
+        g.getObjects().forEach(child => {
+            if (child.type === 'path') {
+                const f = child.fill;
+                // Keep intentional fills (shapes drawn with fill), clear accidental ones
+                if (!f || f === 'rgb(0,0,0)' || f === null) child.set('fill', '');
+            }
+        });
+        const prevFB   = isSendingToFirebase;
+        const prevMqtt = isSendingToMqtt;
+        isSendingToFirebase = true;
+        isSendingToMqtt     = true;
+        canvas.add(g);
+        isSendingToFirebase = prevFB;
+        isSendingToMqtt     = prevMqtt;
+        canvas.requestRenderAll();
+    });
+}
+
+// Apply an 'ungroup_objects' payload on the receiving side.
+function applyUngroupOp(payload) {
+    // Remove the group
+    const grp = findObjectById(payload.groupId);
+    if (grp) {
+        grp.__isLocal = true;
+        const prevFB   = isSendingToFirebase;
+        const prevMqtt = isSendingToMqtt;
+        isSendingToFirebase = true;
+        isSendingToMqtt     = true;
+        canvas.remove(grp);
+        isSendingToFirebase = prevFB;
+        isSendingToMqtt     = prevMqtt;
+    }
+    // Enliven each item with absolute coords and add to canvas
+    fabric.util.enlivenObjects(payload.items, (objs) => {
+        const prevFB   = isSendingToFirebase;
+        const prevMqtt = isSendingToMqtt;
+        isSendingToFirebase = true;
+        isSendingToMqtt     = true;
+        objs.forEach(o => {
+            o.set({ selectable: true, evented: true, __isLocal: true });
+            canvas.add(o);
+        });
+        isSendingToFirebase = prevFB;
+        isSendingToMqtt     = prevMqtt;
+        canvas.requestRenderAll();
+    });
+}
+
+function groupSelected() {
+    if (connectionMode === 'mqtt') return;
+    const active = canvas.getActiveObject();
+    if (!active || active.type !== 'activeSelection') return;
+
+    const oldIds = active.getObjects().map(o => o.id);
+    const group  = active.toGroup();
+    group.id     = 'group_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    // fabric.Group inherits fill:'rgb(0,0,0)' from fabric.Object defaults.
+    // Explicitly clear it so the group wrapper is transparent (children draw themselves).
+    group.set({ selectable: true, evented: true, fill: '', backgroundColor: '' });
+
+    // Also clear fill on any child path/line objects that shouldn't have fill
+    group.getObjects().forEach(child => {
+        if (child.type === 'path' && (child.fill === 'rgb(0,0,0)' || child.fill === null)) {
+            child.set('fill', '');
+        }
+    });
+
+    canvas.setActiveObject(group);
+    canvas.requestRenderAll();
+    addToHistory(group);
+
+    // Single atomic message: partner removes oldIds and adds the group
+    broadcastGroupOp('group_objects', {
+        oldIds,
+        groupData: group.toObject(['id'])
+    });
+}
+
+function ungroupSelected() {
+    if (connectionMode === 'mqtt') return;
+    const active = canvas.getActiveObject();
+    if (!active || active.type !== 'group') return;
+
+    const groupId = active.id;
+    const items   = snapshotGroupItems(active);  // absolute coords, current styles
+
+    active.toActiveSelection();
+    canvas.requestRenderAll();
+    items.forEach(d => addToHistory({ id: d.id }));
+
+    // Single atomic message: partner removes group and adds each item
+    broadcastGroupOp('ungroup_objects', { groupId, items });
+}
+
+// Route group ops through the right transport
+function broadcastGroupOp(type, data) {
+    if (connectionMode === 'firebase' && firebaseRef && !isSendingToFirebase) {
+        sendToFirebase(type, data);
+        return;
+    }
+    if (connectionMode === 'mqtt' && mqttClient && mqttClient.connected) {
+        publishMqttMessage(type, data);
+        return;
+    }
+    if (conn && conn.open) {
+        const message = { type, data };
+        const msgStr  = JSON.stringify(message);
+        if (msgStr.length > CHUNK_SIZE) {
+            const messageId  = type + '_' + Date.now();
+            const totalChunks = Math.ceil(msgStr.length / CHUNK_SIZE);
+            const chunks = [];
+            for (let i = 0; i < totalChunks; i++) {
+                chunks.push({
+                    type: 'chunked_message',
+                    messageId, chunkIndex: i, totalChunks,
+                    data: msgStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+                    originalType: type
+                });
+            }
+            chunks.forEach(c => sendWithQueue(c));
+        } else {
+            sendWithQueue(message);
+        }
+    }
+}
+
+// ==========================================
+// CROP IMAGE
+// ==========================================
+// CROP IMAGE (fixed coordinate system)
+// ==========================================
+let cropTarget = null;
+let cropRect   = null;
+let cropOverlay = null;
+
+function startCropMode(targetObj) {
+    // Cleanup any leftover state first
+    if (cropRect || cropOverlay) cleanupCrop();
+
+    const obj = targetObj || canvas.getActiveObject();
+    if (!obj || obj.type !== 'image') {
+        setStatus('Select an image first', 'err');
+        return;
+    }
+
+    cropTarget = obj;
+    canvas.discardActiveObject();
+    obj.set('opacity', 0.6);
+
+    // Use object's own canvas coords (NOT getBoundingRect which mixes viewport pixels).
+    // obj.left/top = top-left in canvas space; getScaledWidth/Height = displayed size.
+    const imgL = obj.left;
+    const imgT = obj.top;
+    const imgW = obj.getScaledWidth();
+    const imgH = obj.getScaledHeight();
+
+    cropRect = new fabric.Rect({
+        left:   imgL + imgW * 0.1,
+        top:    imgT + imgH * 0.1,
+        width:  imgW * 0.8,
+        height: imgH * 0.8,
+        fill:   'rgba(37,99,235,0.15)',
+        stroke: '#2563eb',
+        strokeWidth: 2,
+        strokeDashArray: [6, 3],
+        selectable:   true,
+        evented:      true,
+        hasBorders:   true,
+        hasControls:  true,
+        id:           '__crop_rect__',
+        lockRotation: true,
+        lockSkewingX: true,
+        lockSkewingY: true
+    });
+    canvas.add(cropRect);
+    canvas.setActiveObject(cropRect);
+
+    // Build the confirm/cancel bar
+    cropOverlay = document.createElement('div');
+    cropOverlay.style.cssText = [
+        'position:absolute', 'bottom:16px', 'left:50%',
+        'transform:translateX(-50%)', 'display:flex', 'gap:10px',
+        'z-index:500',
+        'background:rgba(255,255,255,0.95)', 'padding:8px 16px',
+        'border-radius:30px', 'box-shadow:0 4px 20px rgba(0,0,0,0.2)',
+        'pointer-events:all'
+    ].join(';');
+    cropOverlay.innerHTML = [
+        '<button onclick="confirmCrop()" style="padding:6px 18px;background:#2563eb;',
+        'color:#fff;border:none;border-radius:20px;cursor:pointer;',
+        'font-size:13px;font-weight:600;">✓ Apply</button>',
+        '<button onclick="cancelCrop()" style="padding:6px 18px;background:#eee;',
+        'color:#333;border:none;border-radius:20px;cursor:pointer;font-size:13px;">✕ Cancel</button>'
+    ].join('');
+    document.getElementById('canvas-wrapper').appendChild(cropOverlay);
+
+    canvas.requestRenderAll();
+    setStatus('Drag the blue frame to crop, then click Apply', 'ok');
+}
+
+function confirmCrop() {
+    if (!cropTarget || !cropRect) { cancelCrop(); return; }
+
+    const img = cropTarget;
+
+    // All coordinates are in canvas space (virtual, not screen pixels).
+    const imgL = img.left;
+    const imgT = img.top;
+    const imgSX = img.scaleX || 1;
+    const imgSY = img.scaleY || 1;
+    const imgW  = img.getScaledWidth();   // = img.width  * imgSX
+    const imgH  = img.getScaledHeight();  // = img.height * imgSY
+
+    // Crop rect bounds in canvas space (account for its own scale from dragging handles)
+    const crL = cropRect.left;
+    const crT = cropRect.top;
+    const crW = cropRect.getScaledWidth();
+    const crH = cropRect.getScaledHeight();
+    const crR = crL + crW;
+    const crB = crT + crH;
+
+    // Image bounds in canvas space
+    const imgR = imgL + imgW;
+    const imgB = imgT + imgH;
+
+    // Clamp crop rect to image bounds
+    const clampL = Math.max(crL, imgL);
+    const clampT = Math.max(crT, imgT);
+    const clampR = Math.min(crR, imgR);
+    const clampB = Math.min(crB, imgB);
+
+    if (clampR <= clampL || clampB <= clampT) {
+        setStatus('Crop area must overlap the image', 'err');
+        cancelCrop();
+        return;
+    }
+
+    // Convert canvas-space positions to image natural pixel coords.
+    // If the image already has a cropX/Y offset, add to it.
+    const existingCropX = img.cropX || 0;
+    const existingCropY = img.cropY || 0;
+
+    const newCropX = existingCropX + (clampL - imgL) / imgSX;
+    const newCropY = existingCropY + (clampT - imgT) / imgSY;
+    const newW     = (clampR - clampL) / imgSX;
+    const newH     = (clampB - clampT) / imgSY;
+
+    img.set({
+        cropX:   Math.max(0, Math.round(newCropX)),
+        cropY:   Math.max(0, Math.round(newCropY)),
+        width:   Math.max(1, Math.round(newW)),
+        height:  Math.max(1, Math.round(newH)),
+        left:    clampL,
+        top:     clampT,
+        opacity: 1
+    });
+    img.setCoords();
+    cleanupCrop();
+    canvas.setActiveObject(img);
+    canvas.requestRenderAll();
+    broadcast('modified', {
+        data: img.toObject(['id','cropX','cropY','width','height','left','top','scaleX','scaleY'])
+    });
+    setStatus('Crop applied', 'ok');
+}
+
+function cancelCrop() {
+    if (cropTarget) { cropTarget.set('opacity', 1); cropTarget.setCoords(); }
+    cleanupCrop();
+    canvas.requestRenderAll();
+}
+
+function cleanupCrop() {
+    if (cropRect)    { canvas.remove(cropRect); cropRect = null; }
+    if (cropOverlay) { cropOverlay.remove();    cropOverlay = null; }
+    cropTarget = null;
+}
+
+
 const palette = ['#000000', '#ff0000', '#0000ff', '#008000', '#ffa500', '#ffffff','#800080'];
 const hlPalette = ['#ffeb3b', '#00ff00', '#00ffff', '#ff00ff', '#ff0011', '#0000ff', '#116600', '#555555'];
 
@@ -1933,7 +2442,10 @@ canvas.on('mouse:up', () => {
                 selectable: false,
                 evented: false,
                 objectCaching: true,
-                id: activeShape.id
+                id: activeShape.id,
+                lineType: type,  // Mark as editable line
+                lineX1: x1, lineY1: y1,
+                lineX2: x2, lineY2: y2
             });
             
             canvas.remove(activeShape);
@@ -1954,7 +2466,7 @@ canvas.on('mouse:up', () => {
         canvas.requestRenderAll();
         
         addToHistory(activeShape);
-        broadcast('draw', { data: activeShape.toObject(['id']) });
+        broadcast('draw', { data: activeShape.toObject(['id', 'lineType', 'lineX1', 'lineY1', 'lineX2', 'lineY2']) });
         activeShape = null;
     }
 });
@@ -1971,25 +2483,25 @@ canvas.on('object:modified', (e) => {
     if (!target) return;
 
     const syncProps = [
-        'id', 'isPinned', 
-        'lockMovementX', 'lockMovementY', 
-        'lockRotation', 
-        'lockScalingX', 'lockScalingY', 
+        'id', 'isPinned',
+        'lockMovementX', 'lockMovementY',
+        'lockRotation',
+        'lockScalingX', 'lockScalingY',
         'hasControls', 'borderColor', 'hoverCursor'
     ];
 
     if (target.type === 'activeSelection') {
         const objects = target.getObjects();
-        canvas.discardActiveObject(); 
-        
-        objects.forEach(obj => {
-            broadcast('modified', { data: obj.toObject(syncProps) });
-        });
+        // Snapshot absolute positions BEFORE discardActiveObject changes coords.
+        // Must use getAbsoluteObjectData() which applies group matrix to left/top.
+        const absData = objects.map(obj => getAbsoluteObjectData(obj, syncProps));
+
+        canvas.discardActiveObject();
+        absData.forEach(d => broadcast('modified', { data: d }));
 
         const sel = new fabric.ActiveSelection(objects, { canvas: canvas });
         canvas.setActiveObject(sel);
         canvas.requestRenderAll();
-        
     } else {
         broadcast('modified', { data: target.toObject(syncProps) });
     }
@@ -2001,6 +2513,29 @@ canvas.on('object:modified', (e) => {
 let lastMoveSend = 0;
 const MOVE_THROTTLE_MS = 40;
 
+// Helper: convert object-in-group local coords to absolute canvas coords.
+// KEY: Fabric stores obj.left/top as the object origin point (top-left corner)
+// in the GROUP local space. Applying the group world matrix to that point gives
+// the absolute canvas position. qrDecompose().translateX/Y gives the CENTER,
+// which is wrong for left/top — that's the bug we're fixing here.
+function getAbsoluteObjectData(obj, syncProps) {
+    const data = obj.toObject(syncProps);
+    if (!obj.group) return data;
+
+    const grpMtx = obj.group.calcTransformMatrix();
+    const grpDec = fabric.util.qrDecompose(grpMtx);
+
+    // obj.left/top are the origin-point coords in group-local space.
+    // Transforming them by grpMtx gives absolute canvas position.
+    const absOrigin = fabric.util.transformPoint({ x: obj.left, y: obj.top }, grpMtx);
+    data.left   = absOrigin.x;
+    data.top    = absOrigin.y;
+    data.scaleX = obj.scaleX * grpDec.scaleX;
+    data.scaleY = obj.scaleY * grpDec.scaleY;
+    data.angle  = obj.angle  + grpDec.angle;
+    return data;
+}
+
 function handleLiveSync(e) {
     const target = e.target;
     if (!target) return;
@@ -2009,16 +2544,16 @@ function handleLiveSync(e) {
     if (now - lastMoveSend < MOVE_THROTTLE_MS) return;
 
     const syncProps = [
-        'id', 'isPinned', 
-        'lockMovementX', 'lockMovementY', 
-        'lockRotation', 
-        'lockScalingX', 'lockScalingY', 
+        'id', 'isPinned',
+        'lockMovementX', 'lockMovementY',
+        'lockRotation',
+        'lockScalingX', 'lockScalingY',
         'hasControls', 'borderColor', 'hoverCursor'
     ];
 
     if (target.type === 'activeSelection') {
-         target.getObjects().forEach(obj => {
-            broadcast('modified', { data: obj.toObject(syncProps) });
+        target.getObjects().forEach(obj => {
+            broadcast('modified', { data: getAbsoluteObjectData(obj, syncProps) });
         });
     } else {
         broadcast('modified', { data: target.toObject(syncProps) });
@@ -2813,64 +3348,54 @@ function setupConn() {
     });
     
  function processMessage(msg) {
-    if (msg.type === 'cursor') {
-        updatePartnerCursor(msg.x, msg.y);
-		 } else if (msg.type === 'viewport') {
-        handlePartnerViewport(msg); 
-    } else if (msg.type === 'draw') {
-        // Особый случай для изображений
-        if (msg.data.type === 'image' && msg.data.src) {
-            fabric.Image.fromURL(msg.data.src, (img) => {
-                img.set({
-                    id: msg.data.id,
-                    left: msg.data.left || 0,
-                    top: msg.data.top || 0,
-                    scaleX: msg.data.scaleX || 1,
-                    scaleY: msg.data.scaleY || 1,
-                    angle: msg.data.angle || 0,
-                    selectable: true,
-                    evented: true
+        if (msg.type === 'cursor') {
+            updatePartnerCursor(msg.x, msg.y);
+
+        } else if (msg.type === 'viewport') {
+            handlePartnerViewport(msg);
+
+        } else if (msg.type === 'draw') {
+            if (msg.data.type === 'image' && msg.data.src) {
+                fabric.Image.fromURL(msg.data.src, (img) => {
+                    img.set({
+                        id: msg.data.id,
+                        left: msg.data.left || 0, top: msg.data.top || 0,
+                        scaleX: msg.data.scaleX || 1, scaleY: msg.data.scaleY || 1,
+                        angle: msg.data.angle || 0,
+                        selectable: true, evented: true
+                    });
+                    canvas.add(img);
+                    canvas.requestRenderAll();
                 });
-                
-                canvas.add(img);
-                canvas.requestRenderAll();
-            });
-        } else {
-            // Обычные объекты
-            fabric.util.enlivenObjects([msg.data], (objs) => {
-                objs.forEach(o => canvas.add(o));
-                canvas.requestRenderAll();
-            });
-        }
-    } else if (msg.type === 'sync') {
-        canvas.loadFromJSON(JSON.parse(msg.data), () => {
-            canvas.requestRenderAll();
-            console.log('Canvas synchronized');
-        });
-    } else if (msg.type === 'request_sync') {
-        if (isHost) {
-            sendCanvasDataChunked();
-        }
-    } else if (msg.type === 'delete') {
-        const obj = canvas.getObjects().find(o => o.id === msg.id);
-        if (obj) {
-            if (obj.isPinned) return;
-            canvas.remove(obj);
-            canvas.requestRenderAll();
-        }
-    } else if (msg.type === 'modified') {
-        const obj = canvas.getObjects().find(o => o.id === msg.data.id);
-        if (obj) { 
-            const active = canvas.getActiveObject();
-            if (active && (active === obj || (active.type === 'activeSelection' && active.getObjects().includes(obj)))) {
-                canvas.discardActiveObject();
+            } else {
+                fabric.util.enlivenObjects([msg.data], (objs) => {
+                    objs.forEach(o => { o.set({ selectable: true, evented: true }); canvas.add(o); });
+                    canvas.requestRenderAll();
+                });
             }
-            obj.set(msg.data); 
-            obj.setCoords(); 
-            canvas.requestRenderAll(); 
+
+        } else if (msg.type === 'sync') {
+            canvas.loadFromJSON(JSON.parse(msg.data), () => { canvas.requestRenderAll(); });
+
+        } else if (msg.type === 'request_sync') {
+            if (isHost) sendCanvasDataChunked();
+
+        } else if (msg.type === 'delete') {
+            // Search top-level only for delete (partner should not have group children as top-level)
+            const obj = canvas.getObjects().find(o => o.id === msg.id);
+            if (obj && !obj.isPinned) { canvas.remove(obj); canvas.requestRenderAll(); }
+
+        } else if (msg.type === 'modified') {
+            // Use recursive search — object may be inside a group on partner's canvas
+            applyModifiedData(msg.data);
+
+        } else if (msg.type === 'group_objects') {
+            applyGroupOp(msg.data);
+
+        } else if (msg.type === 'ungroup_objects') {
+            applyUngroupOp(msg.data);
         }
     }
-}
 }
 
 // ==========================================
@@ -3046,6 +3571,17 @@ window.addEventListener('keydown', (e) => {
             activateTool('shape', true);
             break;
     }
+
+    // Group / Ungroup shortcuts
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyG') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            ungroupSelected();
+        } else {
+            groupSelected();
+        }
+        return;
+    }
 });
 // ==========================================
 // ЗАЩИТА ОТ ПЕРЕМЕЩЕНИЯ ЗАКРЕПЛЕННЫХ ОБЪЕКТОВ
@@ -3088,6 +3624,415 @@ function applySelectionLocks(e) {
 
 canvas.on('selection:created', applySelectionLocks);
 canvas.on('selection:updated', applySelectionLocks);
+
+// ==========================================
+// 2-NODE LINE EDITING (line / dashed / arrow)
+// ==========================================
+function rebuildLinePath(obj) {
+    const x1 = obj.lineX1, y1 = obj.lineY1;
+    const x2 = obj.lineX2, y2 = obj.lineY2;
+    const type = obj.lineType;
+    let pathStr;
+    if (type === 'arrow') {
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowSize = Math.max(10, (obj.strokeWidth || 2) * 2);
+        const aAngle = Math.PI / 6;
+        const ax1 = x2 - arrowSize * Math.cos(angle - aAngle);
+        const ay1 = y2 - arrowSize * Math.sin(angle - aAngle);
+        const ax2 = x2 - arrowSize * Math.cos(angle + aAngle);
+        const ay2 = y2 - arrowSize * Math.sin(angle + aAngle);
+        pathStr = `M ${x1} ${y1} L ${x2} ${y2} M ${x2} ${y2} L ${ax1} ${ay1} M ${x2} ${y2} L ${ax2} ${ay2}`;
+    } else {
+        pathStr = `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+    // Rebuild path in-place
+    const parsed = fabric.util.parsePath(pathStr);
+    obj.path = parsed;
+    obj.pathOffset = obj._parseDimensions ? obj._parseDimensions() : obj.pathOffset;
+    // Recalculate bounding box
+    obj.initialize(parsed, {
+        stroke: obj.stroke, strokeWidth: obj.strokeWidth,
+        fill: obj.fill, strokeDashArray: obj.strokeDashArray,
+        selectable: obj.selectable, evented: obj.evented,
+        objectCaching: obj.objectCaching, id: obj.id,
+        lineType: obj.lineType,
+        lineX1: obj.lineX1, lineY1: obj.lineY1,
+        lineX2: obj.lineX2, lineY2: obj.lineY2,
+        left: Math.min(x1, x2), top: Math.min(y1, y2)
+    });
+    obj.setCoords();
+    canvas.requestRenderAll();
+}
+
+function makeLineEndpointControl(pointKey) {
+    return new fabric.Control({
+        cursorStyle: 'crosshair',
+        positionHandler: function(dim, finalMatrix, fabricObject) {
+            // Get the world position of the endpoint
+            const isStart = pointKey === 'start';
+            const wx = isStart ? fabricObject.lineX1 : fabricObject.lineX2;
+            const wy = isStart ? fabricObject.lineY1 : fabricObject.lineY2;
+            const vpt = fabricObject.canvas.viewportTransform;
+            return {
+                x: wx * vpt[0] + vpt[4],
+                y: wy * vpt[3] + vpt[5]
+            };
+        },
+        actionHandler: function(eventData, transform, x, y) {
+            const obj = transform.target;
+            const pointer = obj.canvas.getPointer(eventData);
+            if (pointKey === 'start') {
+                obj.lineX1 = pointer.x;
+                obj.lineY1 = pointer.y;
+            } else {
+                obj.lineX2 = pointer.x;
+                obj.lineY2 = pointer.y;
+            }
+            rebuildLinePath(obj);
+            return true;
+        },
+        render: function(ctx, left, top) {
+            const size = 12;
+            ctx.save();
+            ctx.fillStyle = '#2563eb';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(left, top, size / 2, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        },
+        cornerSize: 14
+    });
+}
+
+function setupLineObjectControls(obj) {
+    if (!obj.lineType) return;
+    // Replace controls with just start/end
+    obj.controls = {
+        start: makeLineEndpointControl('start'),
+        end:   makeLineEndpointControl('end'),
+        mtr:   fabric.Object.prototype.controls.mtr // keep rotate
+    };
+    obj.setCoords();
+}
+
+function restoreDefaultControls(obj) {
+    obj.controls = fabric.Object.prototype.controls;
+    obj.setCoords();
+}
+
+function applyLineControlsOnSelection(e) {
+    applySelectionLocks(e);
+    const target = e.target;
+    if (!target) return;
+    if (target.lineType) {
+        setupLineObjectControls(target);
+        canvas.requestRenderAll();
+    }
+}
+
+canvas.off('selection:created', applySelectionLocks);
+canvas.off('selection:updated', applySelectionLocks);
+canvas.on('selection:created', applyLineControlsOnSelection);
+canvas.on('selection:updated', applyLineControlsOnSelection);
+
+canvas.on('selection:cleared', () => {
+    // nothing extra needed
+});
+
+// ==========================================
+// CONTEXT MENU
+// ==========================================
+const ctxMenu = document.getElementById('ctx-menu');
+const ctxColors = ['#000000','#ff0000','#0000ff','#008000','#ffa500','#ffffff','#800080','#ff69b4','#795548'];
+
+function buildCtxColorSwatches() {
+    // The swatches container is now #ctx-stroke-section (a flex row directly)
+    const el = document.getElementById('ctx-stroke-section');
+    el.innerHTML = '';
+    ctxColors.forEach(c => {
+        const d = document.createElement('div');
+        d.className = 'ctx-swatch' + (c === '#ffffff' ? ' white-swatch' : '');
+        d.style.background = c;
+        d.title = c;
+        d.onclick = () => {
+            ctxSetStrokeColor(c);
+            el.querySelectorAll('.ctx-swatch').forEach(s => s.classList.remove('selected'));
+            d.classList.add('selected');
+        };
+        el.appendChild(d);
+    });
+}
+buildCtxColorSwatches();
+
+function showCtxMenu(x, y) {
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+
+    const isImg = obj.type === 'image';
+
+    // Determine if fill-opacity slider should be shown.
+    // Show it when any of the targets is a closed shape (not a line, not an image).
+    const CLOSED_TYPES = new Set(['rect','circle','ellipse','triangle','polygon','path']);
+    const LINE_TYPES   = new Set(['line','dashed','arrow']);
+    function isClosedObj(o) {
+        if (o.type === 'image') return false;
+        if (o.lineType || LINE_TYPES.has(o.lineType)) return false;
+        return CLOSED_TYPES.has(o.type);
+    }
+    const targets = getStyleTargets(obj);
+    const hasClosed = targets.some(isClosedObj);
+    const allImg    = targets.every(o => o.type === 'image');
+
+    const strokeSection      = document.getElementById('ctx-stroke-section');
+    const strokeWidthSection = document.getElementById('ctx-stroke-width-section');
+    const fillSection        = document.getElementById('ctx-fill-section');
+
+    strokeSection.style.display      = allImg ? 'none' : 'flex';
+    strokeWidthSection.style.display = allImg ? 'none' : 'flex';
+    fillSection.style.display        = hasClosed ? 'flex' : 'none';
+
+    // Sync stroke width from first target
+    const firstTarget = targets[0] || obj;
+    const w = firstTarget.strokeWidth || 1;
+    document.getElementById('ctx-stroke-width').value = w;
+    document.getElementById('ctx-stroke-width-val').textContent = w;
+
+    // Sync fill opacity from first closed-shape target
+    if (hasClosed) {
+        const closedTarget = targets.find(isClosedObj) || firstTarget;
+        let opacity = 0;
+        const fill = closedTarget.fill;
+        if (fill && fill !== 'transparent') {
+            try {
+                const col = new fabric.Color(fill);
+                opacity = Math.round(col.getAlpha() * 100);
+            } catch(e) {}
+        }
+        document.getElementById('ctx-fill-opacity').value = opacity;
+        document.getElementById('ctx-fill-opacity-val').textContent = opacity + '%';
+    }
+
+    // Initial position
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top  = y + 'px';
+    ctxMenu.classList.add('show');
+
+    // Keep in viewport (measure after display)
+    requestAnimationFrame(() => {
+        const rect = ctxMenu.getBoundingClientRect();
+        if (rect.right  > window.innerWidth)  ctxMenu.style.left = Math.max(0, x - rect.width)  + 'px';
+        if (rect.bottom > window.innerHeight) ctxMenu.style.top  = Math.max(0, y - rect.height) + 'px';
+    });
+}
+
+function hideCtxMenu() { ctxMenu.classList.remove('show'); }
+
+document.addEventListener('mousedown', (e) => {
+    if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+
+// Right-click on canvas
+canvas.on('mouse:down', (opt) => {
+    if (opt.e.button === 2 || opt.e.buttons === 2) {
+        const target = canvas.findTarget(opt.e);
+        if (target) {
+            canvas.setActiveObject(target);
+            canvas.requestRenderAll();
+        }
+        if (canvas.getActiveObject()) {
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
+            const wrapper = document.getElementById('canvas-wrapper');
+            const wr = wrapper.getBoundingClientRect();
+            showCtxMenu(opt.e.clientX, opt.e.clientY);
+        }
+    }
+});
+
+// Long-tap for touch
+let longTapTimer = null;
+let longTapFired = false;
+canvas.upperCanvasEl.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    longTapFired = false;
+    longTapTimer = setTimeout(() => {
+        longTapFired = true;
+        const touch = e.touches[0];
+        const target = canvas.findTarget(e.touches[0]);
+        if (target) { canvas.setActiveObject(target); canvas.requestRenderAll(); }
+        if (canvas.getActiveObject()) showCtxMenu(touch.clientX, touch.clientY);
+    }, 600);
+}, { passive: true });
+canvas.upperCanvasEl.addEventListener('touchend', () => {
+    clearTimeout(longTapTimer);
+    longTapTimer = null;
+}, { passive: true });
+canvas.upperCanvasEl.addEventListener('touchmove', () => {
+    clearTimeout(longTapTimer);
+    longTapTimer = null;
+}, { passive: true });
+
+// Helper: get serializable data for an object that may be inside
+// an activeSelection or group — always returns ABSOLUTE canvas coords.
+// 'o.toObject()' alone returns LOCAL coords when inside a selection/group,
+// causing the partner to place the object in the wrong position.
+// getStyleBroadcastData — builds the data object to broadcast for a style change.
+//
+// KEY DISTINCTION:
+//   activeSelection (temporary multi-select):
+//     Partner has FLAT top-level objects → must send ABSOLUTE canvas coords.
+//     (Local coords are relative to selection centre, meaningless to partner.)
+//
+//   fabric.Group (permanent group):
+//     Partner has the SAME group structure with the SAME local coords.
+//     Do NOT convert to absolute — that would corrupt the child's position inside
+//     the group when partner calls obj.set(data).
+//     Send only style props (no position).
+//
+//   Standalone object: send as-is (coords are already absolute canvas coords).
+function getStyleBroadcastData(o, styleProps) {
+    const inActiveSelection = o.group && o.group.type === 'activeSelection';
+    const inPermanentGroup  = o.group && o.group.type === 'group';
+
+    if (inPermanentGroup) {
+        // Only send style — position is managed by the group structure on both sides.
+        const data = { id: o.id };
+        const stylePropList = ['fill','stroke','strokeWidth','strokeDashArray','opacity',
+                               ...(styleProps || [])];
+        stylePropList.forEach(p => { data[p] = o[p]; });
+        return data;
+    }
+
+    // For activeSelection or standalone: include position (absolute coords).
+    const baseProps = ['id', 'left', 'top', 'scaleX', 'scaleY', 'angle',
+                       'fill', 'stroke', 'strokeWidth', 'strokeDashArray', 'opacity',
+                       ...(styleProps || [])];
+    const props = [...new Set(baseProps)];
+    const data  = o.toObject(props);
+
+    if (inActiveSelection) {
+        // Convert local → absolute for partner's flat objects
+        const grpMtx = o.group.calcTransformMatrix();
+        const grpDec = fabric.util.qrDecompose(grpMtx);
+        const abs    = fabric.util.transformPoint({ x: o.left, y: o.top }, grpMtx);
+        data.left   = abs.x;
+        data.top    = abs.y;
+        data.scaleX = o.scaleX * grpDec.scaleX;
+        data.scaleY = o.scaleY * grpDec.scaleY;
+        data.angle  = o.angle  + grpDec.angle;
+    }
+    return data;
+}
+
+// Collect the leaf objects to apply style to:
+// • activeSelection → all direct children
+// • group           → all children (recurse one level; fabric groups are flat)
+// • anything else   → [obj] itself
+function getStyleTargets(obj) {
+    if (obj.type === 'activeSelection') return obj.getObjects();
+    if (obj.type === 'group')           return obj.getObjects();
+    return [obj];
+}
+
+function ctxSetStrokeColor(color) {
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const targets = getStyleTargets(obj);
+    targets.forEach(o => { o.set('stroke', color); o.dirty = true; });
+    // For groups: also set on the group wrapper so Fabric redraws it
+    if (obj.type === 'group') obj.dirty = true;
+    canvas.requestRenderAll();
+    // Broadcast with absolute coords so partner object doesn't jump
+    targets.forEach(o => broadcast('modified', { data: getStyleBroadcastData(o, ['stroke']) }));
+    hideCtxMenu();
+}
+
+function ctxSetStrokeWidth(val) {
+    const v = parseInt(val);
+    document.getElementById('ctx-stroke-width-val').textContent = v;
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const targets = getStyleTargets(obj);
+    targets.forEach(o => { o.set('strokeWidth', v); o.dirty = true; });
+    if (obj.type === 'group') obj.dirty = true;
+    canvas.requestRenderAll();
+    targets.forEach(o => broadcast('modified', { data: getStyleBroadcastData(o, ['strokeWidth']) }));
+}
+
+function ctxSetFillOpacity(val) {
+    const opacity = parseInt(val) / 100;
+    document.getElementById('ctx-fill-opacity-val').textContent = val + '%';
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const targets = getStyleTargets(obj);
+    targets.forEach(o => {
+        // Determine base RGB color:
+        // If fill is transparent / null / empty → use the object's stroke color
+        // (so the user gets a colored fill, not black), fallback to white.
+        let fill = o.fill;
+        let baseRGB = null;
+
+        if (!fill || fill === 'transparent') {
+            baseRGB = o.stroke || '#ffffff';
+        } else {
+            // Try to extract existing RGB from current fill (ignore its alpha)
+            try {
+                const existing = new fabric.Color(fill);
+                // toHex() strips alpha → clean RGB base
+                baseRGB = '#' + existing.toHex();
+            } catch (e) {
+                baseRGB = o.stroke || '#ffffff';
+            }
+        }
+
+        try {
+            const col = new fabric.Color(baseRGB);
+            col.setAlpha(opacity);
+            o.set('fill', col.toRgba());
+        } catch (e) {
+            // Absolute fallback
+            o.set('fill', `rgba(255,255,255,${opacity})`);
+        }
+        o.dirty = true;
+    });
+    if (obj.type === 'group') obj.dirty = true;
+    canvas.requestRenderAll();
+    targets.forEach(o => broadcast('modified', { data: getStyleBroadcastData(o, ['fill']) }));
+}
+
+function ctxGroupSelected()   { hideCtxMenu(); groupSelected(); }
+function ctxUngroupSelected() { hideCtxMenu(); ungroupSelected(); }
+function ctxClone()           { hideCtxMenu(); duplicateSelected(); }
+function ctxDelete()          { hideCtxMenu(); deleteSelected(); }
+
+function ctxCrop() {
+    hideCtxMenu();
+    const obj = canvas.getActiveObject();
+    startCropMode(obj && obj.type === 'image' ? obj : null);
+}
+
+function ctxBringToFront() {
+    hideCtxMenu();
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const objs = obj.type === 'activeSelection' ? obj.getObjects() : [obj];
+    objs.forEach(o => canvas.bringToFront(o));
+    canvas.requestRenderAll();
+    objs.forEach(o => broadcast('modified', { data: o.toObject(['id']) }));
+}
+
+function ctxSendToBack() {
+    hideCtxMenu();
+    const obj = canvas.getActiveObject();
+    if (!obj) return;
+    const objs = obj.type === 'activeSelection' ? obj.getObjects() : [obj];
+    objs.forEach(o => canvas.sendToBack(o));
+    canvas.requestRenderAll();
+    objs.forEach(o => broadcast('modified', { data: o.toObject(['id']) }));
+}
 
 canvas.on('before:transform', (e) => {
     const target = e.transform.target;
@@ -3690,12 +4635,10 @@ function connectToFirebaseRoom(roomId) {
 }
 
 function handleFirebaseMessage(msg) {
-    // Игнорируем свои сообщения
     if (msg.sender === myFirebaseId) return;
     
     console.log('📥 Received from Firebase:', msg.type);
     
-    // Устанавливаем флаг, чтобы предотвратить отправку обратно
     isSendingToFirebase = true;
     
     try {
@@ -3712,30 +4655,26 @@ function handleFirebaseMessage(msg) {
             case 'object_added':
                 fabric.util.enlivenObjects([msg.data], function(objs) {
                     const obj = objs[0];
-                    
-                    // Убираем заливку для path объектов
-                    if (obj.type === 'path') {
-                        obj.set('fill', null);
+                    // Clear accidental fills from pen paths and group wrappers
+                    if (obj.type === 'path') obj.set('fill', '');
+                    if (obj.type === 'group') {
+                        obj.set({ fill: '', backgroundColor: '' });
+                        obj.getObjects().forEach(child => {
+                            if (child.type === 'path' && (!child.fill || child.fill === 'rgb(0,0,0)')) {
+                                child.set('fill', '');
+                            }
+                        });
                     }
-                    
-                    // Помечаем как удаленный объект
                     obj.__isLocal = true;
                     
-                    const existing = canvas.getObjects().find(o => o.id === msg.data.id);
-                    
-                    if (existing) {
-                        console.log('⚠️ Object already exists, updating:', msg.data.id);
+                    // Use findObjectById so we can update group children too
+                    const existing = findObjectById(msg.data.id);
+                    if (existing && !existing.group) {
                         existing.set(obj);
                         existing.setCoords();
-                    } else {
-                        obj.set({
-                            selectable: true,
-                            evented: true,
-                            __isLocal: true
-                        });
-                        
+                    } else if (!existing) {
+                        obj.set({ selectable: true, evented: true, __isLocal: true });
                         canvas.add(obj);
-                        console.log('✅ Added object from Firebase:', msg.data.id);
                     }
                     canvas.requestRenderAll();
                 });
@@ -3743,26 +4682,28 @@ function handleFirebaseMessage(msg) {
                 
             case 'modified':
             case 'object_modified':
-                msg.data.__isLocal = true;
-                
-                const existingObj = canvas.getObjects().find(o => o.id === msg.data.id);
-                if (existingObj) {
-                    existingObj.set(msg.data);
-                    existingObj.setCoords();
-                    canvas.requestRenderAll();
-                    console.log('✅ Modified object from Firebase:', msg.data.id);
-                }
+                // Recursive search including inside groups
+                applyModifiedData(msg.data);
                 break;
                 
             case 'delete':
-            case 'object_removed':
-                const objToRemove = canvas.getObjects().find(o => o.id === msg.data.id);
+            case 'object_removed': {
+                const id = msg.data.id || msg.data;
+                const objToRemove = canvas.getObjects().find(o => o.id === id);
                 if (objToRemove) {
                     objToRemove.__isLocal = true;
                     canvas.remove(objToRemove);
                     canvas.requestRenderAll();
-                    console.log('✅ Removed object from Firebase:', msg.data.id);
                 }
+                break;
+            }
+                
+            case 'group_objects':
+                applyGroupOp(msg.data);
+                break;
+                
+            case 'ungroup_objects':
+                applyUngroupOp(msg.data);
                 break;
                 
             case 'request_state':
@@ -3798,10 +4739,10 @@ function handleFirebaseMessage(msg) {
                 console.log('Unknown Firebase message type:', msg.type);
         }
     } finally {
-        // Сбрасываем флаг после обработки
-        setTimeout(() => {
-            isSendingToFirebase = false;
-        }, 50);
+        // Reset immediately — we don't have canvas-event broadcasting for Firebase
+        // (that's MQTT-only). A delayed reset was blocking user actions that
+        // happened within 50ms of receiving a message.
+        isSendingToFirebase = false;
     }
 }
 
