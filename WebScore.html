@@ -254,10 +254,18 @@
             <button onclick="document.getElementById('musicxmlInput').click()">Load MusicXML</button>
             <input type="file" id="musicxmlInput" accept=".musicxml,.xml,.mxl" style="display:none;" onchange="importMusicXML(event)">
         </div>
+        <!-- SF2 soundfont row -->
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button onclick="document.getElementById('sf2Input').click()" title="Load a custom SF2 soundfont for note preview and score playback">&#127925; Load SF2</button>
+            <input type="file" id="sf2Input" accept=".sf2" style="display:none;" onchange="loadSF2File(event)">
+            <span id="sf2Status" style="font-size:12px;color:#888;font-style:italic;">Default sound (soundfont-player)</span>
+            <button id="sf2ClearBtn" onclick="clearSF2()" title="Revert to default sound" style="display:none;background:#ffcdd2;border-color:#e57373;">&#10005; Clear SF2</button>
+        </div>
         <div class="input-mode-toggle" style="margin-top:10px;">
             <strong>Note input mode:</strong>
             <label><input type="radio" name="inputMode" value="buttons" checked onchange="switchInputMode('buttons')"> 🎵 Buttons</label>
             <label><input type="radio" name="inputMode" value="piano" onchange="switchInputMode('piano')"> 🎹 Piano keyboard</label>
+            <label><input type="radio" name="inputMode" value="grid3" onchange="switchInputMode('grid3')"> 🎼 3-Row Grid</label>
         </div>
         
         <div id="channelsContainer"></div>
@@ -310,7 +318,7 @@
                         <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
                         <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
                         <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
-                        <button class="btn-small mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small mod-btn dot-mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
                         <button class="btn-small mod-btn" id="mod-trip" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                 </div>
@@ -331,11 +339,11 @@
                         <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
                     </div>
                     <div class="group">
-                        <button class="btn-small mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
-                        <button class="btn-small mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
-                        <button class="btn-small mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
-                        <button class="btn-small mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
-                        <button class="btn-small mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
                     </div>
                 </div>
             </div>
@@ -352,7 +360,7 @@
                         <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
                         <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
                         <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
-                        <button class="btn-small mod-btn" id="mod-dot-piano" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small mod-btn dot-mod-btn" id="mod-dot-piano" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
                         <button class="btn-small mod-btn" id="mod-trip-piano" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                     <div class="group">
@@ -373,6 +381,44 @@
                     <button class="control-btn" onclick="tieSelection()" title="Tie (T)"><svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/></svg></button>
                     <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
                     <button id="playBtnP" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
+                    <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
+                    <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
+                </div>
+            </div>
+
+            <!-- ===== 3-ROW GRID INPUT MODE ===== -->
+            <div id="grid3InputPanel" style="display:none; flex-direction:column; width:100%;">
+                <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto;"></div>
+                <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
+                    <div class="group">
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn active" id="grid3-loco" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp-g3" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-flat-g3" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-nat-g3" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp-g3" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat-g3" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small mod-btn dot-mod-btn" id="mod-dot-g3" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small mod-btn" id="mod-trip-g3" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
+                    </div>
+                    <div class="group">
+                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(1)" title="Shift all row durations longer">♩▲</button>
+                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(-1)" title="Shift all row durations shorter">♩▼</button>
+                    </div>
+                </div>
+                <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
+                    <button id="chordModeBtnG3" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
+                    <button class="control-btn mod-btn" id="btn-vshift-g3" onclick="toggleVShiftPiano(this)" title="Select (Shift)">Sel</button>
+                    <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
+                    <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
+                    <button class="control-btn" onclick="tieSelection()" title="Tie (T)"><svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/></svg></button>
+                    <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
+                    <button id="playBtnG3" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
                     <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
                     <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
                 </div>
@@ -863,6 +909,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         // ==================== CONTEXT MENU ====================
         let contextNoteIndex = -1;
         let contextMenuVisible = false;
+        let _savedSelBeforePointerDown = null; // used to restore multi-selection on contextmenu
 
         function showContextMenu(e, noteIndex) {
             e.preventDefault();
@@ -871,15 +918,32 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             menu.style.display = 'flex';
             menu.style.left = e.pageX + 'px';
             menu.style.top = e.pageY + 'px';
-            menu.innerHTML = `
-                <button onclick="contextAccidental('^')" title="Sharp">#</button>
-                <button onclick="contextAccidental('_')" title="Flat">b</button>
-                <button onclick="contextAccidental('=')" title="Natural">♮</button>
-                <button onclick="contextPitchShift(1)" title="Up">⬆</button>
-                <button onclick="contextPitchShift(-1)" title="Down">⬇</button>
-                <button onclick="contextDurationShift(2)" title="Double duration">➡</button>
-                <button onclick="contextDurationShift(0.5)" title="Half duration">⬅</button>
-            `;
+
+            // If a multi-note selection is active and the right-clicked note is inside it,
+            // show a fragment-transpose-only menu.
+            const sel = getSelectionIndices();
+            const isMultiSelection = sel && (sel.end > sel.start) &&
+                                     (noteIndex >= sel.start && noteIndex <= sel.end);
+
+            if (isMultiSelection) {
+                menu.innerHTML = `
+                    <div style="width:100%;font-size:11px;color:#888;padding:0 2px 4px;user-select:none;">
+                        Транспозиция фрагмента
+                    </div>
+                    <button onclick="contextPitchShiftSelection(1)"  title="Транспонировать вверх на ступень" style="font-size:20px;min-width:54px;height:44px;">⬆</button>
+                    <button onclick="contextPitchShiftSelection(-1)" title="Транспонировать вниз на ступень" style="font-size:20px;min-width:54px;height:44px;">⬇</button>
+                `;
+            } else {
+                menu.innerHTML = `
+                    <button onclick="contextAccidental('^')" title="Sharp">#</button>
+                    <button onclick="contextAccidental('_')" title="Flat">b</button>
+                    <button onclick="contextAccidental('=')" title="Natural">♮</button>
+                    <button onclick="contextPitchShift(1)" title="Up">⬆</button>
+                    <button onclick="contextPitchShift(-1)" title="Down">⬇</button>
+                    <button onclick="contextDurationShift(2)" title="Double duration">➡</button>
+                    <button onclick="contextDurationShift(0.5)" title="Half duration">⬅</button>
+                `;
+            }
             contextMenuVisible = true;
         }
 
@@ -930,6 +994,38 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 }
             });
             hideContextMenu();
+        }
+
+        function contextPitchShiftSelection(delta) {
+            if (!activeTrack) return;
+            const sel = getSelectionIndices();
+            if (!sel) return;
+            const scale = ['C','D','E','F','G','A','B'];
+            let notes = getNotes();
+            for (let i = sel.start; i <= sel.end; i++) {
+                let n = notes[i];
+                if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                if (!n.pitches) continue;
+                n.pitches.forEach(p => {
+                    if (p.pitch === 'z' || p.pitch === 'x') return;
+                    let idx = scale.indexOf(p.pitch);
+                    if (idx === -1) return;
+                    let newIdx = idx + delta;
+                    let octShift = 0;
+                    while (newIdx < 0) { newIdx += 7; octShift -= 1; }
+                    while (newIdx > 6) { newIdx -= 7; octShift += 1; }
+                    p.pitch = scale[newIdx];
+                    let octave = p.octave || '';
+                    let commas = (octave.match(/,/g) || []).length;
+                    let apostr = (octave.match(/'/g) || []).length;
+                    let octNum = apostr - commas + octShift;
+                    if (octNum >= 0) p.octave = "'".repeat(octNum);
+                    else p.octave = ','.repeat(-octNum);
+                });
+            }
+            // Keep selection so user can transpose again immediately
+            hideContextMenu();
+            updateScore();
         }
 
         function contextDurationShift(factor) {
@@ -1146,14 +1242,14 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         function toggleVShift(btn) { isVirtualShift = !isVirtualShift; if (isVirtualShift) btn.classList.add('active'); else btn.classList.remove('active'); }
         function toggleVShiftPiano(btn) {
             isVirtualShift = !isVirtualShift;
-            ['btn-vshift','btn-vshift-p'].forEach(id => {
+            ['btn-vshift','btn-vshift-p','btn-vshift-g3'].forEach(id => {
                 let el = document.getElementById(id);
                 if (el) { if (isVirtualShift) el.classList.add('active'); else el.classList.remove('active'); }
             });
         }
         function toggleChordMode() {
             isChordMode = !isChordMode;
-            ['chordModeBtn','chordModeBtnP'].forEach(id => {
+            ['chordModeBtn','chordModeBtnP','chordModeBtnG3'].forEach(id => {
                 let btn = document.getElementById(id);
                 if (btn) { if (isChordMode) btn.classList.add('active'); else btn.classList.remove('active'); }
             });
@@ -1174,8 +1270,9 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function toggleMod(type, val, btn) {
             if (type === 'accidental') {
-                ['mod-sharp','mod-flat','mod-nat','mod-dblsharp','mod-dblflat'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-                if (nextMods.accidental === val) nextMods.accidental = ''; else { nextMods.accidental = val; btn.classList.add('active'); }
+                document.querySelectorAll('.acc-mod-btn').forEach(el => el.classList.remove('active'));
+                if (nextMods.accidental === val) { nextMods.accidental = ''; }
+                else { nextMods.accidental = val; btn.classList.add('active'); }
             } else if (type === 'dot') {
                 if (nextMods.dot === val) { nextMods.dot = false; btn.classList.remove('active'); } else { nextMods.dot = true; btn.classList.add('active'); }
             }
@@ -1186,29 +1283,101 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function resetMods() {
             nextMods = { accidental: '', dot: false };
-            ['mod-sharp','mod-flat','mod-nat','mod-dblsharp','mod-dblflat','mod-dot'].forEach(id => { let el = document.getElementById(id); if (el) el.classList.remove('active'); });
+            document.querySelectorAll('.acc-mod-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.dot-mod-btn').forEach(el => el.classList.remove('active'));
             updateNoteButtonIcons();
         }
+        /**
+         * After ABCJS renders a note into an icon span, normalize the staff lines
+         * so they appear at the same vertical position regardless of note pitch or clef.
+         * This fixes the bass clef buttons appearing misaligned compared to treble clef.
+         */
+        function alignStaffInIcon(iconSpan, clef) {
+            // Use requestAnimationFrame so layout is stable before we measure
+            requestAnimationFrame(() => {
+                let svg = iconSpan.querySelector('svg');
+                if (!svg) return;
+
+                // Find horizontal lines (staff lines) – long enough to be staff lines, not noteheads
+                let lines = Array.from(svg.querySelectorAll('line'));
+                let staffLines = lines.filter(l => {
+                    let x1 = parseFloat(l.getAttribute('x1') || '0');
+                    let x2 = parseFloat(l.getAttribute('x2') || '0');
+                    let y1 = parseFloat(l.getAttribute('y1') || '0');
+                    let y2 = parseFloat(l.getAttribute('y2') || '0');
+                    return Math.abs(x2 - x1) > 20 && Math.abs(y2 - y1) < 1;
+                });
+                if (staffLines.length < 5) return;
+
+                // Sort Y values — find the 5 core staff lines (ignore ledger lines by taking median cluster)
+                let yVals = staffLines.map(l => parseFloat(l.getAttribute('y1'))).sort((a, b) => a - b);
+                // The 5 main staff lines should have the smallest spacing; take 5 consecutive with least variance
+                // Simple heuristic: take middle 5 if more than 5, else take all 5
+                let coreY = yVals;
+                if (yVals.length > 5) {
+                    let best = 0, bestSpread = Infinity;
+                    for (let k = 0; k <= yVals.length - 5; k++) {
+                        let spread = yVals[k + 4] - yVals[k];
+                        if (spread < bestSpread) { bestSpread = spread; best = k; }
+                    }
+                    coreY = yVals.slice(best, best + 5);
+                }
+
+                let topStaffY = coreY[0];
+                let bottomStaffY = coreY[coreY.length - 1];
+                let staffCenterY = (topStaffY + bottomStaffY) / 2; // in SVG viewBox units
+
+                // Get the SVG viewBox to convert to pixel ratio
+                let vb = svg.getAttribute('viewBox');
+                let vbH = 1;
+                if (vb) {
+                    let parts = vb.trim().split(/\s+/);
+                    if (parts.length >= 4) vbH = parseFloat(parts[3]) || 1;
+                }
+
+                // The icon container is 54px tall; we want the staff center at ~40% from top = 21.6px
+                // Convert staffCenterY (viewBox units) to fraction of viewBox height
+                let staffCenterFraction = staffCenterY / vbH;
+                let targetFraction = 0.42; // where we want the center of the staff
+                let shiftFraction = targetFraction - staffCenterFraction;
+
+                // Apply as a CSS translateY on the SVG (in percentage of the icon height)
+                let iconH = iconSpan.offsetHeight || 54;
+                let shiftPx = shiftFraction * (iconH * (vbH / (parseFloat(svg.getAttribute('height')) || vbH)));
+
+                // For bass clef, the clef symbol is compact so it needs more top shift
+                // Apply the calculated shift
+                svg.style.transform = `translateY(${shiftPx.toFixed(1)}px)`;
+                svg.style.overflow = 'visible';
+            });
+        }
+
         function updateNoteButtonIcons() {
             if (!activeTrack) return;
             let clef = voicesData[activeTrack].clef;
-            let baseUnits = currentDurQuarters / 0.25;
-            let durStr = baseUnits + (nextMods.dot ? '.' : '');
             const keyAccs = getKeyAccidentals();
-            document.querySelectorAll('.note-btn').forEach(btn => {
-                let note = btn.dataset.note; let rowShift = parseInt(btn.dataset.rowShift);
+
+            function renderBtn(btn, durQuarters) {
+                let note = btn.dataset.note;
+                let rowShift = parseInt(btn.dataset.rowShift);
                 let clefShift = (clef === 'bass' ? -2 : 0);
                 let totalShift = rowShift + clefShift;
                 let octaveStr = '';
                 if (note !== 'z') {
                     if (totalShift <= -3) octaveStr = ',,,'; else if (totalShift === -2) octaveStr = ',,'; else if (totalShift === -1) octaveStr = ','; else if (totalShift === 0) octaveStr = ''; else if (totalShift === 1) octaveStr = "'"; else if (totalShift === 2) octaveStr = "''"; else if (totalShift >= 3) octaveStr = "'''";
                 }
+                let baseUnits = durQuarters / 0.25;
+                let durStr = baseUnits + (nextMods.dot ? '.' : '');
                 let abcLine = note === 'z' ? `z${durStr}` : `${note}${octaveStr}${durStr}`;
                 let abc = `X:1\nL:1/16\nK:C clef=${clef}\n${abcLine}`;
                 let iconSpan = btn.querySelector('.note-icon');
                 if (!iconSpan) return;
                 iconSpan.innerHTML = '';
-                try { ABCJS.renderAbc(iconSpan, abc, { responsive: 'resize', staffwidth: 70 }); } catch (e) {}
+                try {
+                    ABCJS.renderAbc(iconSpan, abc, { responsive: 'resize', staffwidth: 70 });
+                    // Normalize staff line vertical position so treble and bass staves align
+                    alignStaffInIcon(iconSpan, clef);
+                } catch (e) {}
                 let letterSpan = btn.querySelector('.note-letter');
                 if (letterSpan) {
                     let letter = note;
@@ -1217,21 +1386,21 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                         let displayAcc = '';
                         if (userAcc === '^') displayAcc = '#';
                         else if (userAcc === '_') displayAcc = 'b';
-                        else if (userAcc === '=') {
-                            // Natural: only show ♮ for notes that have a key sig accidental
-                            displayAcc = keyAccs[note] ? '♮' : '';
-                        }
+                        else if (userAcc === '=') { displayAcc = keyAccs[note] ? '♮' : ''; }
                         else if (userAcc === '^^') displayAcc = '##';
                         else if (userAcc === '__') displayAcc = 'bb';
-                        else {
-                            // No user accidental — reflect key signature
-                            const ksAcc = keyAccs[note];
-                            if (ksAcc === '^') displayAcc = '#';
-                            else if (ksAcc === '_') displayAcc = 'b';
-                        }
+                        else { const ksAcc = keyAccs[note]; if (ksAcc === '^') displayAcc = '#'; else if (ksAcc === '_') displayAcc = 'b'; }
                         letter += displayAcc;
                     }
                     letterSpan.innerText = letter;
+                }
+            }
+
+            document.querySelectorAll('.note-btn').forEach(btn => {
+                if (btn.dataset.grid3Row !== undefined) {
+                    renderBtn(btn, grid3RowDur(parseInt(btn.dataset.grid3Row)));
+                } else {
+                    renderBtn(btn, currentDurQuarters);
                 }
             });
         }
@@ -1489,26 +1658,126 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             }
         }
 
+// ==================== SYNC MODE HELPERS ====================
+
+/**
+ * Like rebuildWithTacts but starts filling the FIRST measure at startOffset quarters
+ * (i.e., startOffset quarters are already used at the start of the first measure).
+ * Returns array of notes with invisible pauses inserted to fill measure boundaries.
+ */
+function rebuildWithTactsFromOffset(notes, measureCapacity, startOffset) {
+    const EPS = 1e-9;
+    let result = [];
+    let cur = startOffset; // position within current measure
+
+    for (let n of notes) {
+        if (n.type === 'directive') { result.push(n); continue; }
+        let dur = n.durationInQuarters;
+        let space = measureCapacity - cur;
+
+        if (dur <= space + EPS) {
+            result.push(n);
+            cur += dur;
+            if (Math.abs(cur - measureCapacity) < EPS) cur = 0; // snap to boundary
+        } else {
+            // Note doesn't fit — pad current measure with invisible rest, then place note
+            if (space > EPS) {
+                result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                    durationInQuarters: space, abcUnits: Math.round(space / 0.25),
+                    triplet: false, tie: false, articulations: [] });
+            }
+            cur = 0;
+            result.push(n);
+            cur = dur;
+            // Handle note longer than a full measure (should have been split already)
+            while (cur > measureCapacity + EPS) cur -= measureCapacity;
+        }
+    }
+
+    // Pad the last measure
+    let remaining = measureCapacity - cur;
+    if (cur > EPS && remaining > EPS) {
+        result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+            durationInQuarters: remaining, abcUnits: Math.round(remaining / 0.25),
+            triplet: false, tie: false, articulations: [] });
+    }
+    return result;
+}
+
+/**
+ * For a given track, split its notes into three groups:
+ *   beforeMeasure — notes entirely before measureStart
+ *   inMeasureBeforeInsert — real (non-invisible) notes in [measureStart, insertTime)
+ *   inMeasureAfterInsert — real (non-invisible) notes in [insertTime, measureEnd)
+ *   afterMeasure — notes from measureEnd onwards (DO NOT TOUCH)
+ */
+function splitNotesForSync(trackKey, insertTime, measureCapacity) {
+    const EPS = 1e-9;
+    const mIdx = Math.floor(insertTime / measureCapacity);
+    const mStart = mIdx * measureCapacity;
+    const mEnd = mStart + measureCapacity;
+
+    let notes = voicesData[trackKey].notes;
+    let beforeMeasure = [], inMeasureBeforeInsert = [], inMeasureAfterInsert = [], afterMeasure = [];
+    let cum = 0;
+
+    for (let n of notes) {
+        if (n.type === 'directive') {
+            // Directives go with the section they precede
+            if (cum < mEnd - EPS) {
+                if (cum < mStart + EPS) beforeMeasure.push(n);
+                else inMeasureBeforeInsert.push(n);
+            } else {
+                afterMeasure.push(n);
+            }
+            continue;
+        }
+        let dur = n.durationInQuarters || 0;
+        let ns = cum, ne = cum + dur;
+
+        if (ne <= mStart + EPS) {
+            beforeMeasure.push(n);
+        } else if (ns >= mEnd - EPS) {
+            afterMeasure.push(n);
+        } else {
+            // Note is somewhere in [mStart, mEnd)
+            let isInvisible = n.pitches && n.pitches[0].pitch === 'x';
+            if (ns < insertTime - EPS) {
+                // Everything before cursor (real notes AND invisible rests) stays in place.
+                // Invisible rests between real notes must be preserved so that
+                // sum(inMeasureBeforeInsert) == offsetInMeasure exactly.
+                inMeasureBeforeInsert.push(n);
+            } else if (!isInvisible) {
+                // Real notes at/after cursor are displaced by the new content.
+                inMeasureAfterInsert.push(n);
+            }
+            // Invisible rests at or after cursor are discarded — recalculated by rebuildWithTactsFromOffset
+        }
+        cum = ne;
+    }
+    return { beforeMeasure, inMeasureBeforeInsert, inMeasureAfterInsert, afterMeasure, mIdx, mStart, mEnd };
+}
+
 function addNoteSync(noteBase, rowShift) {
     if (!activeTrack) return;
 
-    // Определяем длительность новой ноты
-    let baseQuarters = currentDurQuarters;
-    if (nextMods.dot) baseQuarters *= 1.5;
-    if (tripletNotesLeft > 0) baseQuarters *= (2/3);
+    // Build the new note
+    let nominalQuarters = currentDurQuarters;
+    if (nextMods.dot) nominalQuarters *= 1.5;
+    let isTripletNote = tripletNotesLeft > 0;
+    let baseQuarters = isTripletNote ? nominalQuarters * (2/3) : nominalQuarters;
 
     let newNote = {
         pitches: [{ pitch: noteBase, octave: '', accidental: nextMods.accidental }],
         durationInQuarters: baseQuarters,
-        abcUnits: baseQuarters / 0.25,
-        triplet: tripletNotesLeft > 0,
+        abcUnits: nominalQuarters / 0.25,
+        triplet: isTripletNote,
         tie: false,
         articulations: [],
         pedalStart: false,
         pedalEnd: false
     };
 
-    // Определяем октаву
     if (noteBase !== 'z' && noteBase !== 'x') {
         let clefShift = voicesData[activeTrack].clef === 'bass' ? -2 : 0;
         let totalShift = baseOctaveShift + rowShift + clefShift;
@@ -1519,81 +1788,65 @@ function addNoteSync(noteBase, rowShift) {
         else if (totalShift === 1) newNote.pitches[0].octave = "'";
         else if (totalShift === 2) newNote.pitches[0].octave = "''";
         else if (totalShift >= 3) newNote.pitches[0].octave = "'''";
-    }
-
-    // Воспроизводим превью
-    if (noteBase !== 'z' && noteBase !== 'x') {
         playSingleNote(noteBase, newNote.pitches[0].octave, nextMods.accidental, baseQuarters);
     }
 
-    // Определяем время вставки
-    let insertTime = 0;
-    if (selectionAtStart) {
-        insertTime = 0;
-        selectionAtStart = false;
-    } else if (selection.start !== -1 && selection.end !== -1) {
-        insertTime = getTimeAtNoteIndex(activeTrack, Math.max(selection.start, selection.end) + 1);
-    } else {
-        let notes = getNotes();
-        insertTime = notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
-    }
+    const cap = getMeasureCapacity();
+    const EPS = 1e-9;
 
-    // Пытаемся вставить ноту в существующие паузы активного трека (без сдвига)
-    let insertedInPause = tryInsertIntoPause(activeTrack, insertTime, newNote);
+    // Insertion time = time AFTER the currently selected note
+    let insertTime = getInsertionTime();
 
-    if (insertedInPause) {
-        // Вставка прошла успешно без изменения длительности других треков
-        // Перестраиваем только активный трек (можно вызвать rebuildAllTracks для чистоты)
-        rebuildAllTracks();
-    } else {
-        // Не хватило пауз – выполняем вставку со сдвигом во все активные треки
-        const measureCapacity = getMeasureCapacity();
-        let currentMeasure = Math.floor(insertTime / measureCapacity);
-        let offsetInMeasure = insertTime - currentMeasure * measureCapacity;
-        let remainingInMeasure = measureCapacity - offsetInMeasure;
+    // Split active track notes into sections
+    let { beforeMeasure, inMeasureBeforeInsert, inMeasureAfterInsert, afterMeasure, mIdx, mStart, mEnd } =
+        splitNotesForSync(activeTrack, insertTime, cap);
 
-        // Если не хватает места в текущем такте – добавляем пустые такты во все активные треки
-        if (baseQuarters > remainingInMeasure + 0.001) {
-            let neededMeasures = Math.ceil((baseQuarters - remainingInMeasure) / measureCapacity);
-            let activeKeys = getActiveKeys();
-            for (let key of activeKeys) {
-                insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
-            }
-            shiftMeasureMarkers(currentMeasure + 1, neededMeasures);
-            insertTime = (currentMeasure + 1) * measureCapacity;
-        }
+    let offsetInMeasure = insertTime - mStart; // how many quarters already used in current measure before insertTime
+    let spaceAvailable = cap - offsetInMeasure; // space from insertTime to end of current measure
 
-        // Вставляем ноту во все активные треки
+    // Content to place from insertTime: new note + displaced tail notes
+    let content = [newNote, ...inMeasureAfterInsert];
+    let packedContent = rebuildWithTactsFromOffset(content, cap, offsetInMeasure);
+
+    // Calculate how many NEW measures are needed beyond the current one
+    let packedDur = packedContent.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+    let overflow = packedDur - spaceAvailable;
+    let newMeasuresNeeded = overflow > EPS ? Math.ceil(overflow / cap) : 0;
+
+    // Assemble active track
+    voicesData[activeTrack].notes = [
+        ...beforeMeasure,
+        ...inMeasureBeforeInsert,
+        ...packedContent,
+        ...afterMeasure
+    ];
+
+    // Insert empty measures in all OTHER active tracks at measureIdx+1
+    if (newMeasuresNeeded > 0) {
         let activeKeys = getActiveKeys();
         for (let key of activeKeys) {
-            let notes = voicesData[key].notes;
-            let insertIdx = findIndexAtTime(key, insertTime);
-            if (key === activeTrack) {
-                notes.splice(insertIdx, 0, JSON.parse(JSON.stringify(newNote)));
-            } else {
-                let pauseNote = {
-                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
-                    durationInQuarters: baseQuarters,
-                    abcUnits: baseQuarters / 0.25,
-                    triplet: false,
-                    tie: false,
-                    articulations: []
-                };
-                notes.splice(insertIdx, 0, pauseNote);
-            }
+            if (key === activeTrack) continue;
+            insertEmptyMeasuresIntoTrack(key, mIdx + 1, newMeasuresNeeded);
         }
-
-        rebuildAllTracks();
+        shiftMeasureMarkers(mIdx + 1, newMeasuresNeeded);
     }
 
-    // Находим индекс вставленной ноты в активном треке и обновляем выделение
+    padTracksToSameLength();
+    removeEmptyMeasures();
+
+    // Update selection to the newly inserted note
     let newSelIdx = findIndexAtTime(activeTrack, insertTime);
     selection.start = newSelIdx;
     selection.end = newSelIdx;
 
     if (tripletNotesLeft > 0) {
         tripletNotesLeft--;
-        if (tripletNotesLeft === 0) document.getElementById('mod-trip').classList.remove('active');
+        if (tripletNotesLeft === 0) {
+            ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            });
+        }
     }
     resetMods();
     updateScore();
@@ -1677,17 +1930,25 @@ function addNoteSync(noteBase, rowShift) {
         }
 
         function rebuildWithTacts(notes, measureCapacity) {
+            const EPS = 1e-9;
             let result = [], cur = 0;
             for (let n of notes) {
                 if (n.type === 'directive' || n.type === 'barline') { result.push(n); continue; }
                 let dur = n.durationInQuarters;
-                if (dur <= measureCapacity - cur) { result.push(n); cur += dur; }
-                else {
-                    if (cur < measureCapacity) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity - cur, abcUnits: (measureCapacity - cur) / 0.25, triplet: false, tie: false, articulations: [] });
+                let space = measureCapacity - cur;
+                if (dur <= space + EPS) {
+                    result.push(n);
+                    cur += dur;
+                    // Snap to measure boundary to prevent FP drift
+                    if (Math.abs(cur - measureCapacity) < EPS) cur = measureCapacity;
+                } else {
+                    // Note overflows — pad the current measure with invisible rest then start next
+                    if (space > EPS) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: space, abcUnits: Math.round(space / 0.25), triplet: false, tie: false, articulations: [] });
                     result.push(n); cur = dur;
                 }
             }
-            if (cur > 0 && cur < measureCapacity) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: measureCapacity - cur, abcUnits: (measureCapacity - cur) / 0.25, triplet: false, tie: false, articulations: [] });
+            let trailing = measureCapacity - cur;
+            if (cur > EPS && trailing > EPS) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: trailing, abcUnits: Math.round(trailing / 0.25), triplet: false, tie: false, articulations: [] });
             return result;
         }
 
@@ -1716,14 +1977,14 @@ function addNoteSync(noteBase, rowShift) {
                     else if (totalShift === 2) finalOctaveStr = "''";
                     else if (totalShift >= 3) finalOctaveStr = "'''";
                 }
-                let baseQuarters = currentDurQuarters;
-                if (nextMods.dot) baseQuarters *= 1.5;
+                let nominalQuarters = currentDurQuarters;
+                if (nextMods.dot) nominalQuarters *= 1.5;
                 let isTriplet = tripletNotesLeft > 0;
-                if (isTriplet) baseQuarters *= (2/3);
+                let baseQuarters = isTriplet ? nominalQuarters * (2/3) : nominalQuarters;
                 let newNote = {
                     pitches: [{ pitch: noteBase, octave: finalOctaveStr, accidental: nextMods.accidental }],
                     durationInQuarters: baseQuarters,
-                    abcUnits: baseQuarters / 0.25,
+                    abcUnits: nominalQuarters / 0.25,   // nominal (non-2/3) units for correct ABC "(3 C4 D4 E4" syntax
                     triplet: isTriplet,
                     tie: false,
                     articulations: [],
@@ -1785,7 +2046,7 @@ function addNoteSync(noteBase, rowShift) {
                 else if (selection.start !== -1 && selection.end !== -1) insertIdx = Math.max(selection.start, selection.end) + 1;
                 else insertIdx = notes.length;
                 insertNotes(activeTrack, insertIdx, [newNote]);
-                if (isTriplet) { tripletNotesLeft--; if (tripletNotesLeft === 0) document.getElementById('mod-trip').classList.remove('active'); }
+                if (isTriplet) { tripletNotesLeft--; if (tripletNotesLeft === 0) { ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); }); } }
                 resetMods();
             }
         }
@@ -1844,89 +2105,39 @@ function deleteSelectionSync() {
     let sel = getSelectionIndices();
     if (!sel) return;
 
-    // Определяем временной интервал удаления (в четвертях)
-    let startTime = getTimeAtNoteIndex(activeTrack, sel.start);
-    let endTime = getTimeAtNoteIndex(activeTrack, sel.end) + (voicesData[activeTrack].notes[sel.end].durationInQuarters || 0);
-    let rangeDur = endTime - startTime;
+    // SYNC DELETE RULE:
+    // Deleted notes are replaced IN-PLACE by invisible pauses of the SAME duration.
+    // No notes in any other measure (active or other tracks) are moved.
+    // Only if a measure becomes empty in ALL tracks simultaneously does removeEmptyMeasures collapse it.
 
-    // В активном треке заменяем удаляемый интервал невидимой паузой
-    let activeNotes = voicesData[activeTrack].notes;
-    let newActiveNotes = [];
-    let cum = 0;
-    for (let i = 0; i < activeNotes.length; i++) {
-        let n = activeNotes[i];
-        if (!n.durationInQuarters) {
-            newActiveNotes.push(n);
-            continue;
-        }
-        let noteStart = cum;
-        let noteEnd = cum + n.durationInQuarters;
+    let notes = voicesData[activeTrack].notes;
 
-        if (noteEnd <= startTime || noteStart >= endTime) {
-            // Нота полностью вне интервала – оставляем
-            newActiveNotes.push(n);
-        } else {
-            // Нота пересекается с интервалом – разрезаем
-            if (noteStart < startTime) {
-                let leftDur = startTime - noteStart;
-                if (leftDur > 0.001) {
-                    let leftNote = { ...n, durationInQuarters: leftDur, abcUnits: leftDur / 0.25 };
-                    leftNote.tie = false;
-                    newActiveNotes.push(leftNote);
-                }
-            }
-            if (noteEnd > endTime) {
-                let rightDur = noteEnd - endTime;
-                if (rightDur > 0.001) {
-                    let rightNote = { ...n, durationInQuarters: rightDur, abcUnits: rightDur / 0.25 };
-                    rightNote.tie = false;
-                    newActiveNotes.push(rightNote);
-                }
-            }
-        }
-        cum = noteEnd;
+    for (let i = sel.start; i <= sel.end; i++) {
+        let n = notes[i];
+        if (!n || n.type === 'directive' || n.type === 'barline') continue;
+        notes[i] = {
+            pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+            durationInQuarters: n.durationInQuarters,
+            abcUnits: n.abcUnits,
+            triplet: false,
+            tie: false,
+            articulations: []
+        };
     }
 
-    // Вставляем невидимую паузу на место удалённого интервала
-    let pauseInsertIdx = 0;
-    cum = 0;
-    for (let i = 0; i < newActiveNotes.length; i++) {
-        if (newActiveNotes[i].durationInQuarters) {
-            if (cum + newActiveNotes[i].durationInQuarters > startTime) {
-                pauseInsertIdx = i;
-                break;
-            }
-            cum += newActiveNotes[i].durationInQuarters;
-        }
+    let prevIdx = sel.start - 1;
+    while (prevIdx >= 0) {
+        let n = notes[prevIdx];
+        if (n && n.pitches && n.pitches[0].pitch !== 'x' && n.pitches[0].pitch !== 'z') break;
+        prevIdx--;
     }
-    let pauseNote = {
-        pitches: [{ pitch: 'x', octave: '', accidental: '' }],
-        durationInQuarters: rangeDur,
-        abcUnits: rangeDur / 0.25,
-        triplet: false,
-        tie: false,
-        articulations: []
-    };
-    newActiveNotes.splice(pauseInsertIdx, 0, pauseNote);
-    voicesData[activeTrack].notes = newActiveNotes;
+    if (prevIdx >= 0) { selection.start = prevIdx; selection.end = prevIdx; }
+    else { selection.start = -1; selection.end = -1; }
+    selectionAtStart = false;
 
-    // Остальные треки не изменяем
-
-    // Перестраиваем все треки и удаляем пустые такты
-    rebuildAllTracks();
-
-    // Устанавливаем новое выделение на начало паузы (или предыдущую ноту)
-    let newSelIdx = findIndexAtTime(activeTrack, startTime) - 1;
-    if (newSelIdx >= 0) {
-        selection.start = newSelIdx;
-        selection.end = newSelIdx;
-    } else {
-        selection.start = -1;
-        selection.end = -1;
-    }
+    removeEmptyMeasures();
     updateScore();
 }
-
 
         function deleteRangeFromTrack(trackKey, startTime, endTime) {
             let notes = voicesData[trackKey].notes;
@@ -2005,65 +2216,68 @@ function deleteSelectionSync() {
         function pasteSelectionSync() {
             if (!activeTrack || clipboard.length === 0) return;
 
-            let insertTime = 0;
+            const cap = getMeasureCapacity();
+            const EPS = 1e-9;
+
+            // Determine insertion time
+            let insertTime;
             if (selectionAtStart) {
                 insertTime = 0;
                 selectionAtStart = false;
             } else if (selection.start !== -1 && selection.end !== -1) {
                 insertTime = getTimeAtNoteIndex(activeTrack, Math.max(selection.start, selection.end) + 1);
             } else {
-                let notes = getNotes();
-                insertTime = notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+                insertTime = voicesData[activeTrack].notes.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
             }
 
             let pasteDur = clipboard.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
             if (pasteDur <= 0) return;
 
-            const measureCapacity = getMeasureCapacity();
-            let currentMeasure = Math.floor(insertTime / measureCapacity);
-            let offsetInMeasure = insertTime - currentMeasure * measureCapacity;
-            let remainingInMeasure = measureCapacity - offsetInMeasure;
+            // Split active track notes at insertTime / measureEnd
+            let { beforeMeasure, inMeasureBeforeInsert, inMeasureAfterInsert, afterMeasure, mIdx, mStart, mEnd } =
+                splitNotesForSync(activeTrack, insertTime, cap);
 
-            if (pasteDur > remainingInMeasure + 0.001) {
-                let neededMeasures = Math.ceil((pasteDur - remainingInMeasure) / measureCapacity);
+            let offsetInMeasure = insertTime - mStart;
+            let spaceAvailable = cap - offsetInMeasure;
+
+            // Content from insertTime: clipboard notes + displaced tail
+            let notesToPaste = clipboard.map(n => JSON.parse(JSON.stringify(n)));
+            let content = [...notesToPaste, ...inMeasureAfterInsert];
+            let packedContent = rebuildWithTactsFromOffset(content, cap, offsetInMeasure);
+
+            // How many new measures are needed?
+            let packedDur = packedContent.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
+            let overflow = packedDur - spaceAvailable;
+            let newMeasuresNeeded = overflow > EPS ? Math.ceil(overflow / cap) : 0;
+
+            // Assemble active track
+            voicesData[activeTrack].notes = [
+                ...beforeMeasure,
+                ...inMeasureBeforeInsert,
+                ...packedContent,
+                ...afterMeasure
+            ];
+
+            // Insert empty measures in all OTHER active tracks
+            if (newMeasuresNeeded > 0) {
                 let activeKeys = getActiveKeys();
                 for (let key of activeKeys) {
-                    insertEmptyMeasuresIntoTrack(key, currentMeasure + 1, neededMeasures);
+                    if (key === activeTrack) continue;
+                    insertEmptyMeasuresIntoTrack(key, mIdx + 1, newMeasuresNeeded);
                 }
-                shiftMeasureMarkers(currentMeasure + 1, neededMeasures);
-                insertTime = (currentMeasure + 1) * measureCapacity;
+                shiftMeasureMarkers(mIdx + 1, newMeasuresNeeded);
             }
 
-            // Insert clipboard notes into active track
-            let activeNotes = voicesData[activeTrack].notes;
-            let insertIdx = findIndexAtTime(activeTrack, insertTime);
-            let notesToInsert = clipboard.map(n => JSON.parse(JSON.stringify(n)));
-            activeNotes.splice(insertIdx, 0, ...notesToInsert);
+            padTracksToSameLength();
+            removeEmptyMeasures();
 
-            // Insert spacer invisible rests into all OTHER active tracks at the same time
-            // (mirrors addNoteSync behavior — without this, other tracks don't shift)
-            let activeKeys = getActiveKeys();
-            for (let key of activeKeys) {
-                if (key === activeTrack) continue;
-                let otherIdx = findIndexAtTime(key, insertTime);
-                let spacer = {
-                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
-                    durationInQuarters: pasteDur,
-                    abcUnits: pasteDur / 0.25,
-                    triplet: false,
-                    tie: false,
-                    articulations: []
-                };
-                voicesData[key].notes.splice(otherIdx, 0, spacer);
-            }
-
-            rebuildAllTracks();
-
+            // Update selection to cover pasted notes
             let newStartIdx = findIndexAtTime(activeTrack, insertTime);
             let newEndIdx = findIndexAtTime(activeTrack, insertTime + pasteDur) - 1;
             if (newEndIdx < newStartIdx) newEndIdx = newStartIdx;
             selection.start = newStartIdx;
-            selection.end = newEndIdx;
+            selection.end = Math.min(newEndIdx, voicesData[activeTrack].notes.length - 1);
+
             updateScore();
         }
 
@@ -2660,18 +2874,57 @@ function generateMIDIWithBend() {
 
                 for (let note of unrolledTimeline) {
                     let playTimeAc = playStartAcTime + (note.playStartQ - playBoundaryStart) * secondsPerQuarter;
-                    let inst = loadedInstruments[note.program];
-                    if (inst && inst !== "loading") {
-                        let dynGain = 1.0;
-                        for (let a of note.articulations) {
-                            if (dynMap[a] !== undefined) {
-                                dynGain = dynMap[a];
-                                break;
+
+                    // Shared gain calculation
+                    let dynGain = 1.0;
+                    for (let a of note.articulations) {
+                        if (dynMap[a] !== undefined) { dynGain = dynMap[a]; break; }
+                    }
+                    let finalGain = (note.volume / 100) * dynGain;
+
+                    if (customSF2Data) {
+                        // ── SF2 path ──
+                        // Convert dynGain (0.2–1.0) to MIDI velocity (0–127) for velocity-layer selection
+                        const midiVelocity = Math.round(dynGain * 127);
+                        for (let p of note.pitches) {
+                            let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                            if (!midiNote) continue;
+                            midiNote += 12;
+                            let durSec = note.duration * secondsPerQuarter;
+                            if (note.articulations.includes('staccato')) durSec *= 0.25;
+                            const sfNode = sf2ScheduleNote(midiNote, note.program, playTimeAc, durSec, finalGain, midiVelocity);
+                            if (sfNode) {
+                                activeAudioNodes.push(sfNode);
+                                // Apply pitch bend via playbackRate automation
+                                if (note.bend && sfNode.source) {
+                                    const source = sfNode.source;
+                                    const base   = sfNode.basePlaybackRate;
+                                    const points  = note.bend.points;
+                                    const maxCents = note.bend.maxCents;
+                                    const fps = 30;
+                                    const totalFrames = Math.max(2, Math.floor(durSec * fps));
+                                    source.playbackRate.setValueAtTime(base, playTimeAc);
+                                    for (let i = 0; i <= totalFrames; i++) {
+                                        const progress = i / totalFrames;
+                                        const time = playTimeAc + progress * durSec;
+                                        let y = 0.5;
+                                        if (progress <= 0) y = points[0].y;
+                                        else if (progress >= 1) y = points[8].y;
+                                        else {
+                                            const idx = Math.floor(progress * 8);
+                                            const t = (progress * 8) - idx;
+                                            y = points[idx].y + (points[Math.min(idx + 1, 8)].y - points[idx].y) * t;
+                                        }
+                                        const centsOffset = (0.5 - y) * 2 * maxCents;
+                                        const rate = base * Math.pow(2, centsOffset / 1200);
+                                        source.playbackRate.linearRampToValueAtTime(rate, time);
+                                    }
+                                }
                             }
                         }
-                        let baseGain = note.volume / 100;
-                        let finalGain = baseGain * dynGain;
-
+                    } else {
+                    let inst = loadedInstruments[note.program];
+                    if (inst && inst !== "loading") {
                         for (let p of note.pitches) {
                             let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
                             if (midiNote) midiNote += 12;
@@ -2711,6 +2964,7 @@ function generateMIDIWithBend() {
                             }
                         }
                     }
+                    } // end else (soundfont-player path)
                 }
 
                 requestAnimationFrame(() => animateCursor(playBoundaryStart, playBoundaryEnd));
@@ -3148,6 +3402,12 @@ function generateMIDIWithBend() {
                     if (n.type === 'directive' || n.type === 'barline') continue;
                     if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
                     if (n.abcUnits !== undefined && isNaN(n.abcUnits)) { n.abcUnits = 1; }
+                    // Fix legacy fractional abcUnits from old triplet bug: abcUnits must be integer
+                    // For triplets, abcUnits should be the nominal (non-2/3-scaled) duration in 1/16 units
+                    if (n.triplet && n.abcUnits !== undefined && n.abcUnits !== Math.round(n.abcUnits)) {
+                        // durationInQuarters is the actual (2/3-scaled) duration; nominal = actual * 1.5
+                        n.abcUnits = Math.round(n.durationInQuarters * 1.5 / 0.25);
+                    }
                 }
             }
 
@@ -3195,7 +3455,14 @@ function generateMIDIWithBend() {
                     if (n.triplet) {
                         if (activeTripletCount === 0) {
                             let consecutiveTriplets = 1;
-                            while (i + consecutiveTriplets < notes.length && notes[i + consecutiveTriplets].triplet && consecutiveTriplets < 3) consecutiveTriplets++;
+                            // Skip invisible 'x' fill notes when scanning ahead for consecutive triplets
+                            let scan = i + 1;
+                            while (scan < notes.length && consecutiveTriplets < 3) {
+                                let sn = notes[scan];
+                                if (sn.pitches && sn.pitches[0].pitch === 'x') { scan++; continue; } // skip invisible fills
+                                if (sn.triplet) { consecutiveTriplets++; scan++; }
+                                else break;
+                            }
                             if (consecutiveTriplets === 3) { prefix = "(3"; activeTripletCount = 2; }
                             else if (consecutiveTriplets === 2) { prefix = "(2"; activeTripletCount = 1; }
                             else { prefix = "(3:2:1 "; activeTripletCount = 0; }
@@ -3212,6 +3479,8 @@ function generateMIDIWithBend() {
                     }
                     let tieStr = needTie ? "-" : "";
 
+                    // Always use integer abcUnits — fractional values cause '.' to be parsed as staccato by ABCJS
+                    let safeAbcUnits = Math.max(1, Math.round(n.abcUnits));
                     let noteCore = "";
                     if (n.pitches.length > 1) {
                         noteCore += "[";
@@ -3219,12 +3488,12 @@ function generateMIDIWithBend() {
                             if (p.pitch === 'x' || p.pitch === 'z') noteCore += p.pitch;
                             else { let acc = p.accidental || ''; let oct = p.octave || ''; noteCore += acc + p.pitch + oct; }
                         });
-                        noteCore += `]${n.abcUnits}${tieStr}`;
+                        noteCore += `]${safeAbcUnits}${tieStr}`;
                     } else {
                         let p = n.pitches[0];
-                        if (p.pitch === 'x') noteCore = `x${n.abcUnits}`;
-                        else if (p.pitch === 'z') noteCore = `z${n.abcUnits}`;
-                        else { let acc = p.accidental || ''; let oct = p.octave || ''; noteCore = `${acc}${p.pitch}${oct}${n.abcUnits}${tieStr}`; }
+                        if (p.pitch === 'x') noteCore = `x${safeAbcUnits}`;
+                        else if (p.pitch === 'z') noteCore = `z${safeAbcUnits}`;
+                        else { let acc = p.accidental || ''; let oct = p.octave || ''; noteCore = `${acc}${p.pitch}${oct}${safeAbcUnits}${tieStr}`; }
                     }
 
                     if (hasStaccato) noteCore = "." + noteCore;
@@ -3295,17 +3564,37 @@ function generateMIDIWithBend() {
                             vStr += "x16 ";
                         } else {
                             let groupCounter = 0;
+                            let inTripletCount = 0; // remaining triplet notes after the current one
                             for (let item of measure.items) {
                                 if (item.type === 'directive') {
                                     vStr += item.text + " ";
                                     groupCounter = 0;
+                                    inTripletCount = 0;
                                 } else {
                                     vStr += item.text;
-                                    let durMatch = item.text.match(/\d+/);
-                                    if (groupSize > 0 && durMatch && parseInt(durMatch[0]) < 4 && !item.text.includes('z') && !item.text.includes('x')) {
-                                        groupCounter++;
-                                        if (groupCounter % groupSize === 0) vStr += " ";
-                                    } else { vStr += " "; groupCounter = 0; }
+
+                                    // Detect triplet opener: text starts with (N
+                                    let tripletStart = item.text.match(/^\((\d)/);
+                                    if (tripletStart) {
+                                        // First note of a triplet group — group remaining N-1 notes together
+                                        inTripletCount = parseInt(tripletStart[1]) - 1;
+                                        groupCounter = 0;
+                                        if (inTripletCount <= 0) vStr += " "; // single-note triplet (edge case)
+                                        // else: no space yet — wait for last note
+                                    } else if (inTripletCount > 0) {
+                                        inTripletCount--;
+                                        if (inTripletCount === 0) {
+                                            vStr += " "; // last note of triplet — add space after
+                                        }
+                                        // middle triplet notes: no space (beam together)
+                                    } else {
+                                        // Normal note — apply beaming setting
+                                        let durMatch = item.text.match(/\d+/);
+                                        if (groupSize > 0 && durMatch && parseInt(durMatch[0]) < 4 && !item.text.includes('z') && !item.text.includes('x')) {
+                                            groupCounter++;
+                                            if (groupCounter % groupSize === 0) vStr += " ";
+                                        } else { vStr += " "; groupCounter = 0; }
+                                    }
                                 }
                             }
                         }
@@ -3474,6 +3763,10 @@ function generateMIDIWithBend() {
 
         // ==================== VISUAL SELECTION ====================
         document.getElementById('paper').addEventListener('pointerdown', function(e) {
+            // Right-click (button===2) must NOT change selection — contextmenu handles it
+            if (e.button === 2) return;
+            // Save current selection so contextmenu can restore it on mobile long-press
+            _savedSelBeforePointerDown = { start: selection.start, end: selection.end, atStart: selectionAtStart };
             let svg = document.querySelector('#paper svg'); if (!svg) return;
             let elements = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest, .abcjs-clef, .abcjs-time-signature, .abcjs-key-signature'));
             if (elements.length === 0) return;
@@ -3645,26 +3938,338 @@ function generateMIDIWithBend() {
             await Promise.all(promises);
         }
 
+
+        // ==================== SF2 SOUNDFONT ENGINE ====================
+        // Self-contained SF2 parser + Web Audio player.
+        // Supports GM bank 0. Decodes 16-bit PCM on demand, caches AudioBuffers.
+
+        let customSF2Data  = null;  // parsed SF2 structure
+        const sf2BufCache  = {};    // sampleIdx → AudioBuffer
+
+        // ── UI helpers ──────────────────────────────────────────────
+        function loadSF2File(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('sf2Status');
+            statusEl.textContent = 'Parsing ' + file.name + ' …';
+            statusEl.style.color = '#f57c00';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    customSF2Data = parseSF2(e.target.result);
+                    // Clear sample cache from any previous SF2
+                    for (const k in sf2BufCache) delete sf2BufCache[k];
+                    const zoneCount = Object.values(customSF2Data.programZones)
+                                            .reduce((a, z) => a + z.length, 0);
+                    statusEl.textContent = file.name
+                        + ' (' + Object.keys(customSF2Data.programZones).length + ' presets, '
+                        + zoneCount + ' zones)';
+                    statusEl.style.color = '#388e3c';
+                    document.getElementById('sf2ClearBtn').style.display = '';
+                } catch(err) {
+                    statusEl.textContent = 'Error: ' + err.message;
+                    statusEl.style.color = '#c62828';
+                    customSF2Data = null;
+                    console.error('SF2 parse error:', err);
+                }
+            };
+            reader.onerror = () => {
+                statusEl.textContent = 'File read error';
+                statusEl.style.color = '#c62828';
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = ''; // allow reloading same file
+        }
+
+        function clearSF2() {
+            customSF2Data = null;
+            for (const k in sf2BufCache) delete sf2BufCache[k];
+            document.getElementById('sf2Status').textContent = 'Default sound (soundfont-player)';
+            document.getElementById('sf2Status').style.color = '#888';
+            document.getElementById('sf2ClearBtn').style.display = 'none';
+        }
+
+        // ── SF2 binary parser ────────────────────────────────────────
+        function parseSF2(arrayBuffer) {
+            const v   = new DataView(arrayBuffer);
+            const fcc = (o) => String.fromCharCode(v.getUint8(o), v.getUint8(o+1),
+                                                    v.getUint8(o+2), v.getUint8(o+3));
+            if (fcc(0) !== 'RIFF') throw new Error('Not a RIFF file');
+            if (fcc(8) !== 'sfbk') throw new Error('Not an SF2 file (expected sfbk)');
+
+            // ── scan top-level LIST chunks ──
+            const lists = {};
+            let off = 12;
+            while (off + 8 <= arrayBuffer.byteLength) {
+                const id = fcc(off);
+                const sz = v.getUint32(off + 4, true);
+                if (id === 'LIST') {
+                    const listId = fcc(off + 8);
+                    const sub = {};
+                    let so = off + 12, se = off + 8 + sz;
+                    while (so + 8 <= se) {
+                        const sid = fcc(so);
+                        const ssz = v.getUint32(so + 4, true);
+                        sub[sid] = { start: so + 8, size: ssz };
+                        so += 8 + ssz;
+                        if (so & 1) so++;
+                    }
+                    lists[listId] = sub;
+                }
+                off += 8 + sz;
+                if (off & 1) off++;
+            }
+
+            const sdta = lists['sdta'] || {};
+            const pdta = lists['pdta'] || {};
+            const smpl = sdta['smpl'];
+            if (!smpl) throw new Error('No smpl chunk — corrupted SF2?');
+
+            ['shdr','inst','ibag','igen','phdr','pbag','pgen'].forEach(k => {
+                if (!pdta[k]) throw new Error('Missing required chunk: ' + k);
+            });
+            const C = pdta; // shorthand
+
+            // ── shdr: sample headers (46 bytes each) ──
+            const shdrCount = Math.floor(C.shdr.size / 46);
+            const sampleHeaders = [];
+            for (let i = 0; i < shdrCount; i++) {
+                const o = C.shdr.start + i * 46;
+                const sType = v.getUint16(o + 44, true);
+                if (sType === 0 || (sType & 0x8000)) { sampleHeaders.push(null); continue; }
+                const dwStart = v.getUint32(o + 20, true);
+                const dwEnd   = v.getUint32(o + 24, true);
+                if (dwEnd <= dwStart) { sampleHeaders.push(null); continue; }
+                sampleHeaders.push({
+                    dwStart, dwEnd,
+                    dwStartloop: v.getUint32(o + 28, true),
+                    dwEndloop:   v.getUint32(o + 32, true),
+                    sampleRate:  v.getUint32(o + 36, true),
+                    originalPitch: v.getUint8(o + 40)
+                });
+            }
+
+            // ── ibag: instrument bags (4 bytes each): wInstGenNdx, wInstModNdx ──
+            const ibagCount = Math.floor(C.ibag.size / 4);
+            const ibagGenNdx = new Uint16Array(ibagCount);
+            for (let i = 0; i < ibagCount; i++)
+                ibagGenNdx[i] = v.getUint16(C.ibag.start + i * 4, true);
+
+            // ── igen: instrument generators (4 bytes each) ──
+            const igenCount = Math.floor(C.igen.size / 4);
+            const igenOper = new Uint16Array(igenCount);
+            const igenAmt  = new Uint16Array(igenCount); // interpret as needed
+            for (let i = 0; i < igenCount; i++) {
+                const o = C.igen.start + i * 4;
+                igenOper[i] = v.getUint16(o,     true);
+                igenAmt[i]  = v.getUint16(o + 2, true);
+            }
+
+            // ── inst: instrument headers (22 bytes each) ──
+            const instCount = Math.floor(C.inst.size / 22);
+            const instBagNdx = new Uint16Array(instCount);
+            for (let i = 0; i < instCount; i++)
+                instBagNdx[i] = v.getUint16(C.inst.start + i * 22 + 20, true);
+
+            // Build zones for instrument instIdx
+            function buildInstZones(instIdx) {
+                if (instIdx >= instCount - 1) return [];
+                const bagStart = instBagNdx[instIdx];
+                const bagEnd   = instBagNdx[instIdx + 1];
+                const zones = [];
+                for (let b = bagStart; b < bagEnd; b++) {
+                    const genStart = ibagGenNdx[b];
+                    const genEnd   = (b + 1 < ibagCount) ? ibagGenNdx[b + 1] : igenCount;
+                    let keyLo = 0, keyHi = 127, velLo = 0, velHi = 127, sampleID = -1, rootKey = -1;
+                    for (let g = genStart; g < genEnd; g++) {
+                        const op  = igenOper[g];
+                        const amt = igenAmt[g];
+                        if (op === 43) { keyLo = amt & 0xFF; keyHi = (amt >> 8) & 0xFF; }
+                        if (op === 44) { velLo = amt & 0xFF; velHi = (amt >> 8) & 0xFF; }
+                        if (op === 53) sampleID = amt;
+                        if (op === 58) { const rk = amt & 0xFF; if (rk <= 127) rootKey = rk; }
+                    }
+                    if (sampleID >= 0 && sampleID < sampleHeaders.length && sampleHeaders[sampleID]) {
+                        const sh = sampleHeaders[sampleID];
+                        zones.push({ keyLo, keyHi, velLo, velHi, sampleID,
+                                     rootKey: (rootKey >= 0) ? rootKey : sh.originalPitch,
+                                     loopStart: sh.dwStartloop - sh.dwStart,
+                                     loopEnd:   sh.dwEndloop   - sh.dwStart,
+                                     hasLoop:   sh.dwEndloop > sh.dwStartloop && sh.dwStartloop >= sh.dwStart });
+                    }
+                }
+                return zones;
+            }
+
+            // ── pbag & pgen: preset bags and generators ──
+            const pbagCount = Math.floor(C.pbag.size / 4);
+            const pbagGenNdx = new Uint16Array(pbagCount);
+            for (let i = 0; i < pbagCount; i++)
+                pbagGenNdx[i] = v.getUint16(C.pbag.start + i * 4, true);
+
+            const pgenCount = Math.floor(C.pgen.size / 4);
+            const pgenOper = new Uint16Array(pgenCount);
+            const pgenAmt  = new Uint16Array(pgenCount);
+            for (let i = 0; i < pgenCount; i++) {
+                const o = C.pgen.start + i * 4;
+                pgenOper[i] = v.getUint16(o,     true);
+                pgenAmt[i]  = v.getUint16(o + 2, true);
+            }
+
+            // ── phdr: preset headers (38 bytes each) ──
+            const phdrCount = Math.floor(C.phdr.size / 38);
+            const programZones = {};
+
+            for (let i = 0; i < phdrCount - 1; i++) {  // last entry is terminal EOP
+                const o      = C.phdr.start + i * 38;
+                const preset = v.getUint16(o + 20, true);  // wPreset = MIDI program
+                const bank   = v.getUint16(o + 22, true);
+                if (bank !== 0) continue;                   // GM bank 0 only
+                const bagStart = v.getUint16(o + 24, true);
+                const bagEnd   = v.getUint16(C.phdr.start + (i + 1) * 38 + 24, true);
+
+                const allZones = [];
+                for (let b = bagStart; b < bagEnd; b++) {
+                    const genStart = pbagGenNdx[b];
+                    const genEnd   = (b + 1 < pbagCount) ? pbagGenNdx[b + 1] : pgenCount;
+                    for (let g = genStart; g < genEnd; g++) {
+                        if (pgenOper[g] === 41) {           // generator: instrument
+                            allZones.push(...buildInstZones(pgenAmt[g]));
+                        }
+                    }
+                }
+                if (allZones.length > 0) programZones[preset] = allZones;
+            }
+
+            if (Object.keys(programZones).length === 0)
+                throw new Error('No GM bank-0 presets found in this SF2');
+
+            return { view: v, smplOffset: smpl.start, sampleHeaders, programZones };
+        }
+
+        // ── Decode one sample to AudioBuffer (cached, synchronous) ──
+        function sf2GetBuffer(sampleIdx) {
+            if (sf2BufCache[sampleIdx]) return sf2BufCache[sampleIdx];
+            if (!customSF2Data || !audioContext) return null;
+            const sh = customSF2Data.sampleHeaders[sampleIdx];
+            if (!sh || sh.sampleRate <= 0) return null;
+            const n = sh.dwEnd - sh.dwStart;
+            if (n <= 0 || n > 8000000) return null; // sanity: skip >8M samples
+            const buf  = audioContext.createBuffer(1, n, sh.sampleRate);
+            const data = buf.getChannelData(0);
+            const v    = customSF2Data.view;
+            const base = customSF2Data.smplOffset + sh.dwStart * 2; // 16-bit → ×2 bytes
+            for (let i = 0; i < n; i++)
+                data[i] = v.getInt16(base + i * 2, true) / 32768.0;
+            sf2BufCache[sampleIdx] = buf;
+            return buf;
+        }
+
+        // ── Find the best matching zone for a MIDI note ──
+        function sf2FindZone(program, midiNote, velocity) {
+            if (!customSF2Data) return null;
+            let zones = customSF2Data.programZones[program];
+            if (!zones) {
+                const keys = Object.keys(customSF2Data.programZones).map(Number).sort((a,b) => a-b);
+                if (keys.length === 0) return null;
+                const closest = keys.reduce((prev, cur) =>
+                    Math.abs(cur - program) < Math.abs(prev - program) ? cur : prev);
+                zones = customSF2Data.programZones[closest];
+            }
+            const vel = (velocity !== undefined) ? velocity : 64;
+            // Prefer exact key+velocity match
+            let zone = zones.find(z =>
+                midiNote >= z.keyLo && midiNote <= z.keyHi &&
+                vel >= (z.velLo !== undefined ? z.velLo : 0) &&
+                vel <= (z.velHi !== undefined ? z.velHi : 127));
+            // Fall back to key-only match, then first zone
+            if (!zone) zone = zones.find(z => midiNote >= z.keyLo && midiNote <= z.keyHi);
+            return zone || zones[0] || null;
+        }
+
+        // ── Schedule one note via Web Audio API ──────────────────────
+        // Returns a stoppable wrapper so the caller can push it to activeAudioNodes.
+        function sf2ScheduleNote(midiNote, program, startTime, duration, gain, velocity) {
+            if (!customSF2Data || !audioContext) return null;
+            const zone = sf2FindZone(program, midiNote, velocity !== undefined ? velocity : 64);
+            if (!zone) return null;
+            const audioBuf = sf2GetBuffer(zone.sampleID);
+            if (!audioBuf) return null;
+
+            const basePlaybackRate = Math.pow(2, (midiNote - zone.rootKey) / 12);
+
+            const source = audioContext.createBufferSource();
+            source.buffer       = audioBuf;
+            source.playbackRate.value = basePlaybackRate;
+
+            // Enable SF2 sustain loop so long notes don't cut short
+            if (zone.hasLoop && zone.loopEnd > zone.loopStart && zone.loopEnd <= audioBuf.length) {
+                source.loop      = true;
+                source.loopStart = zone.loopStart / audioBuf.sampleRate;
+                source.loopEnd   = zone.loopEnd   / audioBuf.sampleRate;
+            } else {
+                source.loop = false;
+            }
+
+            const gainNode = audioContext.createGain();
+            const safeGain = Math.max(0.001, Math.min(2.0, gain));
+            gainNode.gain.setValueAtTime(safeGain, startTime);
+
+            // Release: short fade at the very end to avoid clicks (last 60 ms or 5% whichever is smaller)
+            const releaseDur = Math.min(0.06, duration * 0.05);
+            const fadeStart  = startTime + duration - releaseDur;
+            gainNode.gain.setValueAtTime(safeGain, fadeStart);
+            gainNode.gain.linearRampToValueAtTime(0.0001, startTime + duration);
+
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            source.start(startTime);
+            source.stop(startTime + duration + 0.01);
+
+            // Return source + basePlaybackRate so caller can apply pitch bend
+            return {
+                source, basePlaybackRate,
+                stop: () => { try { gainNode.gain.cancelScheduledValues(0); source.stop(0); } catch(e) {} }
+            };
+        }
+
         async function playSingleNote(pitchBase, octaveStr, accidental, durationQuarters, articulations = []) {
             if (!activeTrack || !voicesData[activeTrack].active || pitchBase === 'z') return;
             await ensureAudioAndPreload();
             let prog = voicesData[activeTrack].program;
+            let midiNote = abcPitchToMidi(pitchBase, octaveStr, accidental);
+            if (!midiNote) return;
+            midiNote += 12;
+            let tempo = parseInt(document.getElementById('tempo').value) || 120;
+            let durationSeconds = durationQuarters * (60 / tempo);
+            if (articulations.includes('staccato')) durationSeconds *= 0.25;
+            let gain = voicesData[activeTrack].volume / 100;
+
+            // ── Custom SF2 soundfont ──
+            if (customSF2Data) {
+                sf2ScheduleNote(midiNote, prog, audioContext.currentTime, durationSeconds, gain, 80);
+                return;
+            }
+
+            // ── Default soundfont-player ──
             let inst = loadedInstruments[prog];
             if (inst && inst !== "loading") {
-                let midiNote = abcPitchToMidi(pitchBase, octaveStr, accidental);
-                if (midiNote) midiNote += 12;
-                if (midiNote) {
-                    let tempo = parseInt(document.getElementById('tempo').value) || 120;
-                    let durationSeconds = durationQuarters * (60 / tempo);
-                    if (articulations.includes('staccato')) durationSeconds *= 0.25;
-                    let gain = voicesData[activeTrack].volume / 100;
-                    inst.play(midiNote, audioContext.currentTime, { duration: durationSeconds, gain: gain });
-                }
+                inst.play(midiNote, audioContext.currentTime, { duration: durationSeconds, gain: gain });
             }
         }
 
         document.getElementById('paper').addEventListener('contextmenu', function(e) {
             e.preventDefault();
+            // Mobile long-press: pointerdown already changed selection before contextmenu fired.
+            // Restore the saved selection if it was a meaningful multi-note range.
+            if (_savedSelBeforePointerDown &&
+                _savedSelBeforePointerDown.start !== -1 &&
+                _savedSelBeforePointerDown.end > _savedSelBeforePointerDown.start) {
+                selection.start = _savedSelBeforePointerDown.start;
+                selection.end   = _savedSelBeforePointerDown.end;
+                selectionAtStart = _savedSelBeforePointerDown.atStart;
+            }
             let svg = document.querySelector('#paper svg'); if (!svg) return;
             let elements = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest'));
             if (elements.length === 0) return;
@@ -4340,21 +4945,107 @@ function generateMIDIWithBend() {
         })();
 
      function switchInputMode(mode) {
-		const btnPanel = document.getElementById('buttonInputPanel');
-		const pianoPanel = document.getElementById('pianoInputPanel');
-		const controlGrid = document.querySelector('.control-grid');   
+        const btnPanel = document.getElementById('buttonInputPanel');
+        const pianoPanel = document.getElementById('pianoInputPanel');
+        const grid3Panel = document.getElementById('grid3InputPanel');
+        const controlGrid = document.querySelector('.control-grid');
 
-		if (mode === 'piano') {
         btnPanel.style.display = 'none';
-        pianoPanel.style.display = 'flex';
-        pianoPanel.style.flexDirection = 'column';
-        if (controlGrid) controlGrid.style.display = 'none';      
-		} else {
-			btnPanel.style.display = '';
         pianoPanel.style.display = 'none';
-        if (controlGrid) controlGrid.style.display = '';          
-		}
-	}
+        if (grid3Panel) grid3Panel.style.display = 'none';
+        if (controlGrid) controlGrid.style.display = 'none';
+
+        if (mode === 'piano') {
+            pianoPanel.style.display = 'flex';
+            pianoPanel.style.flexDirection = 'column';
+        } else if (mode === 'grid3') {
+            if (grid3Panel) { grid3Panel.style.display = 'flex'; grid3Panel.style.flexDirection = 'column'; }
+        } else {
+            btnPanel.style.display = '';
+            if (controlGrid) controlGrid.style.display = '';
+        }
+    }
+
+    // ==================== 3-ROW GRID INPUT MODE ====================
+    const GRID3_DUR_LEVELS = [0.25, 0.5, 1.0, 2.0, 4.0];
+    const GRID3_DUR_NAMES  = ['1/16','1/8','1/4','1/2','1/1'];
+    let grid3BaseLevel = 2; // index: top=level-1, mid=level, bottom=level+1; default mid=quarter
+
+    function grid3RowDur(rowIdx) {
+        // rowIdx 0=top(shortest), 1=middle, 2=bottom(longest)
+        const idx = Math.max(0, Math.min(GRID3_DUR_LEVELS.length - 1, grid3BaseLevel - 1 + rowIdx));
+        return GRID3_DUR_LEVELS[idx];
+    }
+    function grid3RowDurLabel(rowIdx) {
+        const idx = Math.max(0, Math.min(GRID3_DUR_LEVELS.length - 1, grid3BaseLevel - 1 + rowIdx));
+        return GRID3_DUR_NAMES[idx];
+    }
+    function shiftGrid3Rows(direction) {
+        grid3BaseLevel = Math.max(0, Math.min(GRID3_DUR_LEVELS.length - 1, grid3BaseLevel + direction));
+        rebuildGrid3Rows();
+    }
+    function addNoteGrid3(noteBase, rowShift, rowIdx) {
+        const saved = currentDurQuarters;
+        currentDurQuarters = grid3RowDur(rowIdx);
+        addNoteEx(noteBase, rowShift);
+        currentDurQuarters = saved;
+    }
+    function rebuildGrid3Rows() {
+        const container = document.getElementById('grid3Rows');
+        if (!container) return;
+        container.innerHTML = '';
+        const notes7 = ['C','D','E','F','G','A','B'];
+        const rowColors = ['#e8f5e9','#e3f2fd','#fff3e0']; // top=shortest=green, mid=blue, bot=longest=orange
+        for (let rowIdx = 0; rowIdx < 3; rowIdx++) {
+            const row = document.createElement('div');
+            row.className = 'keyboard-row';
+            row.style.cssText = `background:${rowColors[rowIdx]};border-radius:6px;padding:3px 5px;margin:0;gap:2px;flex-shrink:0;`;
+            // Duration label badge
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size:11px;font-weight:bold;color:#555;min-width:28px;text-align:center;flex-shrink:0;align-self:center;';
+            label.textContent = grid3RowDurLabel(rowIdx);
+            row.appendChild(label);
+            // Octave 0 group
+            const g0 = document.createElement('div'); g0.className = 'group';
+            for (let n of notes7) g0.appendChild(makeGrid3NoteBtn(n, 0, rowIdx));
+            row.appendChild(g0);
+            // Octave 1 group + high C
+            const g1 = document.createElement('div'); g1.className = 'group';
+            for (let n of notes7) g1.appendChild(makeGrid3NoteBtn(n, 1, rowIdx));
+            g1.appendChild(makeGrid3NoteBtn('C', 2, rowIdx));
+            row.appendChild(g1);
+            // Rest group
+            const gR = document.createElement('div'); gR.className = 'group';
+            gR.appendChild(makeGrid3NoteBtn('z', 0, rowIdx));
+            row.appendChild(gR);
+            container.appendChild(row);
+        }
+        updateNoteButtonIcons();
+    }
+    function makeGrid3NoteBtn(noteBase, rowShift, rowIdx) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-small note-btn';
+        btn.dataset.note = noteBase;
+        btn.dataset.rowShift = rowShift;
+        btn.dataset.grid3Row = rowIdx;
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'note-icon';
+        const letterSmall = document.createElement('small');
+        letterSmall.className = 'note-letter';
+        letterSmall.textContent = noteBase;
+        btn.appendChild(iconSpan);
+        btn.appendChild(letterSmall);
+        const trigger = (e) => {
+            e.preventDefault();
+            btn.style.background = '#b3e5fc';
+            setTimeout(() => btn.style.background = '', 150);
+            addNoteGrid3(noteBase, rowShift, rowIdx);
+        };
+        btn.addEventListener('mousedown', trigger);
+        btn.addEventListener('touchstart', trigger, { passive: false });
+        return btn;
+    }
+    rebuildGrid3Rows();
         // ==================== END PIANO KEYBOARD ====================
 
 		window.addEventListener('beforeunload', function (e) {
