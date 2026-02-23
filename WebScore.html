@@ -433,6 +433,7 @@
             <button onclick="addRepeatToAllVoices('start')" title="Repeat start">𝄆</button>
             <button onclick="addRepeatToAllVoices('end')" title="Repeat end">𝄇</button>
             <button onclick="addRepeatToAllVoices('final')" title="Final Barline">𝄂</button>
+            <button onclick="addRepeatToAllVoices('section')" title="Double barline (end of section)">‖</button>
             <button onclick="addVolta(1)" title="1st volta">1.</button>
             <button onclick="addVolta(2)" title="2nd volta">2.</button>
             <button onclick="addMeasureDirective('s')" title="Segno">𝄋</button>
@@ -444,6 +445,30 @@
             <button onclick="addMeasureDirective('DSalcoda')" title="D.S. al Coda">D.S. al Coda</button>
             <button onclick="togglePedalStart()" title="Pedal start">𝒫ℯ𝒹.</button>
             <button onclick="togglePedalEnd()" title="Pedal end">✽</button>
+        </div>
+        <div class="section-title">Change key signature (from this measure to end)</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;">
+            <select id="keySigChangeSel" style="padding:5px 8px;font-size:14px;border-radius:4px;border:1px solid #ccc;">
+                <option value="">— no change —</option>
+                <option value="C">C / Am (0)</option>
+                <option value="G">G / Em (1♯)</option>
+                <option value="D">D / Bm (2♯)</option>
+                <option value="A">A / F♯m (3♯)</option>
+                <option value="E">E / C♯m (4♯)</option>
+                <option value="B">B / G♯m (5♯)</option>
+                <option value="F#">F♯ / D♯m (6♯)</option>
+                <option value="C#">C♯ / A♯m (7♯)</option>
+                <option value="F">F / Dm (1♭)</option>
+                <option value="Bb">B♭ / Gm (2♭)</option>
+                <option value="Eb">E♭ / Cm (3♭)</option>
+                <option value="Ab">A♭ / Fm (4♭)</option>
+                <option value="Db">D♭ / B♭m (5♭)</option>
+                <option value="Gb">G♭ / E♭m (6♭)</option>
+                <option value="Cb">C♭ / A♭m (7♭)</option>
+            </select>
+            <button onclick="changeKeySigAtMeasure(document.getElementById('keySigChangeSel').value)" style="padding:5px 12px;">Apply</button>
+            <button onclick="changeKeySigAtMeasure(''); document.getElementById('keySigChangeSel').value='';" style="padding:5px 12px;background:#ffcdd2;border-color:#e57373;">Remove</button>
+            <span id="currentKeySigLabel" style="font-size:12px;color:#888;font-style:italic;"></span>
         </div>
         <div class="section-title">Note dynamics / articulations</div>
         <div class="symbols-grid">
@@ -505,6 +530,8 @@
         let measureVoltas = {};
         // Navigation marks stored per measure index (never inline in notes arrays)
         let measureDirectives = {};
+        // Key signature changes per measure index (overrides global key from measure onwards)
+        let measureKeySigs = {};
         let voiceOrder = []; // ordered array of keys – controls staff order
 
         let synchroMode = false;
@@ -539,6 +566,7 @@ function pushUndoState() {
         measureRepeats: measureRepeats,
         measureVoltas: measureVoltas,
         measureDirectives: measureDirectives,
+        measureKeySigs: measureKeySigs,
         voiceOrder: voiceOrder,
         activeTrack: activeTrack,
         selection: selection,
@@ -553,6 +581,7 @@ function pushUndoState() {
         measureRepeats: JSON.parse(JSON.stringify(measureRepeats)),
         measureVoltas: JSON.parse(JSON.stringify(measureVoltas)),
         measureDirectives: JSON.parse(JSON.stringify(measureDirectives)),
+        measureKeySigs: JSON.parse(JSON.stringify(measureKeySigs)),
         voiceOrder: [...voiceOrder],
         activeTrack: activeTrack,
         selection: { ...selection },
@@ -564,15 +593,18 @@ function pushUndoState() {
     lastStateHash = hash;
 }
 function undo() {
-    if (undoStack.length === 0) return;
+    // Need at least 2 states: discard the current one, restore the previous
+    if (undoStack.length < 2) return;
     isUndoing = true;
-    const prevState = undoStack.pop();
+    undoStack.pop(); // discard current (already-saved) state
+    const prevState = undoStack[undoStack.length - 1]; // peek at true previous
 
     voicesData = JSON.parse(JSON.stringify(prevState.voicesData));
     measureRepeats = JSON.parse(JSON.stringify(prevState.measureRepeats));
     measureVoltas = JSON.parse(JSON.stringify(prevState.measureVoltas));
     voiceOrder = [...(prevState.voiceOrder || Object.keys(prevState.voicesData))];
     measureDirectives = JSON.parse(JSON.stringify(prevState.measureDirectives || {}));
+    measureKeySigs = JSON.parse(JSON.stringify(prevState.measureKeySigs || {}));
     activeTrack = prevState.activeTrack;
     selection = { ...prevState.selection };
     selectionAtStart = prevState.selectionAtStart;
@@ -765,6 +797,12 @@ function undo() {
             row.className = 'channel-row' + (activeTrack === key ? ' active' : '');
             row.setAttribute('data-key', key);
             row.style.maxWidth = '520px';
+
+            // Build instrument options
+            let instrOptions = gmInstruments.map(inst =>
+                `<option value="${inst.num}" ${inst.num === v.program ? 'selected' : ''}>${inst.name}</option>`
+            ).join('');
+
             row.innerHTML = `
                 <div class="channel-row-top" onclick="changeTrack('${key}')">
                     <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
@@ -772,7 +810,17 @@ function undo() {
                         <button class="order-btn" onclick="moveVoice('${key}',1);event.stopPropagation()" title="Move down">▼</button>
                     </div>
                     <input type="checkbox" class="channel-check" ${v.active ? 'checked' : ''} onclick="toggleVoice('${key}'); event.stopPropagation()">
-                    <span class="channel-name" style="flex:1">${v.name}</span>
+                    <select class="channel-instrument-select" style="flex:1;font-size:11px;min-width:0;" title="Instrument"
+                        onchange="changeChannelInstrument('${key}', this.value); event.stopPropagation();"
+                        onclick="event.stopPropagation()">
+                        ${instrOptions}
+                    </select>
+                    <select class="channel-clef-select" style="font-size:11px;margin-left:3px;" title="Clef"
+                        onchange="changeChannelClef('${key}', this.value); event.stopPropagation();"
+                        onclick="event.stopPropagation()">
+                        <option value="treble" ${v.clef === 'treble' ? 'selected' : ''}>𝄞</option>
+                        <option value="bass" ${v.clef === 'bass' ? 'selected' : ''}>𝄢</option>
+                    </select>
                     <button class="visibility-btn" onclick="toggleVisibility('${key}'); event.stopPropagation()">${v.visible ? '👁' : '🙈'}</button>
                     <button class="remove-btn" onclick="removeChannel('${key}'); event.stopPropagation()">✖</button>
                 </div>
@@ -782,6 +830,25 @@ function undo() {
                 </div>
             `;
             container.appendChild(row);
+        }
+
+        function changeChannelInstrument(vKey, programNum) {
+            if (!voicesData[vKey]) return;
+            const num = parseInt(programNum);
+            const inst = gmInstruments.find(i => i.num === num);
+            voicesData[vKey].program = num;
+            if (inst) {
+                voicesData[vKey].name = inst.name;
+                voicesData[vKey].short = inst.name.substring(0, 10); // use longer abbrev for staff label
+            }
+            preloadInstruments();
+            updateScore();
+        }
+
+        function changeChannelClef(vKey, clef) {
+            if (!voicesData[vKey]) return;
+            voicesData[vKey].clef = clef;
+            updateScore();
         }
 
         function moveVoice(key, dir) {
@@ -1491,11 +1558,12 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function shiftMeasureMarkers(fromMeasure, delta) {
-            let newRepeats = {}, newVoltas = {}, newDirs = {};
+            let newRepeats = {}, newVoltas = {}, newDirs = {}, newKeySigs = {};
             for (let r in measureRepeats) { let idx = parseInt(r); if (idx >= fromMeasure) newRepeats[idx + delta] = measureRepeats[idx]; else newRepeats[idx] = measureRepeats[idx]; }
             for (let v in measureVoltas) { let idx = parseInt(v); if (idx >= fromMeasure) newVoltas[idx + delta] = measureVoltas[idx]; else newVoltas[idx] = measureVoltas[idx]; }
             for (let d in measureDirectives) { let idx = parseInt(d); if (idx >= fromMeasure) newDirs[idx + delta] = measureDirectives[idx]; else newDirs[idx] = measureDirectives[idx]; }
-            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs;
+            for (let k in measureKeySigs) { let idx = parseInt(k); if (idx >= fromMeasure) newKeySigs[idx + delta] = measureKeySigs[idx]; else newKeySigs[idx] = measureKeySigs[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs; measureKeySigs = newKeySigs;
         }
 
         // ==================== CORE EDITING FUNCTIONS ====================
@@ -1545,10 +1613,11 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         // up to (but not including) the insertion position.
         // '' = natural, '^' = sharp, '_' = flat, etc.
         function getMeasureEffectiveAccidentals(trackKey, insertionTime) {
-            const result = Object.assign({}, getKeyAccidentals());
-            if (!voicesData[trackKey]) return result;
             const measureCapacity = getMeasureCapacity();
-            const measureStart = Math.floor(insertionTime / measureCapacity) * measureCapacity;
+            const measureIdx = Math.floor(insertionTime / measureCapacity);
+            const result = Object.assign({}, getKeyAccidentals(measureIdx));
+            if (!voicesData[trackKey]) return result;
+            const measureStart = measureIdx * measureCapacity;
             let timePos = 0;
             for (let n of voicesData[trackKey].notes) {
                 if (n.type === 'directive' || n.type === 'barline') continue;
@@ -2310,7 +2379,7 @@ function deleteSelectionSync() {
 
         // ==================== FILE I/O ====================
         function downloadABC() {
-            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives };
+            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives, keySigs: measureKeySigs };
             let stateStr = "\n% EDITOR_STATE: " + JSON.stringify(state);
             const blob = new Blob([window.lastAbcString + stateStr], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
@@ -2334,6 +2403,7 @@ function deleteSelectionSync() {
                         measureVoltas = state.voltas || {};
                         voiceOrder = state.order || Object.keys(voicesData);
                         measureDirectives = state.navDirs || {};
+                        measureKeySigs = state.keySigs || {};
                         // Migrate old inline navigation directives out of notes arrays
                         const NAV_CODES = ['s','+','fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
                         for (let vKey of getOrderedKeys()) {
@@ -2740,11 +2810,22 @@ function generateMIDIWithBend() {
                 for (let n of voice.notes) {
                     if (n.type !== 'directive' && n.type !== 'barline') {
                         if (n.pitches && n.pitches[0].pitch !== 'z') {
+                            // Compute effective key accidentals at this note's measure
+                            const measureIdx = Math.floor(currentQ / measureCapacity);
+                            const keySigAccs = getKeyAccidentals(measureIdx);
+                            // Apply key signature to pitches that have no explicit accidental
+                            const pitchesWithKeySig = n.pitches.map(p => {
+                                if (p.pitch && p.pitch !== 'z' && p.pitch !== 'x' && !p.accidental) {
+                                    const ksAcc = keySigAccs[p.pitch] || '';
+                                    return ksAcc ? { ...p, accidental: ksAcc } : p;
+                                }
+                                return p;
+                            });
                             rawTimeline.push({ 
                                 voiceId: vKey, 
                                 scoreStartQ: currentQ, 
                                 duration: n.durationInQuarters, 
-                                pitches: n.pitches, 
+                                pitches: pitchesWithKeySig, 
                                 program: voice.program, 
                                 articulations: n.articulations || [],
                                 tie: n.tie || false,
@@ -3204,6 +3285,17 @@ function generateMIDIWithBend() {
             updateScore();
         }
 
+        function changeKeySigAtMeasure(newKey) {
+            let measureIdx = getCurrentMeasureIndex();
+            if (newKey === '') {
+                // Remove key change at this measure
+                delete measureKeySigs[measureIdx];
+            } else {
+                measureKeySigs[measureIdx] = newKey;
+            }
+            updateScore();
+        }
+
         function addMeasureDirective(text) {
             let measureIdx = getCurrentMeasureIndex();
             if (!measureDirectives[measureIdx]) measureDirectives[measureIdx] = [];
@@ -3266,6 +3358,12 @@ function generateMIDIWithBend() {
             let d = firstArts.find(a => DYN_LEVELS.includes(a));
             if (d) startDynIdx = DYN_LEVELS.indexOf(d);
             let endDynIdx = type === 'crescendo' ? Math.min(7, startDynIdx + 3) : Math.max(0, startDynIdx - 3);
+            // If the last note has an explicit dynamic, use it
+            if (noteIndices.length > 1) {
+                let lastArts = notes[noteIndices[noteIndices.length - 1]].articulations || [];
+                let dEnd = lastArts.find(a => DYN_LEVELS.includes(a));
+                if (dEnd) endDynIdx = DYN_LEVELS.indexOf(dEnd);
+            }
             let count = noteIndices.length;
             for (let k = 0; k < count; k++) {
                 let t = count === 1 ? 0 : k / (count - 1);
@@ -3294,10 +3392,42 @@ function generateMIDIWithBend() {
             if (!activeTrack) return;
             let sel = getSelectionIndices(); if (!sel || sel.start === sel.end) return;
             let notes = getNotes();
-            applyHairpinDynamics(notes, sel.start, sel.end, type);
-            notes.splice(sel.end + 1, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo)!' : '!diminuendo)!' });
-            notes.splice(sel.start, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo(!' : '!diminuendo(!' });
-            selection.start = sel.start; selection.end = sel.end + 2;
+
+            // Find all hairpin ranges and check for overlap with current selection
+            let existingRanges = getHairpinRanges(notes);
+            let sameTypeExists = false;
+            let indicesToRemove = new Set();
+
+            for (let r of existingRanges) {
+                // Check overlap: any real note in hairpin range overlapping our selection
+                const overlaps = r.realNoteIdxs.some(i => i >= sel.start && i <= sel.end)
+                    || (r.openIdx >= sel.start && r.openIdx <= sel.end)
+                    || (r.closeIdx >= sel.start && r.closeIdx <= sel.end);
+                if (overlaps) {
+                    if (r.type === type) sameTypeExists = true;
+                    indicesToRemove.add(r.openIdx);
+                    indicesToRemove.add(r.closeIdx);
+                }
+            }
+
+            // Remove overlapping hairpin markers (in reverse order to preserve indices)
+            let toRemove = Array.from(indicesToRemove).sort((a,b) => b - a);
+            for (let idx of toRemove) {
+                notes.splice(idx, 1);
+                // Adjust selection if needed
+                if (idx <= sel.start) { sel.start = Math.max(0, sel.start - 1); sel.end = Math.max(0, sel.end - 1); }
+                else if (idx <= sel.end) { sel.end = Math.max(0, sel.end - 1); }
+            }
+
+            // Toggle: if same type existed, just remove it (done above); otherwise add new
+            if (!sameTypeExists) {
+                applyHairpinDynamics(notes, sel.start, sel.end, type);
+                notes.splice(sel.end + 1, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo)!' : '!diminuendo)!' });
+                notes.splice(sel.start, 0, { type: 'directive', text: type === 'crescendo' ? '!crescendo(!' : '!diminuendo(!' });
+                selection.start = sel.start; selection.end = sel.end + 2;
+            } else {
+                selection.start = sel.start; selection.end = sel.end;
+            }
             updateScore();
         }
 
@@ -3541,16 +3671,27 @@ function generateMIDIWithBend() {
             for (let vKey of visibleKeys) {
                 let voice = voicesData[vKey];
                 let measures = voicesMeasures[vKey];
-                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.short || voice.name}"\n`;
+                const isFirstVoice = (vKey === visibleKeys[0]);
+                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.name}"\n`;
                 vStr += `%%MIDI program ${voice.program}\n`;
                 if (measures.length === 0) vStr += "x16 |";
                 else {
                     for (let mIdx = 0; mIdx < measures.length; mIdx++) {
                         let measure = measures[mIdx];
                         let navDirs = measureDirectives[mIdx] || [];
+
                         // Opening barline / repeat / volta
                         if (mIdx === 0) {
                             if (measure.repeat === 'start' || measure.repeat === 'double') vStr += "|: ";
+                            // For non-first voices: reset key to the effective key at measure 0
+                            // so ABCJS doesn't inherit the key state from the end of the previous voice.
+                            if (!isFirstVoice) {
+                                const resetKey = getEffectiveKeySig(0);
+                                vStr += `[K:${resetKey}] `;
+                            } else if (measureKeySigs[0] !== undefined) {
+                                // First voice: apply override at measure 0 if set
+                                vStr += `[K:${measureKeySigs[0]}] `;
+                            }
                         }
                         if (measure.volta) vStr += `[${measure.volta} `;
 
@@ -3612,9 +3753,19 @@ function generateMIDIWithBend() {
                             else vStr += ":| ";
                         } else if (repeat === 'final') {
                             vStr += "|] ";
+                        } else if (repeat === 'section') {
+                            // Close 2nd volta if active
+                            if (measure.volta === 2) vStr += "|| ";
+                            else vStr += "|| ";
                         } else {
                             if (nextRepeat === 'start' || nextRepeat === 'double') vStr += "|: ";
                             else vStr += "| ";
+                        }
+                        // Key signature change at start of NEXT measure — emit in ALL voices
+                        // so each voice independently shows the correct key sig change.
+                        if (measureKeySigs[mIdx + 1] !== undefined) {
+                            const nextKey = getEffectiveKeySig(mIdx + 1);
+                            vStr += `[K:${nextKey}] `;
                         }
                     }
                 }
@@ -3664,11 +3815,12 @@ function generateMIDIWithBend() {
                 }
                 voicesData[vKey].notes = newNotes;
             }
-            let newRepeats = {}, newVoltas = {}, newDirs = {};
+            let newRepeats = {}, newVoltas = {}, newDirs = {}, newKeySigs = {};
             for (let r in measureRepeats) { let idx = parseInt(r); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newRepeats[idx - shift] = measureRepeats[idx]; }
             for (let v in measureVoltas) { let idx = parseInt(v); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newVoltas[idx - shift] = measureVoltas[idx]; }
             for (let d in measureDirectives) { let idx = parseInt(d); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newDirs[idx - shift] = measureDirectives[idx]; }
-            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs;
+            for (let k in measureKeySigs) { let idx = parseInt(k); let shift = 0; for (let em of emptyMeasures) if (em < idx) shift++; newKeySigs[idx - shift] = measureKeySigs[idx]; }
+            measureRepeats = newRepeats; measureVoltas = newVoltas; measureDirectives = newDirs; measureKeySigs = newKeySigs;
         }
 
         function normalizeAllMeasures() {
@@ -3721,6 +3873,17 @@ function generateMIDIWithBend() {
             drawVisualSelection();
             highlightIncompleteMeasures();
             updateNoteButtonIcons();
+            // Update key sig change label
+            const keySigLabel = document.getElementById('currentKeySigLabel');
+            if (keySigLabel) {
+                const curMeas = getCurrentMeasureIndex();
+                const effKey = getEffectiveKeySig(curMeas);
+                const hasChange = measureKeySigs[curMeas] !== undefined;
+                keySigLabel.textContent = `Measure ${curMeas+1}: key = ${effKey}${hasChange ? ' (changed here)' : ''}`;
+                const sel = document.getElementById('keySigChangeSel');
+                if (sel && hasChange) sel.value = measureKeySigs[curMeas];
+                else if (sel && !hasChange) sel.value = '';
+            }
         }
 
         function highlightIncompleteMeasures() {
@@ -4238,7 +4401,14 @@ function generateMIDIWithBend() {
             if (!activeTrack || !voicesData[activeTrack].active || pitchBase === 'z') return;
             await ensureAudioAndPreload();
             let prog = voicesData[activeTrack].program;
-            let midiNote = abcPitchToMidi(pitchBase, octaveStr, accidental);
+            // Apply key signature accidental if no explicit accidental
+            let effAcc = accidental;
+            if (!effAcc && pitchBase && pitchBase !== 'z' && pitchBase !== 'x') {
+                const curMeas = getCurrentMeasureIndex();
+                const keySigAccs = getKeyAccidentals(curMeas);
+                effAcc = keySigAccs[pitchBase] || '';
+            }
+            let midiNote = abcPitchToMidi(pitchBase, octaveStr, effAcc);
             if (!midiNote) return;
             midiNote += 12;
             let tempo = parseInt(document.getElementById('tempo').value) || 120;
@@ -4350,11 +4520,12 @@ function generateMIDIWithBend() {
 
                 for (let measureItems of measures) {
                     xml += `    <measure number="${measureNumber}">\n`;
+                    const mIdx = measureNumber - 1;
                     if (measureNumber === 1) {
                         xml += `      <attributes>\n`;
                         xml += `        <divisions>${divisions}</divisions>\n`;
                         xml += `        <key>\n`;
-                        let fifths = keySigToFifths(keySig);
+                        let fifths = keySigToFifths(getEffectiveKeySig(0));
                         xml += `          <fifths>${fifths}</fifths>\n`;
                         xml += `        </key>\n`;
                         xml += `        <time>\n`;
@@ -4375,6 +4546,14 @@ function generateMIDIWithBend() {
                         xml += `        </direction-type>\n`;
                         xml += `        <sound tempo="${Math.round(60000000/tempo)}"/>\n`;
                         xml += `      </direction>\n`;
+                    } else if (measureKeySigs[mIdx] !== undefined) {
+                        // Key signature change at this measure
+                        xml += `      <attributes>\n`;
+                        xml += `        <key>\n`;
+                        let fifths = keySigToFifths(getEffectiveKeySig(mIdx));
+                        xml += `          <fifths>${fifths}</fifths>\n`;
+                        xml += `        </key>\n`;
+                        xml += `      </attributes>\n`;
                     }
 
                     measureItems.sort((a,b) => a.index - b.index);
@@ -4486,6 +4665,8 @@ function generateMIDIWithBend() {
                         xml += `        <repeat direction="backward"/>\n`;
                     } else if (measureRepeats[measureNumber-1] === 'final') {
                         xml += `        <bar-style>light-heavy</bar-style>\n`;
+                    } else if (measureRepeats[measureNumber-1] === 'section') {
+                        xml += `        <bar-style>light-light</bar-style>\n`;
                     } else {
                         xml += `        <bar-style>regular</bar-style>\n`;
                     }
@@ -4771,10 +4952,31 @@ function generateMIDIWithBend() {
             return map[key] || 0;
         }
 
-        // Returns {note: accidental} map for the current key signature
-        // e.g. D major → { F: '^', C: '^' },  Bb major → { B: '_', E: '_' }
-        function getKeyAccidentals() {
-            const key = document.getElementById('keySig').value;
+        // Returns the effective key signature string for a given measure index
+        // (global key + any overrides from measureKeySigs up to that measure)
+        function getEffectiveKeySig(measureIdx) {
+            const globalKey = document.getElementById('keySig').value;
+            let result = globalKey;
+            for (let m = 0; m <= measureIdx; m++) {
+                if (measureKeySigs[m] !== undefined) result = measureKeySigs[m];
+            }
+            return result;
+        }
+
+        // Returns {note: accidental} map for the current effective key signature
+        // (at the current cursor/selection position, or global if no track)
+        function getKeyAccidentals(measureIdx) {
+            let key;
+            if (measureIdx !== undefined) {
+                key = getEffectiveKeySig(measureIdx);
+            } else {
+                // Determine current measure from selection
+                key = document.getElementById('keySig').value;
+                if (activeTrack) {
+                    const curMeas = getCurrentMeasureIndex();
+                    key = getEffectiveKeySig(curMeas);
+                }
+            }
             const fifths = keySigToFifths(key);
             const sharpsOrder = ['F','C','G','D','A','E','B'];
             const flatsOrder  = ['B','E','A','D','G','C','F'];
@@ -4796,7 +4998,9 @@ function generateMIDIWithBend() {
             if (!flatNote) return { n: sharpNote, acc: '^' };
 
             const keyAccs = getKeyAccidentals();
-            const fifths  = keySigToFifths(document.getElementById('keySig').value);
+            const curMeas = activeTrack ? getCurrentMeasureIndex() : 0;
+            const effKey = getEffectiveKeySig(curMeas);
+            const fifths  = keySigToFifths(effKey);
 
             if (keyAccs[sharpNote] === '^') return { n: sharpNote, acc: '^' };  // e.g. F# in G major
             if (keyAccs[flatNote]  === '_') return { n: flatNote,  acc: '_' };  // e.g. Eb in Bb major
