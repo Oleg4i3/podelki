@@ -231,6 +231,7 @@
                 </select>
             </label>
             <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="5/8">5/8</option></select></label>
+            <label title="Pickup (anacrusis) — partial first measure before beat 1">Pickup: <select id="pickupSig" onchange="onPickupChange()"><option value="0">None</option></select></label>
             <label>Tempo: <input type="number" id="tempo" value="120" style="width: 60px;" onchange="updateScore()"></label>
             <label>Beaming: 
                 <select id="beaming" onchange="updateScore()"><option value="0">None</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
@@ -247,26 +248,28 @@
         <!-- Row 2: file buttons -->
         <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
             <button onclick="downloadABC()">Save ABC</button>
-            <button onclick="downloadMIDI()">Save MIDI</button>
-            <button onclick="downloadMusicXML()">Save MusicXML</button>
-            <button onclick="document.getElementById('fileInput').click()">Load ABC</button>
+			 <button onclick="document.getElementById('fileInput').click()">Open ABC</button>
+            <button onclick="downloadMIDI()">Export MIDI</button>
+            <button onclick="downloadMusicXML()">Export MusicXML</button>
+           
             <input type="file" id="fileInput" accept=".abc" style="display:none;" onchange="loadABC(event)">
-            <button onclick="document.getElementById('musicxmlInput').click()">Load MusicXML</button>
+            <button onclick="document.getElementById('musicxmlInput').click()">Import MusicXML</button>
             <input type="file" id="musicxmlInput" accept=".musicxml,.xml,.mxl" style="display:none;" onchange="importMusicXML(event)">
+            <button onclick="printScorePDF()" title="Print or save as PDF" style="background:#e8f5e9;border-color:#66bb6a;color:#2e7d32;">Print PDF</button>
         </div>
         <!-- SF2 soundfont row -->
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <button onclick="document.getElementById('sf2Input').click()" title="Load a custom SF2 soundfont for note preview and score playback">&#127925; Load SF2</button>
+            <button onclick="document.getElementById('sf2Input').click()" title="Load a custom SF2 soundfont for note preview and score playback">🎷 Load SF2</button>
             <input type="file" id="sf2Input" accept=".sf2" style="display:none;" onchange="loadSF2File(event)">
             <span id="sf2Status" style="font-size:12px;color:#888;font-style:italic;">Default sound (soundfont-player)</span>
             <button id="sf2ClearBtn" onclick="clearSF2()" title="Revert to default sound" style="display:none;background:#ffcdd2;border-color:#e57373;">&#10005; Clear SF2</button>
         </div>
         <div class="input-mode-toggle" style="margin-top:10px;">
             <strong>Note input mode:</strong>
-            <label><input type="radio" name="inputMode" value="buttons" checked onchange="switchInputMode('buttons')"> 🎵 Buttons</label>
-            <label><input type="radio" name="inputMode" value="piano" onchange="switchInputMode('piano')"> 🎹 Piano keyboard</label>
-            <label><input type="radio" name="inputMode" value="grid3" onchange="switchInputMode('grid3')"> 🎼 3-Row Grid</label>
-        </div>
+            <label><input type="radio" name="inputMode" value="buttons" checked onchange="switchInputMode('buttons')"> 𝄞𝅘𝅥 Buttons</label>
+            <label><input type="radio" name="inputMode" value="grid3" onchange="switchInputMode('grid3')"> 𝄘 3-Row Grid</label>
+    		<label><input type="radio" name="inputMode" value="piano" onchange="switchInputMode('piano')"> 🎹 Piano keyboard</label>
+             </div>
         
         <div id="channelsContainer"></div>
         <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;">
@@ -334,16 +337,16 @@
                         <button class="btn-small note-btn" data-note="z" data-row-shift="0" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
                     </div>
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
                         <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-flat" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
-                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
-                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">𝄪</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">𝄫</button>
                     </div>
                 </div>
             </div>
@@ -364,9 +367,9 @@
                         <button class="btn-small mod-btn" id="mod-trip-piano" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
                         <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small note-btn" data-note="z" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
@@ -391,24 +394,24 @@
                 <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto;"></div>
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">8vb</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
                         <button class="btn-small oct-btn active" id="grid3-loco" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">8va</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp-g3" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-flat-g3" onclick="toggleMod('accidental', '_', this)" title="Flat">b</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-nat-g3" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
-                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp-g3" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">##</button>
-                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat-g3" onclick="toggleMod('accidental', '__', this)" title="Double flat">bb</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp-g3" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">𝄪</button>
+                        <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat-g3" onclick="toggleMod('accidental', '__', this)" title="Double flat">𝄫</button>
                     </div>
                     <div class="group">
                         <button class="btn-small mod-btn dot-mod-btn" id="mod-dot-g3" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
                         <button class="btn-small mod-btn" id="mod-trip-g3" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                     <div class="group">
-                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(1)" title="Shift all row durations longer">♩▲</button>
-                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(-1)" title="Shift all row durations shorter">♩▼</button>
+                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(1)" title="Shift all row durations longer">𝅝▲</button>
+                        <button class="btn-small" style="height:34px;font-size:16px;" onclick="shiftGrid3Rows(-1)" title="Shift all row durations shorter">𝅘𝅥𝅯▼</button>
                     </div>
                 </div>
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
@@ -535,6 +538,7 @@
         let voiceOrder = []; // ordered array of keys – controls staff order
 
         let synchroMode = false;
+        let pickupDurQuarters = 0; // 0 = no pickup (anacrusis) measure
 
         let audioContext = null;
         let activeAudioNodes = [];
@@ -1261,39 +1265,72 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
 
         function setupBendCanvasEvents() {
             const canvas = document.getElementById('bendCanvas');
-            canvas.addEventListener('mousedown', (e) => {
+
+            // ── Shared point-find helper ──
+            function findClosestPoint(clientX, clientY) {
                 const rect = canvas.getBoundingClientRect();
                 const scaleX = canvas.width / rect.width;
                 const scaleY = canvas.height / rect.height;
-                const mouseX = (e.clientX - rect.left) * scaleX;
-                const mouseY = (e.clientY - rect.top) * scaleY;
-                let minDist = Infinity;
-                let idx = -1;
+                const cx = (clientX - rect.left) * scaleX;
+                const cy = (clientY - rect.top) * scaleY;
+                let minDist = Infinity, idx = -1;
                 bendPoints.forEach((p, i) => {
-                    const dist = Math.hypot(mouseX - p.x * canvas.width, mouseY - p.y * canvas.height);
+                    const dist = Math.hypot(cx - p.x * canvas.width, cy - p.y * canvas.height);
                     if (dist < minDist) { minDist = dist; idx = i; }
                 });
+                return { idx, minDist, cy };
+            }
+
+            function applyY(clientY) {
+                if (draggedPointIndex === null) return;
+                const rect = canvas.getBoundingClientRect();
+                const scaleY = canvas.height / rect.height;
+                const mouseY = (clientY - rect.top) * scaleY;
+                bendPoints[draggedPointIndex].y = Math.max(0, Math.min(1, mouseY / canvas.height));
+                drawBendCanvas();
+            }
+
+            // ── Mouse ──
+            canvas.addEventListener('mousedown', (e) => {
+                const { idx, minDist, cy } = findClosestPoint(e.clientX, e.clientY);
                 if (minDist < 20) {
                     draggedPointIndex = idx;
-                    bendPoints[idx].y = Math.max(0, Math.min(1, mouseY / canvas.height));
+                    bendPoints[idx].y = Math.max(0, Math.min(1, cy / canvas.height));
                     drawBendCanvas();
                 }
             });
 
             window.addEventListener('mousemove', (e) => {
-                if (draggedPointIndex !== null) {
-                    const rect = canvas.getBoundingClientRect();
-                    const scaleY = canvas.height / rect.height;
-                    const mouseY = (e.clientY - rect.top) * scaleY;
-                    bendPoints[draggedPointIndex].y = Math.max(0, Math.min(1, mouseY / canvas.height));
-                    drawBendCanvas();
-                }
+                if (draggedPointIndex !== null) applyY(e.clientY);
             });
 
             window.addEventListener('mouseup', () => {
                 draggedPointIndex = null;
                 drawBendCanvas();
             });
+
+            // ── Touch ──
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const { idx, minDist, cy } = findClosestPoint(touch.clientX, touch.clientY);
+                if (minDist < 30) { // slightly larger hit area for fingers
+                    draggedPointIndex = idx;
+                    bendPoints[idx].y = Math.max(0, Math.min(1, cy / canvas.height));
+                    drawBendCanvas();
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (draggedPointIndex !== null) applyY(e.touches[0].clientY);
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                draggedPointIndex = null;
+                drawBendCanvas();
+            }, { passive: false });
 
             document.getElementById('bendMaxCents').addEventListener('input', drawBendCanvas);
         }
@@ -1326,7 +1363,74 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
             const beamSel = document.getElementById('beaming');
             if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+            rebuildPickupOptions();
             updateScore();
+        }
+
+        function onPickupChange() {
+            pickupDurQuarters = parseFloat(document.getElementById('pickupSig').value) || 0;
+            updateScore();
+        }
+
+        function rebuildPickupOptions() {
+            const sel = document.getElementById('pickupSig');
+            if (!sel) return;
+            const ts = document.getElementById('timeSig').value;
+            const [num, den] = ts.split('/').map(Number);
+            const cap = num * (4 / den); // full measure in quarters
+            const curVal = parseFloat(sel.value) || 0;
+
+            // Build candidate pickup durations (must be < full measure)
+            const candidates = [
+                { label: 'None', v: 0 },
+                { label: '1/16',  v: 0.25 },
+                { label: '1/8',   v: 0.5 },
+                { label: '3/16',  v: 0.75 },
+                { label: '1/4',   v: 1.0 },
+                { label: '3/8',   v: 1.5 },
+                { label: '1/2',   v: 2.0 },
+                { label: '5/8',   v: 2.5 },
+                { label: '3/4',   v: 3.0 },
+                { label: '7/8',   v: 3.5 },
+            ].filter(c => c.v < cap - 0.001);
+
+            sel.innerHTML = '';
+            for (let c of candidates) {
+                const opt = document.createElement('option');
+                opt.value = c.v;
+                opt.textContent = c.label;
+                if (Math.abs(c.v - curVal) < 0.001) opt.selected = true;
+                sel.appendChild(opt);
+            }
+            // If old value is not available, default to None
+            if (!Array.from(sel.options).some(o => o.selected)) {
+                sel.value = '0';
+                pickupDurQuarters = 0;
+            }
+        }
+
+        // Returns the measure capacity for a given measure index (pickup-aware)
+        function getMeasureCapacityAt(mIdx) {
+            const regular = getMeasureCapacity();
+            return (pickupDurQuarters > 0 && mIdx === 0) ? pickupDurQuarters : regular;
+        }
+
+        // Compute cumulative start time of a given measure index
+        function getMeasureStartTime(mIdx) {
+            if (mIdx === 0) return 0;
+            const cap = getMeasureCapacity();
+            if (pickupDurQuarters > 0) return pickupDurQuarters + (mIdx - 1) * cap;
+            return mIdx * cap;
+        }
+
+        // Given cumulative time, find which measure it belongs to
+        function getMeasureIdxAtTime(t) {
+            const cap = getMeasureCapacity();
+            if (pickupDurQuarters > 0) {
+                if (t < pickupDurQuarters - 0.001) return 0;
+                return 1 + Math.floor((t - pickupDurQuarters) / cap);
+            }
+            return Math.floor(t / cap);
         }
         function setDur(quarters, btn) {
             currentDurQuarters = quarters;
@@ -1454,8 +1558,8 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                         if (userAcc === '^') displayAcc = '#';
                         else if (userAcc === '_') displayAcc = 'b';
                         else if (userAcc === '=') { displayAcc = keyAccs[note] ? '♮' : ''; }
-                        else if (userAcc === '^^') displayAcc = '##';
-                        else if (userAcc === '__') displayAcc = 'bb';
+                        else if (userAcc === '^^') displayAcc = '𝄪';
+                        else if (userAcc === '__') displayAcc = '𝄫';
                         else { const ksAcc = keyAccs[note]; if (ksAcc === '^') displayAcc = '#'; else if (ksAcc === '_') displayAcc = 'b'; }
                         letter += displayAcc;
                     }
@@ -1480,11 +1584,11 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function getMeasuresFromNotes(vKey) {
-            const measureCapacity = getMeasureCapacity();
             let notes = voicesData[vKey].notes;
             let measures = [];
             let currentMeasure = [];
             let currentLength = 0;
+            let measuresCount = 0;
             for (let i = 0; i < notes.length; i++) {
                 let n = notes[i];
                 if (n.type === 'directive') {
@@ -1494,10 +1598,12 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (n.durationInQuarters) {
                     currentMeasure.push({ index: i, note: n });
                     currentLength += n.durationInQuarters;
-                    if (currentLength >= measureCapacity - 0.001) {
+                    const cap = getMeasureCapacityAt(measuresCount);
+                    if (currentLength >= cap - 0.001) {
                         measures.push(currentMeasure);
                         currentMeasure = [];
                         currentLength = 0;
+                        measuresCount++;
                     }
                 }
             }
@@ -1506,14 +1612,19 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function getMeasureInfo(notes, index) {
-            const measureCapacity = getMeasureCapacity();
+            const regularCap = getMeasureCapacity();
             let cumQ = 0;
             let measureIdx = 0;
             for (let i = 0; i < index; i++) {
-                if (notes[i].durationInQuarters) cumQ += notes[i].durationInQuarters;
-                if (cumQ >= measureCapacity) { measureIdx++; cumQ -= measureCapacity; }
+                if (notes[i].durationInQuarters) {
+                    cumQ += notes[i].durationInQuarters;
+                    const cap = getMeasureCapacityAt(measureIdx);
+                    if (cumQ >= cap - 0.001) { measureIdx++; cumQ -= cap; }
+                }
             }
-            return { measureIndex: measureIdx, offsetInMeasure: cumQ, remainingInMeasure: measureCapacity - cumQ, measureStart: measureIdx * measureCapacity, measureEnd: (measureIdx + 1) * measureCapacity };
+            const cap = getMeasureCapacityAt(measureIdx);
+            const mStart = getMeasureStartTime(measureIdx);
+            return { measureIndex: measureIdx, offsetInMeasure: cumQ, remainingInMeasure: cap - cumQ, measureStart: mStart, measureEnd: mStart + cap };
         }
 
         function compactMeasure(notes, measureIndex) {
@@ -1541,14 +1652,13 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function isLastMeasure(measureIndex) {
-            const measureCapacity = getMeasureCapacity();
             let activeKeys = getActiveKeys();
             for (let vKey of activeKeys) {
                 let notes = voicesData[vKey].notes;
                 let cum = 0;
                 for (let i = 0; i < notes.length; i++) {
                     if (notes[i].durationInQuarters) {
-                        let m = Math.floor(cum / measureCapacity);
+                        let m = getMeasureIdxAtTime(cum);
                         cum += notes[i].durationInQuarters;
                         if (m > measureIndex) return false;
                     }
@@ -1613,11 +1723,10 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         // up to (but not including) the insertion position.
         // '' = natural, '^' = sharp, '_' = flat, etc.
         function getMeasureEffectiveAccidentals(trackKey, insertionTime) {
-            const measureCapacity = getMeasureCapacity();
-            const measureIdx = Math.floor(insertionTime / measureCapacity);
+            const measureIdx = getMeasureIdxAtTime(insertionTime);
             const result = Object.assign({}, getKeyAccidentals(measureIdx));
             if (!voicesData[trackKey]) return result;
-            const measureStart = measureIdx * measureCapacity;
+            const measureStart = getMeasureStartTime(measureIdx);
             let timePos = 0;
             for (let n of voicesData[trackKey].notes) {
                 if (n.type === 'directive' || n.type === 'barline') continue;
@@ -1650,16 +1759,17 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
 
         function insertEmptyMeasuresIntoTrack(trackKey, measureIndex, count) {
             if (count <= 0) return;
-            const measureCapacity = getMeasureCapacity();
+            const regularCap = getMeasureCapacity();
             let notes = voicesData[trackKey].notes;
-            let targetTime = measureIndex * measureCapacity;
+            let targetTime = getMeasureStartTime(measureIndex);
             let insertIdx = findIndexAtTime(trackKey, targetTime);
             let emptyNotes = [];
             for (let i = 0; i < count; i++) {
+                const cap = getMeasureCapacityAt(measureIndex + i);
                 emptyNotes.push({
                     pitches: [{ pitch: 'x', octave: '', accidental: '' }],
-                    durationInQuarters: measureCapacity,
-                    abcUnits: measureCapacity / 0.25,
+                    durationInQuarters: cap,
+                    abcUnits: cap / 0.25,
                     triplet: false,
                     tie: false,
                     articulations: []
@@ -1782,9 +1892,9 @@ function rebuildWithTactsFromOffset(notes, measureCapacity, startOffset) {
  */
 function splitNotesForSync(trackKey, insertTime, measureCapacity) {
     const EPS = 1e-9;
-    const mIdx = Math.floor(insertTime / measureCapacity);
-    const mStart = mIdx * measureCapacity;
-    const mEnd = mStart + measureCapacity;
+    const mIdx = getMeasureIdxAtTime(insertTime);
+    const mStart = getMeasureStartTime(mIdx);
+    const mEnd = mStart + getMeasureCapacityAt(mIdx);
 
     let notes = voicesData[trackKey].notes;
     let beforeMeasure = [], inMeasureBeforeInsert = [], inMeasureAfterInsert = [], afterMeasure = [];
@@ -2000,23 +2110,30 @@ function addNoteSync(noteBase, rowShift) {
 
         function rebuildWithTacts(notes, measureCapacity) {
             const EPS = 1e-9;
-            let result = [], cur = 0;
+            let result = [], cur = 0, measureIdx = 0;
             for (let n of notes) {
                 if (n.type === 'directive' || n.type === 'barline') { result.push(n); continue; }
                 let dur = n.durationInQuarters;
-                let space = measureCapacity - cur;
+                const cap = getMeasureCapacityAt(measureIdx);
+                let space = cap - cur;
                 if (dur <= space + EPS) {
                     result.push(n);
                     cur += dur;
                     // Snap to measure boundary to prevent FP drift
-                    if (Math.abs(cur - measureCapacity) < EPS) cur = measureCapacity;
+                    if (Math.abs(cur - cap) < EPS) { cur = 0; measureIdx++; }
                 } else {
                     // Note overflows — pad the current measure with invisible rest then start next
                     if (space > EPS) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: space, abcUnits: Math.round(space / 0.25), triplet: false, tie: false, articulations: [] });
+                    cur = 0; measureIdx++;
                     result.push(n); cur = dur;
+                    // Snap in case exactly fills new measure
+                    const newCap = getMeasureCapacityAt(measureIdx);
+                    if (Math.abs(cur - newCap) < EPS) { cur = 0; measureIdx++; }
                 }
             }
-            let trailing = measureCapacity - cur;
+            // Pad trailing partial measure only if it has real content
+            const trailCap = getMeasureCapacityAt(measureIdx);
+            let trailing = trailCap - cur;
             if (cur > EPS && trailing > EPS) result.push({ pitches: [{ pitch: 'x', octave: '', accidental: '' }], durationInQuarters: trailing, abcUnits: Math.round(trailing / 0.25), triplet: false, tie: false, articulations: [] });
             return result;
         }
@@ -2379,7 +2496,7 @@ function deleteSelectionSync() {
 
         // ==================== FILE I/O ====================
         function downloadABC() {
-            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives, keySigs: measureKeySigs };
+            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives, keySigs: measureKeySigs, pickup: pickupDurQuarters };
             let stateStr = "\n% EDITOR_STATE: " + JSON.stringify(state);
             const blob = new Blob([window.lastAbcString + stateStr], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
@@ -2404,6 +2521,10 @@ function deleteSelectionSync() {
                         voiceOrder = state.order || Object.keys(voicesData);
                         measureDirectives = state.navDirs || {};
                         measureKeySigs = state.keySigs || {};
+                        pickupDurQuarters = parseFloat(state.pickup) || 0;
+                        rebuildPickupOptions();
+                        const pickupSel = document.getElementById('pickupSig');
+                        if (pickupSel) pickupSel.value = pickupDurQuarters;
                         // Migrate old inline navigation directives out of notes arrays
                         const NAV_CODES = ['s','+','fine','DCalfine','DCalcoda','DSalfine','DSalcoda'];
                         for (let vKey of getOrderedKeys()) {
@@ -2811,7 +2932,7 @@ function generateMIDIWithBend() {
                     if (n.type !== 'directive' && n.type !== 'barline') {
                         if (n.pitches && n.pitches[0].pitch !== 'z') {
                             // Compute effective key accidentals at this note's measure
-                            const measureIdx = Math.floor(currentQ / measureCapacity);
+                            const measureIdx = getMeasureIdxAtTime(currentQ);
                             const keySigAccs = getKeyAccidentals(measureIdx);
                             // Apply key signature to pitches that have no explicit accidental
                             const pitchesWithKeySig = n.pitches.map(p => {
@@ -3066,7 +3187,7 @@ function generateMIDIWithBend() {
                 if (n.type === 'directive' || n.type === 'barline') continue;
                 if (n.pitches && n.pitches[0].pitch === 'x') { currentQ += (n.durationInQuarters || 0); continue; }
                 if (visIdx < visualElements.length) {
-                    noteMap.push({ scoreStartQ: currentQ, duration: n.durationInQuarters || 0, el: visualElements[visIdx], measureIdx: Math.floor((currentQ + 0.001) / measureCapacity) });
+                    noteMap.push({ scoreStartQ: currentQ, duration: n.durationInQuarters || 0, el: visualElements[visIdx], measureIdx: getMeasureIdxAtTime(currentQ + 0.001) });
                 }
                 currentQ += (n.durationInQuarters || 0); visIdx++;
             }
@@ -3253,10 +3374,7 @@ function generateMIDIWithBend() {
             let notes = getNotes();
             let totalQuarters = 0;
             for (let i = 0; i < sel.start && i < notes.length; i++) if (notes[i] && notes[i].durationInQuarters) totalQuarters += notes[i].durationInQuarters;
-            const time = document.getElementById('timeSig').value;
-            const [num, den] = time.split('/').map(Number);
-            const measureCapacity = num * (4 / den);
-            return Math.floor(totalQuarters / measureCapacity);
+            return getMeasureIdxAtTime(totalQuarters);
         }
 
         function addRepeatToAllVoices(type) {
@@ -3641,7 +3759,7 @@ function generateMIDIWithBend() {
                     currentMeasureLength += n.durationInQuarters;
                     i++;
 
-                    if (currentMeasureLength >= measureCapacity - 0.001) {
+                    if (currentMeasureLength >= getMeasureCapacityAt(measuresCount) - 0.001) {
                         let repeat = measureRepeats[measuresCount];
                         let volta = measureVoltas[measuresCount];
                         measures.push({ items: currentMeasure, repeat: repeat, volta: volta });
@@ -3665,7 +3783,12 @@ function generateMIDIWithBend() {
                 while (measures.length < maxMeasures) measures.push({ items: [], repeat: null, volta: null });
             }
 
-            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/16\nQ:1/4=${tempo}\nK:${key}\n`;
+            // Anacrusis: if pickup set, add %%MIDI barstart and use abc's 'M:' directive
+            // abcjs renders pickup via the 'anacrusis' header or we just let the first measure be short
+            let pickupUnits = pickupDurQuarters > 0 ? Math.round(pickupDurQuarters / 0.25) : 0;
+            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/16\nQ:1/4=${tempo}\n`;
+            if (pickupUnits > 0) abcString += `%%MIDI barstart ${pickupUnits}\n`;
+            abcString += `K:${key}\n`;
             let voiceStrings = [];
 
             for (let vKey of visibleKeys) {
@@ -3803,12 +3926,12 @@ function generateMIDIWithBend() {
                 for (let i = 0; i < oldNotes.length; i++) {
                     let n = oldNotes[i];
                     if (n.type === 'directive' || n.type === 'barline') {
-                        let m = Math.floor(cum / measureCapacity);
+                        let m = getMeasureIdxAtTime(cum);
                         if (!emptySet.has(m)) newNotes.push(n);
                         continue;
                     }
                     if (n.durationInQuarters) {
-                        let startMeasure = Math.floor(cum / measureCapacity);
+                        let startMeasure = getMeasureIdxAtTime(cum);
                         if (!emptySet.has(startMeasure)) newNotes.push(n);
                         cum += n.durationInQuarters;
                     }
@@ -3824,7 +3947,6 @@ function generateMIDIWithBend() {
         }
 
         function normalizeAllMeasures() {
-            const measureCapacity = getMeasureCapacity();
             let activeKeys = getActiveKeys();
             for (let vKey of activeKeys) {
                 let oldNotes = voicesData[vKey].notes;
@@ -3834,8 +3956,10 @@ function generateMIDIWithBend() {
                     if (!n.durationInQuarters) continue;
                     let remaining = n.durationInQuarters;
                     while (remaining > 0.001) {
-                        let measureStart = Math.floor(currentQ / measureCapacity) * measureCapacity;
-                        let nextMeasureStart = measureStart + measureCapacity;
+                        const mIdx = getMeasureIdxAtTime(currentQ);
+                        const mStart = getMeasureStartTime(mIdx);
+                        const mCap = getMeasureCapacityAt(mIdx);
+                        const nextMeasureStart = mStart + mCap;
                         let available = nextMeasureStart - currentQ;
                         let partDur = Math.min(remaining, available);
                         let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: (remaining - partDur > 0.001), articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
@@ -3889,7 +4013,7 @@ function generateMIDIWithBend() {
         function highlightIncompleteMeasures() {
             document.querySelectorAll('.incomplete-mark').forEach(el => el.remove());
             if (!activeTrack || !voicesData[activeTrack].active) return;
-            const measureCapacity = getMeasureCapacity();
+            const regularCap = getMeasureCapacity();
             let notes = getNotes();
             let measures = getMeasuresFromNotes(activeTrack);
             let svg = document.querySelector('#paper svg');
@@ -3903,17 +4027,20 @@ function generateMIDIWithBend() {
                 let vNotes = voicesData[vKey].notes, cum = 0;
                 for (let n of vNotes) {
                     if (n.durationInQuarters) {
-                        let m = Math.floor(cum / measureCapacity);
+                        let m = getMeasureIdxAtTime(cum);
                         if (n.pitches && n.pitches[0].pitch !== 'x') if (m > maxRealMeasure) maxRealMeasure = m;
                         cum += n.durationInQuarters;
                     }
                 }
             }
             for (let m = 0; m < measures.length; m++) {
+                const cap = getMeasureCapacityAt(m);
+                // Skip the pickup measure — it is intentionally shorter
+                if (pickupDurQuarters > 0 && m === 0) continue;
                 let measure = measures[m];
                 let realDur = 0;
                 for (let item of measure) { let n = item.note; if (n.pitches && n.pitches[0].pitch !== 'x') realDur += n.durationInQuarters; }
-                if (realDur > 0.001 && realDur < measureCapacity - 0.001 && m < maxRealMeasure) {
+                if (realDur > 0.001 && realDur < cap - 0.001 && m < maxRealMeasure) {
                     let barElement = bars[m];
                     if (!barElement && m === measures.length - 1) {
                         let lastNote = svg.querySelector('.abcjs-note:last-child, .abcjs-rest:last-child');
@@ -4066,6 +4193,7 @@ function generateMIDIWithBend() {
             const ts = document.getElementById('timeSig').value;
             const beamSel = document.getElementById('beaming');
             if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+            rebuildPickupOptions();
             updateNoteButtonIcons(); 
             updateScore();
             setupBendCanvasEvents();
@@ -4535,8 +4663,9 @@ function generateMIDIWithBend() {
                 let currentQ = 0;
 
                 for (let measureItems of measures) {
-                    xml += `    <measure number="${measureNumber}">\n`;
                     const mIdx = measureNumber - 1;
+                    const isPickupMeasure = (pickupDurQuarters > 0 && mIdx === 0);
+                    xml += `    <measure number="${measureNumber}"${isPickupMeasure ? ' implicit="yes"' : ''}>\n`;
                     if (measureNumber === 1) {
                         xml += `      <attributes>\n`;
                         xml += `        <divisions>${divisions}</divisions>\n`;
@@ -4560,7 +4689,7 @@ function generateMIDIWithBend() {
                         xml += `            <per-minute>${tempo}</per-minute>\n`;
                         xml += `          </metronome>\n`;
                         xml += `        </direction-type>\n`;
-                        xml += `        <sound tempo="${Math.round(60000000/tempo)}"/>\n`;
+                        xml += `        <sound tempo="${tempo}"/>\n`;
                         xml += `      </direction>\n`;
                     } else if (measureKeySigs[mIdx] !== undefined) {
                         // Key signature change at this measure
@@ -4785,6 +4914,7 @@ function generateMIDIWithBend() {
             activeTrack = null;
             measureRepeats = {};
             measureVoltas = {};
+            pickupDurQuarters = 0;
             document.getElementById('channelsContainer').innerHTML = '';
 
             // ── Alter → ABC accidental ──
@@ -4808,6 +4938,40 @@ function generateMIDIWithBend() {
             const partListEls = doc.querySelectorAll('part-list > score-part');
             const partEls     = doc.querySelectorAll('score > part, score-partwise > part');
 
+            // ── Detect pickup from first measure's implicit attribute ──
+            const firstPartEl = partEls[0];
+            if (firstPartEl) {
+                const firstMeasureEl = firstPartEl.querySelector('measure');
+                if (firstMeasureEl && firstMeasureEl.getAttribute('implicit') === 'yes') {
+                    // Compute duration of this measure to find pickup length
+                    let firstMeasureDivisions = globalDivisions;
+                    const fdiv = firstMeasureEl.querySelector('attributes > divisions');
+                    if (fdiv) firstMeasureDivisions = parseFloat(fdiv.textContent) || firstMeasureDivisions;
+                    let pickupDurInQ = 0;
+                    firstMeasureEl.querySelectorAll('note').forEach(nEl => {
+                        if (!nEl.querySelector('chord') && !nEl.querySelector('grace')) {
+                            const d = parseFloat((nEl.querySelector('duration') || {}).textContent || 0);
+                            pickupDurInQ += d / firstMeasureDivisions;
+                        }
+                    });
+                    if (pickupDurInQ > 0.01) {
+                        pickupDurQuarters = pickupDurInQ;
+                        rebuildPickupOptions();
+                        const pickupSel = document.getElementById('pickupSig');
+                        // Find closest option
+                        if (pickupSel) {
+                            let bestOpt = null, bestDiff = Infinity;
+                            for (let opt of pickupSel.options) {
+                                const diff = Math.abs(parseFloat(opt.value) - pickupDurInQ);
+                                if (diff < bestDiff) { bestDiff = diff; bestOpt = opt; }
+                            }
+                            if (bestOpt) pickupSel.value = bestOpt.value;
+                            pickupDurQuarters = parseFloat(pickupSel.value) || pickupDurInQ;
+                        }
+                    }
+                }
+            }
+
             partListEls.forEach((scorePart, partIdx) => {
                 const partId  = scorePart.getAttribute('id');
                 const partEl  = Array.from(partEls).find(p => p.getAttribute('id') === partId);
@@ -4818,29 +4982,56 @@ function generateMIDIWithBend() {
                 const midiProg = txt(scorePart, 'midi-instrument midi-program');
                 if (midiProg) program = Math.max(0, parseInt(midiProg) - 1);
 
+                // ── Detect staves in this part (grand staff = 2 staves) ──
                 const partFirstMeasure = partEl.querySelector('measure');
-                let clef = 'treble';
+                let staffClefs = {}; // staffNum (1,2,...) → 'treble'|'bass'
                 if (partFirstMeasure) {
-                    const clefSign = txt(partFirstMeasure, 'attributes clef sign');
-                    if (clefSign === 'F') clef = 'bass';
-                    if (clefSign === 'percussion') skipped.add('Percussion clef (imported as treble)');
-                    if (clefSign === 'TAB')  skipped.add('TAB clef (imported as treble)');
-                    if (clefSign === 'C')    skipped.add('C / alto clef (imported as treble)');
+                    partFirstMeasure.querySelectorAll('attributes > clef').forEach(clefEl => {
+                        const staffNum = parseInt(clefEl.getAttribute('number') || '1');
+                        const sign = clefEl.querySelector('sign') ? clefEl.querySelector('sign').textContent.trim() : 'G';
+                        staffClefs[staffNum] = (sign === 'F') ? 'bass' : 'treble';
+                        if (sign === 'percussion') skipped.add('Percussion clef (imported as treble)');
+                        if (sign === 'TAB')  skipped.add('TAB clef (imported as treble)');
+                        if (sign === 'C')    skipped.add('C / alto clef (imported as treble)');
+                    });
                 }
+                if (Object.keys(staffClefs).length === 0) staffClefs[1] = 'treble'; // default
 
-                const key = 'ch' + Date.now() + partIdx + Math.floor(Math.random() * 1000);
-                voicesData[key] = { id: 'V' + (voiceOrder.length + 1), short: partName.substring(0,3), name: partName, clef, program, active: true, notes: [], visible: true, volume: 100 };
-                voiceOrder.push(key);
-                if (!activeTrack) activeTrack = key;
+                const staffNums = Object.keys(staffClefs).map(Number).sort();
+                const isGrandStaff = staffNums.length > 1;
+
+                // Create one track per staff
+                const staffKeys = {}; // staffNum → voice key
+                staffNums.forEach((staffNum, si) => {
+                    const suffix = isGrandStaff ? (staffNum === 1 ? ' (R)' : ' (L)') : '';
+                    const trackName = partName + suffix;
+                    const vKey = 'ch' + Date.now() + partIdx + staffNum + Math.floor(Math.random() * 1000);
+                    voicesData[vKey] = { id: 'V' + (voiceOrder.length + 1), short: trackName.substring(0,4), name: trackName, clef: staffClefs[staffNum], program, active: true, notes: [], visible: true, volume: 100 };
+                    voiceOrder.push(vKey);
+                    if (!activeTrack) activeTrack = vKey;
+                    staffKeys[staffNum] = vKey;
+                });
 
                 let localDivisions = globalDivisions;
-                let lastNoteRef = null;
+                // per-staff lastNoteRef for chord detection
+                let lastNoteRefs = {};
 
+                // ── Track key signature changes per measure (for first part only) ──
                 partEl.querySelectorAll('measure').forEach((measureEl, mIdx) => {
                     const newDiv = measureEl.querySelector('attributes > divisions');
                     if (newDiv) localDivisions = parseFloat(newDiv.textContent) || localDivisions;
 
-                    if (mIdx > 0 && measureEl.querySelector('attributes > key'))  skipped.add('Mid-piece key signature change (only first-measure key imported)');
+                    // Key signature changes — import for all measures
+                    const keyEl = measureEl.querySelector('attributes > key');
+                    if (keyEl && mIdx > 0 && partIdx === 0) {
+                        const fifthsEl = keyEl.querySelector('fifths');
+                        if (fifthsEl) {
+                            const fifthsToKey = {0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'Cb'};
+                            const kStr = fifthsToKey[String(parseInt(fifthsEl.textContent))];
+                            if (kStr) measureKeySigs[mIdx] = kStr;
+                        }
+                    }
+
                     if (mIdx > 0 && measureEl.querySelector('attributes > time')) skipped.add('Mid-piece time signature change (only first-measure time imported)');
                     if (mIdx > 0 && measureEl.querySelector('attributes > clef')) skipped.add('Mid-piece clef change (ignored)');
 
@@ -4848,7 +5039,6 @@ function generateMIDIWithBend() {
                     if (partIdx === 0) {
                         let hasForward = false, hasBackward = false, hasFinal = false;
                         measureEl.querySelectorAll('barline').forEach(bl => {
-                            const loc = bl.getAttribute('location') || 'right';
                             const rep = bl.querySelector('repeat');
                             if (rep) {
                                 if (rep.getAttribute('direction') === 'forward')  hasForward  = true;
@@ -4869,15 +5059,21 @@ function generateMIDIWithBend() {
                         else if (hasFinal)                  measureRepeats[mIdx] = 'final';
                     }
 
-                    // Notes
+                    // Notes — route to correct staff track
                     measureEl.querySelectorAll('note').forEach(noteEl => {
                         if (noteEl.querySelector('grace')) { skipped.add('Grace notes'); return; }
+
+                        // Determine which staff this note belongs to
+                        const staffNumEl = noteEl.querySelector('staff');
+                        const staffNum = staffNumEl ? (parseInt(staffNumEl.textContent) || 1) : 1;
+                        // Clamp to available staffs
+                        const resolvedStaff = staffKeys[staffNum] ? staffNum : staffNums[0];
+                        const vKey = staffKeys[resolvedStaff];
 
                         const isChord = !!noteEl.querySelector('chord');
                         const isRest  = !!noteEl.querySelector('rest');
                         const durRaw  = parseFloat((noteEl.querySelector('duration') || {}).textContent || localDivisions);
                         const durationInQuarters = durRaw / localDivisions;
-                        // *** KEY FIX: abcUnits must be set — it's what the ABC renderer uses ***
                         const abcUnits = toAbcUnits(durationInQuarters);
 
                         // Pitch
@@ -4921,12 +5117,12 @@ function generateMIDIWithBend() {
                         if (noteEl.querySelector('lyric'))               skipped.add('Lyrics');
 
                         // Build note / add to chord
-                        if (isChord && lastNoteRef && !isRest) {
-                            lastNoteRef.pitches.push(pitchObj);
+                        if (isChord && lastNoteRefs[resolvedStaff] && !isRest) {
+                            lastNoteRefs[resolvedStaff].pitches.push(pitchObj);
                         } else {
                             const noteObj = { pitches: [pitchObj], durationInQuarters, abcUnits, tie: tieStart, triplet: isTriplet, articulations: arts };
-                            voicesData[key].notes.push(noteObj);
-                            lastNoteRef = noteObj;
+                            voicesData[vKey].notes.push(noteObj);
+                            lastNoteRefs[resolvedStaff] = noteObj;
                         }
                     });
 
@@ -4939,7 +5135,10 @@ function generateMIDIWithBend() {
                     if (measureEl.querySelector('figured-bass'))                         skipped.add('Figured bass');
                 });
 
-                renderChannelRow(key);
+                // Render channel rows for all staves in this part
+                staffNums.forEach(staffNum => {
+                    renderChannelRow(staffKeys[staffNum]);
+                });
             });
 
             // ── Finalize ──
@@ -5283,6 +5482,72 @@ document.addEventListener('keydown', function(e) {
         undo();
     }
 });
+
+    // ==================== PRINT PDF ====================
+    function printScorePDF() {
+        const paperEl = document.getElementById('paper');
+        if (!paperEl) { alert('Score not found.'); return; }
+
+        const scoreHTML = paperEl.innerHTML;
+        const title = (document.getElementById('title') ? document.getElementById('title').value : 'Score') || 'Score';
+
+        const printWin = window.open('', '_blank', 'width=900,height=700');
+        if (!printWin) { alert('Please allow popups to print.'); return; }
+
+        printWin.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @media print {
+      @page { margin: 15mm 10mm; }
+      body { margin: 0; }
+      svg {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .abcjs-staff-system, .abcjs-row {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      div {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+    body { font-family: sans-serif; padding: 10px; background: #fff; }
+    svg { max-width: 100%; height: auto; display: block; }
+    .abcjs-annotation { fill: #d32f2f; font-size: 20px; font-weight: bold; }
+    .selection-box, .incomplete-mark { display: none; }
+  </style>
+</head>
+<body>
+  <div id="scoreContent">${scoreHTML}</div>
+  <script>
+    window.onload = function() {
+      // Remove interactive overlays
+      document.querySelectorAll('.selection-box, .incomplete-mark').forEach(el => el.remove());
+      // Prevent page breaks inside each staff system (SVG)
+      document.querySelectorAll('svg').forEach(function(svg) {
+        svg.style.pageBreakInside = 'avoid';
+        svg.style.breakInside = 'avoid';
+        svg.style.display = 'block';
+        // Wrap each SVG in a div to help browsers honour the rule
+        var wrapper = document.createElement('div');
+        wrapper.style.pageBreakInside = 'avoid';
+        wrapper.style.breakInside = 'avoid';
+        svg.parentNode.insertBefore(wrapper, svg);
+        wrapper.appendChild(svg);
+      });
+      window.print();
+      window.onafterprint = function() { window.close(); };
+    };
+  <\/script>
+</body>
+</html>`);
+        printWin.document.close();
+    }
     </script>
 </body>
 </html>
