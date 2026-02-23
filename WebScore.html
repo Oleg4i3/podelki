@@ -839,7 +839,7 @@ function undo() {
             voicesData[vKey].program = num;
             if (inst) {
                 voicesData[vKey].name = inst.name;
-                voicesData[vKey].short = inst.name.substring(0, 10); // use longer abbrev for staff label
+                voicesData[vKey].short = inst.name.substring(0, 3);
             }
             preloadInstruments();
             updateScore();
@@ -3672,7 +3672,7 @@ function generateMIDIWithBend() {
                 let voice = voicesData[vKey];
                 let measures = voicesMeasures[vKey];
                 const isFirstVoice = (vKey === visibleKeys[0]);
-                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.name}"\n`;
+                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.short || (voice.name || '').substring(0, 4)}"\n`;
                 vStr += `%%MIDI program ${voice.program}\n`;
                 if (measures.length === 0) vStr += "x16 |";
                 else {
@@ -4208,7 +4208,8 @@ function generateMIDIWithBend() {
                     dwStartloop: v.getUint32(o + 28, true),
                     dwEndloop:   v.getUint32(o + 32, true),
                     sampleRate:  v.getUint32(o + 36, true),
-                    originalPitch: v.getUint8(o + 40)
+                    originalPitch: v.getUint8(o + 40),
+                    byPitchCorrection: v.getUint8(o + 41)  // signed cents offset baked into sample
                 });
             }
 
@@ -4244,18 +4245,27 @@ function generateMIDIWithBend() {
                     const genStart = ibagGenNdx[b];
                     const genEnd   = (b + 1 < ibagCount) ? ibagGenNdx[b + 1] : igenCount;
                     let keyLo = 0, keyHi = 127, velLo = 0, velHi = 127, sampleID = -1, rootKey = -1;
+                    let coarseTune = 0, fineTune = 0, scaleTuning = 100;
                     for (let g = genStart; g < genEnd; g++) {
                         const op  = igenOper[g];
                         const amt = igenAmt[g];
                         if (op === 43) { keyLo = amt & 0xFF; keyHi = (amt >> 8) & 0xFF; }
                         if (op === 44) { velLo = amt & 0xFF; velHi = (amt >> 8) & 0xFF; }
+                        if (op === 51) { coarseTune = (amt << 16 >> 16) & 0xFF; if (coarseTune > 127) coarseTune -= 256; } // signed byte, semitones
+                        if (op === 52) { fineTune = amt & 0xFF; if (fineTune > 127) fineTune -= 256; }                     // signed byte, cents
                         if (op === 53) sampleID = amt;
+                        if (op === 56) { scaleTuning = amt & 0xFFFF; }                                                      // cents per semitone (typically 100)
                         if (op === 58) { const rk = amt & 0xFF; if (rk <= 127) rootKey = rk; }
                     }
                     if (sampleID >= 0 && sampleID < sampleHeaders.length && sampleHeaders[sampleID]) {
                         const sh = sampleHeaders[sampleID];
+                        // samplePitchCorrection is stored as signed byte in SF2 (cents)
+                        const sampleFineTune = sh.byPitchCorrection > 127 ? sh.byPitchCorrection - 256 : sh.byPitchCorrection;
                         zones.push({ keyLo, keyHi, velLo, velHi, sampleID,
                                      rootKey: (rootKey >= 0) ? rootKey : sh.originalPitch,
+                                     coarseTune,
+                                     fineTune: fineTune + sampleFineTune, // instrument fine tune + sample fine tune
+                                     scaleTuning: scaleTuning > 0 ? scaleTuning : 100,
                                      loopStart: sh.dwStartloop - sh.dwStart,
                                      loopEnd:   sh.dwEndloop   - sh.dwStart,
                                      hasLoop:   sh.dwEndloop > sh.dwStartloop && sh.dwStartloop >= sh.dwStart });
@@ -4359,7 +4369,13 @@ function generateMIDIWithBend() {
             const audioBuf = sf2GetBuffer(zone.sampleID);
             if (!audioBuf) return null;
 
-            const basePlaybackRate = Math.pow(2, (midiNote - zone.rootKey) / 12);
+            // Full SF2 tuning formula:
+            //   totalCents = (midiNote - rootKey) * scaleTuning + coarseTune * 100 + fineTune
+            const scaleTuning = zone.scaleTuning !== undefined ? zone.scaleTuning : 100;
+            const coarseTune  = zone.coarseTune  !== undefined ? zone.coarseTune  : 0;
+            const fineTune    = zone.fineTune    !== undefined ? zone.fineTune    : 0;
+            const totalCents  = (midiNote - zone.rootKey) * scaleTuning + coarseTune * 100 + fineTune;
+            const basePlaybackRate = Math.pow(2, totalCents / 1200);
 
             const source = audioContext.createBufferSource();
             source.buffer       = audioBuf;
