@@ -2664,38 +2664,34 @@ canvas.on('mouse:wheel', function(opt) {
 // 5. P2P NETWORKING WITH CHUNKING & COMPRESSION
 // ==========================================
 // ─── ICE CONFIG ──────────────────────────────────────────────────────────────
-// Free TURN via Open Relay Project (openrelay.metered.ca).
-// UDP port 80 / TCP port 443 cover almost every NAT type and mobile operator.
+// Uses Google STUN + Open Relay Project free TURN servers.
+// TCP variants (port 443) bypass UDP-blocking mobile operators and iOS NAT.
 const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:openrelay.metered.ca:80' },
-    // ── Free TURN (UDP) ──
+    { urls: 'stun:openrelay.metered.ca:80'  },
+    // TURN UDP
     { urls: 'turn:openrelay.metered.ca:80',
       username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turn:openrelay.metered.ca:443',
       username: 'openrelayproject', credential: 'openrelayproject' },
-    // ── Free TURN (TCP) — bypasses UDP-blocking mobile operators & iOS ──
+    // TURN TCP — critical for mobile operators and iOS Safari
     { urls: 'turn:openrelay.metered.ca:80?transport=tcp',
       username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turn:openrelay.metered.ca:443?transport=tcp',
       username: 'openrelayproject', credential: 'openrelayproject' },
+    // Additional free TURN
+    { urls: 'turn:relay.backups.cz',
+      username: 'webrtc', credential: 'webrtc' },
+    { urls: 'turn:relay.backups.cz?transport=tcp',
+      username: 'webrtc', credential: 'webrtc' },
 ];
 
 const iceConfig = {
     iceServers: ICE_SERVERS,
     iceCandidatePoolSize: 10,
-    iceTransportPolicy: 'all',      // first try direct, TURN is available as fallback
-};
-
-// relay-only config used on the 3rd connection attempt
-const iceConfigRelayOnly = {
-    iceServers: ICE_SERVERS,
-    iceCandidatePoolSize: 10,
-    iceTransportPolicy: 'relay',    // force TURN relay — works even behind symmetric NAT
+    iceTransportPolicy: 'all',
 };
 
 let peer = null;
@@ -2726,22 +2722,22 @@ function checkAutoConnect() {
         document.getElementById('remote-id-input').value = connectId;
         document.getElementById('manual-remote-id').value = connectId;
         
-        // Wait for peer to be ready (may take longer on mobile/iOS)
+        // Wait until we have a peer ID (may take longer on mobile/iOS)
         let waited = 0;
         const checkPeerReady = setInterval(() => {
-            waited += 150;
-            if (myId && (connectionMode === "ready" || connectionMode === "p2p")) {
+            waited += 200;
+            if (myId) {
                 clearInterval(checkPeerReady);
                 setTimeout(() => {
+                    setStatus('Auto-connecting…', 'ok');
                     joinPeer();
-                    setStatus('Auto-connecting to host…', 'ok');
-                }, 500);
+                }, 300);
             }
-            if (waited > 12000) {
+            if (waited > 15000) {
                 clearInterval(checkPeerReady);
-                setStatus('Peer init timeout — tap Connect', 'err');
+                setStatus('Tap Connect to join', 'err');
             }
-        }, 150);
+        }, 200);
     }
 }
 
@@ -2779,27 +2775,24 @@ function joinPeerManual() {
     spoiler.classList.remove('expanded');
 }
 
-// Detect iOS — Safari/WebRTC has stricter ICE requirements
+// iOS / Safari detection
 const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-function initPeer(forceRelayOnly = false) {
-    console.log(`Initializing peer (relay-only: ${forceRelayOnly}, iOS: ${isIOS})...`);
+function initPeer() {
+    console.log(`Initializing peer (iOS: ${isIOS})...`);
     
     if (peer) {
         try { peer.destroy(); } catch (e) { console.warn("Error destroying old peer:", e); }
         peer = null;
     }
     
-    // iOS and mobile often need relay right away — detect and adapt
-    const useRelay = forceRelayOnly || isIOS;
-    
     peer = new Peer({
         host: '0.peerjs.com',
         port: 443,
         path: '/',
         secure: true,
-        config: useRelay ? iceConfigRelayOnly : iceConfig,
+        config: iceConfig,
         debug: 1,
         pingInterval: 5000,
     });
@@ -2811,21 +2804,23 @@ function setupPeerEvents() {
     peer.on('open', (id) => {
         console.log(`✅ Peer ID: ${id}`);
         myId = id;
-        connectionMode = "ready";
-        actualConnectionType = "stun";
         
-        let statusText;
-        if (isHost) {
-            statusText = "Hosting (Share the link)";
-            connectionMode = "hosting";
-            
-            const shareLink = generateShareLink(id);
-            document.getElementById('share-link-display').value = shareLink;
-        } else {
-            statusText = isIOS ? "Ready (iOS mode)" : "Ready to connect";
+        // Don't override connectionMode if we're mid-connection or connected
+        const activeStates = ['connecting', 'connected', 'hosting'];
+        if (!activeStates.includes(connectionMode)) {
+            connectionMode = "ready";
         }
         
-        setStatus(statusText, 'ok');
+        actualConnectionType = "stun";
+        
+        if (isHost) {
+            connectionMode = "hosting";
+            const shareLink = generateShareLink(id);
+            document.getElementById('share-link-display').value = shareLink;
+            setStatus("Hosting (Share the link)", 'ok');
+        } else if (!activeStates.includes(connectionMode)) {
+            setStatus(isIOS ? "Ready (iOS)" : "Ready to connect", 'ok');
+        }
         
         if (connectionTimeout) {
             clearTimeout(connectionTimeout);
@@ -2839,16 +2834,12 @@ function setupPeerEvents() {
         console.error('Peer error:', err.type, err.message);
         
         if (err.type === 'unavailable-id' || err.type === 'server-error') {
-            console.log('Server error, retrying in 3 seconds...');
             setStatus('Server error, retrying...', 'err');
-            setTimeout(() => initPeer(false), 3000);
+            setTimeout(() => initPeer(), 3000);
         } else if (err.type === 'peer-unavailable') {
             setStatus('Peer not found — check the ID', 'err');
         } else if (err.type === 'network') {
             setStatus('Network issue — check connection', 'err');
-        } else if (err.type === 'webrtc') {
-            // WebRTC error — often ICE failure; rebuild with relay
-            console.warn('WebRTC error, will try relay-only on next attempt');
         }
     });
     
@@ -2856,7 +2847,6 @@ function setupPeerEvents() {
         console.log(`📞 Incoming connection from: ${c.peer}`);
         
         if (conn && conn.open) {
-            console.log('Closing old connection...');
             conn.close();
             conn = null;
         }
@@ -2867,12 +2857,8 @@ function setupPeerEvents() {
         c.on('open', () => {
             console.log('✅ Incoming connection established');
             connectionMode = "connected";
-            actualConnectionType = "turn";
             setStatus("Connected ✅ (Partner joined)", 'ok');
-            
-            setTimeout(() => {
-                sendCanvasDataChunked();
-            }, 200);
+            setTimeout(() => sendCanvasDataChunked(), 200);
         });
         
         c.on('error', (err) => {
@@ -2883,11 +2869,8 @@ function setupPeerEvents() {
     peer.on('disconnected', () => {
         console.log('Peer disconnected from signaling server');
         setStatus('Disconnected from server, reconnecting...', 'err');
-        
         setTimeout(() => {
-            if (peer && peer.disconnected) {
-                peer.reconnect();
-            }
+            if (peer && peer.disconnected) peer.reconnect();
         }, 2000);
     });
 }
@@ -3217,118 +3200,73 @@ window.joinPeer = () => {
     }
     
     const id = document.getElementById('remote-id-input').value.trim();
-    if (!id) {
-        alert('Please enter a host ID');
-        return;
-    }
-    
-    if (!myId) {
-        setStatus('Not ready yet - initializing...', 'err');
-        return;
-    }
+    if (!id) { alert('Please enter a host ID'); return; }
+    if (!myId) { setStatus('Not ready yet — wait a moment', 'err'); return; }
     
     console.log(`Connecting to peer: ${id}`);
-    
     if (connectionTimeout) clearTimeout(connectionTimeout);
 
-    // ── Multi-phase connection strategy ──────────────────────────────────────
-    // Phase 1 (attempt 0): direct STUN — works on same LAN / simple NAT
-    // Phase 2 (attempt 1): STUN + TURN UDP — works across most NATs
-    // Phase 3 (attempt 2): TURN relay-only — works on symmetric NAT, mobile, iOS
-    // Phase 4 (attempt 3): rebuild peer in relay-only mode, then retry
+    // ── Simple retry: just call peer.connect() again and again ───────────────
+    // Do NOT rebuild the peer between attempts — that was causing the state reset bug.
+    // ICE config already includes STUN + TURN (UDP + TCP), so every attempt
+    // automatically tries direct → relay without any peer rebuild needed.
     // ─────────────────────────────────────────────────────────────────────────
-    function attemptConnect(retryCount = 0) {
-        const MAX_RETRIES = 4;
-        
+    const MAX_RETRIES = 4;
+    // Give more time per attempt on mobile / iOS (ICE gathering is slower)
+    const TIMEOUTS    = [10000, 14000, 18000, 18000];
+    
+    function attemptConnect(retryCount) {
         if (retryCount >= MAX_RETRIES) {
-            setStatus('Connection failed. Try Firebase mode ↗', 'err');
+            setStatus('P2P failed ✕ — try Firebase mode', 'err');
             connectionMode = "ready";
             updateUIForConnectionMode();
             return;
         }
         
-        if (conn && conn.open) { conn.close(); conn = null; }
+        if (conn) { try { conn.close(); } catch(_) {} conn = null; }
         
-        // On phase 3+, rebuild the peer with relay-only ICE config so the
-        // browser only gathers TURN candidates — critical for iOS and mobile networks.
-        const forceRelay = (retryCount >= 2) || isIOS;
-        const timeoutMs  = retryCount === 0 ? 7000 : 12000;
-        
-        const phaseLabel = forceRelay ? 'relay' : retryCount === 0 ? 'direct' : 'TURN';
-        setStatus(`Connecting… [${phaseLabel}] (${retryCount + 1}/${MAX_RETRIES})`, 'ok');
+        const attempt = `${retryCount + 1}/${MAX_RETRIES}`;
+        setStatus(`Connecting… (${attempt})`, 'ok');
         connectionMode = "connecting";
         updateUIForConnectionMode();
         
-        function doConnect() {
-            if (!peer || peer.destroyed) {
-                setTimeout(() => attemptConnect(retryCount + 1), 500);
-                return;
-            }
-            
-            const newConn = peer.connect(id, {
-                reliable: true,
-                serialization: 'json',
-                metadata: { client: 'cheeseboard', version: '2.2', relay: forceRelay }
-            });
-            
-            connectionTimeout = setTimeout(() => {
-                console.log(`Timeout on attempt ${retryCount + 1} (${phaseLabel})`);
-                if (newConn && !newConn.open) {
-                    try { newConn.close(); } catch(_) {}
-                }
-                if (retryCount + 1 >= 2 && !peer._pcConfig?.iceTransportPolicy?.includes('relay')) {
-                    // Rebuild peer in relay mode for subsequent retries
-                    initPeer(true);
-                    setTimeout(() => attemptConnect(retryCount + 1), 1500);
-                } else {
-                    setTimeout(() => attemptConnect(retryCount + 1), 500);
-                }
-            }, timeoutMs);
-            
-            newConn.on('open', () => {
-                clearTimeout(connectionTimeout);
-                console.log(`✅ Connected on attempt ${retryCount + 1} (${phaseLabel})`);
-                conn = newConn;
-                setupConn();
-                
-                actualConnectionType = forceRelay ? "relay" : "direct";
-                const label = forceRelay ? '📡 Relay' : '⚡ Direct';
-                setStatus(`Connected ${label}`, 'ok');
-                connectionMode = "connected";
-                updateUIForConnectionMode();
-            });
-            
-            newConn.on('error', (err) => {
-                clearTimeout(connectionTimeout);
-                console.error(`Connection error (attempt ${retryCount + 1}):`, err);
-                setTimeout(() => attemptConnect(retryCount + 1), 800);
-            });
-            
-            newConn.on('close', () => {
-                clearTimeout(connectionTimeout);
-            });
-        }
+        console.log(`Connection attempt ${attempt}, timeout ${TIMEOUTS[retryCount]}ms`);
         
-        // If we need to switch to relay-only, rebuild the peer first
-        if (forceRelay && peer && !peer.destroyed) {
-            const currentPcConfig = peer._pcConfig;
-            const isAlreadyRelay = currentPcConfig?.iceTransportPolicy === 'relay';
-            if (!isAlreadyRelay) {
-                console.log('🔄 Rebuilding peer in relay-only mode...');
-                initPeer(true);
-                // Wait for the new peer to open before connecting
-                const waitForPeer = setInterval(() => {
-                    if (myId && peer && !peer.destroyed) {
-                        clearInterval(waitForPeer);
-                        doConnect();
-                    }
-                }, 150);
-                setTimeout(() => clearInterval(waitForPeer), 8000);
-                return;
-            }
-        }
+        const newConn = peer.connect(id, {
+            reliable: true,
+            serialization: 'json',
+            metadata: { client: 'cheeseboard', attempt: retryCount }
+        });
         
-        doConnect();
+        let settled = false;
+        
+        const settle = (success, errMsg) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(connectionTimeout);
+            if (success) return; // onOpen handler takes over
+            console.log(`Attempt ${attempt} failed: ${errMsg}`);
+            try { newConn.close(); } catch(_) {}
+            // Brief pause then retry
+            setTimeout(() => attemptConnect(retryCount + 1), 600);
+        };
+        
+        connectionTimeout = setTimeout(() => settle(false, 'timeout'), TIMEOUTS[retryCount]);
+        
+        newConn.on('open', () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(connectionTimeout);
+            console.log(`✅ Connected on attempt ${attempt}`);
+            conn = newConn;
+            setupConn();
+            setStatus(`Connected ✅`, 'ok');
+            connectionMode = "connected";
+            updateUIForConnectionMode();
+        });
+        
+        newConn.on('error', (err) => settle(false, err.message || err.type));
+        newConn.on('close', () => settle(false, 'closed before open'));
     }
     
     attemptConnect(0);
