@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Score Creator + Pitch Bend + pedal</title>
+    <title>WebScoreCreator+Bend+pedal</title>
     
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-basic-min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-midi-min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 10px; background: #eceff1; margin: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: sans-serif; padding: 10px; background: #eceff1; margin: 0; -webkit-tap-highlight-color: transparent; overflow-y: scroll; }
         details { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         summary { cursor: pointer; font-weight: bold; outline: none; }
         
@@ -29,7 +29,7 @@
         .chord-btn { background: #cccccc; color: white; border-color: #e65100; font-size: 13px; }
         .chord-btn.active { background: #99aacc; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
 
-        .keyboard-row { display: flex; gap: 5px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; align-items: center; justify-content: flex-start; }
+        .keyboard-row { display: flex; gap: 5px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding-bottom: 5px; align-items: center; justify-content: flex-start; }
         .group { display: flex; gap: 2px; border-right: 2px solid #ccc; padding-right: 8px; margin-right: 3px; align-items: center; }
         .group:last-child { border-right: none; }
         .btn-small { min-width: 60px; height: 70px; padding: 0; text-align: center; font-size: 11px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
@@ -43,7 +43,56 @@
         .control-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-right: 8px; align-items: center; }
         .control-btn { min-width: 48px; height: 32px; padding: 0; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
 
-        #paper { background: #fff; padding: 10px; border-radius: 8px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; user-select: none; cursor: pointer; touch-action: manipulation; position: relative; min-height: 0; height: auto; }
+        /* ===== SCORE VIEWPORT (wraps #paper) ===== */
+        #scoreViewport {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 5px;
+            overflow: visible;  /* normal mode: no clipping */
+            position: relative;
+        }
+        #paper {
+            padding: 10px;
+            user-select: none;
+            cursor: pointer;
+            touch-action: manipulation;
+            position: relative;
+            min-height: 0;
+            /* In normal mode: overflow-x auto handled by viewport */
+        }
+        /* Infinite string mode */
+        #scoreViewport.infinite-mode {
+            overflow-x: scroll;
+            overflow-y: hidden;
+            touch-action: pan-x;
+            width: 100%;
+            /* Hide native scrollbar — only the sticky proxy scrollbar is shown */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        #scoreViewport.infinite-mode::-webkit-scrollbar { display: none; }
+        #scoreViewport.infinite-mode #paper {
+            overflow: visible;
+            width: max-content;  /* expand to SVG width */
+            height: 100%;
+        }
+        /* Scrollbar proxy in sticky panel */
+        #scoreScrollbarWrap {
+            display: none;
+            width: 100%;
+            overflow-x: scroll;
+            overflow-y: hidden;
+            height: 16px;
+            flex-basis: 100%;
+            flex-shrink: 0;
+            order: -1;   /* sits at top of flex panel */
+        }
+        #scoreScrollbarWrap::-webkit-scrollbar { height: 14px; }
+        #scoreScrollbarWrap::-webkit-scrollbar-track { background: #cfd8dc; border-radius: 7px; }
+        #scoreScrollbarWrap::-webkit-scrollbar-thumb { background: #607d8b; border-radius: 7px; }
+        #scoreScrollbarWrap::-webkit-scrollbar-thumb:hover { background: #37474f; }
+        #scoreScrollbarInner { height: 1px; display: block; }
         
         .selection-box { position: absolute; background: rgba(0, 188, 212, 0.15); border: 1px solid #00bcd4; border-radius: 4px; pointer-events: none; z-index: 10; }
         .incomplete-mark { position: absolute; width: 10px; height: 10px; border-radius: 50%; background-color: #f44336; pointer-events: none; z-index: 5; }
@@ -64,16 +113,16 @@
         .mod-btn.active { background: #00bcd4; color: white; border-color: #008ba3; }
         .control-panel { 
             display: flex; 
+            flex-wrap: wrap;
             gap: 10px; 
-            margin-top: 5px; 
+            margin-top: 0;
             align-items: center; 
-            position: sticky; 
-            bottom: 0; 
             background: #eceff1; 
-            padding: 10px 0; 
-            z-index: 1000; 
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+            padding: 10px 0 6px; 
         }
+        .control-panel-main { flex: 1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        #stickyBottomWrap details { margin: 0; border-radius: 0; overflow: visible; max-height: none; background: #eceff1; box-shadow: none; padding: 0; }
+        #stickyBottomWrap details summary { padding: 4px 10px; font-size: 12px; font-weight: normal; color: #555; line-height: 1.2; }
         .note-panel { flex: 1; }
 
         .symbols-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
@@ -216,7 +265,7 @@
 <body>
 
     <details>
-        <summary>🔧   <sup>inspired by Score Creator </sup>      </summary>
+        <summary>🔧   <sup>Score Settings</sup>      </summary>
         <!-- Row 1: score controls -->
         <div style="margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
             <label>Title: <input type="text" id="title" value="New song" onchange="updateScore()" style="width: 140px;"></label>
@@ -240,6 +289,9 @@
                 <select id="measuresPerLine" onchange="updateScore()">
                     <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option>
                 </select>
+            </label>
+            <label title="Render the entire score on one infinite horizontal line — best for many instruments" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="checkbox" id="infiniteString" onchange="updateScore()"> Infinite string
             </label>
             <label title="In Synchro mode all active channels share the same timeline. Inserting a note in one channel shifts all others forward by the same duration — like a multi-track tape recorder. Without Synchro, each channel is edited independently." style="display:flex;align-items:center;gap:4px;cursor:help;">
                 <input type="checkbox" id="synchroModeCheckbox" onchange="toggleSynchroMode(this.checked)"> Synchro ⓘ
@@ -282,9 +334,17 @@
         </div>
     </details>
 
-    <div id="paper"></div>
+    <div id="scoreViewport">
+        <div id="paper"></div>
+    </div>
 
+    <div id="stickyBottomWrap" style="position:sticky;bottom:0;z-index:1000;background:#eceff1;box-shadow:0 -4px 10px rgba(0,0,0,0.05);overflow:hidden;">
     <div class="control-panel">
+        <!-- Infinite-string horizontal scrollbar (shown only in infinite mode) -->
+        <div id="scoreScrollbarWrap">
+            <div id="scoreScrollbarInner"></div>
+        </div>
+        <div class="control-panel-main" style="display:flex;gap:10px;align-items:center;width:100%;flex-wrap:wrap;">
         <div class="control-grid">
             <button id="chordModeBtn" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
             <button class="control-btn mod-btn" id="btn-vshift" onclick="toggleVShift(this)" title="Select (Shift)">Sel</button>
@@ -427,9 +487,10 @@
                 </div>
             </div>
         </div>
+        </div><!-- end control-panel-main -->
     </div>
 
-    <details style="margin-top: 5px;">
+    <details style="margin-top: 0;">
         <summary>Current measure / selected note (𝄆, 𝆐𝆑...)</summary>
         <div class="section-title">Measure symbols</div>
         <div class="symbols-grid">
@@ -491,6 +552,7 @@
 		
 		
     </details>
+    </div><!-- end stickyBottomWrap -->
 
     <div id="contextMenu" class="context-menu" style="display: none;"></div>
 
@@ -545,6 +607,7 @@
         let loadedInstruments = {}; 
         
         let playbackAnimationId = null;
+        let schedulerIntervalId = null;
         let isCustomPlaying = false;
         let isPreparingPlayback = false;
         let playStartAcTime = 0;
@@ -3074,10 +3137,16 @@ function generateMIDIWithBend() {
                     'mf': 0.7, 'f': 0.8, 'ff': 0.9, 'fff': 1.0
                 };
 
-                for (let note of unrolledTimeline) {
-                    let playTimeAc = playStartAcTime + (note.playStartQ - playBoundaryStart) * secondsPerQuarter;
+                // ── Lookahead scheduler (standard Web Audio pattern) ────────────────
+                // Schedule notes incrementally to avoid browser limits on pending AudioNodes.
+                // Every SCHEDULE_INTERVAL ms we look LOOKAHEAD seconds ahead and schedule
+                // any notes whose playback time falls within that window.
+                const LOOKAHEAD       = 0.4;   // seconds to schedule ahead
+                const SCHEDULE_INTERVAL = 25;  // ms between scheduler ticks
+                let scheduleIdx = 0;            // next unscheduled note index
 
-                    // Shared gain calculation
+                function scheduleNote(note) {
+                    let playTimeAc = playStartAcTime + (note.playStartQ - playBoundaryStart) * secondsPerQuarter;
                     let dynGain = 1.0;
                     for (let a of note.articulations) {
                         if (dynMap[a] !== undefined) { dynGain = dynMap[a]; break; }
@@ -3085,8 +3154,6 @@ function generateMIDIWithBend() {
                     let finalGain = (note.volume / 100) * dynGain;
 
                     if (customSF2Data) {
-                        // ── SF2 path ──
-                        // Convert dynGain (0.2–1.0) to MIDI velocity (0–127) for velocity-layer selection
                         const midiVelocity = Math.round(dynGain * 127);
                         for (let p of note.pitches) {
                             let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
@@ -3097,7 +3164,6 @@ function generateMIDIWithBend() {
                             const sfNode = sf2ScheduleNote(midiNote, note.program, playTimeAc, durSec, finalGain, midiVelocity);
                             if (sfNode) {
                                 activeAudioNodes.push(sfNode);
-                                // Apply pitch bend via playbackRate automation
                                 if (note.bend && sfNode.source) {
                                     const source = sfNode.source;
                                     const base   = sfNode.basePlaybackRate;
@@ -3125,49 +3191,67 @@ function generateMIDIWithBend() {
                             }
                         }
                     } else {
-                    let inst = loadedInstruments[note.program];
-                    if (inst && inst !== "loading") {
-                        for (let p of note.pitches) {
-                            let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
-                            if (midiNote) midiNote += 12;
-                            
-                            if (midiNote) {
-                                let durSeconds = note.duration * secondsPerQuarter;
-                                if (note.articulations.includes('staccato')) durSeconds *= 0.25;
-                                
-                                let audioNode = inst.play(midiNote, playTimeAc, { duration: durSeconds, gain: finalGain });
-                                activeAudioNodes.push(audioNode);
-
-                                if (note.bend && audioNode.source) {
-                                    let source = audioNode.source;
-                                    let points = note.bend.points;
-                                    let maxCents = note.bend.maxCents;
-                                    let startTime = playTimeAc;
-                                    let endTime = playTimeAc + durSeconds;
-                                    source.playbackRate.setValueAtTime(1.0, startTime);
-                                    const fps = 30;
-                                    let totalFrames = Math.max(2, Math.floor(durSeconds * fps));
-                                    for (let i = 0; i <= totalFrames; i++) {
-                                        let progress = i / totalFrames;
-                                        let time = startTime + progress * durSeconds;
-                                        let y = 0.5;
-                                        if (progress <= 0) y = points[0].y;
-                                        else if (progress >= 1) y = points[8].y;
-                                        else {
-                                            let idx = Math.floor(progress * 8);
-                                            let t = (progress * 8) - idx;
-                                            y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
+                        let inst = loadedInstruments[note.program];
+                        if (inst && inst !== "loading") {
+                            for (let p of note.pitches) {
+                                let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                                if (midiNote) midiNote += 12;
+                                if (midiNote) {
+                                    let durSeconds = note.duration * secondsPerQuarter;
+                                    if (note.articulations.includes('staccato')) durSeconds *= 0.25;
+                                    let audioNode = inst.play(midiNote, playTimeAc, { duration: durSeconds, gain: finalGain });
+                                    if (audioNode) activeAudioNodes.push(audioNode);
+                                    if (note.bend && audioNode && audioNode.source) {
+                                        let source = audioNode.source;
+                                        let points = note.bend.points;
+                                        let maxCents = note.bend.maxCents;
+                                        source.playbackRate.setValueAtTime(1.0, playTimeAc);
+                                        const fps = 30;
+                                        let totalFrames = Math.max(2, Math.floor(durSeconds * fps));
+                                        for (let i = 0; i <= totalFrames; i++) {
+                                            let progress = i / totalFrames;
+                                            let time = playTimeAc + progress * durSeconds;
+                                            let y = 0.5;
+                                            if (progress <= 0) y = points[0].y;
+                                            else if (progress >= 1) y = points[8].y;
+                                            else {
+                                                let idx = Math.floor(progress * 8);
+                                                let t = (progress * 8) - idx;
+                                                y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
+                                            }
+                                            let centsOffset = (0.5 - y) * 2 * maxCents;
+                                            source.playbackRate.linearRampToValueAtTime(Math.pow(2, centsOffset / 1200), time);
                                         }
-                                        let centsOffset = (0.5 - y) * 2 * maxCents;
-                                        let playbackRate = Math.pow(2, centsOffset / 1200);
-                                        source.playbackRate.linearRampToValueAtTime(playbackRate, time);
                                     }
                                 }
                             }
                         }
                     }
-                    } // end else (soundfont-player path)
                 }
+
+                function runScheduler() {
+                    if (!isCustomPlaying) return;
+                    let scheduleUntil = audioContext.currentTime + LOOKAHEAD;
+                    while (scheduleIdx < unrolledTimeline.length) {
+                        let note = unrolledTimeline[scheduleIdx];
+                        let noteAcTime = playStartAcTime + (note.playStartQ - playBoundaryStart) * secondsPerQuarter;
+                        if (noteAcTime > scheduleUntil) break;
+                        scheduleNote(note);
+                        scheduleIdx++;
+                    }
+                    // Prune finished nodes to avoid unbounded memory growth
+                    activeAudioNodes = activeAudioNodes.filter(n => {
+                        if (!n) return false;
+                        // gainNode has no playbackState; source nodes do
+                        if (n.context && n.context.state === 'closed') return false;
+                        return true;
+                    });
+                }
+
+                // Run the scheduler immediately (fills the first LOOKAHEAD window),
+                // then keep ticking every SCHEDULE_INTERVAL ms for the rest of the score.
+                runScheduler();
+                schedulerIntervalId = setInterval(runScheduler, SCHEDULE_INTERVAL);
 
                 requestAnimationFrame(() => animateCursor(playBoundaryStart, playBoundaryEnd));
             } catch (err) {
@@ -3262,8 +3346,9 @@ function generateMIDIWithBend() {
 
         function stopCustomPlayback() {
             isCustomPlaying = false; isPreparingPlayback = false;
-            activeAudioNodes.forEach(n => { if(n.stop) n.stop(); });
+            activeAudioNodes.forEach(n => { try { if(n.stop) n.stop(); } catch(e){} });
             activeAudioNodes = [];
+            if (schedulerIntervalId) { clearInterval(schedulerIntervalId); schedulerIntervalId = null; }
             if (playbackAnimationId) cancelAnimationFrame(playbackAnimationId);
             let cursor = document.getElementById("custom-cursor");
             if (cursor) cursor.remove();
@@ -3780,7 +3865,10 @@ function generateMIDIWithBend() {
 
             for (let vKey in voicesMeasures) {
                 let measures = voicesMeasures[vKey];
-                while (measures.length < maxMeasures) measures.push({ items: [], repeat: null, volta: null });
+                while (measures.length < maxMeasures) {
+                    let idx = measures.length;
+                    measures.push({ items: [], repeat: measureRepeats[idx] !== undefined ? measureRepeats[idx] : null, volta: measureVoltas[idx] !== undefined ? measureVoltas[idx] : null });
+                }
             }
 
             // Anacrusis: if pickup set, add %%MIDI barstart and use abc's 'M:' directive
@@ -3982,13 +4070,70 @@ function generateMIDIWithBend() {
                 if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
                 if (n.abcUnits !== undefined && isNaN(n.abcUnits)) n.abcUnits = 1;
             }
-            let paperDiv = document.getElementById('paper');
-            let containerWidth = paperDiv.clientWidth;
-            let padding = 20; 
-            let measuresPerLine = parseInt(document.getElementById('measuresPerLine').value);
-            let options = { responsive: "resize", add_classes: true, staffwidth: containerWidth - padding, scale: 1.0 };
-            if (measuresPerLine > 0) options.wrap = { minSpacing: 0, maxSpacing: 0, preferredMeasuresPerLine: measuresPerLine };
-            ABCJS.renderAbc("paper", window.lastAbcString, options)[0];
+
+            let paperDiv   = document.getElementById('paper');
+            let viewport   = document.getElementById('scoreViewport');
+            let sbWrap     = document.getElementById('scoreScrollbarWrap');
+            let isInfinite = !!(document.getElementById('infiniteString') && document.getElementById('infiniteString').checked);
+            let padding    = 20;
+
+            if (isInfinite) {
+                // ── INFINITE MODE ──────────────────────────────────────────
+                // Render once at large fixed staffwidth — everything on one line
+                let bigWidth = 9000;
+                ABCJS.renderAbc("paper", window.lastAbcString, {
+                    responsive: null,
+                    add_classes: true,
+                    staffwidth: bigWidth,
+                    scale: 1.0,
+                    wrap: { minSpacing: 1, maxSpacing: 1, preferredMeasuresPerLine: 9999 }
+                });
+
+                // Read the height abcjs computed for this single line.
+                // getAttribute('height') is set by abcjs in SVG user-units (≈ px at scale 1.0).
+                // viewBox.height is the canonical content height — we use it as the ground truth.
+                let wideSvg = paperDiv.querySelector('svg');
+                let trueH   = 200;
+                if (wideSvg) {
+                    // viewBox height is the most reliable: it is what abcjs computed before
+                    // any browser scaling, and does not include the proportional extra space
+                    // that getBoundingClientRect() returns when the SVG has responsive sizing.
+                    let vb = wideSvg.viewBox && wideSvg.viewBox.baseVal;
+                    if (vb && vb.height > 10) {
+                        trueH = Math.ceil(vb.height);
+                    } else {
+                        let hAttr = parseFloat(wideSvg.getAttribute('height'));
+                        if (hAttr > 10) trueH = Math.ceil(hAttr);
+                    }
+                    // Lock the SVG to exactly trueH — prevents browser from adding space
+                    wideSvg.style.height = trueH + 'px';
+                    wideSvg.setAttribute('height', String(trueH));
+                }
+
+                // Set viewport height to content height + paper padding only (no extra space)
+                viewport.classList.add('infinite-mode');
+                viewport.style.height = (trueH + 20) + 'px';
+
+                // Show and link the sticky scrollbar
+                setupInfiniteScrollSync(bigWidth);
+
+            } else {
+                // ── NORMAL MODE ─────────────────────────────────────────────
+                // Clean up infinite mode state
+                if (viewport._infCleanup) viewport._infCleanup();
+                viewport.classList.remove('infinite-mode');
+                viewport.style.height = '';
+                paperDiv.style.width  = '';
+                paperDiv.style.height = '';
+                if (sbWrap) sbWrap.style.display = 'none';
+
+                let containerWidth = viewport.clientWidth || (viewport.parentElement || document.body).clientWidth;
+                let opts = { responsive: "resize", add_classes: true, staffwidth: containerWidth - padding, scale: 1.0 };
+                let measuresPerLine = parseInt(document.getElementById('measuresPerLine').value);
+                if (measuresPerLine > 0) opts.wrap = { minSpacing: 0, maxSpacing: 0, preferredMeasuresPerLine: measuresPerLine };
+                ABCJS.renderAbc("paper", window.lastAbcString, opts);
+            }
+
             setTimeout(() => {
                 let annotations = document.querySelectorAll('.abcjs-annotation');
                 console.log('Found annotations:', annotations.length);
@@ -4008,6 +4153,58 @@ function generateMIDIWithBend() {
                 if (sel && hasChange) sel.value = measureKeySigs[curMeas];
                 else if (sel && !hasChange) sel.value = '';
             }
+        }
+
+        // ── Infinite-mode scroll infrastructure ──────────────────────────
+        // #scoreViewport is the clipping scroll container (overflow-x:scroll in infinite mode).
+        // #scoreScrollbarWrap is a proxy scrollbar in the sticky control panel,
+        //   kept in sync so the user can scroll from the panel without reaching up to the score.
+        function setupInfiniteScrollSync(contentWidth) {
+            let viewport = document.getElementById('scoreViewport');
+            let sbWrap   = document.getElementById('scoreScrollbarWrap');
+            let sbInner  = document.getElementById('scoreScrollbarInner');
+            if (!viewport || !sbWrap || !sbInner) return;
+
+            // Clean up any previous listeners
+            if (viewport._infCleanup) viewport._infCleanup();
+
+            // Expand the invisible inner div so sbWrap has something to scroll over
+            sbInner.style.width  = contentWidth + 'px';
+            sbInner.style.height = '1px';
+            sbWrap.style.display = 'block';
+
+            let _sync = false;
+
+            function onViewportScroll() {
+                if (_sync) return; _sync = true;
+                sbWrap.scrollLeft = viewport.scrollLeft;
+                _sync = false;
+            }
+            function onBarScroll() {
+                if (_sync) return; _sync = true;
+                viewport.scrollLeft = sbWrap.scrollLeft;
+                _sync = false;
+            }
+            // Trackpad / mouse horizontal wheel: redirect to viewport, prevent page scroll
+            function onWheel(e) {
+                let dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+                if (Math.abs(dx) > 0) {
+                    e.preventDefault();
+                    viewport.scrollLeft += dx;
+                }
+            }
+
+            viewport.addEventListener('scroll', onViewportScroll, { passive: true });
+            sbWrap.addEventListener('scroll',   onBarScroll,       { passive: true });
+            viewport.addEventListener('wheel',  onWheel,           { passive: false });
+            // Touch: handled natively by touch-action:pan-x on #scoreViewport.infinite-mode
+
+            viewport._infCleanup = function() {
+                viewport.removeEventListener('scroll', onViewportScroll);
+                sbWrap.removeEventListener('scroll',   onBarScroll);
+                viewport.removeEventListener('wheel',  onWheel);
+                viewport._infCleanup = null;
+            };
         }
 
         function highlightIncompleteMeasures() {
@@ -5501,25 +5698,18 @@ document.addEventListener('keydown', function(e) {
   <title>${title}</title>
   <style>
     @media print {
-      @page { margin: 15mm 10mm; }
+      @page { margin: 10mm; size: auto; }
       body { margin: 0; }
-      svg {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-      .abcjs-staff-system, .abcjs-row {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-      div {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
+      svg { page-break-inside: avoid; break-inside: avoid; }
+      .abcjs-staff-system, .abcjs-row { page-break-inside: avoid; break-inside: avoid; }
+      div { page-break-inside: avoid; break-inside: avoid; }
     }
     body { font-family: sans-serif; padding: 10px; background: #fff; }
     svg { max-width: 100%; height: auto; display: block; }
     .abcjs-annotation { fill: #d32f2f; font-size: 20px; font-weight: bold; }
     .selection-box, .incomplete-mark { display: none; }
+    /* Hide instrument name labels in print */
+    .abcjs-staff-name, .abcjs-staff-name-text { display: none !important; }
   </style>
 </head>
 <body>
@@ -5528,6 +5718,16 @@ document.addEventListener('keydown', function(e) {
     window.onload = function() {
       // Remove interactive overlays
       document.querySelectorAll('.selection-box, .incomplete-mark').forEach(el => el.remove());
+      // Shrink instrument name labels — abcjs renders them as <text> elements in the left margin.
+      // They have no dedicated CSS class, so identify them by x position (< 80px from left edge)
+      // and by being direct children of the top-level SVG or a group with no note content.
+      document.querySelectorAll('svg text').forEach(function(t) {
+        var x = parseFloat(t.getAttribute('x') || t.getAttribute('dx') || 0);
+        if (x < 80) {
+          t.style.fontSize = '8px';
+          t.style.fontFamily = 'sans-serif';
+        }
+      });
       // Prevent page breaks inside each staff system (SVG)
       document.querySelectorAll('svg').forEach(function(svg) {
         svg.style.pageBreakInside = 'avoid';
