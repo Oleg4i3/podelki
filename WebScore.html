@@ -4339,11 +4339,123 @@ function generateMIDIWithBend() {
         }
 
         // ==================== VISUAL SELECTION ====================
+        // ── Rubber-band (drag) selection state ──
+        let _dragState = null; // { startX, startY, rubberBand }
+        const DRAG_THRESHOLD = 6; // px before we switch from click to drag
+
         document.getElementById('paper').addEventListener('pointerdown', function(e) {
-            // Right-click (button===2) must NOT change selection — contextmenu handles it
             if (e.button === 2) return;
-            // Save current selection so contextmenu can restore it on mobile long-press
             _savedSelBeforePointerDown = { start: selection.start, end: selection.end, atStart: selectionAtStart };
+            let svg = document.querySelector('#paper svg'); if (!svg) return;
+
+            let paper = document.getElementById('paper');
+            let paperRect = paper.getBoundingClientRect();
+
+            // e.clientX - paperRect.left gives paper content coordinate directly
+            // (getBoundingClientRect already accounts for any parent scroll)
+            _dragState = {
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                startPaperX:  e.clientX - paperRect.left,
+                startPaperY:  e.clientY - paperRect.top,
+                dragging: false,
+                rubberBand: null
+            };
+
+            paper.setPointerCapture(e.pointerId);
+        });
+
+        document.getElementById('paper').addEventListener('pointermove', function(e) {
+            if (!_dragState) return;
+            let dx = e.clientX - _dragState.startClientX;
+            let dy = e.clientY - _dragState.startClientY;
+
+            if (!_dragState.dragging && Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) return;
+
+            if (!_dragState.dragging) {
+                _dragState.dragging = true;
+                let rb = document.createElement('div');
+                rb.id = '_rubberBand';
+                rb.style.cssText = 'position:absolute;background:rgba(0,188,212,0.12);border:1.5px dashed #00bcd4;border-radius:3px;pointer-events:none;z-index:20;';
+                document.getElementById('paper').appendChild(rb);
+                _dragState.rubberBand = rb;
+            }
+
+            let paper = document.getElementById('paper');
+            let paperRect = paper.getBoundingClientRect();
+            let curX = e.clientX - paperRect.left;
+            let curY = e.clientY - paperRect.top;
+            let x0 = Math.min(_dragState.startPaperX, curX);
+            let y0 = Math.min(_dragState.startPaperY, curY);
+            let x1 = Math.max(_dragState.startPaperX, curX);
+            let y1 = Math.max(_dragState.startPaperY, curY);
+
+            let rb = _dragState.rubberBand;
+            rb.style.left   = x0 + 'px';
+            rb.style.top    = y0 + 'px';
+            rb.style.width  = (x1 - x0) + 'px';
+            rb.style.height = (y1 - y0) + 'px';
+        });
+
+        document.getElementById('paper').addEventListener('pointerup', function(e) {
+            if (!_dragState) return;
+            let wasDragging = _dragState.dragging;
+
+            if (_dragState.rubberBand) _dragState.rubberBand.remove();
+
+            if (wasDragging) {
+                // ── Rubber-band selection finalization ──
+                let paper = document.getElementById('paper');
+                let paperRect = paper.getBoundingClientRect();
+                let curX = e.clientX - paperRect.left;
+                let curY = e.clientY - paperRect.top;
+                let rbLeft   = Math.min(_dragState.startPaperX, curX);
+                let rbTop    = Math.min(_dragState.startPaperY, curY);
+                let rbRight  = Math.max(_dragState.startPaperX, curX);
+                let rbBottom = Math.max(_dragState.startPaperY, curY);
+
+                _dragState = null;
+
+                if (!activeTrack) { drawVisualSelection(); return; }
+                let activeKeys = getActiveKeys();
+                let vIdx = activeKeys.indexOf(activeTrack);
+                if (vIdx === -1) { drawVisualSelection(); return; }
+
+                let tNotes = voicesData[activeTrack].notes;
+                let visualToArrayMap = [];
+                for (let i = 0; i < tNotes.length; i++) {
+                    let n = tNotes[i];
+                    if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i);
+                }
+
+                let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+                let hitIndices = [];
+                trackEls.forEach((el, visIdx) => {
+                    let rect = el.getBoundingClientRect();
+                    // Convert to paper coords (same way the rubber-band was drawn)
+                    let elLeft   = rect.left   - paperRect.left;
+                    let elTop    = rect.top    - paperRect.top;
+                    let elRight  = rect.right  - paperRect.left;
+                    let elBottom = rect.bottom - paperRect.top;
+                    let cx = (elLeft + elRight)  / 2;
+                    let cy = (elTop  + elBottom) / 2;
+                    if (cx >= rbLeft && cx <= rbRight && cy >= rbTop && cy <= rbBottom) {
+                        let arrayIdx = visualToArrayMap[visIdx];
+                        if (arrayIdx !== undefined) hitIndices.push(arrayIdx);
+                    }
+                });
+
+                if (hitIndices.length > 0) {
+                    selection.start = Math.min(...hitIndices);
+                    selection.end   = Math.max(...hitIndices);
+                    selectionAtStart = false;
+                }
+                drawVisualSelection();
+                return;
+            }
+
+            // ── Normal click logic ──
+            _dragState = null;
             let svg = document.querySelector('#paper svg'); if (!svg) return;
             let elements = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest, .abcjs-clef, .abcjs-time-signature, .abcjs-key-signature'));
             if (elements.length === 0) return;
@@ -4396,6 +4508,11 @@ function generateMIDIWithBend() {
             } else { clearSelection(); drawVisualSelection(); }
         });
 
+        document.getElementById('paper').addEventListener('pointercancel', function(e) {
+            if (_dragState && _dragState.rubberBand) _dragState.rubberBand.remove();
+            _dragState = null;
+        });
+
         function drawVisualSelection() {
             document.querySelectorAll('.selection-box').forEach(el => el.remove());
             let allNotes = Array.from(document.querySelectorAll('.abcjs-note, .abcjs-rest'));
@@ -4420,6 +4537,7 @@ function generateMIDIWithBend() {
                         box.style.top = top + 'px'; box.style.left = left + 'px';
                         box.style.width = (rect.width + 10) + 'px'; box.style.height = (rect.height + 10) + 'px';
                         paper.appendChild(box);
+                        scrollToActiveSelection();
                         return;
                     }
                 }
@@ -4446,6 +4564,36 @@ function generateMIDIWithBend() {
                     box.style.width = (rect.width + 10) + 'px'; box.style.height = (rect.height + 10) + 'px';
                     paper.appendChild(box);
                 }
+            }
+            scrollToActiveSelection();
+        }
+
+        // Auto-scroll viewport in infinite mode so the active selection stays visible
+        function scrollToActiveSelection() {
+            let isInfinite = !!(document.getElementById('infiniteString') && document.getElementById('infiniteString').checked);
+            if (!isInfinite) return;
+            let viewport = document.getElementById('scoreViewport');
+            if (!viewport) return;
+            let boxes = document.querySelectorAll('#paper .selection-box');
+            if (boxes.length === 0) return;
+            let leftmost = Infinity, rightmost = -Infinity;
+            boxes.forEach(box => {
+                let l = parseFloat(box.style.left) || 0;
+                let w = parseFloat(box.style.width) || 0;
+                leftmost  = Math.min(leftmost, l);
+                rightmost = Math.max(rightmost, l + w);
+            });
+            // Add paper's own padding offset (10px)
+            let paperPad = 10;
+            leftmost  += paperPad;
+            rightmost += paperPad;
+            let vpWidth   = viewport.clientWidth;
+            let scrollNow = viewport.scrollLeft;
+            let margin    = 60; // pixels of breathing room
+            if (rightmost > scrollNow + vpWidth - margin) {
+                viewport.scrollLeft = rightmost - vpWidth + margin;
+            } else if (leftmost < scrollNow + margin) {
+                viewport.scrollLeft = Math.max(0, leftmost - margin);
             }
         }
 
