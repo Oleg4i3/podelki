@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Physics Simulator | Симулятор фізики хвиль</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* Left Control Panel */
+        #ui-container {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            width: 220px; max-height: 95vh; overflow-y: auto;
+            background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(5px);
+            padding: 15px; border-radius: 8px; border: 1px solid #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* Right Description Box */
+        #desc-container {
+            position: absolute; top: 10px; right: 10px; z-index: 10;
+            width: 330px; max-height: 90vh; overflow-y: auto;
+            background: rgba(5, 15, 30, 0.52); backdrop-filter: blur(8px);
+            padding: 14px; border-radius: 8px; border: 1px solid rgba(0,86,179,0.5);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); font-size: 0.88rem; line-height: 1.55;
+        }
+        #desc-title { display: none; }
+        .warning { color: #ff6666; font-weight: bold; margin-top: 8px; display: block; }
+        .example { color: #f0c040; font-size: 0.82rem; margin-top: 7px; display: block; border-left: 2px solid rgba(240,192,64,0.3); padding-left: 7px; }
+        .note { color: #88ccff; font-size: 0.81rem; margin-top: 6px; display: block; font-style: italic; }
+        #desc-content b { color: #7dd4fc; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 15px; }
+        h1 { font-size: 1.2rem; margin: 0; }
+        
+        .lang-switch button { background: #333; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 0.8rem; }
+        .lang-switch button.active { background: #007bff; }
+
+        .tabs { display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; }
+        .tab-btn { background: #2a2a2a; color: #ccc; border: 1px solid #444; padding: 8px; cursor: pointer; text-align: left; border-radius: 4px; transition: 0.2s; }
+        .tab-btn:hover { background: #3a3a3a; }
+        .tab-btn.active { background: #007bff; color: white; border-color: #0056b3; }
+
+        .control-group { margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px; color: #ddd; align-items: center; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00aaff; }
+        
+        .check-container { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; color: #ddd; margin-top: 5px;}
+        .check-container input { cursor: pointer; width: 16px; height: 16px; accent-color: #00ff00; margin: 0;}
+
+        .legend { font-size: 0.8rem; margin-top: 10px; line-height: 1.5; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 4px;}
+        .color-box { display: inline-block; width: 12px; height: 12px; margin-right: 5px; vertical-align: middle; border-radius: 2px; }
+
+        /* Density Graph overlay - Moved to bottom, spans full width */
+        #density-graph-container {
+            display: none; position: fixed; bottom: 0; left: 0; z-index: 5;
+            width: 100vw; height: 15vh; background: rgba(0,0,0,0.6); 
+            border-top: 1px solid #444; padding: 0;
+        }
+        #density-canvas { width: 100%; height: 100%; display: block; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div class="header">
+            <h1 data-key="title">Фізика Хвиль</h1>
+            <div class="lang-switch">
+                <button onclick="setLang('uk')" id="btn-uk" class="active">UK</button>
+                <button onclick="setLang('en')" id="btn-en">EN</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="setMode(1)" data-key="tab1">1. Базові хвилі</button>
+            <button class="tab-btn" onclick="setMode(2)" data-key="tab2">2а. Відбиття</button>
+            <button class="tab-btn" onclick="setMode(3)" data-key="tab3">2б. Поляризація</button>
+            <button class="tab-btn" onclick="setMode(4)" data-key="tab4">2в. Обертання площини</button>
+        </div>
+
+        <div class="control-group">
+            <label><span data-key="amplitude">Амплітуда (A)</span> <span id="val-amp">1.0</span></label>
+            <input type="range" id="sl-amp" min="0.1" max="4" step="0.1" value="1.0">
+            
+            <label><span data-key="wavelength">Довжина хвилі (λ)</span> <span id="val-lambda">9.0</span></label>
+            <input type="range" id="sl-lambda" min="1" max="20" step="0.5" value="9.0">
+            
+            <label><span data-key="animSpeed">Швидкість анімації</span> <span id="val-anim">5.0</span></label>
+            <input type="range" id="sl-anim" min="0" max="10" step="0.1" value="5.0">
+            
+            <div id="controls-scene1" style="display: block; margin-top: 10px; border-top: 1px solid #444; padding-top: 5px;">
+                <label class="check-container">
+                    <input type="checkbox" id="chk-density" onchange="toggleDensityGraph(this.checked)">
+                    <span data-key="showDensity">Графік розподілу щільності</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="controls-reflection" class="control-group" style="display: none;">
+            <label><span data-key="reflAmp">Ампл. відбитої</span> <span id="val-refl">1.5</span></label>
+            <input type="range" id="sl-refl" min="0" max="4" step="0.1" value="1.5">
+        </div>
+
+        <div id="controls-mode4" class="control-group" style="display: none;">
+            <label class="check-container">
+                <input type="checkbox" id="chk-samedir" onchange="toggleSameDir(this.checked)">
+                <span data-key="sameDirLabel">Змінити напрям поширення</span>
+            </label>
+            <label class="check-container" style="margin-top: 8px;">
+                <input type="checkbox" id="chk-fliphelicity" onchange="toggleFlipHelicity(this.checked)">
+                <span data-key="flipHelicityLabel">Змінити напрямок обертання 2-ї хвилі</span>
+            </label>
+        </div>
+
+        <div id="controls-polarization" class="control-group" style="display: none;">
+            <label><span data-key="phaseShift">Зсув фаз (Δφ)</span> <span id="val-phase">90</span>°</label>
+            <input type="range" id="sl-phase" min="0" max="360" step="1" value="90">
+            
+            <label><span data-key="polAngle">Кут площин (θ)</span> <span id="val-angle">90</span>°</label>
+            <input type="range" id="sl-angle" min="0" max="90" step="1" value="90">
+        </div>
+
+        <div class="legend" id="legend-container"></div>
+    </div>
+
+    <div id="desc-container">
+        <h3 id="desc-title">Опис</h3>
+        <div id="desc-content"></div>
+    </div>
+    
+    <div id="density-graph-container">
+        <canvas id="density-canvas"></canvas>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Defaults ---
+        const defaults = {
+            1: { amp: 1.0, lambda: 9.0,  animSpeed: 5.0, reflAmp: 0, phaseShift: 0, polAngle: 0 },
+            2: { amp: 1.5, lambda: 9.0,  animSpeed: 5.0, reflAmp: 1.5, phaseShift: 0, polAngle: 0 },
+            3: { amp: 3.0, lambda: 6.3,  animSpeed: 1.0, reflAmp: 0, phaseShift: 90 * Math.PI/180, polAngle: 90 * Math.PI/180 },
+            4: { amp: 1.0, lambda: 6.3,  animSpeed: 2.5, reflAmp: 1.0, phaseShift: 0, polAngle: 0, sameDirMode4: false, flipHelicityMode4: true }
+        };
+
+        const params = { mode: 1, ...defaults[1], showDensity: false, sameDirMode4: false, flipHelicityMode4: true };
+        let time = 0;
+
+        // --- Localization ---
+        const dict = {
+            uk: {
+                title: "Фізика Хвиль",
+                tab1: "1. Базові хвилі", tab2: "2а. Відбиття", tab3: "2б. Поляризація", tab4: "2в. Обертання площини",
+                amplitude: "Амплітуда (A)", wavelength: "Довжина хвилі (λ)", animSpeed: "Швидкість анімації",
+                reflAmp: "Ампл. відбитої", phaseShift: "Зсув фаз (Δφ)", polAngle: "Кут площин (θ)",
+                showDensity: "Графік розподілу щільності",
+                leg1: "<span class='color-box' style='background:#00aaff'></span> Поперечна<br><span class='color-box' style='background:#ff0000'></span> Плоский шар<br><span class='color-box' style='background:#aaaaaa'></span> Повздовжна",
+                leg2: "<span class='color-box' style='background:#00aaff'></span> Пряма<br><span class='color-box' style='background:#ff0055'></span> Відбита<br><span class='color-box' style='background:#00ff00'></span> Сума",
+                leg3: "<span class='color-box' style='background:#00aaff'></span> Хвиля 1<br><span class='color-box' style='background:#ff0055'></span> Хвиля 2<br><span class='color-box' style='background:#00ff00'></span> Сумарний вектор",
+                leg4: "<span class='color-box' style='background:#00aaff'></span> Права кругова (пряма)<br><span id='leg4-second-uk'></span><span class='color-box' style='background:#ff0055'></span> <span id='leg4-second-label-uk'>Ліва кругова</span><br><span class='color-box' style='background:#00ff00'></span> Результуюча",
+                sameDirLabel: "Змінити напрям поширення 2-ї хвилі",
+                flipHelicityLabel: "Змінити напрямок обертання 2-ї хвилі",
+                
+                desc_title: "Аналіз сцени",
+
+                d1_lin: `<b>Поперечна хвиля</b> — частинки коливаються <i>перпендикулярно</i> до напрямку поширення. Відновлювальна сила — пружність форми.<br>
+<span class='example'>🎸 Струна гітари, хвилі на воді, світло (ЕМ-хвиля).</span>
+<hr style='border-color:#333;margin:8px 0'>
+<b>Поздовжня хвиля</b> — частинки коливаються <i>вздовж</i> напрямку поширення: зони стиснення ↔ розрідження. Відновлювальна сила — пружність об'єму.<br>
+<span class='example'>🔊 Звук у повітрі/воді, сейсмічні P-хвилі, ультразвук у металі.</span>
+<span class='note'>Ключова різниця: поперечні хвилі можуть бути поляризованими — поздовжні ні.</span>`,
+
+                d1_nonlin: `<span class='warning'>НЕЛІНІЙНІ ЕФЕКТИ (лише поздовжня хвиля):</span>
+При великій амплітуді kA≳1 швидкість звуку залежить від <b>місцевої густини</b>. У зонах стиснення газ нагрівається → швидкість зростає. У зонах розрідження — охолоджується → сповільнюється. Фронт стиснення загострюється.
+<span class='example'>🌩️ Ударна хвиля від вибуху або надзвукового літака. Прибій океанських хвиль на мілководді. Хмарна камера при проходженні частинок.</span>
+<span class='note'>Поперечна хвиля (струна) залишається синусоїдальною навіть при великих амплітудах — геометрична нелінійність інша.</span>`,
+
+                d2_traveling: `<b>Біжуча хвиля</b> — енергія переноситься в одному напрямку, відбиття відсутнє.
+<br>E = A·sin(kx − ωt)
+<span class='example'>🔊 Звук від колонки у відкритому просторі. Світло від лазера в безеховій кімнаті. Хвиля на нескінченному шнурі.</span>`,
+
+                d2_mixed: `<b>Змішана хвиля</b>: A_відб({refl}) ≠ A_пряма({amp}).
+<br>Часткове відбиття: хвиля є сумою стоячої та біжучої компонент.
+<span class='example'>📡 Звук у напівзаглушеній кімнаті. Світло на межі скло–повітря під малим кутом (часткове відбиття ~4%). Вихід звуку з відкритого кінця труби органу.</span>`,
+
+                d2_standing: `<b>Чиста стояча хвиля</b> — суперпозиція двох рівних за амплітудою хвиль у протилежних напрямках.
+<br>E = 2A·sin(kx)·cos(ωt)
+<br>Вузли (E=0 завжди) і пучності (E=max) нерухомі. Середня перенесена потужність = 0.
+<span class='example'>🎻 Струна скрипки між двома закріпленими кінцями. Звук в органній трубі (відкрита/закрита). Мікрохвилі у прямокутному резонаторі. Лазерна порожнина між двома дзеркалами.</span>
+<span class='note'>Формування: пряма хвиля відбивається від жорсткої стінки з фазовим зсувом π, повертається назустріч — суперпозиція дає вузли і пучності.</span>`,
+
+                d3_lin: `<b>Лінійна поляризація</b> — вектор E коливається вздовж однієї фіксованої прямої. Зсув фаз Δφ=0° або 180°, або кут між площинами θ=0°.
+<span class='example'>💡 Світло після поляроїдного фільтра (сонцезахисні окуляри). Антена Wi-Fi (вертикальна або горизонтальна). Відбите від дороги світло (причина бліків).</span>`,
+
+                d3_circ: `<b>Кругова поляризація</b> — дві рівні лінійно поляризовані хвилі у перпендикулярних площинах із зсувом фаз Δφ=±90°. Вектор E описує гвинтову лінію в просторі.
+<br>E = A·[cos(kx−ωt)ŷ ± sin(kx−ωt)ẑ]
+<span class='example'>📡 Антени супутникового зв'язку (нечутливі до орієнтації). 3D-кінотеатри (RealD — RЛRЛ-фільтри). Циркулярний дихроїзм у хімії — хіральні молекули по-різному поглинають R/L. GPS-антени.</span>
+<span class='note'>Формування: пластинка λ/4 зсуває фазу однієї компоненти лінійно поляризованого світла на 90°, перетворюючи лінійну поляризацію на кругову.</span>`,
+
+                d3_ellip: `<b>Еліптична поляризація</b> (Δφ={phase}°, θ={angle}°) — загальний випадок: різні амплітуди або довільний зсув фаз. Вектор E описує еліпс.
+<span class='example'>🔬 Еліпсометрія — вимірювання товщини плівок на напівпровідниках (нм-точність). Відбите від поверхні світло при довільному куті. Пластинки λ/8 дають еліптичну поляризацію.</span>`,
+
+                d4_00: `<b>Просторово-гелікоїдальна стояча хвиля</b> — R(+x) та L(−x) з однаковим абсолютним напрямком обертання:
+<br><b>E = 2A·cos(ωt)·[cos(kx)ŷ + sin(kx)ẑ]</b>
+<br>У кожній точці x вектор коливається лінійно вздовж фіксованого напрямку, але цей напрям «вкручений» у просторі. Це <i>не</i> обертання в часі.
+<span class='note'>⚠️ Фізична реалізація: вимагає двох незалежних когерентних джерел — R-кругову зліва і L-кругову справа. Від простого відбиття НЕ виникає (відбиття змінює хіральність). Можлива у волоконній оптиці зі спеціальним збудженням мод.</span>`,
+
+                d4_00_asym: `<b>Несиметрична просторова гелікоїда</b> (A={amp}, A_відб={refl}):
+<br>Чиста лінійна поляризація в кожній точці розмивається в еліпс. Огинаюча хвиля рухається вздовж x — суміш стоячої та біжучої.
+<span class='note'>⚠️ Так само потребує двох незалежних джерел з різними амплітудами. Не є результатом відбиття.</span>`,
+
+                d4_01: `<b>Обертання площини поляризації (відбиття від металу)</b>:
+<br>R-кругова відбивається від ідеального провідника: напрям поширення міняється, але абсолютне обертання E-поля зберігається → відносно нового напряму хвиля стає L-круговою.
+<br><b>E = 2A·cos(kx)·[cos(ωt)ŷ − sin(ωt)ẑ]</b>
+<br>Площина поляризації обертається <i>в часі</i> з кутовою швидкістю ω. Вузли при cos(kx)=0.
+<span class='example'>🔮 Ефект Фарадея: магнітне поле у склі обертає площину поляризації (магнітооптична ізоляція лазерів). Відбиття кругово поляризованого радару від металевого об'єкта — зміна хіральності дозволяє відрізняти прямий сигнал від відбитого.</span>
+<span class='note'>Відбиття від діелектрика (n₂&gt;n₁): аналогічно, але амплітуда відбитої менша. При n₂&lt;n₁ (TIR) — додатковий фазовий зсув, поляризація може не зберігатися як кругова.</span>`,
+
+                d4_01_asym: `<b>Еліптично поляризована стояча хвиля</b> (A={amp} ≠ A_відб={refl}):
+<br>Неповне відбиття (наприклад, від межі з діелектриком). Кругова поляризація стає еліптичною. Вузли збереглися при cos(kx)=0, в пучностях — еліпс.
+<span class='example'>🔭 Відбиття від поверхні скла (~4% за законом Френеля): вектор у пучностях описує еліпс. Принцип роботи еліпсометра.</span>`,
+
+                d4_10: `<b>Лінійно поляризована біжуча хвиля</b>:
+<br>R(+x) + L(+x) — z-компоненти гасяться, y — подвоюються:
+<br><b>E = 2A·cos(kx−ωt)·ŷ</b>
+<span class='example'>💡 Пластинка λ/4 + лінійний поляризатор перетворює кругову назад на лінійну (принцип роботи антиблікових фільтрів камер). Декомпозиція лінійно поляризованого світла на R+L — основа опису оптичної активності хіральних молекул (цукор, амінокислоти).</span>`,
+
+                d4_10_asym: `<b>Еліптично поляризована біжуча хвиля</b> (A={amp} ≠ A_відб={refl}):
+<br><b>E = ({amp}+{refl})cos(kx−ωt)·ŷ + ({amp}−{refl})sin(kx−ωt)·ẑ</b>
+<span class='example'>🔬 Часткове проходження крізь пластинку λ/4 (з поглинанням або відбиттям). Відбите від оптично активного середовища світло. Еліпсометрія тонких плівок.</span>`,
+
+                d4_11: `<b>Кругово поляризована біжуча хвиля подвійної амплітуди</b>:
+<br>R(+x) + R(+x) — обидві компоненти складаються:
+<br><b>E = {sum}·[cos(kx−ωt)ŷ + sin(kx−ωt)ẑ]</b>
+<span class='example'>📡 Два синфазних кругових джерела дають вдвічі інтенсивніший сигнал (використовується в фазованих антенних решітках). Підсилення кругово поляризованого лазерного пучка.</span>`,
+            },
+            en: {
+                title: "Wave Physics",
+                tab1: "1. Base Waves", tab2: "2a. Reflection", tab3: "2b. Polarization", tab4: "2c. Rotating Plane",
+                amplitude: "Amplitude (A)", wavelength: "Wavelength (λ)", animSpeed: "Anim Speed",
+                reflAmp: "Refl. Amp", phaseShift: "Phase Shift (Δφ)", polAngle: "Plane Angle (θ)",
+                showDensity: "Show density distribution graph",
+                leg1: "<span class='color-box' style='background:#00aaff'></span> Transverse<br><span class='color-box' style='background:#ff0000'></span> Highlighted Layer<br><span class='color-box' style='background:#aaaaaa'></span> Longitudinal",
+                leg2: "<span class='color-box' style='background:#00aaff'></span> Forward<br><span class='color-box' style='background:#ff0055'></span> Reflected<br><span class='color-box' style='background:#00ff00'></span> Sum",
+                leg3: "<span class='color-box' style='background:#00aaff'></span> Wave 1<br><span class='color-box' style='background:#ff0055'></span> Wave 2<br><span class='color-box' style='background:#00ff00'></span> Sum Vector",
+                leg4: "<span class='color-box' style='background:#00aaff'></span> R-circular (forward)<br><span class='color-box' style='background:#ff0055'></span> <span id='leg4-second-label-en'>L-circular</span><br><span class='color-box' style='background:#00ff00'></span> Resultant",
+                sameDirLabel: "Reverse 2nd wave direction",
+                flipHelicityLabel: "Flip 2nd wave rotation direction",
+                
+                desc_title: "Scene Analysis",
+
+                d1_lin: `<b>Transverse wave</b> — particles oscillate <i>perpendicular</i> to propagation. Restoring force: shear/tension elasticity.<br>
+<span class='example'>🎸 Guitar string, water surface waves, light (EM wave).</span>
+<hr style='border-color:#333;margin:8px 0'>
+<b>Longitudinal wave</b> — particles oscillate <i>along</i> propagation: compression ↔ rarefaction zones. Restoring force: bulk elasticity.<br>
+<span class='example'>🔊 Sound in air/water, seismic P-waves, ultrasound in metal.</span>
+<span class='note'>Key distinction: transverse waves can be polarized — longitudinal ones cannot.</span>`,
+
+                d1_nonlin: `<span class='warning'>NON-LINEAR EFFECTS (longitudinal wave only):</span>
+At large amplitude kA≳1, sound speed depends on <b>local density</b>. In compression zones gas heats → speed increases. In rarefaction → cools → slows. Compression front steepens into a shock.
+<span class='example'>🌩️ Shock wave from explosion or supersonic aircraft. Ocean waves steepening in shallow water (surfing!). Sonic boom.</span>
+<span class='note'>Transverse waves (strings) remain sinusoidal even at large amplitudes — geometric nonlinearity is different in nature.</span>`,
+
+                d2_traveling: `<b>Traveling wave</b> — energy propagates in one direction, no reflection.
+<br>E = A·sin(kx − ωt)
+<span class='example'>🔊 Sound from a speaker in open space. Laser beam in an anechoic room. Wave on an infinite rope.</span>`,
+
+                d2_mixed: `<b>Mixed wave</b>: A_refl({refl}) ≠ A_fwd({amp}).
+<br>Partial reflection: wave is a superposition of traveling and standing components.
+<span class='example'>📡 Sound in a semi-anechoic room. Light at glass–air interface at small angle (~4% Fresnel reflection). Sound from an open organ pipe end.</span>`,
+
+                d2_standing: `<b>Pure standing wave</b> — superposition of two equal-amplitude waves in opposite directions.
+<br>E = 2A·sin(kx)·cos(ωt)
+<br>Nodes (E=0 always) and antinodes are fixed in space. Net energy transfer = 0.
+<span class='example'>🎻 Violin string between two fixed ends. Organ pipe (open/closed). Microwave in a rectangular cavity. Laser cavity between two mirrors.</span>
+<span class='note'>Formation: forward wave reflects from a rigid wall with phase shift π, returns counter-propagating — superposition creates fixed nodes and antinodes.</span>`,
+
+                d3_lin: `<b>Linear polarization</b> — E vector oscillates along one fixed line. Phase shift Δφ=0° or 180°, or plane angle θ=0°.
+<span class='example'>💡 Light after a polaroid filter (sunglasses). Wi-Fi antenna (vertical or horizontal). Road glare is linearly polarized — polarized glasses cut it.</span>`,
+
+                d3_circ: `<b>Circular polarization</b> — two equal linearly polarized waves in perpendicular planes with Δφ=±90°. E vector traces a helix in space.
+<br>E = A·[cos(kx−ωt)ŷ ± sin(kx−ωt)ẑ]
+<span class='example'>📡 Satellite dish antennas (orientation-independent). 3D cinema (RealD — alternating R/L filters). Circular dichroism in chemistry — chiral molecules absorb R vs L differently. GPS antennas.</span>
+<span class='note'>Formation: a quarter-wave plate (λ/4) shifts one component of linearly polarized light by 90°, converting linear → circular polarization.</span>`,
+
+                d3_ellip: `<b>Elliptical polarization</b> (Δφ={phase}°, θ={angle}°) — general case: unequal amplitudes or arbitrary phase shift. E vector traces an ellipse.
+<span class='example'>🔬 Ellipsometry: measures thin-film thickness on semiconductors (nm precision). Reflected light at arbitrary angle of incidence. A λ/8 plate produces elliptical polarization.</span>`,
+
+                d4_00: `<b>Spatial-helicoidal standing wave</b> — R(+x) and L(−x) with the same absolute rotation sense:
+<br><b>E = 2A·cos(ωt)·[cos(kx)ŷ + sin(kx)ẑ]</b>
+<br>At each point x the vector oscillates linearly along a fixed direction, but that direction twists helically in space. This is <i>not</i> time-rotation.
+<span class='note'>⚠️ Physical realization: requires two independent coherent sources — R-circular from the left and L-circular from the right. Does NOT arise from simple reflection (which flips helicity). Possible in fiber optics with specially excited modes.</span>`,
+
+                d4_00_asym: `<b>Asymmetric spatial helix</b> (A={amp}, A_refl={refl}):
+<br>Pure linear polarization at each point blurs into an ellipse. The envelope wave drifts along x — mix of standing and traveling.
+<span class='note'>⚠️ Equally requires two independent sources with different amplitudes. Not a result of reflection.</span>`,
+
+                d4_01: `<b>Rotating polarization plane (reflection from metal)</b>:
+<br>R-circular reflects from a perfect conductor: propagation reverses, but absolute rotation of E is preserved → relative to new direction the wave becomes L-circular.
+<br><b>E = 2A·cos(kx)·[cos(ωt)ŷ − sin(ωt)ẑ]</b>
+<br>Polarization plane rotates <i>in time</i> at angular velocity ω. Nodes at cos(kx)=0.
+<span class='example'>🔮 Faraday effect: magnetic field in glass rotates polarization plane (used in laser isolators). Circularly polarized radar reflecting off a metal target — helicity flip lets you distinguish direct from reflected signal.</span>
+<span class='note'>Reflection from dielectric (n₂&gt;n₁): same helicity flip but amplitude reduced by Fresnel coefficient. At n₂&lt;n₁ (TIR): additional phase shifts, polarization may not remain purely circular.</span>`,
+
+                d4_01_asym: `<b>Elliptically polarized standing wave</b> (A={amp} ≠ A_refl={refl}):
+<br>Partial reflection (e.g., from a dielectric surface). Circular becomes elliptical. Nodes preserved at cos(kx)=0; at antinodes the vector traces an ellipse.
+<span class='example'>🔭 Reflection from glass (~4% by Fresnel): vector at antinodes traces an ellipse. Principle of ellipsometry.</span>`,
+
+                d4_10: `<b>Linearly polarized traveling wave</b>:
+<br>R(+x) + L(+x) — z-components cancel, y-components double:
+<br><b>E = 2A·cos(kx−ωt)·ŷ</b>
+<span class='example'>💡 λ/4 plate + linear polarizer converts circular back to linear (anti-reflection camera filters). Decomposing linearly polarized light into R+L is the basis for describing optical rotation in chiral molecules (sugars, amino acids).</span>`,
+
+                d4_10_asym: `<b>Elliptically polarized traveling wave</b> (A={amp} ≠ A_refl={refl}):
+<br><b>E = ({amp}+{refl})cos(kx−ωt)·ŷ + ({amp}−{refl})sin(kx−ωt)·ẑ</b>
+<span class='example'>🔬 Partial transmission through a λ/4 plate (with absorption or reflection). Light reflected from an optically active medium. Thin-film ellipsometry.</span>`,
+
+                d4_11: `<b>Circularly polarized traveling wave (double amplitude)</b>:
+<br>R(+x) + R(+x) — both components add coherently:
+<br><b>E = {sum}·[cos(kx−ωt)ŷ + sin(kx−ωt)ẑ]</b>
+<span class='example'>📡 Two in-phase circular sources produce double-amplitude signal (phased antenna arrays). Amplification of a circularly polarized laser beam.</span>`,
+            }
+        };
+
+        let currentLang = 'uk';
+        
+        // --- Setup Three.js ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0x111111);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 10, 20);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x222222); gridHelper.position.y = -5; scene.add(gridHelper);
+        const axesHelper = new THREE.AxesHelper(2); axesHelper.position.set(-10, 0, 0); scene.add(axesHelper);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.position.set(10, 20, 10); scene.add(dirLight);
+
+        function createThickArrow(colorHex) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshPhongMaterial({ color: colorHex, shininess: 50 });
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 12).translate(0, 0.5, 0), mat);
+            const head = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 12).translate(0, 0.35, 0), mat);
+            group.add(shaft); group.add(head);
+            group.setDirectionAndLength = function(dirVec, length) {
+                if (length < 0.05) { this.visible = false; return; }
+                this.visible = true;
+                this.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dirVec);
+                let headLen = Math.min(0.7, length * 0.4);
+                let shaftLen = Math.max(0.01, length - headLen);
+                shaft.scale.set(1, shaftLen, 1); head.scale.set(1, headLen / 0.7, 1); head.position.set(0, shaftLen, 0);
+            };
+            return group;
+        }
+
+        const numPoints = 500; const xStart = -15, xEnd = 15; const dx = (xEnd - xStart) / numPoints;
+        const matTrans = new THREE.LineBasicMaterial({ color: 0x00aaff, linewidth: 2 });
+        const matRefl = new THREE.LineBasicMaterial({ color: 0xff0055, linewidth: 2 });
+        const matSum = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+        
+        let sceneObjects = [];
+        function clearScene() { sceneObjects.forEach(obj => scene.remove(obj)); sceneObjects = []; }
+
+        // --- Init Modes ---
+        let transLine, transMarker, longParticles, basePositions, currentDensityArray;
+        function initMode1() {
+            const geoTrans = new THREE.BufferGeometry();
+            geoTrans.setAttribute('position', new THREE.BufferAttribute(new Float32Array(numPoints * 3), 3));
+            transLine = new THREE.Line(geoTrans, matTrans); scene.add(transLine); sceneObjects.push(transLine);
+
+            transMarker = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+            scene.add(transMarker); sceneObjects.push(transMarker);
+
+            const numParticlesX = 120; 
+            const numParticlesYZ = 20;  
+            const numParticles = numParticlesX * numParticlesYZ;
+            
+            basePositions = new Float32Array(numParticles * 3);
+            const particleColors = new Float32Array(numParticles * 3);
+            currentDensityArray = new Float32Array(numParticlesX); 
+
+            let idx = 0;
+            const stepX = (xEnd - xStart) / numParticlesX;
+            for (let i = 0; i < numParticlesX; i++) {
+                let x0 = xStart + i * stepX;
+                for (let j = 0; j < numParticlesYZ; j++) {
+                    let r = Math.sqrt(Math.random()) * 1.5; 
+                    let theta = Math.random() * Math.PI * 2;
+                    let y0 = -4 + r * Math.cos(theta); 
+                    let z0 = r * Math.sin(theta);
+                    
+                    basePositions[idx*3] = x0; basePositions[idx*3+1] = y0; basePositions[idx*3+2] = z0;
+                    
+                    if (x0 > -0.2 && x0 < 0.2) { particleColors[idx*3]=1; particleColors[idx*3+1]=0; particleColors[idx*3+2]=0; } 
+                    else { particleColors[idx*3]=0.6; particleColors[idx*3+1]=0.6; particleColors[idx*3+2]=0.6; }
+                    idx++;
+                }
+            }
+            const geoLong = new THREE.BufferGeometry();
+            geoLong.setAttribute('position', new THREE.BufferAttribute(new Float32Array(numParticles * 3), 3));
+            geoLong.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+            longParticles = new THREE.Points(geoLong, new THREE.PointsMaterial({ size: 0.15, vertexColors: true }));
+            scene.add(longParticles); sceneObjects.push(longParticles);
+        }
+
+        let lineFwd, lineBwd, lineSum;
+        function initMode2() {
+            lineFwd = new THREE.Line(new THREE.BufferGeometry(), matTrans); lineBwd = new THREE.Line(new THREE.BufferGeometry(), matRefl); lineSum = new THREE.Line(new THREE.BufferGeometry(), matSum);
+            [lineFwd, lineBwd, lineSum].forEach(l => {
+                l.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(numPoints*3), 3));
+                scene.add(l); sceneObjects.push(l);
+            });
+        }
+
+        let lineY, lineRot, linePolSum, arrY, arrRot, arrSum;
+        function initMode3() {
+            lineY = new THREE.Line(new THREE.BufferGeometry(), matTrans); lineRot = new THREE.Line(new THREE.BufferGeometry(), matRefl); linePolSum = new THREE.Line(new THREE.BufferGeometry(), matSum);
+            [lineY, lineRot, linePolSum].forEach(l => {
+                l.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(numPoints*3), 3));
+                scene.add(l); sceneObjects.push(l);
+            });
+            arrY = createThickArrow(0x00aaff); arrRot = createThickArrow(0xff0055); arrSum = createThickArrow(0x00ff00);
+            [arrY, arrRot, arrSum].forEach(a => { scene.add(a); sceneObjects.push(a); });
+        }
+
+        let lineFwdCirc, lineBwdCirc, lineCircSum;
+        function initMode4() {
+            lineFwdCirc = new THREE.Line(new THREE.BufferGeometry(), matTrans); lineBwdCirc = new THREE.Line(new THREE.BufferGeometry(), matRefl); lineCircSum = new THREE.Line(new THREE.BufferGeometry(), matSum);
+            [lineFwdCirc, lineBwdCirc, lineCircSum].forEach(l => {
+                l.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(numPoints*3), 3));
+                scene.add(l); sceneObjects.push(l);
+            });
+        }
+
+        // --- Updates ---
+        function updateMode1() {
+            const k = 2*Math.PI / params.lambda, w = k, A = params.amp;
+            const kA = k * A;
+
+            const posT = transLine.geometry.attributes.position.array;
+            let markerX = 0, markerY = 0;
+            for(let i=0; i<numPoints; i++) {
+                let x = xStart + i*dx; 
+                // Візуально збільшуємо масштаб поперечної хвилі, щоб при A=0.5 було добре видно
+                let y = (A * 2.5) * Math.sin(k*x - w*time);
+                posT[i*3] = x; posT[i*3+1] = y + 2; posT[i*3+2] = 0;
+                if(Math.abs(x) < dx) { markerX = x; markerY = y + 2; }
+            }
+            transLine.geometry.attributes.position.needsUpdate = true;
+            transMarker.position.set(markerX, markerY, 0);
+
+            const posL = longParticles.geometry.attributes.position.array;
+            const distortion_S = kA / (kA + 1.2); 
+            
+            const numYZ = 20;
+            const numX = basePositions.length / 3 / numYZ;
+            const stepX = (xEnd - xStart) / numX;
+
+            for(let i=0; i<numX; i++) {
+                let currentXPos = xStart + i * stepX;
+                let phase = k*currentXPos - w*time; 
+                
+                const spacingExpansion = 1 + 0.9 * distortion_S * Math.cos(phase);
+                currentDensityArray[i] = 1.0 / (stepX * spacingExpansion); 
+
+                for (let j=0; j<numYZ; j++) {
+                    let idx = i * numYZ + j;
+                    let x0 = basePositions[idx*3];
+                    let phaseX0 = k*x0 - w*time;
+                    let disp = (1/k) * Math.atanh(0.9 * distortion_S * Math.sin(phaseX0)); 
+
+                    posL[idx*3] = x0 + disp;
+                    posL[idx*3+1] = basePositions[idx*3+1];
+                    posL[idx*3+2] = basePositions[idx*3+2];
+                }
+            }
+            longParticles.geometry.attributes.position.needsUpdate = true;
+            
+            if (params.showDensity) updateDensityGraph();
+        }
+
+        function updateDensityGraph() {
+            const canvas = document.getElementById('density-canvas');
+            const container = document.getElementById('density-graph-container');
+            const ctx = canvas.getContext('2d');
+            
+            // Set exact resolution
+            canvas.width = window.innerWidth;
+            canvas.height = container.clientHeight;
+            const W = canvas.width, H = canvas.height;
+            
+            ctx.clearRect(0, 0, W, H);
+
+            // Проеціюємо координати початку і кінця сцени на екран (щоб графік ідеально співпадав по ширині)
+            const pStart = new THREE.Vector3(xStart, 0, 0).project(camera);
+            const pEnd = new THREE.Vector3(xEnd, 0, 0).project(camera);
+            
+            const sx1 = (pStart.x * 0.5 + 0.5) * W;
+            const sx2 = (pEnd.x * 0.5 + 0.5) * W;
+
+            // Draw baseline (Density = 1, uniform)
+            ctx.strokeStyle = '#444'; ctx.beginPath(); ctx.moveTo(sx1, H/2); ctx.lineTo(sx2, H/2); ctx.stroke();
+            
+            if (!currentDensityArray || currentDensityArray.length === 0) return;
+
+            ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2; ctx.beginPath();
+            const N = currentDensityArray.length;
+            
+            let minD = 999, maxD = -999;
+            for(let i=0; i<N; i++) {
+                if(currentDensityArray[i]<minD) minD = currentDensityArray[i];
+                if(currentDensityArray[i]>maxD) maxD = currentDensityArray[i];
+            }
+            
+            const equilibriumValue = (maxD + minD) / 2;
+            const totalRange = Math.max(0.1, maxD - minD);
+
+            for(let i=0; i<N; i++) {
+                // Горизонтальна координата графіка тепер точно прив'язана до 3D точок на екрані
+                let dx = sx1 + (sx2 - sx1) * (i / (N - 1));
+                let normD = (currentDensityArray[i] - equilibriumValue) / totalRange; 
+                let dy = H/2 - normD * (H * 0.4); 
+                if (i===0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+            }
+            ctx.stroke();
+        }
+
+        function updateMode2() {
+            const k = 2*Math.PI / params.lambda, w = k;
+            const posF = lineFwd.geometry.attributes.position.array, posB = lineBwd.geometry.attributes.position.array, posS = lineSum.geometry.attributes.position.array;
+            for(let i=0; i<numPoints; i++) {
+                let x = xStart + i*dx;
+                let yF = params.amp * Math.sin(k*x - w*time);
+                let yB = params.reflAmp * Math.sin(k*x + w*time);
+                posF[i*3] = x; posF[i*3+1] = yF + 3; posF[i*3+2] = 0;
+                posB[i*3] = x; posB[i*3+1] = yB - 3; posB[i*3+2] = 0;
+                posS[i*3] = x; posS[i*3+1] = yF + yB; posS[i*3+2] = 0;
+            }
+            lineFwd.geometry.attributes.position.needsUpdate = true; lineBwd.geometry.attributes.position.needsUpdate = true; lineSum.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function updateMode3() {
+            const k = 2*Math.PI / params.lambda, w = k, phi = params.phaseShift, theta = params.polAngle;
+            const posY = lineY.geometry.attributes.position.array, posR = lineRot.geometry.attributes.position.array, posS = linePolSum.geometry.attributes.position.array;
+            let obsX = 0, vY = 0, vR_y = 0, vR_z = 0;
+
+            for(let i=0; i<numPoints; i++) {
+                let x = xStart + i*dx;
+                let y1 = params.amp * Math.sin(k*x - w*time);
+                let val2 = params.amp * Math.sin(k*x - w*time + phi);
+                let y2 = val2 * Math.cos(theta), z2 = val2 * Math.sin(theta);
+
+                posY[i*3] = x; posY[i*3+1] = y1; posY[i*3+2] = 0;
+                posR[i*3] = x; posR[i*3+1] = y2; posR[i*3+2] = z2;
+                posS[i*3] = x; posS[i*3+1] = y1+y2; posS[i*3+2] = z2;
+                if(Math.abs(x) < dx) { obsX = x; vY = y1; vR_y = y2; vR_z = z2; }
+            }
+            lineY.geometry.attributes.position.needsUpdate = true; lineRot.geometry.attributes.position.needsUpdate = true; linePolSum.geometry.attributes.position.needsUpdate = true;
+
+            arrY.position.set(obsX, 0, 0); arrY.setDirectionAndLength(new THREE.Vector3(0, Math.sign(vY)||1, 0), Math.abs(vY));
+            arrRot.position.set(obsX, 0, 0); let lenR = Math.hypot(vR_y, vR_z);
+            if(lenR > 0) arrRot.setDirectionAndLength(new THREE.Vector3(0, vR_y, vR_z).normalize(), lenR); else arrRot.visible = false;
+            arrSum.position.set(obsX, 0, 0); let lenS = Math.hypot(vY + vR_y, vR_z);
+            if(lenS > 0) arrSum.setDirectionAndLength(new THREE.Vector3(0, vY + vR_y, vR_z).normalize(), lenS); else arrSum.visible = false;
+        }
+
+        function updateMode4() {
+            const k = 2*Math.PI / params.lambda, w = k;
+            const flip = params.flipHelicityMode4;
+            const posF = lineFwdCirc.geometry.attributes.position.array, posB = lineBwdCirc.geometry.attributes.position.array, posS = lineCircSum.geometry.attributes.position.array;
+            for(let i=0; i<numPoints; i++) {
+                let x = xStart + i*dx;
+                // 1st wave: R-circular traveling in +x
+                // yF = A·cos(kx−ωt),  zF = A·sin(kx−ωt)
+                let yF = params.amp * Math.cos(k*x - w*time);
+                let zF = params.amp * Math.sin(k*x - w*time);
+                let yB, zB;
+                if (params.sameDirMode4) {
+                    // 2nd wave travels in +x
+                    // flip=false: L-circular  → (cos, −sin) → sum=(2cos,0)  linear traveling
+                    // flip=true:  R-circular  → (cos, +sin) → sum=(2cos,2sin) R-circular 2A traveling
+                    yB = params.reflAmp * Math.cos(k*x - w*time);
+                    zB = (flip ? 1 : -1) * params.reflAmp * Math.sin(k*x - w*time);
+                } else {
+                    // 2nd wave travels in −x
+                    // flip=false: same absolute rotation → (cos(kx+ωt), +sin(kx+ωt)) → rotating plane standing
+                    // flip=true:  opposite absolute rotation (reflection) → (cos(kx+ωt), −sin(kx+ωt)) → circular standing
+                    yB = params.reflAmp * Math.cos(k*x + w*time);
+                    zB = (flip ? -1 : 1) * params.reflAmp * Math.sin(k*x + w*time);
+                }
+                posF[i*3] = x; posF[i*3+1] = yF; posF[i*3+2] = zF - 4;
+                posB[i*3] = x; posB[i*3+1] = yB; posB[i*3+2] = zB + 4;
+                posS[i*3] = x; posS[i*3+1] = yF + yB; posS[i*3+2] = zF + zB;
+            }
+            lineFwdCirc.geometry.attributes.position.needsUpdate = true; lineBwdCirc.geometry.attributes.position.needsUpdate = true; lineCircSum.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // --- Dynamic Descriptions ---
+        function updateDescriptions() {
+            const d = dict[currentLang];
+            document.getElementById('desc-title').innerText = d.desc_title;
+            let html = "";
+            
+            if (params.mode === 1) {
+                let kA = (2*Math.PI / params.lambda) * params.amp;
+                // Поріг для виведення нелінійного тексту (дефолт 0.5 * 0.8 = 0.4 - буде лінійний)
+                if (kA > 0.75) html = d.d1_nonlin; 
+                else html = d.d1_lin;
+            } 
+            else if (params.mode === 2) {
+                if (params.reflAmp === 0) html = d.d2_traveling; 
+                else if (Math.abs(params.reflAmp - params.amp) < 0.05) html = d.d2_standing;
+                else html = d.d2_mixed.replace('{refl}', params.reflAmp.toFixed(1)).replace('{amp}', params.amp.toFixed(1));
+            }
+            else if (params.mode === 3) {
+                let pDeg = Math.round(params.phaseShift * 180 / Math.PI);
+                let aDeg = Math.round(params.polAngle * 180 / Math.PI);
+                if (aDeg === 0 || pDeg % 180 === 0) html = d.d3_lin;
+                else if (aDeg === 90 && (pDeg === 90 || pDeg === 270)) html = d.d3_circ;
+                else html = d.d3_ellip.replace('{phase}', pDeg).replace('{angle}', aDeg);
+            }
+            else if (params.mode === 4) {
+                const A = params.amp, B = params.reflAmp;
+                const eqAmps = Math.abs(A - B) < 0.15;
+                const sd = params.sameDirMode4, fh = params.flipHelicityMode4;
+                let baseKey = 'd4_' + (sd ? '1' : '0') + (fh ? '1' : '0');
+                
+                if (sd && fh) {
+                    // case 11: always circular, amplitude A+B
+                    html = d.d4_11.replace('{sum}', (A + B).toFixed(1));
+                } else if (eqAmps) {
+                    html = d[baseKey];
+                } else {
+                    // asymmetric cases
+                    let asym = d[baseKey + '_asym'];
+                    if (asym) {
+                        html = asym.replace(/\{amp\}/g, A.toFixed(1)).replace(/\{refl\}/g, B.toFixed(1));
+                    } else {
+                        html = d[baseKey]; // fallback
+                    }
+                }
+                // Update legend label for 2nd wave
+                const lbl2uk = fh ? 'Права кругова' : 'Ліва кругова';
+                const lbl2en = fh ? 'R-circular' : 'L-circular';
+                const dir2 = sd ? '(+x)' : '(−x)';
+                const el_uk = document.getElementById('leg4-second-label-uk');
+                const el_en = document.getElementById('leg4-second-label-en');
+                if(el_uk) el_uk.innerText = lbl2uk + ' ' + dir2;
+                if(el_en) el_en.innerText = lbl2en + ' ' + dir2;
+            }
+            document.getElementById('desc-content').innerHTML = html;
+        }
+
+        // --- UI Logic ---
+        function updateUIFromParams() {
+            document.getElementById('sl-amp').value = params.amp; document.getElementById('val-amp').innerText = params.amp.toFixed(1);
+            document.getElementById('sl-lambda').value = params.lambda; document.getElementById('val-lambda').innerText = params.lambda.toFixed(1);
+            document.getElementById('sl-anim').value = params.animSpeed; document.getElementById('val-anim').innerText = params.animSpeed.toFixed(1);
+            document.getElementById('sl-refl').value = params.reflAmp; document.getElementById('val-refl').innerText = params.reflAmp.toFixed(1);
+            let pDeg = Math.round(params.phaseShift * 180 / Math.PI); let aDeg = Math.round(params.polAngle * 180 / Math.PI);
+            document.getElementById('sl-phase').value = pDeg; document.getElementById('val-phase').innerText = pDeg;
+            document.getElementById('sl-angle').value = aDeg; document.getElementById('val-angle').innerText = aDeg;
+            document.getElementById('chk-density').checked = params.showDensity; toggleDensityGraph(params.showDensity);
+            document.getElementById('chk-samedir').checked = params.sameDirMode4;
+            document.getElementById('chk-fliphelicity').checked = params.flipHelicityMode4;
+        }
+
+        window.toggleFlipHelicity = function(checked) {
+            params.flipHelicityMode4 = checked;
+            updateDescriptions();
+        };
+
+        window.toggleSameDir = function(checked) {
+            params.sameDirMode4 = checked;
+            updateDescriptions();
+        };
+
+        window.toggleDensityGraph = function(checked) {
+            params.showDensity = checked;
+            const container = document.getElementById('density-graph-container');
+            container.style.display = (params.mode === 1 && checked) ? 'block' : 'none';
+        };
+
+        window.setMode = function(m) {
+            params.mode = m;
+            Object.assign(params, defaults[m]);
+            updateUIFromParams();
+
+            document.querySelectorAll('.tab-btn').forEach((btn, idx) => { btn.className = (idx + 1 === m) ? 'tab-btn active' : 'tab-btn'; });
+            
+            document.getElementById('controls-reflection').style.display = (m === 2 || m === 4) ? 'block' : 'none';
+            document.getElementById('controls-polarization').style.display = (m === 3) ? 'block' : 'none';
+            document.getElementById('controls-scene1').style.display = (m === 1) ? 'block' : 'none';
+            document.getElementById('controls-mode4').style.display = (m === 4) ? 'block' : 'none';
+            document.getElementById('density-graph-container').style.display = (m === 1 && params.showDensity) ? 'block' : 'none';
+
+            // Піднімаємо сцену тільки для першої вкладки (зміщуючи ціль камери вниз)
+            if (m === 1) {
+                camera.position.set(0, 0, 22); //15, 6, 22
+                controls.target.set(0, 0, 0);
+            } else
+			{ if (m === 4) {
+                camera.position.set(20, 2, -5); 
+                controls.target.set(0, 0, 0);
+            } 
+			
+			else {
+                camera.position.set(15, 10, 20); //
+                controls.target.set(0, 0, 0);
+            }
+			}
+            controls.update();
+
+            clearScene();
+            if(m === 1) initMode1(); if(m === 2) initMode2(); if(m === 3) initMode3(); if(m === 4) initMode4();
+            document.getElementById('legend-container').innerHTML = dict[currentLang]['leg' + m];
+            updateDescriptions();
+        };
+
+        window.setLang = function(lang) {
+            currentLang = lang;
+            document.getElementById('btn-uk').className = lang === 'uk' ? 'active' : '';
+            document.getElementById('btn-en').className = lang === 'en' ? 'active' : '';
+            document.querySelectorAll('[data-key]').forEach(el => { el.innerText = dict[lang][el.getAttribute('data-key')]; });
+            document.getElementById('legend-container').innerHTML = dict[currentLang]['leg' + params.mode];
+            updateDescriptions();
+        };
+
+        function bindSlider(id, paramKey, valId, multiplier = 1, isDegree = false) {
+            document.getElementById(id).addEventListener('input', (e) => {
+                let v = parseFloat(e.target.value);
+                if(isDegree) { params[paramKey] = v * Math.PI / 180; document.getElementById(valId).innerText = v; } 
+                else { params[paramKey] = v * multiplier; document.getElementById(valId).innerText = v.toFixed(1); }
+                updateDescriptions();
+            });
+        }
+
+        bindSlider('sl-amp', 'amp', 'val-amp'); bindSlider('sl-lambda', 'lambda', 'val-lambda');
+        bindSlider('sl-anim', 'animSpeed', 'val-anim');
+        bindSlider('sl-refl', 'reflAmp', 'val-refl'); bindSlider('sl-phase', 'phaseShift', 'val-phase', 1, true); bindSlider('sl-angle', 'polAngle', 'val-angle', 1, true);
+
+        window.addEventListener('resize', () => { 
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+            if (params.showDensity) updateDensityGraph();
+        });
+
+        function animate() {
+            requestAnimationFrame(animate); time += params.animSpeed * 0.02;
+            if(params.mode === 1) updateMode1(); else if(params.mode === 2) updateMode2(); else if(params.mode === 3) updateMode3(); else if(params.mode === 4) updateMode4();
+            controls.update(); renderer.render(scene, camera);
+        }
+
+        setLang('uk'); setMode(1); animate();
+    </script>
+</body>
+</html>
