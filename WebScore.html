@@ -96,6 +96,7 @@
         
         .selection-box { position: absolute; background: rgba(0, 188, 212, 0.15); border: 1px solid #00bcd4; border-radius: 4px; pointer-events: none; z-index: 10; }
         .incomplete-mark { position: absolute; width: 10px; height: 10px; border-radius: 50%; background-color: #f44336; pointer-events: none; z-index: 5; }
+        .ottava-bracket { position: absolute; pointer-events: none; z-index: 8; }
         
         #channelsContainer { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 8px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; }
         .channel-row { display: flex; gap: 8px; align-items: center; padding: 6px 10px; cursor: pointer; border-radius: 4px; border-left: 3px solid transparent; transition: 0.2s; background: white; }
@@ -480,9 +481,9 @@
                         <button class="btn-small note-btn" data-note="z" data-row-shift="0" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
                     </div>
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
-                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb — shift input octave down; with selection: add 8vb bracket">𝄷</button>
+                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco — reset input octave; with selection: remove 8va/8vb bracket">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va — shift input octave up; with selection: add 8va bracket">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
@@ -522,9 +523,9 @@
                         <button class="btn-small mod-btn" id="mod-trip-piano" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
-                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb — shift input octave down; with selection: add 8vb bracket">𝄷</button>
+                        <button class="btn-small oct-btn active" onclick="setBaseOctave(0, this)" title="Loco — reset input octave; with selection: remove 8va/8vb bracket">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va — shift input octave up; with selection: add 8va bracket">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small note-btn" data-note="z" onclick="addNoteEx('z', 0)"><span class="note-icon"></span><small class="note-letter">z</small></button>
@@ -549,9 +550,9 @@
                 <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto; touch-action:manipulation;"></div>
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
                     <div class="group">
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
-                        <button class="btn-small oct-btn active" id="grid3-loco" onclick="setBaseOctave(0, this)" title="Loco">Loco</button>
-                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va">𝄶</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb — shift input octave down; with selection: add 8vb bracket">𝄷</button>
+                        <button class="btn-small oct-btn active" id="grid3-loco" onclick="setBaseOctave(0, this)" title="Loco — reset input octave; with selection: remove 8va/8vb bracket">Loco</button>
+                        <button class="btn-small oct-btn" onclick="setBaseOctave(1, this)" title="8va — shift input octave up; with selection: add 8va bracket">𝄶</button>
                     </div>
                     <div class="group">
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-sharp-g3" onclick="toggleMod('accidental', '^', this)" title="Sharp">#</button>
@@ -1584,10 +1585,114 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         // ==================== OTHER FUNCTIONS ====================
 
         function setBaseOctave(shift, btn) {
+            const multiSelect = selection.start !== -1 && selection.end !== -1
+                                && selection.start !== selection.end;
+            if (btn !== null && multiSelect && activeTrack && shift !== 0) {
+                if (shift === 1)  { addOttavaToSelection('8va'); return; }
+                if (shift === -1) { addOttavaToSelection('8vb'); return; }
+            }
             baseOctaveShift = shift;
             document.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
-            if (btn) btn.classList.add('active');
-            else document.querySelectorAll('.oct-btn').forEach(b => { if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`(${shift},`)) b.classList.add('active'); });
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                document.querySelectorAll('.oct-btn').forEach(b => {
+                    const oc = b.getAttribute('onclick') || '';
+                    if (oc.includes(`(${shift},`)) b.classList.add('active');
+                });
+            }
+            updateNoteButtonIcons();
+        }
+
+        /* ---- ottava helpers (modeled exactly on addHairpin) ---- */
+
+        /** Return [{openIdx, closeIdx, type}] for all 8va/8vb spans in notes array. */
+        function getOttavaRanges(notes) {
+            let opens = [];
+            let ranges = [];
+            for (let i = 0; i < notes.length; i++) {
+                let n = notes[i];
+                if (n.type !== 'directive') continue;
+                if (n.text === '!8va(!' || n.text === '!8vb(!') {
+                    opens.push({ idx: i, type: n.text === '!8va(!' ? '8va' : '8vb' });
+                }
+                if (n.text === '!8va)!' || n.text === '!8vb)!') {
+                    let closeType = n.text === '!8va)!' ? '8va' : '8vb';
+                    // match with the most recent open of the same type
+                    for (let k = opens.length - 1; k >= 0; k--) {
+                        if (opens[k].type === closeType) {
+                            ranges.push({ openIdx: opens[k].idx, closeIdx: i, type: closeType });
+                            opens.splice(k, 1);
+                            break;
+                        }
+                    }
+                }
+            }
+            return ranges;
+        }
+
+        function addOttavaToSelection(type) {
+            // Notes are NOT transposed — they display at Loco position.
+            // Only the bracket tag is set; playback engine reads it to shift MIDI.
+            if (!activeTrack) return;
+            let sel = getSelectionIndices();
+            if (!sel) return;
+            let notes = getNotes();
+
+            let firstIdx = -1, lastIdx = -1;
+            for (let i = sel.start; i <= sel.end; i++) {
+                let n = notes[i];
+                if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                if (n.pitches && n.pitches[0].pitch !== 'x') {
+                    if (firstIdx === -1) firstIdx = i;
+                    lastIdx = i;
+                }
+            }
+            if (firstIdx === -1) return;
+
+            // Toggle off: same type already applied — just remove tags
+            if (notes[firstIdx].ottavaOpen === type) {
+                for (let i = sel.start; i <= sel.end; i++) {
+                    let n = notes[i];
+                    if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                    delete n.ottavaOpen;
+                    delete n.ottavaClose;
+                }
+                updateScore();
+                return;
+            }
+
+            // Clear any existing ottava tags in range
+            for (let i = sel.start; i <= sel.end; i++) {
+                let n = notes[i];
+                if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                delete n.ottavaOpen;
+                delete n.ottavaClose;
+            }
+
+            // Mark first and last note of the span
+            notes[firstIdx].ottavaOpen = type;
+            notes[lastIdx].ottavaClose = type;
+            updateScore();
+        }
+
+        function removeOttavaFromSelection() {
+            // Loco with multi-select: remove any ottava bracket in the range
+            if (!activeTrack) return;
+            let sel = getSelectionIndices();
+            if (!sel) return;
+            let notes = getNotes();
+            let changed = false;
+            for (let i = sel.start; i <= sel.end; i++) {
+                let n = notes[i];
+                if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                if (n.ottavaOpen || n.ottavaClose) {
+                    delete n.ottavaOpen;
+                    delete n.ottavaClose;
+                    changed = true;
+                }
+            }
+            if (changed) updateScore();
         }
         function toggleVShift(btn) { isVirtualShift = !isVirtualShift; if (isVirtualShift) btn.classList.add('active'); else btn.classList.remove('active'); }
         function toggleVShiftPiano(btn) {
@@ -1775,7 +1880,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 let note = btn.dataset.note;
                 let rowShift = parseInt(btn.dataset.rowShift);
                 let clefShift = (clef === 'bass' ? -2 : 0);
-                let totalShift = rowShift + clefShift;
+                let totalShift = rowShift + clefShift + baseOctaveShift;
                 let octaveStr = '';
                 if (note !== 'z') {
                     if (totalShift <= -3) octaveStr = ',,,'; else if (totalShift === -2) octaveStr = ',,'; else if (totalShift === -1) octaveStr = ','; else if (totalShift === 0) octaveStr = ''; else if (totalShift === 1) octaveStr = "'"; else if (totalShift === 2) octaveStr = "''"; else if (totalShift >= 3) octaveStr = "'''";
@@ -2872,13 +2977,17 @@ function generateMIDIWithBend() {
         let notes = voice.notes;
         let raw = [];
         let currentQ = 0;
+        let midiOttava = 0;
         pedalEvents[vKey] = [];
 
         for (let n of notes) {
             if (n.type !== 'directive' && n.type !== 'barline') {
+                if (n.ottavaOpen === '8va')  midiOttava = 12;
+                if (n.ottavaOpen === '8vb')  midiOttava = -12;
                 if (n.pitches && n.pitches[0].pitch !== 'z') {
-                    raw.push({ ...n, scoreStartQ: currentQ });
+                    raw.push({ ...n, scoreStartQ: currentQ, ottavaShift: midiOttava });
                 }
+                if (n.ottavaClose) midiOttava = 0;
                 if (n.pedalStart) pedalEvents[vKey].push({ time: currentQ, type: 'on' });
                 if (n.pedalEnd) pedalEvents[vKey].push({ time: currentQ, type: 'off' });
                 if (n.durationInQuarters) currentQ += n.durationInQuarters;
@@ -3045,7 +3154,7 @@ function generateMIDIWithBend() {
                 if (p.pitch === 'z' || p.pitch === 'x') continue;
                 let midiPitch = abcPitchToMidi(p.pitch, p.octave, p.accidental);
                 if (!midiPitch) continue;
-                midiPitch += 12; // adjust to correct octave
+                midiPitch += 12 + (note.ottavaShift || 0); // adjust to correct octave + ottava
 
                 // Note on
                 addEvent(startTick, [0x90 + channel, midiPitch, velocity]);
@@ -3181,8 +3290,12 @@ function generateMIDIWithBend() {
                 let voice = voicesData[vKey];
                 let currentQ = 0;
                 pedalEventsPerVoice[vKey] = [];
+                let activeOttava = 0; // semitone shift: +12 for 8va, -12 for 8vb, 0 for none
                 for (let n of voice.notes) {
                     if (n.type !== 'directive' && n.type !== 'barline') {
+                        // Apply ottava open tag BEFORE this note plays
+                        if (n.ottavaOpen === '8va')  activeOttava = 12;
+                        if (n.ottavaOpen === '8vb')  activeOttava = -12;
                         if (n.pitches && n.pitches[0].pitch !== 'z') {
                             // Compute effective key accidentals at this note's measure
                             const measureIdx = getMeasureIdxAtTime(currentQ);
@@ -3204,9 +3317,12 @@ function generateMIDIWithBend() {
                                 articulations: n.articulations || [],
                                 tie: n.tie || false,
                                 volume: voice.volume,
-                                bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined
+                                bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined,
+                                ottavaShift: activeOttava
                             });
                         }
+                        // Apply ottava close tag AFTER this note
+                        if (n.ottavaClose) activeOttava = 0;
                         if (n.pedalStart) pedalEventsPerVoice[vKey].push({ time: currentQ, type: 'on' });
                         if (n.pedalEnd) pedalEventsPerVoice[vKey].push({ time: currentQ, type: 'off' });
                         if (n.durationInQuarters) currentQ += n.durationInQuarters;
@@ -3348,7 +3464,7 @@ function generateMIDIWithBend() {
                         for (let p of note.pitches) {
                             let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
                             if (!midiNote) continue;
-                            midiNote += 12;
+                            midiNote += 12 + (note.ottavaShift || 0);
                             let durSec = note.duration * secondsPerQuarter;
                             if (note.articulations.includes('staccato')) durSec *= 0.25;
                             const sfNode = sf2ScheduleNote(midiNote, note.program, playTimeAc, durSec, finalGain, midiVelocity);
@@ -3385,7 +3501,7 @@ function generateMIDIWithBend() {
                         if (inst && inst !== "loading") {
                             for (let p of note.pitches) {
                                 let midiNote = abcPitchToMidi(p.pitch, p.octave, p.accidental);
-                                if (midiNote) midiNote += 12;
+                                if (midiNote) midiNote += 12 + (note.ottavaShift || 0);
                                 if (midiNote) {
                                     let durSeconds = note.duration * secondsPerQuarter;
                                     if (note.articulations.includes('staccato')) durSeconds *= 0.25;
@@ -4027,7 +4143,13 @@ function generateMIDIWithBend() {
 
                     if (n.pedalStart) { currentMeasure.push({ type: 'directive', text: '!pedal!' }); currentMeasure.push({ type: 'directive', text: '"𝒫ℯ𝒹."' }); }
 
+                    // Ottava open bracket: emit BEFORE the note
+                    if (n.ottavaOpen) currentMeasure.push({ type: 'directive', text: `!${n.ottavaOpen}(!` });
+
                     currentMeasure.push({ type: 'note', text: articulationStr + prefix + noteCore, duration: n.durationInQuarters, isInvisible: (n.pitches && n.pitches[0].pitch === 'x') });
+
+                    // Ottava close bracket: emit AFTER the note (before barline)
+                    if (n.ottavaClose) currentMeasure.push({ type: 'directive', text: `!${n.ottavaClose})!` });
 
                     if (n.pedalEnd) { currentMeasure.push({ type: 'directive', text: '!*pedal!' }); currentMeasure.push({ type: 'directive', text: '"✽"' }); }
 
@@ -4042,11 +4164,17 @@ function generateMIDIWithBend() {
                     }
                 }
 
-                if (currentMeasure.length > 0 || currentMeasureLength > 0) {
+                if (currentMeasureLength > 0) {
+                    // Normal partial (or full) last measure with real notes
                     let repeat = measureRepeats[measuresCount];
-                    let volta = measureVoltas[measuresCount];
+                    let volta  = measureVoltas[measuresCount];
                     measures.push({ items: currentMeasure, repeat: repeat, volta: volta });
                     measuresCount++;
+                } else if (currentMeasure.length > 0 && measures.length > 0) {
+                    // Only directives remain (e.g. ottava/hairpin close tag after last note
+                    // of a full measure) — append them to the previous measure so no empty
+                    // phantom measure is created.
+                    measures[measures.length - 1].items.push(...currentMeasure);
                 }
 
                 voicesMeasures[vKey] = measures;
@@ -4330,6 +4458,7 @@ function generateMIDIWithBend() {
                 annotations.forEach(el => console.log('Annotation text:', el.textContent));
             }, 500);
             drawVisualSelection();
+            drawOttavaBrackets();
             highlightIncompleteMeasures();
             updateNoteButtonIcons();
             // Update key sig change label
@@ -4436,6 +4565,127 @@ function generateMIDIWithBend() {
                 }
             }
             function addMark(x, y) { let mark = document.createElement('div'); mark.className = 'incomplete-mark'; mark.style.left = (x + 5) + 'px'; mark.style.top = (y - 10) + 'px'; document.getElementById('paper').appendChild(mark); }
+        }
+
+        // ==================== OTTAVA BRACKETS ====================
+        function drawOttavaBrackets() {
+            document.querySelectorAll('.ottava-bracket').forEach(el => el.remove());
+            let paper = document.getElementById('paper');
+            if (!paper) return;
+            let paperRect = paper.getBoundingClientRect();
+
+            let orderedKeys = getOrderedKeys();
+
+            for (let vIdx = 0; vIdx < orderedKeys.length; vIdx++) {
+                let vKey = orderedKeys[vIdx];
+                let voice = voicesData[vKey];
+                if (!voice || !voice.visible) continue;
+
+                let notes = voice.notes;
+                // Build the same visualToArrayMap as drawVisualSelection
+                let visualToArrayMap = [];
+                for (let i = 0; i < notes.length; i++) {
+                    let n = notes[i];
+                    if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x'))
+                        visualToArrayMap.push(i);
+                }
+                let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+
+                // Collect all ottava spans: find pairs of ottavaOpen / ottavaClose
+                let openSpans = []; // {arrayIdx, type}
+                for (let i = 0; i < notes.length; i++) {
+                    let n = notes[i];
+                    if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                    if (n.ottavaOpen) openSpans.push({ startArrayIdx: i, type: n.ottavaOpen });
+                }
+
+                for (let span of openSpans) {
+                    // Find the note with matching ottavaClose after the open note
+                    let endArrayIdx = -1;
+                    for (let i = span.startArrayIdx; i < notes.length; i++) {
+                        let n = notes[i];
+                        if (!n || n.type === 'directive' || n.type === 'barline') continue;
+                        if (n.ottavaClose === span.type) { endArrayIdx = i; break; }
+                    }
+                    if (endArrayIdx === -1) continue;
+
+                    let startVisIdx = visualToArrayMap.indexOf(span.startArrayIdx);
+                    let endVisIdx   = visualToArrayMap.indexOf(endArrayIdx);
+                    if (startVisIdx === -1 || endVisIdx === -1) continue;
+                    let startEl = trackEls[startVisIdx];
+                    let endEl   = trackEls[endVisIdx];
+                    if (!startEl || !endEl) continue;
+
+                    let startRect = startEl.getBoundingClientRect();
+                    let endRect   = endEl.getBoundingClientRect();
+
+                    // Position: 8va above staff, 8vb below
+                    let isAbove = span.type === '8va';
+                    let bracketX1 = startRect.left  - paperRect.left + paper.scrollLeft - 2;
+                    let bracketX2 = endRect.right   - paperRect.left + paper.scrollLeft + 2;
+                    let bracketW  = Math.max(bracketX2 - bracketX1, 20);
+
+                    let tickH = 8;
+                    let svgH  = tickH + 14; // extra room for label
+
+                    let bracketTop;
+                    if (isAbove) {
+                        // SVG sits above notes; line at BOTTOM of SVG, tick points DOWN toward staff
+                        bracketTop = Math.min(startRect.top, endRect.top) - paperRect.top + paper.scrollTop - svgH;
+                    } else {
+                        // SVG sits below notes; line at TOP of SVG, tick points UP toward staff
+                        bracketTop = Math.max(startRect.bottom, endRect.bottom) - paperRect.top + paper.scrollTop;
+                    }
+
+                    let svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svgEl.classList.add('ottava-bracket');
+                    svgEl.style.left     = bracketX1 + 'px';
+                    svgEl.style.top      = bracketTop + 'px';
+                    svgEl.style.width    = bracketW + 'px';
+                    svgEl.style.height   = svgH + 'px';
+                    svgEl.setAttribute('viewBox', `0 0 ${bracketW} ${svgH}`);
+                    svgEl.setAttribute('overflow', 'visible');
+
+                    // 8va: line at bottom (y = svgH-2), tick goes UP toward label = wrong direction
+                    // Standard: 8va above → horizontal line near bottom of SVG → tick at right end points DOWN (toward staff)
+                    // 8vb below → horizontal line near top of SVG → tick at right end points UP (toward staff)
+                    let lineY, tickEndY, labelY;
+                    if (isAbove) {
+                        // 8va above staff: line near bottom of SVG (close to staff), tick points DOWN toward staff
+                        lineY    = svgH - 4;
+                        tickEndY = lineY + tickH;   // DOWN toward staff
+                        labelY   = lineY - 3;       // label above the line
+                    } else {
+                        // 8vb below staff: line near top of SVG (close to staff), tick points UP toward staff
+                        lineY    = 4;
+                        tickEndY = lineY - tickH;   // UP toward staff
+                        labelY   = lineY + 12;      // label below the line
+                    }
+
+                    // Both 8va and 8vb: dashed line + tick
+                    let pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    pathEl.setAttribute('d', `M0,${lineY} L${bracketW - 1},${lineY} L${bracketW - 1},${tickEndY}`);
+                    pathEl.setAttribute('fill', 'none');
+                    pathEl.setAttribute('stroke', '#333');
+                    pathEl.setAttribute('stroke-width', '1.5');
+                    pathEl.setAttribute('stroke-dasharray', '4,2');
+                    pathEl.setAttribute('stroke-linecap', 'round');
+                    svgEl.appendChild(pathEl);
+
+                    // Label "8va" / "8vb"
+                    let labelEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    labelEl.setAttribute('x', '2');
+                    labelEl.setAttribute('y', String(labelY));
+                    labelEl.setAttribute('font-size', '10');
+                    labelEl.setAttribute('font-style', 'italic');
+                    labelEl.setAttribute('font-family', 'serif');
+                    labelEl.setAttribute('fill', '#333');
+                    labelEl.textContent = span.type;
+                    svgEl.appendChild(labelEl);
+
+                    paper.appendChild(svgEl);
+                }
+            }
         }
 
         // ==================== VISUAL SELECTION ====================
