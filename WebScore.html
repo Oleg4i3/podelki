@@ -503,7 +503,7 @@
 
             <!-- ===== 3-ROW GRID INPUT MODE ===== -->
             <div id="grid3InputPanel" style="display:none; flex-direction:column; width:100%;">
-                <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto;"></div>
+                <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto; touch-action:manipulation;"></div>
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
                     <div class="group">
                         <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb">𝄷</button>
@@ -5893,14 +5893,16 @@ function generateMIDIWithBend() {
         letterSmall.textContent = noteBase;
         btn.appendChild(iconSpan);
         btn.appendChild(letterSmall);
-        const trigger = (e) => {
+        btn.addEventListener('pointerdown', (e) => {
+            // pointerdown fires exactly once per touch or click — no synthetic duplicates.
+            // Calling preventDefault() here suppresses the follow-up mousedown / click
+            // events that some mobile browsers still generate even after touchstart
+            // preventDefault() when the button is inside a horizontally-scrollable container.
             e.preventDefault();
             btn.style.background = '#b3e5fc';
             setTimeout(() => btn.style.background = '', 150);
             addNoteGrid3(noteBase, rowShift, rowIdx);
-        };
-        btn.addEventListener('mousedown', trigger);
-        btn.addEventListener('touchstart', trigger, { passive: false });
+        });
         return btn;
     }
     rebuildGrid3Rows();
