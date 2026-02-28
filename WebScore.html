@@ -210,7 +210,7 @@
             border-radius: 14px;
             box-shadow: 0 12px 40px rgba(0,0,0,0.35);
             padding: 32px 36px 28px;
-            width: 360px;
+            width: 420px;
             max-width: 92vw;
             display: flex;
             flex-direction: column;
@@ -309,6 +309,52 @@
             <p class="startup-sub">Enter a name for the new song, or open an existing ABC file.</p>
             <input type="text" id="startupTitleInput" value="New song" placeholder="Song name…"
                 onkeydown="if(event.key==='Enter') startupCreate()">
+
+            <!-- Key / Time / Pickup -->
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
+                    Key
+                    <select id="startupKeySig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
+                        <option value="C">C / Am</option>
+                        <option value="G">G / Em</option>
+                        <option value="D">D / Bm</option>
+                        <option value="A">A / F♯m</option>
+                        <option value="E">E / C♯m</option>
+                        <option value="B">B / G♯m</option>
+                        <option value="F#">F♯ / D♯m</option>
+                        <option value="C#">C♯ / A♯m</option>
+                        <option value="F">F / Dm</option>
+                        <option value="Bb">B♭ / Gm</option>
+                        <option value="Eb">E♭ / Cm</option>
+                        <option value="Ab">A♭ / Fm</option>
+                        <option value="Db">D♭ / B♭m</option>
+                        <option value="Gb">G♭ / E♭m</option>
+                        <option value="Cb">C♭ / A♭m</option>
+                    </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
+                    Time
+                    <select id="startupTimeSig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;" onchange="startupUpdatePickup()">
+                        <option value="4/4">4/4</option>
+                        <option value="3/4">3/4</option>
+                        <option value="2/4">2/4</option>
+                        <option value="5/4">5/4</option>
+                        <option value="6/8">6/8</option>
+                        <option value="5/8">5/8</option>
+                    </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
+                    Pickup (anacrusis)
+                    <select id="startupPickup" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
+                        <option value="0">None</option>
+                    </select>
+                </label>
+            </div>
+
+            <p style="margin:0;font-size:12px;color:#90a4ae;background:#f5f9fa;border-left:3px solid #b0bec5;padding:6px 10px;border-radius:4px;">
+                🎸 Instruments and channels can be added later in <strong>Score Settings</strong>.
+            </p>
+
             <div class="startup-actions">
                 <button class="btn-create" onclick="startupCreate()">✓ Create</button>
                 <button class="btn-open" onclick="startupOpenABC()">📂 Open ABC</button>
@@ -397,21 +443,6 @@
             <div id="scoreScrollbarInner"></div>
         </div>
         <div class="control-panel-main" style="display:flex;gap:10px;align-items:center;width:100%;flex-wrap:wrap;">
-        <div class="control-grid">
-            <button id="chordModeBtn" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
-            <button class="control-btn mod-btn" id="btn-vshift" onclick="toggleVShift(this)" title="Select (Shift)">Sel</button>
-            <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
-            <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
-            <button class="control-btn" onclick="tieSelection()" title="Tie (T)">
-                <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/>
-                </svg>
-            </button>
-            <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
-            <button id="playBtn" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
-            <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
-            <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z) press 2 times">↶ Undo</button>
-        </div>
 
         <div class="note-panel">
             <!-- ===== BUTTON INPUT MODE (default) ===== -->
@@ -461,6 +492,18 @@
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">𝄫</button>
                     </div>
                 </div>
+                <!-- Action buttons row (same layout as Piano and 3-Row Grid modes) -->
+                <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
+                    <button id="chordModeBtn" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode: click to toggle, or hold Shift">Chord</button>
+                    <button class="control-btn mod-btn" id="btn-vshift" onclick="toggleVShift(this)" title="Select (Shift)">Sel</button>
+                    <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
+                    <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
+                    <button class="control-btn" onclick="tieSelection()" title="Tie (T)"><svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M8,20 Q16,8 24,20" stroke="currentColor" fill="none" stroke-width="2"/></svg></button>
+                    <button class="control-btn danger" onclick="deleteSelection()" title="Delete (Del)">Del</button>
+                    <button id="playBtn" class="play-btn" onclick="togglePlayback()" title="Play / Stop (Space)">▶ Play</button>
+                    <button class="control-btn" onclick="openBendEditor()" title="Pitch Bend">Bend</button>
+                    <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z) press 2 times">↶ Undo</button>
+                </div>
             </div>
 
             <!-- ===== PIANO INPUT MODE ===== -->
@@ -489,7 +532,7 @@
                 </div>
                 <!-- 9 action buttons mirroring the control grid -->
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
-                    <button id="chordModeBtnP" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
+                    <button id="chordModeBtnP" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode: click to toggle, or hold Shift">Chord</button>
                     <button class="control-btn mod-btn" id="btn-vshift-p" onclick="toggleVShiftPiano(this)" title="Select (Shift)">Sel</button>
                     <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
                     <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
@@ -527,7 +570,7 @@
                     </div>
                 </div>
                 <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
-                    <button id="chordModeBtnG3" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode (X)">Chord</button>
+                    <button id="chordModeBtnG3" class="control-btn chord-btn" onclick="toggleChordMode()" title="Chord mode: click to toggle, or hold Shift">Chord</button>
                     <button class="control-btn mod-btn" id="btn-vshift-g3" onclick="toggleVShiftPiano(this)" title="Select (Shift)">Sel</button>
                     <button class="control-btn" onclick="copySelection()" title="Copy (Ctrl+C)">Copy</button>
                     <button class="control-btn" onclick="pasteSelection()" title="Paste (Ctrl+V)">Paste</button>
@@ -644,9 +687,68 @@
             if (input && titleEl) {
                 const name = input.value.trim() || 'New song';
                 titleEl.value = name;
-                updateScore();
             }
+            // Apply key signature
+            const keySel = document.getElementById('startupKeySig');
+            const keySigEl = document.getElementById('keySig');
+            if (keySel && keySigEl) keySigEl.value = keySel.value;
+
+            // Apply time signature
+            const timeSel = document.getElementById('startupTimeSig');
+            const timeSigEl = document.getElementById('timeSig');
+            if (timeSel && timeSigEl) {
+                timeSigEl.value = timeSel.value;
+                onTimeSigChange(); // rebuilds pickup options in main UI
+            }
+
+            // Apply pickup after timeSig options are rebuilt
+            const pickupSel = document.getElementById('startupPickup');
+            const pickupEl = document.getElementById('pickupSig');
+            if (pickupSel && pickupEl) {
+                pickupEl.value = pickupSel.value;
+                onPickupChange();
+            }
+
+            updateScore();
             closeStartupModal();
+        }
+
+        // Rebuild pickup options in the startup modal when time signature changes
+        function startupUpdatePickup() {
+            const timeSel = document.getElementById('startupTimeSig');
+            const pickupSel = document.getElementById('startupPickup');
+            if (!timeSel || !pickupSel) return;
+            const timeStr = timeSel.value; // e.g. "4/4"
+            const parts = timeStr.split('/');
+            const num = parseInt(parts[0]);
+            const den = parseInt(parts[1]);
+            const measureQ = num * (4 / den); // measure duration in quarter notes
+            pickupSel.innerHTML = '<option value="0">None</option>';
+            // Build beat subdivisions up to (but not including) a full measure
+            const steps = [];
+            const beatQ = 4 / den;
+            let q = beatQ;
+            while (q < measureQ - 0.001) {
+                steps.push(q);
+                q += beatQ;
+            }
+            // Also add common sub-beat values for compound meters
+            if (den === 8) {
+                const sub = beatQ / 2;
+                if (!steps.includes(sub)) steps.unshift(sub);
+            }
+            steps.sort((a, b) => a - b);
+            steps.forEach(q => {
+                const opt = document.createElement('option');
+                opt.value = q;
+                // Display as fraction of measure
+                const frac = q / measureQ;
+                const beatsLabel = q / beatQ;
+                opt.textContent = beatsLabel % 1 === 0
+                    ? beatsLabel + ' beat' + (beatsLabel > 1 ? 's' : '')
+                    : q + ' q';
+                pickupSel.appendChild(opt);
+            });
         }
 
         function startupOpenABC() {
@@ -666,6 +768,7 @@
         let nextMods = { accidental: '', dot: false };
         let tripletNotesLeft = 0; 
         let isChordMode = false;
+        let isShiftChord = false; // transient chord mode while Shift is held
         
         let isVirtualShift = false;
         let baseOctaveShift = 0;
@@ -1496,10 +1599,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function toggleChordMode() {
             isChordMode = !isChordMode;
-            ['chordModeBtn','chordModeBtnP','chordModeBtnG3'].forEach(id => {
-                let btn = document.getElementById(id);
-                if (btn) { if (isChordMode) btn.classList.add('active'); else btn.classList.remove('active'); }
-            });
+            updateChordBtnVisuals();
         }
         function onTimeSigChange() {
             const ts = document.getElementById('timeSig').value;
@@ -2323,7 +2423,7 @@ function addNoteSync(noteBase, rowShift) {
                 if (noteBase !== 'z' && noteBase !== 'x') playSingleNote(noteBase, finalOctaveStr, nextMods.accidental, baseQuarters);
                 let notes = getNotes();
                 let insertIdx;
-                if (isChordMode) {
+                if (isChordMode || isShiftChord) {
                     let lastRealNoteIndex = -1;
                     // Use selection if available — chord should be added to the SELECTED note,
                     // not to the last note of the track.
@@ -4601,9 +4701,15 @@ function generateMIDIWithBend() {
         document.addEventListener('keydown', function(e) {
             if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
             if (e.key === ' ' || (e.ctrlKey && e.key.startsWith('Arrow'))) e.preventDefault();
+            // Shift held → transient chord mode (activate on first keydown, not on repeat)
+            if (e.key === 'Shift' && !e.repeat) {
+                isShiftChord = true;
+                updateChordBtnVisuals();
+                return;
+            }
             const keyNoteMap = { 'c':'C', 'd':'D', 'e':'E', 'f':'F', 'g':'G', 'a':'A', 'b':'B', 'z':'z' };
             let letter = e.key.toLowerCase();
-            if (keyNoteMap[letter] && !e.ctrlKey) { let rowShift = (e.shiftKey && letter !== 'z') ? 1 : 0; addNoteEx(keyNoteMap[letter], rowShift); return; }
+            if (keyNoteMap[letter] && !e.ctrlKey) { addNoteEx(keyNoteMap[letter], 0); return; }
             if (e.key === 'X' || e.key === 'x') { toggleChordMode(); return; }
             if (e.key === 'Delete') { deleteSelection(); return; }
             if (e.key === '3') { toggleTriplet(document.getElementById('mod-trip')); return; }
@@ -4618,6 +4724,21 @@ function generateMIDIWithBend() {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { if (currentIdx !== -1 && currentIdx < durOrder.length - 1) setDur(durOrder[currentIdx + 1], null); }
             }
         });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.key === 'Shift') {
+                isShiftChord = false;
+                updateChordBtnVisuals();
+            }
+        });
+
+        function updateChordBtnVisuals() {
+            const active = isChordMode || isShiftChord;
+            ['chordModeBtn','chordModeBtnP','chordModeBtnG3'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.toggle('active', active);
+            });
+        }
 
         // ==================== INITIALIZATION ====================
         window.addEventListener('load', function() { 
@@ -5906,6 +6027,7 @@ function generateMIDIWithBend() {
         return btn;
     }
     rebuildGrid3Rows();
+    startupUpdatePickup(); // populate pickup options on load
         // ==================== END PIANO KEYBOARD ====================
 
 		window.addEventListener('beforeunload', function (e) {
