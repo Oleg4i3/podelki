@@ -2922,16 +2922,18 @@ function deleteSelectionSync() {
 
         // ==================== MIDI EXPORT (with fixed sustain and all notes off) ====================
         function downloadMIDI() {
-            let hasBend = false;
+            let hasBend = false, hasOttava = false;
             for (let vKey of getOrderedKeys()) {
                 if (voicesData[vKey].active) {
                     for (let n of voicesData[vKey].notes) {
-                        if (n.bend) { hasBend = true; break; }
+                        if (n.bend) hasBend = true;
+                        if (n.ottavaOpen || n.ottavaClose) hasOttava = true;
+                        if (hasBend && hasOttava) break;
                     }
                 }
-                if (hasBend) break;
+                if (hasBend && hasOttava) break;
             }
-            if (hasBend) {
+            if (hasBend || hasOttava) {
                 generateMIDIWithBend();
             } else {
                 let abcString = window.lastAbcString || buildAbcString();
@@ -2949,12 +2951,11 @@ function deleteSelectionSync() {
         }
 
 // ==================== MIDI EXPORT (with detailed logging for debugging) ====================
+// ==================== MIDI EXPORT ====================
 function generateMIDIWithBend() {
-    console.log("========== START MIDI EXPORT ==========");
     const measureCapacity = getMeasureCapacity();
     const tempo = parseInt(document.getElementById('tempo').value) || 120;
     const ticksPerBeat = 480;
-    const bpm = tempo;
 
     const dynVelocity = {
         'ppp': 20, 'pp': 40, 'p': 60, 'mp': 70,
@@ -2967,284 +2968,168 @@ function generateMIDIWithBend() {
     if (!sequence) sequence = Array.from({ length: measures }, (_, i) => i);
 
     const orderedKeys = getOrderedActiveKeys();
-    let voiceNotes = {};
-    let pedalEvents = {};
 
-    // Collect notes and pedal events per voice
-    for (let vKey of orderedKeys) {
-        if (!voicesData[vKey].active) continue;
-        let voice = voicesData[vKey];
-        let notes = voice.notes;
-        let raw = [];
-        let currentQ = 0;
-        let midiOttava = 0;
-        pedalEvents[vKey] = [];
+    function pushVLQ2(arr, value) {
+        let v = value; let buf = [v & 0x7F];
+        while (v >>= 7) buf.unshift((v & 0x7F) | 0x80);
+        arr.push(...buf);
+    }
 
-        for (let n of notes) {
-            if (n.type !== 'directive' && n.type !== 'barline') {
-                if (n.ottavaOpen === '8va')  midiOttava = 12;
-                if (n.ottavaOpen === '8vb')  midiOttava = -12;
-                if (n.pitches && n.pitches[0].pitch !== 'z') {
-                    raw.push({ ...n, scoreStartQ: currentQ, ottavaShift: midiOttava });
-                }
-                if (n.ottavaClose) midiOttava = 0;
-                if (n.pedalStart) pedalEvents[vKey].push({ time: currentQ, type: 'on' });
-                if (n.pedalEnd) pedalEvents[vKey].push({ time: currentQ, type: 'off' });
-                if (n.durationInQuarters) currentQ += n.durationInQuarters;
-            }
+    // Build a track from array of {tick, priority, bytes[]} — sorts by tick, converts to delta-time
+    function buildTrack(absEvents) {
+        absEvents.sort((a, b) => a.tick !== b.tick ? a.tick - b.tick : (a.priority || 0) - (b.priority || 0));
+        let data = []; let last = 0;
+        for (let ev of absEvents) {
+            let t = Math.max(0, Math.round(ev.tick));
+            pushVLQ2(data, Math.max(0, t - last));
+            data.push(...ev.bytes);
+            last = t;
         }
-        pedalEvents[vKey].sort((a, b) => a.time - b.time);
-        console.log(`Voice ${vKey} (${voice.name}) pedal events:`, pedalEvents[vKey].map(e => `${e.type} at ${e.time}Q`));
+        return data;
+    }
 
-        // Apply dynamics propagation (last dynamic persists)
-        let lastDynamic = null;
+    let tracks = [];
+
+    // Tempo track
+    let tempoVal = Math.round(60000000 / tempo);
+    let [tNum, tDen] = document.getElementById('timeSig').value.split('/').map(Number);
+    let tempoData = buildTrack([
+        { tick: 0, priority: 0, bytes: [0xFF, 0x51, 0x03, (tempoVal>>16)&0xFF, (tempoVal>>8)&0xFF, tempoVal&0xFF] },
+        { tick: 0, priority: 1, bytes: [0xFF, 0x58, 0x04, tNum, Math.log2(tDen), 24, 8] },
+        { tick: 0x7FFFFFFF, priority: 99, bytes: [0xFF, 0x2F, 0x00] }
+    ]);
+    let tl = tempoData.length;
+    tracks.push(0x4D,0x54,0x72,0x6B, (tl>>24)&0xFF,(tl>>16)&0xFF,(tl>>8)&0xFF,tl&0xFF, ...tempoData);
+
+    // Voice tracks
+    let channelIndex = 0;
+    function nextChannel() {
+        let ch = channelIndex % 16;
+        while (ch === 9) { channelIndex++; ch = channelIndex % 16; }
+        return ch;
+    }
+
+    for (let vKey of orderedKeys) {
+        let voice = voicesData[vKey];
+        if (!voice.active) continue;
+        let channel = nextChannel(); channelIndex++;
+
+        // Collect raw notes + pedal events
+        let raw = [], pedalAbs = [], currentQ = 0, midiOttava = 0;
+        for (let n of voice.notes) {
+            if (n.type === 'directive' || n.type === 'barline') continue;
+            if (n.ottavaOpen === '8va') midiOttava = 12;
+            if (n.ottavaOpen === '8vb') midiOttava = -12;
+            if (n.pedalStart) pedalAbs.push({ time: currentQ, type: 'on' });
+            if (n.pedalEnd)   pedalAbs.push({ time: currentQ, type: 'off' });
+            if (n.pitches && n.pitches[0].pitch !== 'z')
+                raw.push({ ...n, scoreStartQ: currentQ, ottavaShift: midiOttava });
+            if (n.ottavaClose) midiOttava = 0;
+            if (n.durationInQuarters) currentQ += n.durationInQuarters;
+        }
+
+        // Dynamics propagation
+        let lastDyn = null;
         for (let n of raw) {
-            let dyn = n.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
-            if (dyn) lastDynamic = dyn;
-            else if (lastDynamic && !n.articulations.includes('staccato') && !n.articulations.includes('accent')) {
-                if (!n.articulations) n.articulations = [];
-                if (!n.articulations.includes(lastDynamic)) n.articulations.push(lastDynamic);
+            let d = n.articulations.find(a => ['ppp','pp','p','mp','mf','f','ff','fff'].includes(a));
+            if (d) lastDyn = d;
+            else if (lastDyn && !n.articulations.includes('staccato') && !n.articulations.includes('accent')) {
+                if (!n.articulations.includes(lastDyn)) n.articulations.push(lastDyn);
             }
         }
 
         // Unroll by sequence
-        let unrolled = [];
-        let playQ = 0;
+        let unrolled = [], unrolledPedal = [], playQ = 0;
         for (let seqM of sequence) {
-            let mStart = seqM * measureCapacity;
-            let mEnd = mStart + measureCapacity;
-            let notesInMeasure = raw.filter(n => n.scoreStartQ >= mStart - 0.001 && n.scoreStartQ < mEnd - 0.001);
-            notesInMeasure.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
-            for (let n of notesInMeasure) {
-                let offset = n.scoreStartQ - mStart;
-                unrolled.push({ ...n, playStartQ: playQ + offset });
-            }
+            let mStart = seqM * measureCapacity, mEnd = mStart + measureCapacity;
+            let notesHere = raw.filter(n => n.scoreStartQ >= mStart - 0.001 && n.scoreStartQ < mEnd - 0.001);
+            notesHere.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
+            for (let n of notesHere) unrolled.push({ ...n, playStartQ: playQ + (n.scoreStartQ - mStart) });
+            let pedHere = pedalAbs.filter(e => e.time >= mStart - 0.001 && e.time < mEnd - 0.001);
+            for (let e of pedHere) unrolledPedal.push({ playQ: playQ + (e.time - mStart), type: e.type });
             playQ += measureCapacity;
         }
-        voiceNotes[vKey] = unrolled;
-    }
 
-    let tracks = [];
-    let channelIndex = 0;
-    function nextChannel() {
-        let ch = channelIndex % 16;
-        while (ch === 9) { channelIndex++; ch = channelIndex % 16; } // skip drum channel
-        return ch;
-    }
+        // Build absolute-tick events
+        let absEvents = [
+            { tick: 0, priority: 0, bytes: [0xC0 + channel, voice.program] }
+        ];
 
-    // Tempo track (track 0)
-    let tempoTrackEvents = [];
-    let lastTick = 0;
-    function addTempoEvent(tick, bytes) {
-        let delta = Math.max(0, Math.round(tick) - lastTick);
-        pushVLQ(tempoTrackEvents, delta);
-        tempoTrackEvents.push(...bytes);
-        lastTick = Math.round(tick);
-    }
-    let tempoVal = Math.round(60000000 / bpm);
-    addTempoEvent(0, [0xFF, 0x51, 0x03, (tempoVal >> 16) & 0xFF, (tempoVal >> 8) & 0xFF, tempoVal & 0xFF]);
-    let timeNum = parseInt(document.getElementById('timeSig').value.split('/')[0]);
-    let timeDen = parseInt(document.getElementById('timeSig').value.split('/')[1]);
-    let timeDenLog = Math.log2(timeDen);
-    addTempoEvent(0, [0xFF, 0x58, 0x04, timeNum, timeDenLog, 24, 8]);
-    addTempoEvent(0, [0xFF, 0x2F, 0x00]);
-    let tempoTrackLen = tempoTrackEvents.length;
-    let tempoTrackHeader = [
-        0x4D, 0x54, 0x72, 0x6B,
-        (tempoTrackLen >> 24) & 0xFF,
-        (tempoTrackLen >> 16) & 0xFF,
-        (tempoTrackLen >> 8) & 0xFF,
-        tempoTrackLen & 0xFF
-    ];
-    tracks.push(...tempoTrackHeader, ...tempoTrackEvents);
-
-    // Voice tracks
-    for (let vKey of orderedKeys) {
-        let voice = voicesData[vKey];
-        if (!voice.active) continue;
-        let events = [];
-        lastTick = 0;
-        let channel = nextChannel();
-        channelIndex++;
-        console.log(`Voice ${vKey} (${voice.name}) assigned to MIDI channel ${channel+1}`);
-
-        function addEvent(tick, bytes) {
-            let delta = Math.max(0, Math.round(tick) - lastTick);
-            pushVLQ(events, delta);
-            events.push(...bytes);
-            lastTick = Math.round(tick);
-        }
-
-        // Program change
-        addEvent(0, [0xC0 + channel, voice.program]);
-
-        // Pitch bend range if needed
+        // Pitch-bend range RPN
         let maxBendRange = 0;
-        for (let n of voiceNotes[vKey]) {
-            if (n.bend && n.bend.maxCents > maxBendRange) maxBendRange = n.bend.maxCents;
-        }
+        for (let n of unrolled) if (n.bend && n.bend.maxCents > maxBendRange) maxBendRange = n.bend.maxCents;
         if (maxBendRange > 0) {
-            let semitones = Math.ceil(maxBendRange / 100);
-            addEvent(0, [0xB0 + channel, 101, 0]);
-            addEvent(0, [0xB0 + channel, 100, 0]);
-            addEvent(0, [0xB0 + channel, 6, semitones]);
-            console.log(`Pitch bend range set to ${semitones} semitones on ch ${channel+1}`);
+            let sem = Math.ceil(maxBendRange / 100);
+            absEvents.push({ tick: 0, priority: 1, bytes: [0xB0+channel, 101, 0] });
+            absEvents.push({ tick: 0, priority: 1, bytes: [0xB0+channel, 100, 0] });
+            absEvents.push({ tick: 0, priority: 1, bytes: [0xB0+channel, 6, sem] });
         }
 
-        let sortedNotes = [...voiceNotes[vKey]].sort((a,b) => a.playStartQ - b.playStartQ);
-        let noteEnds = []; // array of { tick, pitch, channel }
-        let pedalSchedule = pedalEvents[vKey].map(ev => ({
-            tick: ev.time * ticksPerBeat,
-            type: ev.type
-        }));
-        pedalSchedule.sort((a,b) => a.tick - b.tick);
-        let pedalIndex = 0;
-        let sustainOn = false;
+        // Sustain pedal (CC64)
+        for (let ev of unrolledPedal) {
+            absEvents.push({ tick: ev.playQ * ticksPerBeat, priority: ev.type==='on' ? 1 : 5,
+                bytes: [0xB0+channel, 64, ev.type==='on' ? 127 : 0] });
+        }
 
-        // Process each note
-        for (let note of sortedNotes) {
-            let startTick = note.playStartQ * ticksPerBeat;
-            let rawEndTick = (note.playStartQ + note.durationInQuarters) * ticksPerBeat;
-            if (note.articulations.includes('staccato')) {
-                rawEndTick = startTick + (note.durationInQuarters * ticksPerBeat * 0.25);
-            }
-            let endTick = rawEndTick;
-            console.log(`Note: startQ=${note.playStartQ.toFixed(2)} dur=${note.durationInQuarters} startTick=${startTick} rawEndTick=${rawEndTick}`);
+        // Notes (note-on AND note-off in same list — sorted together by buildTrack)
+        for (let note of unrolled) {
+            let t0  = note.playStartQ * ticksPerBeat;
+            let dur = note.durationInQuarters * ticksPerBeat;
+            if (note.articulations.includes('staccato')) dur *= 0.25;
 
-            // Handle pedal events that occur before this note's start
-            while (pedalIndex < pedalSchedule.length && pedalSchedule[pedalIndex].tick <= startTick) {
-                let ev = pedalSchedule[pedalIndex];
-                if (ev.type === 'on') {
-                    sustainOn = true;
-                    addEvent(ev.tick, [0xB0 + channel, 64, 127]);
-                    console.log(`  Pedal ON at tick ${ev.tick} (before note)`);
-                } else {
-                    sustainOn = false;
-                    addEvent(ev.tick, [0xB0 + channel, 64, 0]);
-                    console.log(`  Pedal OFF at tick ${ev.tick} (before note)`);
-                }
-                pedalIndex++;
-            }
-
-            // If sustain is on, find the next pedal off after note start to possibly extend note
-            if (sustainOn) {
-                let nextOff = null;
-                for (let i = pedalIndex; i < pedalSchedule.length; i++) {
-                    if (pedalSchedule[i].type === 'off') {
-                        nextOff = pedalSchedule[i];
-                        break;
-                    }
-                }
-                if (nextOff && nextOff.tick > endTick) {
-                    endTick = nextOff.tick;
-                    console.log(`  Note extended to pedal-off at tick ${endTick}`);
-                }
-            }
-
-            let velocity = 100;
-            for (let a of note.articulations) {
-                if (dynVelocity[a] !== undefined) {
-                    velocity = dynVelocity[a];
-                    break;
-                }
-            }
-            velocity = Math.round(velocity * (voice.volume / 100));
+            let vel = 100;
+            for (let a of note.articulations) if (dynVelocity[a] !== undefined) { vel = dynVelocity[a]; break; }
+            vel = Math.max(1, Math.round(vel * (voice.volume / 100)));
 
             for (let p of note.pitches) {
                 if (p.pitch === 'z' || p.pitch === 'x') continue;
-                let midiPitch = abcPitchToMidi(p.pitch, p.octave, p.accidental);
-                if (!midiPitch) continue;
-                midiPitch += 12 + (note.ottavaShift || 0); // adjust to correct octave + ottava
+                let midi = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                if (!midi) continue;
+                midi = Math.max(0, Math.min(127, midi + 12 + (note.ottavaShift || 0)));
 
-                // Note on
-                addEvent(startTick, [0x90 + channel, midiPitch, velocity]);
-                console.log(`  Note ON: pitch ${midiPitch} at tick ${startTick} vel ${velocity}`);
-                noteEnds.push({ tick: endTick, pitch: midiPitch, channel });
+                absEvents.push({ tick: t0,       priority: 2, bytes: [0x90+channel, midi, vel] });
+                absEvents.push({ tick: t0 + dur, priority: 8, bytes: [0x80+channel, midi, 0] });
 
-                // Pitch bend if any
                 if (note.bend) {
-                    let points = note.bend.points;
-                    let maxCents = note.bend.maxCents;
-                    let durTicks = endTick - startTick;
-                    const fps = 30;
-                    let totalFrames = Math.max(2, Math.floor(note.durationInQuarters * (bpm/60) * fps));
-                    console.log(`  Applying bend: ${totalFrames} frames, maxCents=${maxCents}`);
-                    for (let i = 0; i <= totalFrames; i++) {
-                        let progress = i / totalFrames;
-                        let tick = startTick + progress * durTicks;
+                    let pts = note.bend.points, maxC = note.bend.maxCents;
+                    let sem = Math.ceil(maxC / 100);
+                    absEvents.push({ tick: Math.max(0,t0-1), priority:0, bytes:[0xB0+channel,101,0] });
+                    absEvents.push({ tick: Math.max(0,t0-1), priority:0, bytes:[0xB0+channel,100,0] });
+                    absEvents.push({ tick: Math.max(0,t0-1), priority:0, bytes:[0xB0+channel,6,sem] });
+                    let frames = Math.max(2, Math.floor(note.durationInQuarters * (tempo/60) * 30));
+                    for (let i = 0; i <= frames; i++) {
+                        let prog = i / frames;
                         let y = 0.5;
-                        if (progress <= 0) y = points[0].y;
-                        else if (progress >= 1) y = points[8].y;
-                        else {
-                            let idx = Math.floor(progress * 8);
-                            let t = (progress * 8) - idx;
-                            y = points[idx].y + (points[idx+1].y - points[idx].y) * t;
-                        }
-                        let centsOffset = (0.5 - y) * 2 * maxCents;
-                        let ratio = centsOffset / maxBendRange;
-                        let pbValue = 8192 + Math.round(ratio * 8191);
-                        pbValue = Math.max(0, Math.min(16383, pbValue));
-                        let lsb = pbValue & 0x7F;
-                        let msb = (pbValue >> 7) & 0x7F;
-                        addEvent(tick, [0xE0 + channel, lsb, msb]);
+                        if (prog <= 0) y = pts[0].y;
+                        else if (prog >= 1) y = pts[8].y;
+                        else { let idx = Math.floor(prog*8), f = prog*8-idx; y = pts[idx].y+(pts[Math.min(idx+1,8)].y-pts[idx].y)*f; }
+                        let co = (0.5-y)*2*maxC;
+                        let pb = Math.max(0, Math.min(16383, 8192 + Math.round((co/(sem*100))*8191)));
+                        absEvents.push({ tick: t0+prog*dur, priority:3, bytes:[0xE0+channel, pb&0x7F, (pb>>7)&0x7F] });
                     }
                 }
             }
         }
 
-        // Process remaining pedal events after all notes
-        while (pedalIndex < pedalSchedule.length) {
-            let ev = pedalSchedule[pedalIndex];
-            if (ev.type === 'on') {
-                addEvent(ev.tick, [0xB0 + channel, 64, 127]);
-                console.log(`Pedal ON at tick ${ev.tick} (after notes)`);
-            } else {
-                addEvent(ev.tick, [0xB0 + channel, 64, 0]);
-                console.log(`Pedal OFF at tick ${ev.tick} (after notes)`);
-            }
-            pedalIndex++;
-        }
+        let endTick = playQ * ticksPerBeat;
+        absEvents.push({ tick: endTick, priority: 90, bytes: [0xB0+channel, 64, 0] });   // sustain off
+        absEvents.push({ tick: endTick, priority: 91, bytes: [0xB0+channel, 123, 0] });  // all notes off
+        absEvents.push({ tick: endTick, priority: 99, bytes: [0xFF, 0x2F, 0x00] });
 
-        // Sort note ends by tick and add note-off events
-        noteEnds.sort((a,b) => a.tick - b.tick);
-        for (let n of noteEnds) {
-            addEvent(n.tick, [0x80 + n.channel, n.pitch, 0]);
-            console.log(`Note OFF: pitch ${n.pitch} at tick ${n.tick}`);
-        }
-
-        // All notes off at the end of track to prevent hanging notes
-        addEvent(lastTick, [0xB0 + channel, 123, 0]);
-        console.log(`All notes off at tick ${lastTick}`);
-
-        addEvent(lastTick, [0xFF, 0x2F, 0x00]); // end of track
-
-        let trackData = events;
-        let trackLen = trackData.length;
-        let trackHeader = [
-            0x4D, 0x54, 0x72, 0x6B,
-            (trackLen >> 24) & 0xFF,
-            (trackLen >> 16) & 0xFF,
-            (trackLen >> 8) & 0xFF,
-            trackLen & 0xFF
-        ];
-        tracks.push(...trackHeader, ...trackData);
+        let trackData = buildTrack(absEvents);
+        let tLen = trackData.length;
+        tracks.push(0x4D,0x54,0x72,0x6B, (tLen>>24)&0xFF,(tLen>>16)&0xFF,(tLen>>8)&0xFF,tLen&0xFF, ...trackData);
     }
 
     let numTracks = 1 + orderedKeys.length;
-    let header = [
-        0x4D, 0x54, 0x68, 0x64,
-        0x00, 0x00, 0x00, 0x06,
-        0x00, 0x01,
-        (numTracks >> 8) & 0xFF, numTracks & 0xFF,
-        0x01, 0xE0 // ticks per quarter = 480
-    ];
-
+    let header = [0x4D,0x54,0x68,0x64, 0,0,0,6, 0,1, (numTracks>>8)&0xFF, numTracks&0xFF, 0x01,0xE0];
     let midiBytes = new Uint8Array([...header, ...tracks]);
-    let blob = new Blob([midiBytes], { type: "audio/midi" });
+    let blob = new Blob([midiBytes], { type: 'audio/midi' });
     let url = URL.createObjectURL(blob);
-    let a = document.createElement("a"); a.href = url; a.download = "score.mid"; a.click(); URL.revokeObjectURL(url);
-    console.log("========== MIDI EXPORT COMPLETED ==========");
+    let a = document.createElement('a'); a.href = url; a.download = 'score.mid'; a.click();
+    URL.revokeObjectURL(url);
 }
+
 
 
 
@@ -4569,10 +4454,11 @@ function generateMIDIWithBend() {
 
         // ==================== OTTAVA BRACKETS ====================
         function drawOttavaBrackets() {
-            document.querySelectorAll('.ottava-bracket').forEach(el => el.remove());
+            // Remove any previously drawn ottava bracket groups from all SVGs
+            document.querySelectorAll('.ottava-bracket-svg').forEach(el => el.remove());
+
             let paper = document.getElementById('paper');
             if (!paper) return;
-            let paperRect = paper.getBoundingClientRect();
 
             let orderedKeys = getOrderedKeys();
 
@@ -4582,7 +4468,6 @@ function generateMIDIWithBend() {
                 if (!voice || !voice.visible) continue;
 
                 let notes = voice.notes;
-                // Build the same visualToArrayMap as drawVisualSelection
                 let visualToArrayMap = [];
                 for (let i = 0; i < notes.length; i++) {
                     let n = notes[i];
@@ -4591,8 +4476,8 @@ function generateMIDIWithBend() {
                 }
                 let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
 
-                // Collect all ottava spans: find pairs of ottavaOpen / ottavaClose
-                let openSpans = []; // {arrayIdx, type}
+                // Collect ottava spans
+                let openSpans = [];
                 for (let i = 0; i < notes.length; i++) {
                     let n = notes[i];
                     if (!n || n.type === 'directive' || n.type === 'barline') continue;
@@ -4600,7 +4485,6 @@ function generateMIDIWithBend() {
                 }
 
                 for (let span of openSpans) {
-                    // Find the note with matching ottavaClose after the open note
                     let endArrayIdx = -1;
                     for (let i = span.startArrayIdx; i < notes.length; i++) {
                         let n = notes[i];
@@ -4616,74 +4500,76 @@ function generateMIDIWithBend() {
                     let endEl   = trackEls[endVisIdx];
                     if (!startEl || !endEl) continue;
 
-                    let startRect = startEl.getBoundingClientRect();
-                    let endRect   = endEl.getBoundingClientRect();
+                    // Find which SVG element each note lives in
+                    let startSvg = startEl.closest('svg');
+                    let endSvg   = endEl.closest('svg');
+                    if (!startSvg) continue;
 
-                    // Position: 8va above staff, 8vb below
+                    // Helper: convert viewport rect to SVG coordinate space
+                    function toSvg(svgNode, rect) {
+                        let sr = svgNode.getBoundingClientRect();
+                        let vb = svgNode.viewBox.baseVal;
+                        let sx = vb.width  / sr.width;
+                        let sy = vb.height / sr.height;
+                        return {
+                            left:   (rect.left   - sr.left) * sx + vb.x,
+                            right:  (rect.right  - sr.left) * sx + vb.x,
+                            top:    (rect.top    - sr.top)  * sy + vb.y,
+                            bottom: (rect.bottom - sr.top)  * sy + vb.y,
+                        };
+                    }
+
+                    let sRect = startEl.getBoundingClientRect();
+                    let eRect = endEl.getBoundingClientRect();
+
+                    // If both notes are in the same SVG, draw one bracket
+                    // If they span different SVGs (row wrap), draw bracket in startSvg only to its right edge
+                    let drawInSvg = startSvg;
+
+                    let sc = toSvg(drawInSvg, sRect);
+                    let ec = (startSvg === endSvg)
+                        ? toSvg(drawInSvg, eRect)
+                        : { right: drawInSvg.viewBox.baseVal.width + drawInSvg.viewBox.baseVal.x - 4 };
+
                     let isAbove = span.type === '8va';
-                    let bracketX1 = startRect.left  - paperRect.left + paper.scrollLeft - 2;
-                    let bracketX2 = endRect.right   - paperRect.left + paper.scrollLeft + 2;
-                    let bracketW  = Math.max(bracketX2 - bracketX1, 20);
+                    let x1 = sc.left - 2;
+                    let x2 = ec.right + 2;
+                    let W  = Math.max(x2 - x1, 20);
 
-                    let tickH = 8;
-                    let svgH  = tickH + 14; // extra room for label
+                    // Vertical position in SVG coords (above or below the note bbox)
+                    let yBase = isAbove
+                        ? Math.min(sc.top, ec.top !== undefined ? ec.top : sc.top) - 2
+                        : Math.max(sc.bottom, ec.bottom !== undefined ? ec.bottom : sc.bottom) + 2;
 
-                    let bracketTop;
-                    if (isAbove) {
-                        // SVG sits above notes; line at BOTTOM of SVG, tick points DOWN toward staff
-                        bracketTop = Math.min(startRect.top, endRect.top) - paperRect.top + paper.scrollTop - svgH;
-                    } else {
-                        // SVG sits below notes; line at TOP of SVG, tick points UP toward staff
-                        bracketTop = Math.max(startRect.bottom, endRect.bottom) - paperRect.top + paper.scrollTop;
-                    }
+                    let tickLen = 6; // in SVG units
+                    let tickY   = isAbove ? yBase + tickLen : yBase - tickLen;
+                    let labelY  = isAbove ? yBase - 3 : yBase + 11;
 
-                    let svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    svgEl.classList.add('ottava-bracket');
-                    svgEl.style.left     = bracketX1 + 'px';
-                    svgEl.style.top      = bracketTop + 'px';
-                    svgEl.style.width    = bracketW + 'px';
-                    svgEl.style.height   = svgH + 'px';
-                    svgEl.setAttribute('viewBox', `0 0 ${bracketW} ${svgH}`);
-                    svgEl.setAttribute('overflow', 'visible');
+                    let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.classList.add('ottava-bracket-svg');
 
-                    // 8va: line at bottom (y = svgH-2), tick goes UP toward label = wrong direction
-                    // Standard: 8va above → horizontal line near bottom of SVG → tick at right end points DOWN (toward staff)
-                    // 8vb below → horizontal line near top of SVG → tick at right end points UP (toward staff)
-                    let lineY, tickEndY, labelY;
-                    if (isAbove) {
-                        // 8va above staff: line near bottom of SVG (close to staff), tick points DOWN toward staff
-                        lineY    = svgH - 4;
-                        tickEndY = lineY + tickH;   // DOWN toward staff
-                        labelY   = lineY - 3;       // label above the line
-                    } else {
-                        // 8vb below staff: line near top of SVG (close to staff), tick points UP toward staff
-                        lineY    = 4;
-                        tickEndY = lineY - tickH;   // UP toward staff
-                        labelY   = lineY + 12;      // label below the line
-                    }
+                    // Dashed horizontal line + right-side tick
+                    let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M${x1},${yBase} L${x2},${yBase} L${x2},${tickY}`);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke', '#333');
+                    path.setAttribute('stroke-width', '1.2');
+                    path.setAttribute('stroke-dasharray', '3,1.5');
+                    path.setAttribute('stroke-linecap', 'round');
+                    g.appendChild(path);
 
-                    // Both 8va and 8vb: dashed line + tick
-                    let pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    pathEl.setAttribute('d', `M0,${lineY} L${bracketW - 1},${lineY} L${bracketW - 1},${tickEndY}`);
-                    pathEl.setAttribute('fill', 'none');
-                    pathEl.setAttribute('stroke', '#333');
-                    pathEl.setAttribute('stroke-width', '1.5');
-                    pathEl.setAttribute('stroke-dasharray', '4,2');
-                    pathEl.setAttribute('stroke-linecap', 'round');
-                    svgEl.appendChild(pathEl);
+                    // Label
+                    let label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', String(x1 + 1));
+                    label.setAttribute('y', String(labelY));
+                    label.setAttribute('font-size', '8');
+                    label.setAttribute('font-style', 'italic');
+                    label.setAttribute('font-family', 'serif');
+                    label.setAttribute('fill', '#333');
+                    label.textContent = span.type;
+                    g.appendChild(label);
 
-                    // Label "8va" / "8vb"
-                    let labelEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    labelEl.setAttribute('x', '2');
-                    labelEl.setAttribute('y', String(labelY));
-                    labelEl.setAttribute('font-size', '10');
-                    labelEl.setAttribute('font-style', 'italic');
-                    labelEl.setAttribute('font-family', 'serif');
-                    labelEl.setAttribute('fill', '#333');
-                    labelEl.textContent = span.type;
-                    svgEl.appendChild(labelEl);
-
-                    paper.appendChild(svgEl);
+                    drawInSvg.appendChild(g);
                 }
             }
         }
@@ -5509,6 +5395,7 @@ function generateMIDIWithBend() {
 
                     measureItems.sort((a,b) => a.index - b.index);
                     let measureDur = 0;
+                    let xmlOttavaActive = 0; // track active ottava for this voice in this part
                     for (let item of measureItems) {
                         let n = item.note;
                         if (n.type === 'directive') {
@@ -5524,6 +5411,17 @@ function generateMIDIWithBend() {
                                 xml += `      </direction>\n`;
                             }
                             continue;
+                        }
+                        // Ottava open: emit octave-shift start before this note
+                        if (n.ottavaOpen) {
+                            let ottSize = 8; // 8va / 8vb both use size=8
+                            let ottDir = n.ottavaOpen === '8va' ? 'up' : 'down';
+                            xml += `      <direction placement="${n.ottavaOpen === '8va' ? 'above' : 'below'}">\n`;
+                            xml += `        <direction-type>\n`;
+                            xml += `          <octave-shift type="${ottDir}" size="${ottSize}"/>\n`;
+                            xml += `        </direction-type>\n`;
+                            xml += `      </direction>\n`;
+                            xmlOttavaActive = n.ottavaOpen === '8va' ? 1 : -1;
                         }
                         let duration = n.durationInQuarters * divisions;
                         let noteType = getNoteType(n.durationInQuarters);
@@ -5553,7 +5451,7 @@ function generateMIDIWithBend() {
                             } else {
                                 let step = pitch.pitch;
                                 let alter = accidentalToAlter(pitch.accidental);
-                                let octave = abcOctaveToNumber(pitch.octave);
+                                let octave = abcOctaveToNumber(pitch.octave) + xmlOttavaActive;
                                 xml += `        <pitch>\n`;
                                 xml += `          <step>${step}</step>\n`;
                                 if (alter !== 0) xml += `          <alter>${alter}</alter>\n`;
@@ -5600,6 +5498,16 @@ function generateMIDIWithBend() {
                             }
                             xml += `      </note>\n`;
                             first = false;
+                        }
+                        // Ottava close: emit octave-shift stop after this note
+                        if (n.ottavaClose) {
+                            let ottDir = n.ottavaClose === '8va' ? 'up' : 'down';
+                            xml += `      <direction placement="${n.ottavaClose === '8va' ? 'above' : 'below'}">\n`;
+                            xml += `        <direction-type>\n`;
+                            xml += `          <octave-shift type="stop" size="8"/>\n`;
+                            xml += `        </direction-type>\n`;
+                            xml += `      </direction>\n`;
+                            xmlOttavaActive = 0;
                         }
                         measureDur += n.durationInQuarters;
                     }
@@ -5869,14 +5777,47 @@ function generateMIDIWithBend() {
                         else if (hasFinal)                  measureRepeats[mIdx] = 'final';
                     }
 
-                    // Notes — route to correct staff track
-                    measureEl.querySelectorAll('note').forEach(noteEl => {
+                    // Process measure children in document order so octave-shift directions
+                    // are correlated with the correct notes.
+                    // activeOttava: per-staff, tracks {type:'8va'|'8vb', openNoteObj}
+                    const activeOttava = {}; // staffNum → {type, openNoteObj}
+
+                    Array.from(measureEl.children).forEach(child => {
+                        const tag = child.tagName;
+
+                        if (tag === 'direction') {
+                            const os = child.querySelector('direction-type octave-shift');
+                            if (os) {
+                                const osType = os.getAttribute('type'); // 'up','down','stop'
+                                const osSize = parseInt(os.getAttribute('size') || '8');
+                                if (osSize === 8) {
+                                    if (osType === 'up' || osType === 'down') {
+                                        // Mark all staves as entering ottava
+                                        staffNums.forEach(sn => {
+                                            activeOttava[sn] = { type: osType === 'up' ? '8va' : '8vb', openNoteObj: null };
+                                        });
+                                    } else if (osType === 'stop') {
+                                        // Close ottava on all staves
+                                        staffNums.forEach(sn => {
+                                            const ao = activeOttava[sn];
+                                            if (ao && ao.openNoteObj) {
+                                                ao.openNoteObj.ottavaClose = ao.type;
+                                            }
+                                            delete activeOttava[sn];
+                                        });
+                                    }
+                                }
+                            }
+                            return;
+                        }
+
+                        if (tag !== 'note') return;
+                        const noteEl = child;
                         if (noteEl.querySelector('grace')) { skipped.add('Grace notes'); return; }
 
                         // Determine which staff this note belongs to
                         const staffNumEl = noteEl.querySelector('staff');
                         const staffNum = staffNumEl ? (parseInt(staffNumEl.textContent) || 1) : 1;
-                        // Clamp to available staffs
                         const resolvedStaff = staffKeys[staffNum] ? staffNum : staffNums[0];
                         const vKey = staffKeys[resolvedStaff];
 
@@ -5919,7 +5860,6 @@ function generateMIDIWithBend() {
                         for (const d of ['ppp','pp','p','mp','mf','f','ff','fff'])
                             if (noteEl.querySelector(`notations dynamics ${d}`)) { arts.push(d); break; }
 
-                        // Skipped notations
                         if (noteEl.querySelector('notations technical other-technical')) skipped.add('Pitch bend data (not imported)');
                         if (noteEl.querySelector('notations slur'))      skipped.add('Slurs');
                         if (noteEl.querySelector('notations ornaments')) skipped.add('Ornaments (trill, mordent, turn, etc.)');
@@ -5927,22 +5867,43 @@ function generateMIDIWithBend() {
                         if (noteEl.querySelector('lyric'))               skipped.add('Lyrics');
 
                         // Build note / add to chord
+                        let noteObj;
                         if (isChord && lastNoteRefs[resolvedStaff] && !isRest) {
                             lastNoteRefs[resolvedStaff].pitches.push(pitchObj);
+                            noteObj = lastNoteRefs[resolvedStaff];
                         } else {
-                            const noteObj = { pitches: [pitchObj], durationInQuarters, abcUnits, tie: tieStart, triplet: isTriplet, articulations: arts };
+                            noteObj = { pitches: [pitchObj], durationInQuarters, abcUnits, tie: tieStart, triplet: isTriplet, articulations: arts };
                             voicesData[vKey].notes.push(noteObj);
                             lastNoteRefs[resolvedStaff] = noteObj;
+                        }
+
+                        // Attach ottava bracket tags to notes
+                        const ao = activeOttava[resolvedStaff];
+                        if (ao && !isChord) {
+                            if (!ao.openNoteObj) {
+                                // First note of the ottava span
+                                noteObj.ottavaOpen = ao.type;
+                                ao.openNoteObj = noteObj;
+                            }
+                            // Track last note (will get ottavaClose when stop direction is seen)
+                            ao.lastNoteObj = noteObj;
+                        }
+                    });
+
+                    // Close any ottava spans that weren't explicitly stopped (e.g. truncated at end of part)
+                    staffNums.forEach(sn => {
+                        const ao = activeOttava[sn];
+                        if (ao && ao.openNoteObj && ao.lastNoteObj) {
+                            ao.lastNoteObj.ottavaClose = ao.type;
                         }
                     });
 
                     // Measure-level skips
-                    if (measureEl.querySelector('direction direction-type pedal'))        skipped.add('Sustain pedal marks');
-                    if (measureEl.querySelector('direction direction-type wedge'))        skipped.add('Hairpin dynamics (crescendo / decrescendo)');
-                    if (measureEl.querySelector('direction direction-type words'))        skipped.add('Text directions (tempo text, rehearsal marks, etc.)');
-                    if (measureEl.querySelector('direction direction-type octave-shift')) skipped.add('Ottava lines (8va, 8vb, 15ma)');
-                    if (measureEl.querySelector('harmony'))                               skipped.add('Chord symbols / harmony');
-                    if (measureEl.querySelector('figured-bass'))                         skipped.add('Figured bass');
+                    if (measureEl.querySelector('direction direction-type pedal'))  skipped.add('Sustain pedal marks');
+                    if (measureEl.querySelector('direction direction-type wedge'))  skipped.add('Hairpin dynamics (crescendo / decrescendo)');
+                    if (measureEl.querySelector('direction direction-type words'))  skipped.add('Text directions (tempo text, rehearsal marks, etc.)');
+                    if (measureEl.querySelector('harmony'))                         skipped.add('Chord symbols / harmony');
+                    if (measureEl.querySelector('figured-bass'))                   skipped.add('Figured bass');
                 });
 
                 // Render channel rows for all staves in this part
@@ -6326,6 +6287,8 @@ document.addEventListener('keydown', function(e) {
     .selection-box, .incomplete-mark { display: none; }
     /* Hide instrument name labels in print */
     .abcjs-staff-name, .abcjs-staff-name-text { display: none !important; }
+    /* Ottava brackets must sit relative to their parent container */
+    #scoreContent { position: relative; }
   </style>
 </head>
 <body>
