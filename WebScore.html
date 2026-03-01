@@ -465,7 +465,9 @@
                         <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
                         <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
                         <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
-                        <button class="btn-small mod-btn dot-mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                        <button class="btn-small dur-btn" data-val="0.125" onclick="setDur(0.125, this)" title="32nd (no dot)">𝅘𝅥𝅰</button>
+					
+						<button class="btn-small mod-btn dot-mod-btn" id="mod-dot" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
                         <button class="btn-small mod-btn" id="mod-trip" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                 </div>
@@ -519,7 +521,10 @@
                         <button class="btn-small dur-btn active" data-val="1" onclick="setDur(1.0, this)" title="Quarter">𝅘𝅥</button>
                         <button class="btn-small dur-btn" data-val="0.5" onclick="setDur(0.5, this)" title="Eighth">𝅘𝅥𝅮</button>
                         <button class="btn-small dur-btn" data-val="0.25" onclick="setDur(0.25, this)" title="Sixteenth">𝅘𝅥𝅯</button>
-                        <button class="btn-small mod-btn dot-mod-btn" id="mod-dot-piano" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
+                       
+
+					   <button class="btn-small dur-btn" data-val="0.125" onclick="setDur(0.125, this)" title="32nd (no dot)">𝅘𝅥𝅰</button>
+					  <button class="btn-small mod-btn dot-mod-btn" id="mod-dot-piano" onclick="toggleMod('dot', true, this)" title="Dot (.)">•</button>
                         <button class="btn-small mod-btn" id="mod-trip-piano" onclick="toggleTriplet(this)" title="Triplet (3)">3</button>
                     </div>
                     <div class="group">
@@ -1783,14 +1788,14 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function setDur(quarters, btn) {
             currentDurQuarters = quarters;
-            // Sixteenth notes cannot be dotted (would create non-standard subdivisions)
-            if (quarters <= 0.25 + 0.001 && nextMods.dot) {
-                nextMods.dot = false;
-                document.querySelectorAll('.dot-mod-btn').forEach(el => el.classList.remove('active'));
-            }
             document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
             if(btn) btn.classList.add('active');
             else { let target = document.querySelector(`.dur-btn[data-val="${quarters}"]`); if(target) target.classList.add('active'); }
+            // 32nd note cannot be dotted — clear dot if active
+            if (quarters <= 0.125 + 0.001 && nextMods.dot) {
+                nextMods.dot = false;
+                document.querySelectorAll('.dot-mod-btn').forEach(el => el.classList.remove('active'));
+            }
             updateNoteButtonIcons();
         }
         function toggleMod(type, val, btn) {
@@ -1799,20 +1804,18 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (nextMods.accidental === val) { nextMods.accidental = ''; }
                 else { nextMods.accidental = val; btn.classList.add('active'); }
             } else if (type === 'dot') {
-                // Dot is not allowed for sixteenth notes to avoid non-standard tick subdivisions
-                if (currentDurQuarters <= 0.25 + 0.001) return;
+                // Dot not allowed for 32nd notes (would create non-standard 3/64 subdivisions)
+                if (currentDurQuarters <= 0.125 + 0.001) return;
                 if (nextMods.dot === val) { nextMods.dot = false; btn.classList.remove('active'); } else { nextMods.dot = true; btn.classList.add('active'); }
             }
             updateNoteButtonIcons();
         }
         function toggleTriplet(btn) {
             if (tripletNotesLeft > 0) {
-                tripletNotesLeft = 0;
-                tripletAccumNominal = 0;
+                tripletNotesLeft = 0; tripletAccumNominal = 0;
                 btn.classList.remove('active');
             } else {
-                tripletNotesLeft = 3;
-                tripletAccumNominal = 0;
+                tripletNotesLeft = 6; tripletAccumNominal = 0; // allow up to 6 notes; accumulator closes group metrically
                 btn.classList.add('active');
             }
         }
@@ -1891,6 +1894,9 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             if (!activeTrack) return;
             let clef = voicesData[activeTrack].clef;
             const keyAccs = getKeyAccidentals();
+            // Effective accidentals at cursor (key sig + carry-overs already in this measure)
+            let effAccsAtCursor = {};
+            try { effAccsAtCursor = getMeasureEffectiveAccidentals(activeTrack, getInsertionTime()); } catch(e) {}
 
             function renderBtn(btn, durQuarters) {
                 let note = btn.dataset.note;
@@ -1901,10 +1907,11 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (note !== 'z') {
                     if (totalShift <= -3) octaveStr = ',,,'; else if (totalShift === -2) octaveStr = ',,'; else if (totalShift === -1) octaveStr = ','; else if (totalShift === 0) octaveStr = ''; else if (totalShift === 1) octaveStr = "'"; else if (totalShift === 2) octaveStr = "''"; else if (totalShift >= 3) octaveStr = "'''";
                 }
-                let baseUnits = durQuarters / 0.25;
-                let durStr = baseUnits + (nextMods.dot ? '.' : '');
+                let baseUnits = Math.round(durQuarters / 0.125); // L:1/32: 32nd=1, 16th=2, 8th=4, quarter=8 ...
+                let durStr = String(baseUnits);
+                if (nextMods.dot && durQuarters > 0.125 + 0.001) durStr += '.';
                 let abcLine = note === 'z' ? `z${durStr}` : `${note}${octaveStr}${durStr}`;
-                let abc = `X:1\nL:1/16\nK:C clef=${clef}\n${abcLine}`;
+                let abc = `X:1\nL:1/32\nK:C clef=${clef}\n${abcLine}`;
                 let iconSpan = btn.querySelector('.note-icon');
                 if (!iconSpan) return;
                 iconSpan.innerHTML = '';
@@ -1921,10 +1928,17 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                         let displayAcc = '';
                         if (userAcc === '^') displayAcc = '#';
                         else if (userAcc === '_') displayAcc = 'b';
-                        else if (userAcc === '=') { displayAcc = keyAccs[note] ? '♮' : ''; }
+                        else if (userAcc === '=') { displayAcc = (effAccsAtCursor[note] || keyAccs[note]) ? '♮' : ''; }
                         else if (userAcc === '^^') displayAcc = '𝄪';
                         else if (userAcc === '__') displayAcc = '𝄫';
-                        else { const ksAcc = keyAccs[note]; if (ksAcc === '^') displayAcc = '#'; else if (ksAcc === '_') displayAcc = 'b'; }
+                        else {
+                            // No modifier selected — show whatever is active (measure carry-over or key sig)
+                            const activeAcc = effAccsAtCursor[note];
+                            if (activeAcc === '^') displayAcc = '#';
+                            else if (activeAcc === '_') displayAcc = 'b';
+                            else if (activeAcc === '^^') displayAcc = '𝄪';
+                            else if (activeAcc === '__') displayAcc = '𝄫';
+                        }
                         letter += displayAcc;
                     }
                     letterSpan.innerText = letter;
@@ -2306,7 +2320,7 @@ function addNoteSync(noteBase, rowShift) {
 
     // Build the new note
     let nominalQuarters = currentDurQuarters;
-    if (nextMods.dot && currentDurQuarters > 0.25 + 0.001) nominalQuarters *= 1.5;
+    if (nextMods.dot && currentDurQuarters > 0.125 + 0.001) nominalQuarters *= 1.5;
     let isTripletNote = tripletNotesLeft > 0;
     let baseQuarters = isTripletNote ? nominalQuarters * (2/3) : nominalQuarters;
 
@@ -2383,18 +2397,27 @@ function addNoteSync(noteBase, rowShift) {
     selection.end = newSelIdx;
 
     if (tripletNotesLeft > 0) {
-        tripletNotesLeft--;
         tripletAccumNominal += nominalQuarters;
-        const ratio = tripletAccumNominal / 0.75;
-        const isGroupComplete = tripletNotesLeft <= 0 ||
-            (Math.abs(ratio - Math.round(ratio)) < 0.01 && Math.round(ratio) >= 1);
-        if (isGroupComplete) {
-            tripletNotesLeft = 0;
-            tripletAccumNominal = 0;
+        // Close triplet group when accumulated nominal quarters makes a metrically complete group.
+        // A group is complete when accumulated_actual = k * 0.25q (for integer k > 0).
+        // actual = nominal * (2/3), so: nominal * (8/3) must be a positive integer.
+        const checkVal = tripletAccumNominal * 8 / 3;
+        const groupComplete = checkVal > 0.001 && Math.abs(checkVal - Math.round(checkVal)) < 0.001;
+        if (groupComplete) {
+            tripletNotesLeft = 0; tripletAccumNominal = 0;
             ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
                 let el = document.getElementById(id);
                 if (el) el.classList.remove('active');
             });
+        } else {
+            tripletNotesLeft--;
+            if (tripletNotesLeft <= 0) {
+                tripletNotesLeft = 0; tripletAccumNominal = 0;
+                ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
+                    let el = document.getElementById(id);
+                    if (el) el.classList.remove('active');
+                });
+            }
         }
     }
     resetMods();
@@ -2534,7 +2557,7 @@ function addNoteSync(noteBase, rowShift) {
                     else if (totalShift >= 3) finalOctaveStr = "'''";
                 }
                 let nominalQuarters = currentDurQuarters;
-                if (nextMods.dot && currentDurQuarters > 0.25 + 0.001) nominalQuarters *= 1.5;
+                if (nextMods.dot && currentDurQuarters > 0.125 + 0.001) nominalQuarters *= 1.5;
                 let isTriplet = tripletNotesLeft > 0;
                 let baseQuarters = isTriplet ? nominalQuarters * (2/3) : nominalQuarters;
                 let newNote = {
@@ -2603,17 +2626,18 @@ function addNoteSync(noteBase, rowShift) {
                 else insertIdx = notes.length;
                 insertNotes(activeTrack, insertIdx, [newNote]);
                 if (isTriplet) {
-                    tripletNotesLeft--;
                     tripletAccumNominal += nominalQuarters;
-                    // A triplet group is metrically complete when the accumulated nominal
-                    // duration is a multiple of 0.75q (3 sixteenths), e.g. 0.75, 1.5, 3.0
-                    const ratio = tripletAccumNominal / 0.75;
-                    const isGroupComplete = tripletNotesLeft <= 0 ||
-                        (Math.abs(ratio - Math.round(ratio)) < 0.01 && Math.round(ratio) >= 1);
-                    if (isGroupComplete) {
-                        tripletNotesLeft = 0;
-                        tripletAccumNominal = 0;
+                    const checkVal = tripletAccumNominal * 8 / 3;
+                    const groupComplete = checkVal > 0.001 && Math.abs(checkVal - Math.round(checkVal)) < 0.001;
+                    if (groupComplete) {
+                        tripletNotesLeft = 0; tripletAccumNominal = 0;
                         ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
+                    } else {
+                        tripletNotesLeft--;
+                        if (tripletNotesLeft <= 0) {
+                            tripletNotesLeft = 0; tripletAccumNominal = 0;
+                            ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
+                        }
                     }
                 }
                 resetMods();
@@ -3058,7 +3082,7 @@ function generateMIDIWithBend() {
             if (n.pedalStart) pedalAbs.push({ time: currentQ, type: 'on' });
             if (n.pedalEnd)   pedalAbs.push({ time: currentQ, type: 'off' });
             if (n.pitches && n.pitches[0].pitch !== 'z')
-                raw.push({ ...n, scoreStartQ: currentQ, ottavaShift: midiOttava });
+                raw.push({ ...n, scoreStartQ: currentQ, ottavaShift: midiOttava, articulations: [...(n.articulations || [])] });
             if (n.ottavaClose) midiOttava = 0;
             if (n.durationInQuarters) currentQ += n.durationInQuarters;
         }
@@ -3107,10 +3131,21 @@ function generateMIDIWithBend() {
         }
 
         // Notes (note-on AND note-off in same list — sorted together by buildTrack)
+        let midiMeasureAccs = {}; // carry-over accidentals within each playback measure
+        let midiLastMeasureIdx = -1;
         for (let note of unrolled) {
             let t0  = note.playStartQ * ticksPerBeat;
             let dur = note.durationInQuarters * ticksPerBeat;
             if (note.articulations.includes('staccato')) dur *= 0.25;
+
+            // Track measure boundaries for accidental propagation
+            const midiMeasureIdx = Math.floor(note.playStartQ / measureCapacity + 1e-9);
+            if (midiMeasureIdx !== midiLastMeasureIdx) {
+                midiLastMeasureIdx = midiMeasureIdx;
+                midiMeasureAccs = {};
+            }
+            const scoreMeasureIdx = getMeasureIdxAtTime(note.scoreStartQ);
+            const midiKeySigAccs = getKeyAccidentals(scoreMeasureIdx);
 
             let vel = 100;
             for (let a of note.articulations) if (dynVelocity[a] !== undefined) { vel = dynVelocity[a]; break; }
@@ -3118,7 +3153,17 @@ function generateMIDIWithBend() {
 
             for (let p of note.pitches) {
                 if (p.pitch === 'z' || p.pitch === 'x') continue;
-                let midi = abcPitchToMidi(p.pitch, p.octave, p.accidental);
+                // Effective accidental: explicit > measure carry-over > key signature
+                let effAcc = p.accidental;
+                if (!effAcc && p.pitch) {
+                    const carried = midiMeasureAccs[p.pitch];
+                    effAcc = (carried !== undefined) ? carried : (midiKeySigAccs[p.pitch] || '');
+                }
+                // Update carry-over state if this note has an explicit accidental
+                if (p.pitch && p.accidental) {
+                    midiMeasureAccs[p.pitch] = (p.accidental === '=') ? '' : p.accidental;
+                }
+                let midi = abcPitchToMidi(p.pitch, p.octave, effAcc);
                 if (!midi) continue;
                 midi = Math.max(0, Math.min(127, midi + 12 + (note.ottavaShift || 0)));
 
@@ -3211,6 +3256,8 @@ function generateMIDIWithBend() {
                 let currentQ = 0;
                 pedalEventsPerVoice[vKey] = [];
                 let activeOttava = 0; // semitone shift: +12 for 8va, -12 for 8vb, 0 for none
+                let abcjsMeasureAccs = {}; // accidentals active in current measure (letter -> acc or '')
+                let abcjsLastMeasureIdx = -1;
                 for (let n of voice.notes) {
                     if (n.type !== 'directive' && n.type !== 'barline') {
                         // Apply ottava open tag BEFORE this note plays
@@ -3220,11 +3267,24 @@ function generateMIDIWithBend() {
                             // Compute effective key accidentals at this note's measure
                             const measureIdx = getMeasureIdxAtTime(currentQ);
                             const keySigAccs = getKeyAccidentals(measureIdx);
-                            // Apply key signature to pitches that have no explicit accidental
+                            // Reset measure accidentals when entering a new measure
+                            if (measureIdx !== abcjsLastMeasureIdx) {
+                                abcjsLastMeasureIdx = measureIdx;
+                                abcjsMeasureAccs = {};
+                            }
+                            // Apply key sig + measure carry-over to pitches without explicit accidental
                             const pitchesWithKeySig = n.pitches.map(p => {
-                                if (p.pitch && p.pitch !== 'z' && p.pitch !== 'x' && !p.accidental) {
-                                    const ksAcc = keySigAccs[p.pitch] || '';
-                                    return ksAcc ? { ...p, accidental: ksAcc } : p;
+                                if (p.pitch && p.pitch !== 'z' && p.pitch !== 'x') {
+                                    if (p.accidental) {
+                                        // Explicit accidental — update carry-over state
+                                        abcjsMeasureAccs[p.pitch] = (p.accidental === '=') ? '' : p.accidental;
+                                        return p;
+                                    } else {
+                                        // No explicit accidental — use carry-over first, then key sig
+                                        const carried = abcjsMeasureAccs[p.pitch];
+                                        const effAcc = (carried !== undefined) ? carried : (keySigAccs[p.pitch] || '');
+                                        return effAcc ? { ...p, accidental: effAcc } : p;
+                                    }
                                 }
                                 return p;
                             });
@@ -3234,7 +3294,7 @@ function generateMIDIWithBend() {
                                 duration: n.durationInQuarters, 
                                 pitches: pitchesWithKeySig, 
                                 program: voice.program, 
-                                articulations: n.articulations || [],
+                                articulations: [...(n.articulations || [])],
                                 tie: n.tie || false,
                                 volume: voice.volume,
                                 bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined,
@@ -4013,16 +4073,21 @@ function generateMIDIWithBend() {
                     let prefix = "";
                     if (n.triplet) {
                         if (activeTripletCount === 0) {
+                            // Scan ahead to count consecutive triplet notes in THIS group only.
+                            // Stop as soon as the accumulated nominal forms a complete group.
                             let consecutiveTriplets = 1;
-                            // Skip invisible 'x' fill notes when scanning ahead for consecutive triplets
+                            let totalNominal = n.abcUnits * 0.25; // in quarters
                             let scan = i + 1;
-                            while (scan < notes.length && consecutiveTriplets < 3) {
+                            while (scan < notes.length && consecutiveTriplets < 6) {
+                                // Stop if the group is already metrically complete
+                                let cv = totalNominal * 8 / 3;
+                                if (cv > 0.001 && Math.abs(cv - Math.round(cv)) < 0.001) break;
                                 let sn = notes[scan];
                                 if (sn.pitches && sn.pitches[0].pitch === 'x') { scan++; continue; } // skip invisible fills
-                                if (sn.triplet) { consecutiveTriplets++; scan++; }
+                                if (sn.triplet) { consecutiveTriplets++; totalNominal += sn.abcUnits * 0.25; scan++; }
                                 else break;
                             }
-                            if (consecutiveTriplets === 3) { prefix = "(3"; activeTripletCount = 2; }
+                            if (consecutiveTriplets >= 3) { prefix = "(3"; activeTripletCount = consecutiveTriplets - 1; }
                             else if (consecutiveTriplets === 2) { prefix = "(3:2:2"; activeTripletCount = 1; }
                             else { prefix = "(3:2:1 "; activeTripletCount = 0; }
                         } else activeTripletCount--;
@@ -4038,8 +4103,8 @@ function generateMIDIWithBend() {
                     }
                     let tieStr = needTie ? "-" : "";
 
-                    // Always use integer abcUnits — fractional values cause '.' to be parsed as staccato by ABCJS
-                    let safeAbcUnits = Math.max(1, Math.round(n.abcUnits));
+                    // With L:1/32 base, multiply abcUnits by 2 (abcUnits was stored in L:1/16 units)
+                    let safeAbcUnits = Math.max(1, Math.round(n.abcUnits * 2));
                     let noteCore = "";
                     if (n.pitches.length > 1) {
                         noteCore += "[";
@@ -4111,8 +4176,8 @@ function generateMIDIWithBend() {
 
             // Anacrusis: if pickup set, add %%MIDI barstart and use abc's 'M:' directive
             // abcjs renders pickup via the 'anacrusis' header or we just let the first measure be short
-            let pickupUnits = pickupDurQuarters > 0 ? Math.round(pickupDurQuarters / 0.25) : 0;
-            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/16\nQ:1/4=${tempo}\n`;
+            let pickupUnits = pickupDurQuarters > 0 ? Math.round(pickupDurQuarters / 0.125) : 0;
+            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/32\nQ:1/4=${tempo}\n`;
             if (pickupUnits > 0) abcString += `%%MIDI barstart ${pickupUnits}\n`;
             abcString += `K:${key}\n`;
             let voiceStrings = [];
@@ -4151,78 +4216,63 @@ function generateMIDIWithBend() {
 
                         // Measure content
                         if (measure.items.length === 0) {
-                            vStr += "x16 ";
+                            // L:1/32: measure capacity in 32nd-note units = quarterCapacity * 8
+                            let emptyUnits = Math.round(getMeasureCapacityAt(mIdx) * 8);
+                            vStr += `x${emptyUnits} `;
                         } else {
-                        let inTripletCount = 0; // remaining triplet notes after the current one
-                        let measureQOffset = 0;  // tracks actual quarters consumed within this measure
-                        for (let itemIdx = 0; itemIdx < measure.items.length; itemIdx++) {
-                            let item = measure.items[itemIdx];
-                            if (item.type === 'directive') {
-                                vStr += item.text + " ";
-                                inTripletCount = 0;
-                            } else {
-                                vStr += item.text;
+                            // Smart metric-aware beaming
+                            // groupSizeQ = beam group width in quarter notes
+                            // groupSize UI setting = number of 8th notes per beam group
+                            let groupSizeQ = groupSize > 0 ? groupSize * 0.5 : 0;
+                            let measureQOffset = 0; // quarter position within this measure
+                            let inTripletCount = 0;
 
-                                let measureQBefore = measureQOffset;
-                                if (item.duration) measureQOffset += item.duration;
-
-                                // Detect triplet opener: text starts with (p or (p:q:r
-                                let tripletMatchArr = item.text.match(/^\((\d+)(?::(\d+):(\d+))?/);
-                                if (tripletMatchArr) {
-                                    // Number of notes affected by this bracket
-                                    let noteCount = (tripletMatchArr[3] !== undefined)
-                                        ? parseInt(tripletMatchArr[3])
-                                        : parseInt(tripletMatchArr[1]);
-                                    inTripletCount = noteCount - 1;
-                                    if (inTripletCount <= 0) vStr += " "; // single-note triplet
-                                } else if (inTripletCount > 0) {
-                                    inTripletCount--;
-                                    if (inTripletCount === 0) {
-                                        vStr += " "; // last note of triplet — add space after
-                                    }
-                                    // middle triplet notes: no space (beam together)
+                            for (let item of measure.items) {
+                                if (item.type === 'directive') {
+                                    vStr += item.text + " ";
+                                    inTripletCount = 0;
                                 } else {
-                                    // Normal note — apply smart metric beaming
-                                    let durMatch = item.text.match(/\d+/);
-                                    let durUnits = durMatch ? parseInt(durMatch[0]) : 0;
-                                    // In L:1/16, 4 units = quarter note; beamable = shorter than quarter
-                                    let isShortNote = durUnits > 0 && durUnits < 4;
-                                    let isRest = item.text.includes('z');
-                                    let isInvisible = item.isInvisible;
+                                    vStr += item.text;
+                                    let noteDurQ = item.duration || 0;
 
-                                    if (groupSize > 0 && isShortNote && !isRest && !isInvisible) {
-                                        // Find next non-directive item
-                                        let nextItem = null;
-                                        for (let j = itemIdx + 1; j < measure.items.length; j++) {
-                                            if (measure.items[j].type !== 'directive') { nextItem = measure.items[j]; break; }
-                                        }
-
-                                        let nextIsBeamable = false;
-                                        if (nextItem) {
-                                            let nDurMatch = nextItem.text.match(/\d+/);
-                                            let nDurUnits = nDurMatch ? parseInt(nDurMatch[0]) : 0;
-                                            nextIsBeamable = nDurUnits > 0 && nDurUnits < 4
-                                                && !nextItem.text.includes('z')
-                                                && !nextItem.isInvisible;
-                                        }
-
-                                        if (nextIsBeamable) {
-                                            // Compare metric beam groups by START position
-                                            // groupSize eigths = groupSize * 0.5 quarters per group
-                                            const beamGroupQ = groupSize * 0.5;
-                                            const curGroup  = Math.floor(measureQBefore / beamGroupQ);
-                                            const nextGroup = Math.floor(measureQOffset / beamGroupQ);
-                                            if (curGroup !== nextGroup) vStr += " "; // beam break at metric boundary
-                                            // else: no space — beam together
-                                        } else {
-                                            vStr += " "; // next note not beamable
-                                        }
+                                    // Detect triplet opener — handle both (3 and (3:2:2 formats
+                                    let tripletMatch = item.text.match(/^\((\d+)(?::(\d+):(\d+))?/);
+                                    if (tripletMatch) {
+                                        let r = tripletMatch[3] ? parseInt(tripletMatch[3]) : parseInt(tripletMatch[1]);
+                                        inTripletCount = r - 1;
+                                        if (inTripletCount <= 0) vStr += " "; // single-note triplet edge case
+                                        // else: no space — wait for last triplet note
+                                    } else if (inTripletCount > 0) {
+                                        inTripletCount--;
+                                        if (inTripletCount === 0) vStr += " "; // last note of triplet group
+                                        // middle notes: no space (beam within triplet)
+                                    } else if (item.isInvisible) {
+                                        // Invisible x-rest: no space, just advance time
                                     } else {
-                                        vStr += " ";
+                                        // Normal note — metric beaming using L:1/32 units
+                                        let durMatch = item.text.match(/\d+/);
+                                        let safeUnits = durMatch ? parseInt(durMatch[0]) : 0;
+                                        // With L:1/32: quarter = 8 units; beam only notes shorter than quarter
+                                        let isBeamable = groupSizeQ > 0 && safeUnits < 8
+                                            && !item.text.includes('z') && !item.text.includes('x');
+
+                                        if (isBeamable) {
+                                            // Add space when this note's END reaches or crosses a beam-group boundary.
+                                            // Both comparisons use +eps so an exact boundary (e.g. 2.0 → group 1)
+                                            // correctly separates from the previous group (still in group 0).
+                                            let noteEndQ = measureQOffset + noteDurQ;
+                                            let grpBefore = Math.floor((measureQOffset + 1e-9) / groupSizeQ);
+                                            let grpAfter  = Math.floor((noteEndQ  + 1e-9) / groupSizeQ);
+                                            if (grpAfter > grpBefore) vStr += " ";
+                                            // else: no space — beam continues within same group
+                                        } else {
+                                            vStr += " "; // quarter or longer, rest, etc.
+                                        }
                                     }
+
+                                    measureQOffset += noteDurQ;
                                 }
                             }
-                        }
                         }
 
                         // Nav marks that go at END of measure (fine, DC, DS) – before barline
@@ -5306,15 +5356,24 @@ function generateMIDIWithBend() {
 
         async function playSingleNote(pitchBase, octaveStr, accidental, durationQuarters, articulations = []) {
             if (!activeTrack || !voicesData[activeTrack].active || pitchBase === 'z') return;
+            // Capture insertion time SYNCHRONOUSLY before any await, because after await the cursor
+            // may have already advanced (note inserted, selection moved).
+            let _capturedEffAcc = accidental;
+            if (!accidental && pitchBase && pitchBase !== 'z' && pitchBase !== 'x') {
+                try {
+                    const _effAccs = getMeasureEffectiveAccidentals(activeTrack, getInsertionTime());
+                    _capturedEffAcc = _effAccs[pitchBase] || '';
+                } catch(e) {
+                    try {
+                        const _ks = getKeyAccidentals(getCurrentMeasureIndex());
+                        _capturedEffAcc = _ks[pitchBase] || '';
+                    } catch(e2) {}
+                }
+            }
             await ensureAudioAndPreload();
             let prog = voicesData[activeTrack].program;
-            // Apply key signature accidental if no explicit accidental
-            let effAcc = accidental;
-            if (!effAcc && pitchBase && pitchBase !== 'z' && pitchBase !== 'x') {
-                const curMeas = getCurrentMeasureIndex();
-                const keySigAccs = getKeyAccidentals(curMeas);
-                effAcc = keySigAccs[pitchBase] || '';
-            }
+            // Use the pre-captured effective accidental
+            let effAcc = _capturedEffAcc;
             let midiNote = abcPitchToMidi(pitchBase, octaveStr, effAcc);
             if (!midiNote) return;
             midiNote += 12;
@@ -5411,7 +5470,7 @@ function generateMIDIWithBend() {
             xml += '  </part-list>\n';
 
             const measureCapacity = getMeasureCapacity();
-            const divisions = 4;
+            const divisions = 8; // 8 divisions per quarter: supports whole..32nd notes
             const tempo = parseInt(document.getElementById('tempo').value) || 120;
             const keySig = document.getElementById('keySig').value;
             const timeSig = document.getElementById('timeSig').value;
@@ -5467,6 +5526,8 @@ function generateMIDIWithBend() {
                     measureItems.sort((a,b) => a.index - b.index);
                     let measureDur = 0;
                     let xmlOttavaActive = 0; // track active ottava for this voice in this part
+                    const xmlMeasureAccs = {}; // carry-over accidentals within this measure
+                    const xmlKeySigAccs = getKeyAccidentals(mIdx);
                     for (let item of measureItems) {
                         let n = item.note;
                         if (n.type === 'directive') {
@@ -5521,7 +5582,17 @@ function generateMIDIWithBend() {
                                 xml += `        <rest/>\n`;
                             } else {
                                 let step = pitch.pitch;
-                                let alter = accidentalToAlter(pitch.accidental);
+                                // Effective accidental: explicit > measure carry-over > key signature
+                                let effPitchAcc = pitch.accidental;
+                                if (!effPitchAcc && step) {
+                                    const carried = xmlMeasureAccs[step];
+                                    effPitchAcc = (carried !== undefined) ? carried : (xmlKeySigAccs[step] || '');
+                                }
+                                // Update carry-over state
+                                if (step && pitch.accidental) {
+                                    xmlMeasureAccs[step] = (pitch.accidental === '=') ? '' : pitch.accidental;
+                                }
+                                let alter = accidentalToAlter(effPitchAcc);
                                 let octave = abcOctaveToNumber(pitch.octave) + xmlOttavaActive;
                                 xml += `        <pitch>\n`;
                                 xml += `          <step>${step}</step>\n`;
@@ -6228,9 +6299,9 @@ function generateMIDIWithBend() {
     }
 
     // ==================== 3-ROW GRID INPUT MODE ====================
-    const GRID3_DUR_LEVELS = [0.25, 0.5, 1.0, 2.0, 4.0];
-    const GRID3_DUR_NAMES  = ['1/16','1/8','1/4','1/2','1/1'];
-    let grid3BaseLevel = 2; // index: top=level-1, mid=level, bottom=level+1; default mid=quarter
+    const GRID3_DUR_LEVELS = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0];
+    const GRID3_DUR_NAMES  = ['1/32','1/16','1/8','1/4','1/2','1/1'];
+    let grid3BaseLevel = 3; // index: top=level-1, mid=level, bottom=level+1; default mid=quarter (index 3)
 
     function grid3RowDur(rowIdx) {
         // rowIdx 0=top(shortest), 1=middle, 2=bottom(longest)
@@ -6248,8 +6319,12 @@ function generateMIDIWithBend() {
     function addNoteGrid3(noteBase, rowShift, rowIdx) {
         const saved = currentDurQuarters;
         currentDurQuarters = grid3RowDur(rowIdx);
+        // 32nd note rows cannot be dotted — temporarily clear dot for this note
+        const savedDot = nextMods.dot;
+        if (currentDurQuarters <= 0.125 + 0.001) nextMods.dot = false;
         addNoteEx(noteBase, rowShift);
         currentDurQuarters = saved;
+        if (currentDurQuarters <= 0.125 + 0.001) nextMods.dot = savedDot; // restore (already cleared by addNoteEx's resetMods, but be safe)
     }
     function rebuildGrid3Rows() {
         const container = document.getElementById('grid3Rows');
