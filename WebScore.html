@@ -767,7 +767,8 @@
         
         let currentDurQuarters = 1.0; 
         let nextMods = { accidental: '', dot: false };
-        let tripletNotesLeft = 0; 
+        let tripletNotesLeft = 0;
+        let tripletAccumNominal = 0; // accumulated nominal quarters in current triplet group
         let isChordMode = false;
         let isShiftChord = false; // transient chord mode while Shift is held
         
@@ -1782,6 +1783,11 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function setDur(quarters, btn) {
             currentDurQuarters = quarters;
+            // Sixteenth notes cannot be dotted (would create non-standard subdivisions)
+            if (quarters <= 0.25 + 0.001 && nextMods.dot) {
+                nextMods.dot = false;
+                document.querySelectorAll('.dot-mod-btn').forEach(el => el.classList.remove('active'));
+            }
             document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
             if(btn) btn.classList.add('active');
             else { let target = document.querySelector(`.dur-btn[data-val="${quarters}"]`); if(target) target.classList.add('active'); }
@@ -1793,12 +1799,22 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (nextMods.accidental === val) { nextMods.accidental = ''; }
                 else { nextMods.accidental = val; btn.classList.add('active'); }
             } else if (type === 'dot') {
+                // Dot is not allowed for sixteenth notes to avoid non-standard tick subdivisions
+                if (currentDurQuarters <= 0.25 + 0.001) return;
                 if (nextMods.dot === val) { nextMods.dot = false; btn.classList.remove('active'); } else { nextMods.dot = true; btn.classList.add('active'); }
             }
             updateNoteButtonIcons();
         }
         function toggleTriplet(btn) {
-            if (tripletNotesLeft > 0) { tripletNotesLeft = 0; btn.classList.remove('active'); } else { tripletNotesLeft = 3; btn.classList.add('active'); }
+            if (tripletNotesLeft > 0) {
+                tripletNotesLeft = 0;
+                tripletAccumNominal = 0;
+                btn.classList.remove('active');
+            } else {
+                tripletNotesLeft = 3;
+                tripletAccumNominal = 0;
+                btn.classList.add('active');
+            }
         }
         function resetMods() {
             nextMods = { accidental: '', dot: false };
@@ -2290,7 +2306,7 @@ function addNoteSync(noteBase, rowShift) {
 
     // Build the new note
     let nominalQuarters = currentDurQuarters;
-    if (nextMods.dot) nominalQuarters *= 1.5;
+    if (nextMods.dot && currentDurQuarters > 0.25 + 0.001) nominalQuarters *= 1.5;
     let isTripletNote = tripletNotesLeft > 0;
     let baseQuarters = isTripletNote ? nominalQuarters * (2/3) : nominalQuarters;
 
@@ -2368,7 +2384,13 @@ function addNoteSync(noteBase, rowShift) {
 
     if (tripletNotesLeft > 0) {
         tripletNotesLeft--;
-        if (tripletNotesLeft === 0) {
+        tripletAccumNominal += nominalQuarters;
+        const ratio = tripletAccumNominal / 0.75;
+        const isGroupComplete = tripletNotesLeft <= 0 ||
+            (Math.abs(ratio - Math.round(ratio)) < 0.01 && Math.round(ratio) >= 1);
+        if (isGroupComplete) {
+            tripletNotesLeft = 0;
+            tripletAccumNominal = 0;
             ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
                 let el = document.getElementById(id);
                 if (el) el.classList.remove('active');
@@ -2512,7 +2534,7 @@ function addNoteSync(noteBase, rowShift) {
                     else if (totalShift >= 3) finalOctaveStr = "'''";
                 }
                 let nominalQuarters = currentDurQuarters;
-                if (nextMods.dot) nominalQuarters *= 1.5;
+                if (nextMods.dot && currentDurQuarters > 0.25 + 0.001) nominalQuarters *= 1.5;
                 let isTriplet = tripletNotesLeft > 0;
                 let baseQuarters = isTriplet ? nominalQuarters * (2/3) : nominalQuarters;
                 let newNote = {
@@ -2580,7 +2602,20 @@ function addNoteSync(noteBase, rowShift) {
                 else if (selection.start !== -1 && selection.end !== -1) insertIdx = Math.max(selection.start, selection.end) + 1;
                 else insertIdx = notes.length;
                 insertNotes(activeTrack, insertIdx, [newNote]);
-                if (isTriplet) { tripletNotesLeft--; if (tripletNotesLeft === 0) { ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); }); } }
+                if (isTriplet) {
+                    tripletNotesLeft--;
+                    tripletAccumNominal += nominalQuarters;
+                    // A triplet group is metrically complete when the accumulated nominal
+                    // duration is a multiple of 0.75q (3 sixteenths), e.g. 0.75, 1.5, 3.0
+                    const ratio = tripletAccumNominal / 0.75;
+                    const isGroupComplete = tripletNotesLeft <= 0 ||
+                        (Math.abs(ratio - Math.round(ratio)) < 0.01 && Math.round(ratio) >= 1);
+                    if (isGroupComplete) {
+                        tripletNotesLeft = 0;
+                        tripletAccumNominal = 0;
+                        ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
+                    }
+                }
                 resetMods();
             }
         }
@@ -3988,7 +4023,7 @@ function generateMIDIWithBend() {
                                 else break;
                             }
                             if (consecutiveTriplets === 3) { prefix = "(3"; activeTripletCount = 2; }
-                            else if (consecutiveTriplets === 2) { prefix = "(2"; activeTripletCount = 1; }
+                            else if (consecutiveTriplets === 2) { prefix = "(3:2:2"; activeTripletCount = 1; }
                             else { prefix = "(3:2:1 "; activeTripletCount = 0; }
                         } else activeTripletCount--;
                     } else activeTripletCount = 0;
@@ -4118,40 +4153,76 @@ function generateMIDIWithBend() {
                         if (measure.items.length === 0) {
                             vStr += "x16 ";
                         } else {
-                            let groupCounter = 0;
-                            let inTripletCount = 0; // remaining triplet notes after the current one
-                            for (let item of measure.items) {
-                                if (item.type === 'directive') {
-                                    vStr += item.text + " ";
-                                    groupCounter = 0;
-                                    inTripletCount = 0;
-                                } else {
-                                    vStr += item.text;
+                        let inTripletCount = 0; // remaining triplet notes after the current one
+                        let measureQOffset = 0;  // tracks actual quarters consumed within this measure
+                        for (let itemIdx = 0; itemIdx < measure.items.length; itemIdx++) {
+                            let item = measure.items[itemIdx];
+                            if (item.type === 'directive') {
+                                vStr += item.text + " ";
+                                inTripletCount = 0;
+                            } else {
+                                vStr += item.text;
 
-                                    // Detect triplet opener: text starts with (N
-                                    let tripletStart = item.text.match(/^\((\d)/);
-                                    if (tripletStart) {
-                                        // First note of a triplet group — group remaining N-1 notes together
-                                        inTripletCount = parseInt(tripletStart[1]) - 1;
-                                        groupCounter = 0;
-                                        if (inTripletCount <= 0) vStr += " "; // single-note triplet (edge case)
-                                        // else: no space yet — wait for last note
-                                    } else if (inTripletCount > 0) {
-                                        inTripletCount--;
-                                        if (inTripletCount === 0) {
-                                            vStr += " "; // last note of triplet — add space after
+                                let measureQBefore = measureQOffset;
+                                if (item.duration) measureQOffset += item.duration;
+
+                                // Detect triplet opener: text starts with (p or (p:q:r
+                                let tripletMatchArr = item.text.match(/^\((\d+)(?::(\d+):(\d+))?/);
+                                if (tripletMatchArr) {
+                                    // Number of notes affected by this bracket
+                                    let noteCount = (tripletMatchArr[3] !== undefined)
+                                        ? parseInt(tripletMatchArr[3])
+                                        : parseInt(tripletMatchArr[1]);
+                                    inTripletCount = noteCount - 1;
+                                    if (inTripletCount <= 0) vStr += " "; // single-note triplet
+                                } else if (inTripletCount > 0) {
+                                    inTripletCount--;
+                                    if (inTripletCount === 0) {
+                                        vStr += " "; // last note of triplet — add space after
+                                    }
+                                    // middle triplet notes: no space (beam together)
+                                } else {
+                                    // Normal note — apply smart metric beaming
+                                    let durMatch = item.text.match(/\d+/);
+                                    let durUnits = durMatch ? parseInt(durMatch[0]) : 0;
+                                    // In L:1/16, 4 units = quarter note; beamable = shorter than quarter
+                                    let isShortNote = durUnits > 0 && durUnits < 4;
+                                    let isRest = item.text.includes('z');
+                                    let isInvisible = item.isInvisible;
+
+                                    if (groupSize > 0 && isShortNote && !isRest && !isInvisible) {
+                                        // Find next non-directive item
+                                        let nextItem = null;
+                                        for (let j = itemIdx + 1; j < measure.items.length; j++) {
+                                            if (measure.items[j].type !== 'directive') { nextItem = measure.items[j]; break; }
                                         }
-                                        // middle triplet notes: no space (beam together)
+
+                                        let nextIsBeamable = false;
+                                        if (nextItem) {
+                                            let nDurMatch = nextItem.text.match(/\d+/);
+                                            let nDurUnits = nDurMatch ? parseInt(nDurMatch[0]) : 0;
+                                            nextIsBeamable = nDurUnits > 0 && nDurUnits < 4
+                                                && !nextItem.text.includes('z')
+                                                && !nextItem.isInvisible;
+                                        }
+
+                                        if (nextIsBeamable) {
+                                            // Compare metric beam groups by START position
+                                            // groupSize eigths = groupSize * 0.5 quarters per group
+                                            const beamGroupQ = groupSize * 0.5;
+                                            const curGroup  = Math.floor(measureQBefore / beamGroupQ);
+                                            const nextGroup = Math.floor(measureQOffset / beamGroupQ);
+                                            if (curGroup !== nextGroup) vStr += " "; // beam break at metric boundary
+                                            // else: no space — beam together
+                                        } else {
+                                            vStr += " "; // next note not beamable
+                                        }
                                     } else {
-                                        // Normal note — apply beaming setting
-                                        let durMatch = item.text.match(/\d+/);
-                                        if (groupSize > 0 && durMatch && parseInt(durMatch[0]) < 4 && !item.text.includes('z') && !item.text.includes('x')) {
-                                            groupCounter++;
-                                            if (groupCounter % groupSize === 0) vStr += " ";
-                                        } else { vStr += " "; groupCounter = 0; }
+                                        vStr += " ";
                                     }
                                 }
                             }
+                        }
                         }
 
                         // Nav marks that go at END of measure (fine, DC, DS) – before barline
