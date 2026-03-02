@@ -21,11 +21,11 @@
         button.danger { background: #ffcdd2; border-color: #e57373; color: #b71c1c; }
         button.danger:hover { background: #ef9a9a; }
         
-        .play-btn { background: #4caf50; color: white; border-color: #388e3c; min-width: 90px; padding: 8px 0; text-align: center; }
-        .play-btn:hover { background: #43a047; }
-        .play-btn.playing { background: #e57373; border-color: #c62828; cursor: pointer; }
-        .play-btn.playing:hover { background: #ef5350; }
-        .play-btn.loading { background: #ffb300; border-color: #ff8f00; cursor: wait; }
+        .play-btn { background: #00acc1; color: white; border-color: #00838f; min-width: 90px; padding: 8px 0; text-align: center; }
+        .play-btn:hover { background: #0097a7; }
+        .play-btn.playing { background: #455a64; border-color: #263238; cursor: pointer; }
+        .play-btn.playing:hover { background: #37474f; }
+        .play-btn.loading { background: #78909c; border-color: #546e7a; cursor: wait; }
         .chord-btn { background: #cccccc; color: white; border-color: #e65100; font-size: 13px; }
         .chord-btn.active { background: #99aacc; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
 
@@ -51,6 +51,7 @@
             margin-bottom: 5px;
             overflow: visible;  /* normal mode: no clipping */
             position: relative;
+            transition: border-radius 0.15s, margin 0.15s, box-shadow 0.15s;
         }
         #paper {
             padding: 10px;
@@ -60,6 +61,51 @@
             position: relative;
             min-height: 0;
             /* In normal mode: overflow-x auto handled by viewport */
+        }
+
+        /* ===== PLAYBACK MODE ===== */
+        /* body gets padding:0 so score reaches window edges */
+        body.playback-mode { padding: 0 !important; }
+        body.playback-mode #scoreViewport {
+            border-radius: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+        }
+        /* Hide all top-level editing UI */
+        body.playback-mode details,
+        body.playback-mode .toolbar { display: none !important; }
+        /* Hide the normal sticky bottom panel */
+        body.playback-mode #stickyBottomWrap { display: none !important; }
+        /* Show the compact playback bar */
+        #playbackModeBar {
+            display: none;
+            position: sticky;
+            bottom: 0;
+            z-index: 1001;
+            background: rgba(30,40,45,0.96);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            padding: 7px 16px;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+        body.playback-mode #playbackModeBar { display: flex; }
+        #playbackModeBar .pb-stop-btn {
+            background: #00838f;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 22px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+        #playbackModeBar .pb-stop-btn:hover { background: #00acc1; }
+        #playbackModeBar .pb-tempo-label {
+            color: #b2dfdb;
+            font-size: 13px;
         }
         /* Infinite string mode */
         #scoreViewport.infinite-mode {
@@ -132,10 +178,11 @@
         .section-title { font-weight: bold; margin: 8px 0 4px; }
         
         .abcjs-annotation {
-            fill: #d32f2f !important;
+            fill: #1a1a1a !important;
             font-size: 20px !important;
-            font-weight: bold !important;
-            font-family: sans-serif !important;
+            font-weight: normal !important;
+            font-style: italic !important;
+            font-family: Georgia, 'Times New Roman', serif !important;
             stroke: none !important;
         }
         /* Context menu */
@@ -655,6 +702,12 @@
     </details>
     </div><!-- end stickyBottomWrap -->
 
+    <!-- Compact bar shown INSTEAD of the bottom panel during playback -->
+    <div id="playbackModeBar">
+        <button class="pb-stop-btn" onclick="togglePlayback()">⏹ Stop</button>
+        <span class="pb-tempo-label" id="pbTempoLabel"></span>
+    </div>
+
     <div id="contextMenu" class="context-menu" style="display: none;"></div>
 
     <div id="bendModal" class="modal-overlay" style="display: none;">
@@ -802,6 +855,8 @@
         let playStartAcTime = 0;
         let currentTempo = 120;
         let currentCursorTrack = [];
+        let measureScrollTrack = []; // [{playStartQ, x_svg}] — one entry per measure, for smooth infinite-mode scroll
+        let _lastPlaybackSystemIdx = -1; // integer index of the last active system row (−1 = none)
         let unrolledPlaybackMaxQ = 0;
 
         let bendPoints = Array.from({ length: 9 }, (_, i) => ({ x: i / 8, y: 0.5 }));
@@ -2492,7 +2547,8 @@ function addNoteSync(noteBase, rowShift) {
                     let remaining = dur;
                     while (remaining > 0) {
                         let partDur = Math.min(remaining, measureCapacity);
-                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: (remaining - partDur > 0), articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
+                        const _isLast = remaining - partDur <= 0.001;
+                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: _isLast ? !!n.tie : true, articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
                         result.push(partNote);
                         remaining -= partDur;
                     }
@@ -2888,7 +2944,13 @@ function deleteSelectionSync() {
             for (let i = sel.start; i <= sel.end; i++) { let n = notes[i]; if (n.type === 'directive' || n.type === 'barline' || (n.pitches && n.pitches[0].pitch === 'z')) { alert("Cannot tie rests or directives."); return; } }
             let firstPitch = notes[sel.start].pitches[0];
             for (let i = sel.start + 1; i <= sel.end; i++) { let p = notes[i].pitches[0]; if (p.pitch !== firstPitch.pitch || p.octave !== firstPitch.octave || p.accidental !== firstPitch.accidental) { alert("All selected notes must have the same pitch to tie."); return; } }
-            for (let i = sel.start; i < sel.end; i++) notes[i].tie = true;
+            // Toggle: if all notes in range are already tied — remove ties; otherwise add them
+            const allTied = Array.from({length: sel.end - sel.start}, (_, k) => notes[sel.start + k]).every(n => n.tie);
+            if (allTied) {
+                for (let i = sel.start; i < sel.end; i++) notes[i].tie = false;
+            } else {
+                for (let i = sel.start; i < sel.end; i++) notes[i].tie = true;
+            }
             notes[sel.end].tie = false;
             selection.start = sel.end; selection.end = sel.end;
             updateScore();
@@ -3399,7 +3461,7 @@ function generateMIDIWithBend() {
             if (unrolledTimeline.length === 0) return;
 
             isPreparingPlayback = true;
-            ['playBtn','playBtnP'].forEach(id => {
+            ['playBtn','playBtnP','playBtnG3'].forEach(id => {
                 let btn = document.getElementById(id);
                 if (btn) { btn.classList.add('loading'); btn.innerText = '⏳ Load...'; }
             });
@@ -3409,13 +3471,16 @@ function generateMIDIWithBend() {
                 if (!isPreparingPlayback) return; 
                 isCustomPlaying = true;
                 isPreparingPlayback = false;
-                ['playBtn','playBtnP'].forEach(id => {
+                ['playBtn','playBtnP','playBtnG3'].forEach(id => {
                     let btn = document.getElementById(id);
                     if (btn) { btn.classList.remove('loading'); btn.classList.add('playing'); btn.innerText = '⏹ Stop'; }
                 });
+                enterPlaybackMode();
 
                 playStartAcTime = audioContext.currentTime;
+                _lastPlaybackSystemIdx = -1;
                 buildCursorTrack(sequence, measureCapacity, playBoundaryStart, playBoundaryEnd);
+                buildMeasureScrollTrack(sequence, measureCapacity);
 
                 let secondsPerQuarter = 60 / currentTempo;
                 const dynMap = {
@@ -3574,6 +3639,35 @@ function generateMIDIWithBend() {
             currentCursorTrack.sort((a,b) => a.playStartQ - b.playStartQ);
         }
 
+        // Pre-compute a measure-level scroll position table for smooth infinite-mode scrolling.
+        // Each entry maps the playback beat at which a measure starts → the SVG x of its first note.
+        // During playback we interpolate linearly between adjacent entries, giving constant-speed
+        // scrolling within each measure and avoiding note-duration-dependent jerkiness.
+        function buildMeasureScrollTrack(sequence, measureCapacity) {
+            measureScrollTrack = [];
+            const svg = document.querySelector("#paper svg");
+            if (!svg || !currentCursorTrack.length) return;
+            let playbackQ = 0;
+            for (let seqM of sequence) {
+                const mEnd = playbackQ + measureCapacity;
+                // Collect all cursor track entries that belong to this measure
+                const mNotes = currentCursorTrack.filter(
+                    n => n.playStartQ >= playbackQ - 0.001 && n.playStartQ < mEnd - 0.001
+                );
+                let minX = null;
+                for (let n of mNotes) {
+                    try {
+                        const bb = n.el.getBBox();
+                        if (minX === null || bb.x < minX) minX = bb.x;
+                    } catch(_) {}
+                }
+                if (minX !== null) {
+                    measureScrollTrack.push({ playStartQ: playbackQ, x_svg: minX });
+                }
+                playbackQ += measureCapacity;
+            }
+        }
+
         function animateCursor(playBoundaryStart, playBoundaryEnd) {
             if (!isCustomPlaying || !audioContext) return;
             let elapsed = audioContext.currentTime - playStartAcTime;
@@ -3586,48 +3680,191 @@ function generateMIDIWithBend() {
 
         function updateCursorPosition(currentPlayQ) {
             if (!currentCursorTrack.length) return;
-            let svg = document.querySelector("#paper svg");
+            const svg = document.querySelector("#paper svg");
             if (!svg) return;
-            let svgRect = svg.getBoundingClientRect();
+            const svgRect = svg.getBoundingClientRect();
+
+            // ── SVG user-unit ↔ viewport-pixel scale ─────────────────────────────────
+            const vb    = svg.viewBox && svg.viewBox.baseVal;
+            const vbW   = vb && vb.width  > 0 ? vb.width  : svgRect.width;
+            const vbH   = vb && vb.height > 0 ? vb.height : svgRect.height;
+            const scaleX = svgRect.width  > 0 ? vbW / svgRect.width  : 1;
+            const scaleY = svgRect.height > 0 ? vbH / svgRect.height : 1;
+
+            // ── Current note ──────────────────────────────────────────────────────────
             let itemIdx = currentCursorTrack.findIndex(c => currentPlayQ >= c.playStartQ && currentPlayQ < c.playEndQ);
-            if (itemIdx === -1) { if (currentPlayQ < currentCursorTrack[0].playStartQ) itemIdx = 0; else itemIdx = currentCursorTrack.length - 1; }
-            let item = currentCursorTrack[itemIdx];
-            let rect = item.el.getBoundingClientRect();
-            let duration = item.playEndQ - item.playStartQ;
-            let progress = duration > 0 ? (currentPlayQ - item.playStartQ) / duration : 0;
-            progress = Math.max(0, Math.min(1, progress));
-            let nextItem = currentCursorTrack[itemIdx + 1];
-            let targetX = rect.right;
-            if (nextItem && nextItem.el) {
-                let nextRect = nextItem.el.getBoundingClientRect();
-                if (Math.abs(nextRect.top - rect.top) < 60) targetX = nextRect.left; 
-                else targetX = rect.right + 30; 
+            if (itemIdx === -1) {
+                itemIdx = currentPlayQ < currentCursorTrack[0].playStartQ ? 0 : currentCursorTrack.length - 1;
             }
-            let x = rect.left + (targetX - rect.left) * progress - svgRect.left;
-            let staves = Array.from(svg.querySelectorAll('.abcjs-staff'));
-            let systems = [], currentSystem = [], lastY = -1000;
-            staves.forEach(staff => {
-                let r = staff.getBoundingClientRect();
-                if (r.top - lastY > 60) { if (currentSystem.length) systems.push(currentSystem); currentSystem = []; }
-                currentSystem.push(staff); lastY = r.top;
-            });
-            if (currentSystem.length) systems.push(currentSystem);
-            let noteY = rect.top + rect.height / 2;
-            let activeSystem = systems.find(sys => { let top = sys[0].getBoundingClientRect().top; let bottom = sys[sys.length - 1].getBoundingClientRect().bottom; return noteY >= top - 40 && noteY <= bottom + 40; }) || systems[0];
-            if (!activeSystem) return;
-            let y1 = activeSystem[0].getBoundingClientRect().top - svgRect.top;
-            let y2 = activeSystem[activeSystem.length - 1].getBoundingClientRect().bottom - svgRect.top;
+            const item     = currentCursorTrack[itemIdx];
+            const nextItem = currentCursorTrack[itemIdx + 1];
+            const duration = item.playEndQ - item.playStartQ;
+            let   progress = duration > 0 ? (currentPlayQ - item.playStartQ) / duration : 0;
+            progress = Math.max(0, Math.min(1, progress));
+
+            const viewport   = document.getElementById('scoreViewport');
+            const isInfinite = !!(viewport && viewport.classList.contains('infinite-mode'));
+
+            // ── ROW DETECTION: use .abcjs-system groups ───────────────────────────────
+            // ABCJS (with add_classes:true) wraps EACH system row in a <g class="abcjs-system">.
+            // One system = all instrument staves that share the same horizontal line.
+            // .contains(item.el) is an O(depth) DOM walk – fast and reliable.
+            //
+            // PREVIOUS APPROACH (getBBox on .abcjs-staff) was WRONG:
+            //   Staff group bboxes include stems/dynamics/text → heights of 150-200 SVG units.
+            //   Any threshold derived from that merges ALL rows into one, giving a cursor
+            //   that spans the entire score height.
+            const systemGroups = Array.from(svg.querySelectorAll('.abcjs-system'));
+            let activeSystem    = null;
+            let activeSystemIdx = 0;
+            for (let i = 0; i < systemGroups.length; i++) {
+                if (systemGroups[i].contains(item.el)) {
+                    activeSystem    = systemGroups[i];
+                    activeSystemIdx = i;
+                    break;
+                }
+            }
+
+            // Fallback when .abcjs-system is unavailable (should not happen with add_classes:true).
+            // Use the note's viewport Y and match against first-voice note row anchors.
+            if (!activeSystem && systemGroups.length === 0) {
+                const noteY_vp = item.el.getBoundingClientRect().top + item.el.getBoundingClientRect().height / 2;
+                const v0els = Array.from(svg.querySelectorAll('.abcjs-v0.abcjs-note, .abcjs-v0.abcjs-rest'));
+                const anchors = [];
+                for (const el of v0els) {
+                    const cy = (el.getBoundingClientRect().top + el.getBoundingClientRect().bottom) / 2;
+                    if (!anchors.length || cy - anchors[anchors.length - 1] > 40) anchors.push(cy);
+                }
+                let bestI = 0, bestDist = Infinity;
+                for (let i = 0; i < anchors.length; i++) {
+                    const d = Math.abs(noteY_vp - anchors[i]);
+                    if (d < bestDist) { bestDist = d; bestI = i; }
+                }
+                activeSystemIdx = bestI;
+            }
+
+            // ── Cursor vertical span ──────────────────────────────────────────────────
+            // Query all note/rest elements INSIDE this system to get the true vertical
+            // extent spanning all instruments. Add a fixed margin in viewport pixels,
+            // then convert to SVG user units for drawing.
+            let y1_svg, y2_svg;
+            const MARGIN_PX = 28;
+            if (activeSystem) {
+                const els = activeSystem.querySelectorAll('.abcjs-note, .abcjs-rest');
+                let minY_vp = Infinity, maxY_vp = -Infinity;
+                for (const el of els) {
+                    const r = el.getBoundingClientRect();
+                    if (r.top    < minY_vp) minY_vp = r.top;
+                    if (r.bottom > maxY_vp) maxY_vp = r.bottom;
+                }
+                if (minY_vp === Infinity) {
+                    const sr = activeSystem.getBoundingClientRect();
+                    minY_vp = sr.top; maxY_vp = sr.bottom;
+                }
+                y1_svg = (minY_vp - MARGIN_PX - svgRect.top) * scaleY;
+                y2_svg = (maxY_vp + MARGIN_PX - svgRect.top) * scaleY;
+            } else {
+                const r = item.el.getBoundingClientRect();
+                y1_svg = (r.top    - MARGIN_PX - svgRect.top) * scaleY;
+                y2_svg = (r.bottom + MARGIN_PX - svgRect.top) * scaleY;
+            }
+
+            // ── Cursor X position ─────────────────────────────────────────────────────
+            // Infinite mode: use getBBox() – stable SVG user coords unaffected by scrollLeft.
+            //   getBoundingClientRect() in infinite mode CHANGES as we set viewport.scrollLeft,
+            //   creating a feedback loop that prevents smooth fixed-cursor scrolling.
+            // Normal mode: getBoundingClientRect().left is stable (only vertical page scroll).
+            let x_svg;
+            if (isInfinite) {
+                let bb = null, bbNext = null;
+                try { bb     = item.el.getBBox(); }    catch(_) {}
+                try { bbNext = nextItem ? nextItem.el.getBBox() : null; } catch(_) {}
+                if (bb) {
+                    const noteX_svg = bb.x + bb.width;  // right edge of note head in SVG units
+                    const sameLine  = bbNext && Math.abs((bbNext.y + bbNext.height / 2) - (bb.y + bb.height / 2)) < 60 * scaleY;
+                    x_svg = sameLine ? (noteX_svg + (bbNext.x - noteX_svg) * progress) : noteX_svg;
+                } else {
+                    x_svg = (item.el.getBoundingClientRect().left - svgRect.left) * scaleX;
+                }
+            } else {
+                const rect   = item.el.getBoundingClientRect();
+                let targetPx = rect.right;
+                if (nextItem && nextItem.el) {
+                    const nr = nextItem.el.getBoundingClientRect();
+                    targetPx = Math.abs(nr.top - rect.top) < 60 ? nr.left : rect.right + 30;
+                }
+                x_svg = (rect.left + (targetPx - rect.left) * progress - svgRect.left) * scaleX;
+            }
+
+            // ── Draw cursor ───────────────────────────────────────────────────────────
             let cursor = document.getElementById("custom-cursor");
             if (!cursor) {
                 cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 cursor.setAttribute("id", "custom-cursor");
-                cursor.setAttribute("stroke", "#f44336");
-                cursor.setAttribute("stroke-width", "2");
+                cursor.setAttribute("stroke", "#00838f");
                 cursor.style.pointerEvents = "none";
                 svg.appendChild(cursor);
             }
-            cursor.setAttribute("x1", x); cursor.setAttribute("x2", x);
-            cursor.setAttribute("y1", y1 - 20); cursor.setAttribute("y2", y2 + 20);
+            cursor.setAttribute("stroke-width", String(Math.max(1.5, 2 * scaleX)));
+            cursor.setAttribute("x1", x_svg); cursor.setAttribute("x2", x_svg);
+            cursor.setAttribute("y1", y1_svg); cursor.setAttribute("y2", y2_svg);
+
+            // ── Auto-scroll ───────────────────────────────────────────────────────────
+            if (isInfinite) {
+                // SMOOTH MEASURE-BASED SCROLL:
+                // Instead of tracking the current note (which causes jerkiness because
+                // notes have different durations), we pre-computed a measure scroll track
+                // that maps each measure's beat start → its SVG x position.
+                // Here we find the current measure, compute how far through it we are
+                // (0..1), and linearly interpolate the x position between this measure
+                // and the next. This gives constant scroll speed within each measure,
+                // eliminating note-duration-driven jerkiness.
+                if (!viewport) return;
+                let scrollX_svg = x_svg; // fallback to cursor x if no measure track
+                if (measureScrollTrack.length > 0) {
+                    // Find the last measure whose start is ≤ currentPlayQ
+                    let mIdx = 0;
+                    for (let i = measureScrollTrack.length - 1; i >= 0; i--) {
+                        if (currentPlayQ >= measureScrollTrack[i].playStartQ - 0.001) {
+                            mIdx = i;
+                            break;
+                        }
+                    }
+                    const curM  = measureScrollTrack[mIdx];
+                    const nextM = measureScrollTrack[mIdx + 1];
+                    if (nextM) {
+                        const span = nextM.playStartQ - curM.playStartQ;
+                        const t    = span > 0 ? Math.max(0, Math.min(1, (currentPlayQ - curM.playStartQ) / span)) : 0;
+                        scrollX_svg = curM.x_svg + (nextM.x_svg - curM.x_svg) * t;
+                    } else {
+                        scrollX_svg = curM.x_svg;
+                    }
+                }
+                // Keep the scrolled position so the current measure stays near the centre
+                // (38% from the left — same fraction as before).
+                const fixedCursorPx = viewport.clientWidth * 0.38;
+                const newSL = Math.max(0, scrollX_svg / scaleX - fixedCursorPx);
+                viewport.scrollLeft = newSL;
+                const sbWrap = document.getElementById('scoreScrollbarWrap');
+                if (sbWrap) sbWrap.scrollLeft = newSL;
+
+            } else {
+                // PAGE SCROLL: only when row changes, anchor to top of new system.
+                // Comparing integer index avoids re-triggering scroll every frame,
+                // which caused shaking when the system was taller than the viewport.
+                if (activeSystemIdx !== _lastPlaybackSystemIdx) {
+                    _lastPlaybackSystemIdx = activeSystemIdx;
+                    let target;
+                    if (activeSystem) {
+                        target = activeSystem.getBoundingClientRect().top + window.scrollY - 8;
+                    } else {
+                        // Fallback: scroll to the note element itself
+                        const elR = item.el.getBoundingClientRect();
+                        target = elR.top + window.scrollY - 60;
+                    }
+                    window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+                }
+            }
         }
 
         function stopCustomPlayback() {
@@ -3639,10 +3876,41 @@ function generateMIDIWithBend() {
             let cursor = document.getElementById("custom-cursor");
             if (cursor) cursor.remove();
             // Update both play buttons (main + piano panel)
-            ['playBtn','playBtnP'].forEach(id => {
+            ['playBtn','playBtnP','playBtnG3'].forEach(id => {
                 let btn = document.getElementById(id);
                 if (btn) { btn.classList.remove('playing', 'loading'); btn.innerText = '▶ Play'; }
             });
+            exitPlaybackMode();
+        }
+
+        // ── Playback presentation mode ────────────────────────────────────────────────
+        // Hides all editing panels and expands the score to full window width so that
+        // as many staves as possible are visible during playback.
+        let _prePlaybackScrollY = 0;
+        function enterPlaybackMode() {
+            _prePlaybackScrollY = window.scrollY;
+            document.body.classList.add('playback-mode');
+            const lbl = document.getElementById('pbTempoLabel');
+            if (lbl) lbl.textContent = (document.getElementById('tempo')?.value || '120') + ' ♩ = bpm';
+            // Scroll to top of score so first system is visible immediately
+            const vp = document.getElementById('scoreViewport');
+            if (vp) {
+                const vpTop = vp.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({ top: Math.max(0, vpTop - 8), behavior: 'instant' });
+            }
+            // Force score re-render at new (full-width) size
+            _skipUndo = true;
+            updateScore();
+            _skipUndo = false;
+        }
+        function exitPlaybackMode() {
+            document.body.classList.remove('playback-mode');
+            // Restore score render at normal size
+            _skipUndo = true;
+            updateScore();
+            _skipUndo = false;
+            // Restore scroll position
+            window.scrollTo({ top: _prePlaybackScrollY, behavior: 'instant' });
         }
 
         function togglePlayback() {
@@ -4180,6 +4448,17 @@ function generateMIDIWithBend() {
             let abcString = `X:1\nT:${title}\nM:${time}\nL:1/32\nQ:1/4=${tempo}\n`;
             if (pickupUnits > 0) abcString += `%%MIDI barstart ${pickupUnits}\n`;
             abcString += `K:${key}\n`;
+
+            // ── Piano grand staff: connect barlines across treble + bass staves ──
+            // Use %%score when exactly 2 visible voices share the same instrument and
+            // have different clefs (standard piano treble/bass setup).
+            if (visibleKeys.length === 2) {
+                const v0 = voicesData[visibleKeys[0]];
+                const v1 = voicesData[visibleKeys[1]];
+                if (v0.program === v1.program && v0.clef !== v1.clef) {
+                    abcString += `%%score {${v0.id} ${v1.id}}\n`;
+                }
+            }
             let voiceStrings = [];
 
             for (let vKey of visibleKeys) {
@@ -4374,7 +4653,8 @@ function generateMIDIWithBend() {
                         const nextMeasureStart = mStart + mCap;
                         let available = nextMeasureStart - currentQ;
                         let partDur = Math.min(remaining, available);
-                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: (remaining - partDur > 0.001), articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
+                        const isLastPart = (remaining - partDur <= 0.001);
+                        let partNote = { pitches: n.pitches.map(p => ({ ...p })), durationInQuarters: partDur, abcUnits: partDur / 0.25, triplet: n.triplet, tie: isLastPart ? !!n.tie : true, articulations: n.articulations ? [...n.articulations] : [], pedalStart: n.pedalStart, pedalEnd: n.pedalEnd, bend: n.bend ? JSON.parse(JSON.stringify(n.bend)) : undefined };
                         newNotes.push(partNote);
                         remaining -= partDur;
                         currentQ += partDur;
@@ -4402,9 +4682,34 @@ function generateMIDIWithBend() {
             let padding    = 20;
 
             if (isInfinite) {
-                // ── INFINITE MODE ──────────────────────────────────────────
-                // Render once at large fixed staffwidth — everything on one line
-                let bigWidth = 9000;
+                // ── INFINITE MODE ──────────────────────────────────────────────────────
+                // Staff width is computed so that exactly `measuresPerLine` measures
+                // fit within the current viewport width — matching the spacing the user
+                // has chosen. This keeps note density consistent between normal and
+                // infinite modes and ensures the user's measure-per-screen preference is
+                // honoured even though the line-break select becomes inactive.
+
+                const mpl = parseInt((document.getElementById('measuresPerLine') || {}).value) || 8;
+                const vpW = viewport.clientWidth || window.innerWidth;
+
+                // Count total measures across all active voices
+                const activeKeysInf = getActiveKeys();
+                let totalMeasures   = 0;
+                const mcap          = getMeasureCapacity();
+                for (const k of activeKeysInf) {
+                    let dur = 0;
+                    for (const n of voicesData[k].notes) if (n.durationInQuarters) dur += n.durationInQuarters;
+                    const mc = Math.ceil(dur / mcap);
+                    if (mc > totalMeasures) totalMeasures = mc;
+                }
+                totalMeasures = Math.max(totalMeasures, 1);
+
+                // Derive px-per-measure from viewport width and measuresPerLine preference.
+                // Reserve ~70 px for the initial clef/key/time-sig block.
+                const OVERHEAD_PX = 70;
+                const pxPerMeasure = Math.max(60, (vpW - OVERHEAD_PX) / mpl);
+                const bigWidth     = Math.ceil(totalMeasures * pxPerMeasure + OVERHEAD_PX);
+
                 ABCJS.renderAbc("paper", window.lastAbcString, {
                     responsive: null,
                     add_classes: true,
@@ -5778,9 +6083,14 @@ function generateMIDIWithBend() {
             document.getElementById('channelsContainer').innerHTML = '';
 
             // ── Alter → ABC accidental ──
-            const alterToAcc = (alter) => {
+            const alterToAcc = (alter, accidentalEl) => {
                 const r = Math.round(alter * 2) / 2;
                 if (r !== alter) skipped.add('Microtonal alterations (rounded to nearest semitone)');
+                // If alter is 0 but there's an explicit <accidental>natural</accidental> element, use '='
+                if (r === 0 && accidentalEl) {
+                    const accText = accidentalEl.textContent.trim().toLowerCase();
+                    if (accText === 'natural') return '=';
+                }
                 return {'-2':'__','-1':'_','0':'','1':'^','2':'^^'}[String(r)] ?? '';
             };
 
@@ -5977,7 +6287,8 @@ function generateMIDIWithBend() {
                                 const step   = txt(pitchEl, 'step') || 'C';
                                 const octNum = parseInt(txt(pitchEl, 'octave') || '4');
                                 const alter  = parseFloat(txt(pitchEl, 'alter') || '0');
-                                pitchObj = { pitch: step, octave: octToStr(octNum), accidental: alterToAcc(alter) };
+                                const accidentalEl = noteEl.querySelector('accidental');
+                                pitchObj = { pitch: step, octave: octToStr(octNum), accidental: alterToAcc(alter, accidentalEl) };
                             }
                         }
 
@@ -6429,7 +6740,7 @@ document.addEventListener('keydown', function(e) {
     }
     body { font-family: sans-serif; padding: 10px; background: #fff; }
     svg { max-width: 100%; height: auto; display: block; }
-    .abcjs-annotation { fill: #d32f2f; font-size: 20px; font-weight: bold; }
+    .abcjs-annotation { fill: #1a1a1a; font-size: 20px; font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
     .selection-box, .incomplete-mark { display: none; }
     /* Hide instrument name labels in print */
     .abcjs-staff-name, .abcjs-staff-name-text { display: none !important; }
