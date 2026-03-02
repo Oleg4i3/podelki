@@ -1648,9 +1648,10 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         function setBaseOctave(shift, btn) {
             const multiSelect = selection.start !== -1 && selection.end !== -1
                                 && selection.start !== selection.end;
-            if (btn !== null && multiSelect && activeTrack && shift !== 0) {
+            if (btn !== null && multiSelect && activeTrack) {
                 if (shift === 1)  { addOttavaToSelection('8va'); return; }
                 if (shift === -1) { addOttavaToSelection('8vb'); return; }
+                if (shift === 0)  { removeOttavaFromSelection(); return; }
             }
             baseOctaveShift = shift;
             document.querySelectorAll('.oct-btn').forEach(b => b.classList.remove('active'));
@@ -4683,16 +4684,9 @@ function generateMIDIWithBend() {
 
             if (isInfinite) {
                 // ── INFINITE MODE ──────────────────────────────────────────────────────
-                // Staff width is computed so that exactly `measuresPerLine` measures
-                // fit within the current viewport width — matching the spacing the user
-                // has chosen. This keeps note density consistent between normal and
-                // infinite modes and ensures the user's measure-per-screen preference is
-                // honoured even though the line-break select becomes inactive.
-
                 const mpl = parseInt((document.getElementById('measuresPerLine') || {}).value) || 8;
                 const vpW = viewport.clientWidth || window.innerWidth;
 
-                // Count total measures across all active voices
                 const activeKeysInf = getActiveKeys();
                 let totalMeasures   = 0;
                 const mcap          = getMeasureCapacity();
@@ -4704,11 +4698,12 @@ function generateMIDIWithBend() {
                 }
                 totalMeasures = Math.max(totalMeasures, 1);
 
-                // Derive px-per-measure from viewport width and measuresPerLine preference.
-                // Reserve ~70 px for the initial clef/key/time-sig block.
                 const OVERHEAD_PX = 70;
                 const pxPerMeasure = Math.max(60, (vpW - OVERHEAD_PX) / mpl);
                 const bigWidth     = Math.ceil(totalMeasures * pxPerMeasure + OVERHEAD_PX);
+
+                // Clear stale SVG first so abcjs measures a clean container
+                paperDiv.innerHTML = '';
 
                 ABCJS.renderAbc("paper", window.lastAbcString, {
                     responsive: null,
@@ -4755,6 +4750,16 @@ function generateMIDIWithBend() {
                 paperDiv.style.width  = '';
                 paperDiv.style.height = '';
                 if (sbWrap) sbWrap.style.display = 'none';
+
+                // IMPORTANT: clear stale SVG content BEFORE measuring container width
+                // and BEFORE calling renderAbc. After infinite mode the wide SVG
+                // (responsive:null, staffwidth=bigWidth) is still in #paper.
+                // abcjs's responsive:"resize" mode reads the element's scrollWidth to
+                // set staffwidth — with the old wide SVG still present scrollWidth equals
+                // bigWidth (~2000px) instead of the visible container width, so the score
+                // renders as one enormous line showing only the first measure fragment.
+                // Clearing innerHTML first gives abcjs a clean, correctly-sized container.
+                paperDiv.innerHTML = '';
 
                 let containerWidth = viewport.clientWidth || (viewport.parentElement || document.body).clientWidth;
                 let opts = { responsive: "resize", add_classes: true, staffwidth: containerWidth - padding, scale: 1.0 };
@@ -4931,30 +4936,18 @@ function generateMIDIWithBend() {
                     let endSvg   = endEl.closest('svg');
                     if (!startSvg) continue;
 
-                    // Helper: convert viewport rect to SVG coordinate space
-                    function toSvg(svgNode, rect) {
-                        let sr = svgNode.getBoundingClientRect();
-                        let vb = svgNode.viewBox.baseVal;
-                        let sx = vb.width  / sr.width;
-                        let sy = vb.height / sr.height;
-                        return {
-                            left:   (rect.left   - sr.left) * sx + vb.x,
-                            right:  (rect.right  - sr.left) * sx + vb.x,
-                            top:    (rect.top    - sr.top)  * sy + vb.y,
-                            bottom: (rect.bottom - sr.top)  * sy + vb.y,
-                        };
-                    }
+                    // getBBox() returns coordinates directly in SVG coordinate space —
+                    // no viewport-to-SVG conversion needed, works correctly in infinite mode.
+                    let sBox = startEl.getBBox();
+                    let eBox = endEl.getBBox();
 
-                    let sRect = startEl.getBoundingClientRect();
-                    let eRect = endEl.getBoundingClientRect();
-
-                    // If both notes are in the same SVG, draw one bracket
-                    // If they span different SVGs (row wrap), draw bracket in startSvg only to its right edge
                     let drawInSvg = startSvg;
 
-                    let sc = toSvg(drawInSvg, sRect);
+                    let sc = { left: sBox.x, right: sBox.x + sBox.width,
+                                top: sBox.y, bottom: sBox.y + sBox.height };
                     let ec = (startSvg === endSvg)
-                        ? toSvg(drawInSvg, eRect)
+                        ? { left: eBox.x, right: eBox.x + eBox.width,
+                            top: eBox.y, bottom: eBox.y + eBox.height }
                         : { right: drawInSvg.viewBox.baseVal.width + drawInSvg.viewBox.baseVal.x - 4 };
 
                     let isAbove = span.type === '8va';
@@ -4973,6 +4966,7 @@ function generateMIDIWithBend() {
 
                     let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                     g.classList.add('ottava-bracket-svg');
+                    drawInSvg.setAttribute('overflow', 'visible');
 
                     // Dashed horizontal line + right-side tick
                     let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
