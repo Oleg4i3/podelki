@@ -3163,13 +3163,15 @@ function generateMIDIWithBend() {
         // Unroll by sequence
         let unrolled = [], unrolledPedal = [], playQ = 0;
         for (let seqM of sequence) {
-            let mStart = seqM * measureCapacity, mEnd = mStart + measureCapacity;
+            let mStart = getMeasureStartTime(seqM);
+            let mDur   = getMeasureCapacityAt(seqM);
+            let mEnd   = mStart + mDur;
             let notesHere = raw.filter(n => n.scoreStartQ >= mStart - 0.001 && n.scoreStartQ < mEnd - 0.001);
             notesHere.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
             for (let n of notesHere) unrolled.push({ ...n, playStartQ: playQ + (n.scoreStartQ - mStart) });
             let pedHere = pedalAbs.filter(e => e.time >= mStart - 0.001 && e.time < mEnd - 0.001);
             for (let e of pedHere) unrolledPedal.push({ playQ: playQ + (e.time - mStart), type: e.type });
-            playQ += measureCapacity;
+            playQ += mDur;
         }
 
         // Build absolute-tick events
@@ -3429,15 +3431,16 @@ function generateMIDIWithBend() {
             let unrolledTimeline = [];
             let currentUnrolledQ = 0;
             for (let seqM of sequence) {
-                let mStartQ = seqM * measureCapacity;
-                let mEndQ = mStartQ + measureCapacity;
+                let mStartQ = getMeasureStartTime(seqM);
+                let mDurQ   = getMeasureCapacityAt(seqM);
+                let mEndQ   = mStartQ + mDurQ;
                 let notesInMeasure = rawTimeline.filter(n => n.scoreStartQ >= mStartQ - 0.001 && n.scoreStartQ < mEndQ - 0.001);
                 notesInMeasure.sort((a,b) => a.scoreStartQ - b.scoreStartQ);
                 for (let n of notesInMeasure) {
                     let offset = n.scoreStartQ - mStartQ;
                     unrolledTimeline.push({ ...n, playStartQ: currentUnrolledQ + offset });
                 }
-                currentUnrolledQ += measureCapacity;
+                currentUnrolledQ += mDurQ;
             }
             unrolledPlaybackMaxQ = currentUnrolledQ;
 
@@ -3630,12 +3633,14 @@ function generateMIDIWithBend() {
             let playbackQ = 0;
             for (let seqM of sequence) {
                 let mNotes = noteMap.filter(n => n.measureIdx === seqM);
+                let mStart = getMeasureStartTime(seqM);
+                let mDur   = getMeasureCapacityAt(seqM);
                 for (let mn of mNotes) if (mn.el) {
-                    let offset = mn.scoreStartQ - (seqM * measureCapacity);
+                    let offset = mn.scoreStartQ - mStart;
                     let pStart = playbackQ + offset, pEnd = pStart + mn.duration;
                     if (pEnd > playBoundaryStart && pStart < playBoundaryEnd) currentCursorTrack.push({ playStartQ: pStart, playEndQ: pEnd, el: mn.el });
                 }
-                playbackQ += measureCapacity;
+                playbackQ += mDur;
             }
             currentCursorTrack.sort((a,b) => a.playStartQ - b.playStartQ);
         }
@@ -3650,7 +3655,8 @@ function generateMIDIWithBend() {
             if (!svg || !currentCursorTrack.length) return;
             let playbackQ = 0;
             for (let seqM of sequence) {
-                const mEnd = playbackQ + measureCapacity;
+                const mDur = getMeasureCapacityAt(seqM);
+                const mEnd = playbackQ + mDur;
                 // Collect all cursor track entries that belong to this measure
                 const mNotes = currentCursorTrack.filter(
                     n => n.playStartQ >= playbackQ - 0.001 && n.playStartQ < mEnd - 0.001
@@ -3665,7 +3671,7 @@ function generateMIDIWithBend() {
                 if (minX !== null) {
                     measureScrollTrack.push({ playStartQ: playbackQ, x_svg: minX });
                 }
-                playbackQ += measureCapacity;
+                playbackQ += mDur;
             }
         }
 
@@ -3931,7 +3937,7 @@ function generateMIDIWithBend() {
             if (activeTrack && voicesData[activeTrack]) {
                 let cum = 0;
                 for (let n of voicesData[activeTrack].notes) if (n.durationInQuarters) cum += n.durationInQuarters;
-                let fromNotes = Math.max(0, Math.ceil(cum / measureCapacity) - 1);
+                let fromNotes = getMeasureIdxAtTime(cum);
                 if (fromNotes > maxM) maxM = fromNotes;
             }
             return { mapping: measureDirectives, maxM };
@@ -3939,7 +3945,7 @@ function generateMIDIWithBend() {
 
         function buildNavigationSequence(measureCapacity, maxEndQ) {
             let { mapping: dirs, maxM } = getDirectivesMapping(measureCapacity);
-            let measures = Math.max(maxM + 1, Math.ceil(maxEndQ / measureCapacity));
+            let measures = Math.max(maxM + 1, getMeasureIdxAtTime(maxEndQ) + 1);
             let hasSegno = false, segnoM = -1, hasCoda = false, codaM = -1, hasFine = false, fineM = -1;
             let alCodaCount = 0, alFineCount = 0, dsCount = 0;
             for(let m=0; m<measures; m++) {
