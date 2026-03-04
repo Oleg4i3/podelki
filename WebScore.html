@@ -141,6 +141,93 @@
         #scoreScrollbarInner { height: 1px; display: block; }
         
         .selection-box { position: absolute; background: rgba(0, 188, 212, 0.15); border: 1px solid #00bcd4; border-radius: 4px; pointer-events: none; z-index: 10; }
+
+        /* ===== NOTE PANEL AUTO-HIDE (keys only, action row stays) ===== */
+        /* Hide note-input elements: keyboard rows in button mode, piano keyboard,
+           duration/octave row in piano mode, octave/acc row in grid3 mode */
+        .note-panel.keys-hidden #buttonInputPanel .keyboard-row,
+        .note-panel.keys-hidden #pianoKeyboard,
+        .note-panel.keys-hidden #grid3Rows,
+        .note-panel.keys-hidden .note-input-keys {
+            display: none !important;
+        }
+
+        /* ===== MEASURE HIGHLIGHTS (copy/paste modal) ===== */
+        .measure-copy-hl {
+            position: absolute; pointer-events: none; z-index: 9;
+            background: rgba(76,175,80,0.18); border: 2px solid #43a047;
+            border-radius: 4px; box-sizing: border-box;
+        }
+        .measure-paste-hl {
+            position: absolute; pointer-events: none; z-index: 9;
+            background: rgba(255,152,0,0.22); border: 2px dashed #f57c00;
+            border-radius: 4px; box-sizing: border-box;
+        }
+        /* Badge for ALL measures (gray) */
+        .measure-num-badge-all {
+            position: absolute; pointer-events: none; z-index: 11;
+            background: rgba(80,80,80,0.55); color: #fff;
+            font-size: 8px; font-weight: bold; padding: 1px 3px;
+            border-radius: 2px; white-space: nowrap;
+        }
+        /* Badge for copy range (green) */
+        .measure-num-badge-copy {
+            position: absolute; pointer-events: none; z-index: 12;
+            background: rgba(46,125,50,0.9); color: #fff;
+            font-size: 9px; font-weight: bold; padding: 1px 4px;
+            border-radius: 3px; white-space: nowrap;
+        }
+        /* Badge for paste target (orange) */
+        .measure-num-badge-paste {
+            position: absolute; pointer-events: none; z-index: 12;
+            background: rgba(230,81,0,0.9); color: #fff;
+            font-size: 9px; font-weight: bold; padding: 1px 4px;
+            border-radius: 3px; white-space: nowrap;
+        }
+
+        /* ===== COPY & PASTE MEASURES MODAL (draggable, no overlay) ===== */
+        #copyMeasuresModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;    /* overlay is see-through for clicks */
+            z-index: 3100;
+            display: none;           /* toggled by openCopyMeasuresModal */
+        }
+        #copyMeasuresModal.cm-open { display: block; }
+        .cm-box {
+            pointer-events: all;
+            position: fixed;
+            background: white; border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.08);
+            width: 320px; max-width: 96vw;
+            user-select: none;
+        }
+        .cm-drag-handle {
+            background: linear-gradient(135deg,#1565c0,#1976d2);
+            color: white; padding: 10px 16px;
+            border-radius: 12px 12px 0 0;
+            cursor: grab; font-size: 14px; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .cm-drag-handle:active { cursor: grabbing; }
+        .cm-drag-handle .cm-close-x {
+            background: rgba(255,255,255,0.18); border: none; color: #fff;
+            border-radius: 4px; width: 24px; height: 24px; cursor: pointer;
+            font-size: 16px; display: flex; align-items: center; justify-content: center;
+            line-height: 1; padding: 0;
+        }
+        .cm-drag-handle .cm-close-x:hover { background: rgba(255,255,255,0.35); }
+        .cm-body { padding: 14px 18px 14px; }
+        .cm-row { margin-bottom: 12px; }
+        .cm-row label { display: block; font-size: 11px; font-weight: 600; color: #546e7a; margin-bottom: 4px; }
+        .cm-controls { display: flex; gap: 8px; align-items: center; }
+        .cm-controls input[type=range] { flex: 1; height: 4px; accent-color: #1565c0; cursor: pointer; }
+        .cm-controls input[type=number] { width: 52px; padding: 4px 5px; border: 1px solid #b0bec5; border-radius: 5px; font-size: 14px; text-align: center; outline: none; }
+        .cm-controls input[type=number]:focus { border-color: #1565c0; }
+        .cm-legend { display: flex; gap: 12px; margin: 8px 0 10px; font-size: 10px; align-items: center; }
+        .cm-legend-item { display: flex; align-items: center; gap: 4px; }
+        .cm-legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+        .cm-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+        .cm-apply-btn { background: #1565c0; color: white; border-color: #0d47a1; font-weight: bold; }
         .incomplete-mark { position: absolute; width: 10px; height: 10px; border-radius: 50%; background-color: #f44336; pointer-events: none; z-index: 5; }
         .ottava-bracket { position: absolute; pointer-events: none; z-index: 8; }
         
@@ -561,7 +648,7 @@
                 <div id="pianoKeyboard">
                     <div id="pianoKeysInner"></div>
                 </div>
-                <div class="piano-controls-row">
+                <div class="piano-controls-row note-input-keys">
                     <div class="group">
                         <button class="btn-small dur-btn" data-val="4" onclick="setDur(4.0, this)" title="Whole">𝅝</button>
                         <button class="btn-small dur-btn" data-val="2" onclick="setDur(2.0, this)" title="Half">𝅗𝅥</button>
@@ -600,7 +687,7 @@
             <!-- ===== 3-ROW GRID INPUT MODE ===== -->
             <div id="grid3InputPanel" style="display:none; flex-direction:column; width:100%;">
                 <div id="grid3Rows" style="display:flex; flex-direction:column; gap:3px; margin-bottom:4px; overflow-x:auto; touch-action:manipulation;"></div>
-                <div class="piano-controls-row" style="margin-top:2px; flex-wrap:wrap;">
+                <div class="piano-controls-row note-input-keys" style="margin-top:2px; flex-wrap:wrap;">
                     <div class="group">
                         <button class="btn-small oct-btn" onclick="setBaseOctave(-1, this)" title="8vb — shift input octave down; with selection: add 8vb bracket">𝄷</button>
                         <button class="btn-small oct-btn active" id="grid3-loco" onclick="setBaseOctave(0, this)" title="Loco — reset input octave; with selection: remove 8va/8vb bracket">Loco</button>
@@ -697,8 +784,9 @@
             <button onclick="addCrescendo()" title="Crescendo (selected range)">𝆒</button>
             <button onclick="addDiminuendo()" title="Diminuendo (selected range)">𝆓</button>
         </div>
-		
-		
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #eee;">
+            <button onclick="openCopyMeasuresModal()" style="background:#e3f2fd;border-color:#42a5f5;color:#1565c0;font-size:13px;">📋 Copy &amp; Paste Measures</button>
+        </div>
     </details>
     </div><!-- end stickyBottomWrap -->
 
@@ -709,6 +797,48 @@
     </div>
 
     <div id="contextMenu" class="context-menu" style="display: none;"></div>
+
+    <!-- ===== COPY & PASTE MEASURES MODAL (draggable, no dim overlay) ===== -->
+    <div id="copyMeasuresModal">
+        <div class="cm-box" id="cmBoxEl">
+            <div class="cm-drag-handle" id="cmDragHandle">
+                <span>📋 Copy &amp; Paste Measures</span>
+                <button class="cm-close-x" onclick="closeCopyMeasuresModal()" title="Close">✕</button>
+            </div>
+            <div class="cm-body">
+                <div class="cm-row">
+                    <label>Copy from measure</label>
+                    <div class="cm-controls">
+                        <input type="range" id="cmFromSlider" min="1" max="16" value="1" oninput="syncCmField('From',this.value)">
+                        <input type="number" id="cmFromNum" min="1" max="16" value="1" oninput="syncCmSlider('From',this.value)">
+                    </div>
+                </div>
+                <div class="cm-row">
+                    <label>To measure</label>
+                    <div class="cm-controls">
+                        <input type="range" id="cmToSlider" min="1" max="16" value="1" oninput="syncCmField('To',this.value)">
+                        <input type="number" id="cmToNum" min="1" max="16" value="1" oninput="syncCmSlider('To',this.value)">
+                    </div>
+                </div>
+                <div class="cm-row">
+                    <label>Paste after measure <span style="font-size:10px;color:#90a4ae;">(0 = beginning)</span></label>
+                    <div class="cm-controls">
+                        <input type="range" id="cmAfterSlider" min="0" max="16" value="1" oninput="syncCmField('After',this.value)">
+                        <input type="number" id="cmAfterNum" min="0" max="16" value="1" oninput="syncCmSlider('After',this.value)">
+                    </div>
+                </div>
+                <div class="cm-legend">
+                    <div class="cm-legend-item"><div class="cm-legend-swatch" style="background:rgba(76,175,80,0.35);border:2px solid #43a047;"></div><span>Copy range</span></div>
+                    <div class="cm-legend-item"><div class="cm-legend-swatch" style="background:rgba(255,152,0,0.35);border:2px dashed #f57c00;"></div><span>Paste target</span></div>
+                    <div class="cm-legend-item"><div class="cm-legend-swatch" style="background:rgba(80,80,80,0.5);border-radius:2px;"></div><span>All measures</span></div>
+                </div>
+                <div class="cm-actions">
+                    <button onclick="closeCopyMeasuresModal()">Cancel</button>
+                    <button class="cm-apply-btn" onclick="executeCopyPasteMeasures()">▶ Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="bendModal" class="modal-overlay" style="display: none;">
         <div class="bend-editor">
@@ -2597,6 +2727,12 @@ function addNoteSync(noteBase, rowShift) {
 
         function addNoteEx(noteBase, rowShift) {
             if (!activeTrack) return;
+            // Rests cannot be part of a chord — auto-disable chord mode when entering a rest
+            if (noteBase === 'z' && (isChordMode || isShiftChord)) {
+                isChordMode = false;
+                isShiftChord = false;
+                updateChordBtnVisuals();
+            }
             if (synchroMode) {
                 addNoteSync(noteBase, rowShift);
             } else {
@@ -5163,11 +5299,14 @@ function generateMIDIWithBend() {
                                     if (isVirtualShift) { isVirtualShift = false; let vBtn = document.getElementById('btn-vshift'); if (vBtn) vBtn.classList.remove('active'); }
                                 } else { selection.start = actualArrayIdx; selection.end = actualArrayIdx; selectionAtStart = false; }
                             }
+                            showNoteInputPanel(); // tap ON a note — reveal panel
+                        } else {
+                            hideNoteInputPanel(); // tap on score but NOT on any note
                         }
                     } else clearSelection();
                     drawVisualSelection();
                 }
-            } else { clearSelection(); drawVisualSelection(); }
+            } else { clearSelection(); hideNoteInputPanel(); drawVisualSelection(); }
         });
 
         document.getElementById('paper').addEventListener('pointercancel', function(e) {
@@ -6713,6 +6852,348 @@ document.addEventListener('keydown', function(e) {
         undo();
     }
 });
+
+    // ==================== NOTE PANEL AUTO-HIDE (keys only) ====================
+    function showNoteInputPanel() {
+        document.querySelector('.note-panel').classList.remove('keys-hidden');
+    }
+    function hideNoteInputPanel() {
+        document.querySelector('.note-panel').classList.add('keys-hidden');
+    }
+
+    // Hide on score scroll (infinite mode viewport scroll)
+    document.getElementById('scoreViewport').addEventListener('scroll', function() {
+        hideNoteInputPanel();
+    }, { passive: true });
+
+    // Hide on window/page scroll
+    window.addEventListener('scroll', function() {
+        hideNoteInputPanel();
+    }, { passive: true });
+
+    // Hide keys when bottom spoiler is opened
+    (function() {
+        const bottomDetails = document.querySelector('#stickyBottomWrap details');
+        if (bottomDetails) {
+            bottomDetails.addEventListener('toggle', function() {
+                if (this.open) hideNoteInputPanel();
+            });
+        }
+    })();
+
+    // ==================== COPY & PASTE MEASURES MODAL ====================
+
+    // ── Drag support ──
+    (function() {
+        const handle = document.getElementById('cmDragHandle');
+        const box    = document.getElementById('cmBoxEl');
+        if (!handle || !box) return;
+        let dragging = false, ox = 0, oy = 0;
+
+        function startDrag(clientX, clientY) {
+            dragging = true;
+            let r = box.getBoundingClientRect();
+            ox = clientX - r.left;
+            oy = clientY - r.top;
+        }
+        function moveDrag(clientX, clientY) {
+            if (!dragging) return;
+            let x = Math.max(0, Math.min(clientX - ox, window.innerWidth  - box.offsetWidth));
+            let y = Math.max(0, Math.min(clientY - oy, window.innerHeight - box.offsetHeight));
+            box.style.left = x + 'px';
+            box.style.top  = y + 'px';
+        }
+        function stopDrag() { dragging = false; }
+
+        handle.addEventListener('mousedown',  e => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+        document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+        document.addEventListener('mouseup',   stopDrag);
+
+        handle.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        document.addEventListener('touchmove',  e => { if (dragging) { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
+        document.addEventListener('touchend',   stopDrag);
+    })();
+
+    function getTotalMeasureCount() {
+        let maxM = 0;
+        for (let vKey of getActiveKeys()) {
+            let measures = getMeasuresFromNotes(vKey);
+            maxM = Math.max(maxM, measures.length);
+        }
+        return Math.max(maxM, 1);
+    }
+
+    function openCopyMeasuresModal() {
+        let total = getTotalMeasureCount();
+        // Update slider/input ranges to match current measure count
+        ['cmFromSlider','cmFromNum','cmToSlider','cmToNum','cmAfterSlider','cmAfterNum'].forEach(id => {
+            let el = document.getElementById(id);
+            if (!el) return;
+            if (id.startsWith('cmAfter')) { el.min = 0; el.max = total; }
+            else { el.min = 1; el.max = total; }
+        });
+        // Clamp current values
+        let fromEl  = document.getElementById('cmFromNum');
+        let toEl    = document.getElementById('cmToNum');
+        let afterEl = document.getElementById('cmAfterNum');
+        fromEl.value  = Math.min(Math.max(parseInt(fromEl.value)  || 1, 1), total);
+        toEl.value    = Math.min(Math.max(parseInt(toEl.value)    || 1, 1), total);
+        afterEl.value = Math.min(Math.max(parseInt(afterEl.value) || 0, 0), total);
+        document.getElementById('cmFromSlider').value  = fromEl.value;
+        document.getElementById('cmToSlider').value    = toEl.value;
+        document.getElementById('cmAfterSlider').value = afterEl.value;
+
+        // Center box on screen
+        const box = document.getElementById('cmBoxEl');
+        if (box && !box.style.left) {
+            box.style.left = Math.max(8, (window.innerWidth  - 320) / 2) + 'px';
+            box.style.top  = Math.max(8, (window.innerHeight - 300) / 2 - 80) + 'px';
+        }
+
+        // Show modal
+        document.getElementById('copyMeasuresModal').classList.add('cm-open');
+
+        // Collapse the bottom "Current measure/selected note" spoiler to expose the score
+        const bottomDet = document.querySelector('#stickyBottomWrap details');
+        if (bottomDet && bottomDet.open) bottomDet.open = false;
+
+        refreshCmHighlights();
+    }
+
+    function closeCopyMeasuresModal() {
+        document.getElementById('copyMeasuresModal').classList.remove('cm-open');
+        clearMeasureHighlights();
+    }
+
+    function syncCmField(which, val) {
+        document.getElementById('cm' + which + 'Num').value = val;
+        refreshCmHighlights();
+    }
+    function syncCmSlider(which, val) {
+        document.getElementById('cm' + which + 'Slider').value = val;
+        refreshCmHighlights();
+    }
+
+    function getCmValues() {
+        let from  = parseInt(document.getElementById('cmFromNum').value)  || 1;
+        let to    = parseInt(document.getElementById('cmToNum').value)    || 1;
+        let after = parseInt(document.getElementById('cmAfterNum').value);
+        if (isNaN(after)) after = 0;
+        let total = getTotalMeasureCount();
+        from  = Math.max(1, Math.min(from, total));
+        to    = Math.max(from, Math.min(to, total));
+        after = Math.max(0, Math.min(after, total));
+        return { from, to, after };
+    }
+
+    function refreshCmHighlights() {
+        let { from, to, after } = getCmValues();
+        clearMeasureHighlights();
+        drawMeasureHighlights(from, to, after);
+    }
+
+    function clearMeasureHighlights() {
+        document.querySelectorAll(
+            '.measure-copy-hl, .measure-paste-hl, .measure-num-badge-all, .measure-num-badge-copy, .measure-num-badge-paste'
+        ).forEach(el => el.remove());
+    }
+
+    // Build per-voice array-index sets for each measure (cached once per call)
+    function buildMeasureIndexSets() {
+        let allKeys = getActiveKeys();
+        let numVoices = allKeys.length;
+        let totalMeasures = getTotalMeasureCount();
+        // result[mIdx] = { idxSets: [Set, Set, ...], visualMaps: [[...], [...], ...] }
+        let result = [];
+        for (let mIdx = 0; mIdx < totalMeasures; mIdx++) {
+            let voiceData = [];
+            allKeys.forEach((vKey, vIdx) => {
+                let tNotes = voicesData[vKey].notes;
+                let measures = getMeasuresFromNotes(vKey);
+                let idxSet = new Set();
+                if (mIdx < measures.length) {
+                    for (let item of measures[mIdx]) {
+                        let n = item.note;
+                        if (n && !n.type && n.pitches && n.pitches[0].pitch !== 'x') idxSet.add(item.index);
+                    }
+                }
+                let visMap = [];
+                for (let i = 0; i < tNotes.length; i++) {
+                    let n = tNotes[i];
+                    if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x'))
+                        visMap.push(i);
+                }
+                voiceData.push({ vIdx, idxSet, visMap, tNotes });
+            });
+            result.push(voiceData);
+        }
+        return result;
+    }
+
+    // Compute the bounding rect (paper-relative) for measure mIdx0 (0-indexed)
+    function getMeasurePaperRect(mIdx0, measureIndexSets) {
+        let paper = document.getElementById('paper');
+        let paperRect = paper.getBoundingClientRect();
+        let top = Infinity, left = Infinity, bottom = -Infinity, right = -Infinity;
+
+        let voiceData = measureIndexSets[mIdx0];
+        if (!voiceData) return null;
+
+        voiceData.forEach(({ vIdx, idxSet, visMap }) => {
+            if (idxSet.size === 0) return;
+            let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
+            trackEls.forEach((el, visIdx) => {
+                let arrayIdx = visMap[visIdx];
+                if (arrayIdx === undefined || !idxSet.has(arrayIdx)) return;
+                let rect = el.getBoundingClientRect();
+                top    = Math.min(top,    rect.top    - paperRect.top);
+                left   = Math.min(left,   rect.left   - paperRect.left);
+                bottom = Math.max(bottom, rect.bottom - paperRect.top);
+                right  = Math.max(right,  rect.right  - paperRect.left);
+            });
+        });
+
+        if (top === Infinity) return null;
+        return { top, left, bottom, right };
+    }
+
+    function drawMeasureHighlights(from1, to1, after1) {
+        let paper = document.getElementById('paper');
+        const PAD = 4;
+        let total = getTotalMeasureCount();
+
+        // Build index sets once (performance)
+        let mis = buildMeasureIndexSets();
+
+        // 1. Draw ALL measure number badges (light gray) for orientation
+        for (let mIdx = 0; mIdx < total; mIdx++) {
+            let r = getMeasurePaperRect(mIdx, mis);
+            if (!r) continue;
+            let badge = document.createElement('div');
+            badge.className = 'measure-num-badge-all';
+            badge.style.top  = Math.max(0, r.top - PAD - 13) + 'px';
+            badge.style.left = (r.left - PAD) + 'px';
+            badge.textContent = 'M' + (mIdx + 1);
+            paper.appendChild(badge);
+        }
+
+        // 2. Draw green highlight + badge for copy range
+        for (let mIdx = from1 - 1; mIdx <= to1 - 1; mIdx++) {
+            let r = getMeasurePaperRect(mIdx, mis);
+            if (!r) continue;
+            let box = document.createElement('div');
+            box.className = 'measure-copy-hl';
+            box.style.top    = (r.top    - PAD) + 'px';
+            box.style.left   = (r.left   - PAD) + 'px';
+            box.style.width  = (r.right  - r.left + PAD * 2) + 'px';
+            box.style.height = (r.bottom - r.top  + PAD * 2) + 'px';
+            paper.appendChild(box);
+
+            let badge = document.createElement('div');
+            badge.className = 'measure-num-badge-copy';
+            badge.style.top  = Math.max(0, r.top - PAD - 13) + 'px';
+            badge.style.left = (r.left - PAD) + 'px';
+            badge.textContent = 'M' + (mIdx + 1);
+            paper.appendChild(badge);
+        }
+
+        // 3. Draw orange paste-target highlight
+        // Paste is inserted after measure after1 (1-indexed).
+        // We highlight the boundary: if after1 > 0, show right edge of measure after1;
+        // if after1 === 0, show left edge of measure 1.
+        let pasteR = null;
+        let pasteLabelText = '';
+        if (after1 > 0 && after1 <= total) {
+            pasteR = getMeasurePaperRect(after1 - 1, mis); // 0-indexed measure after1
+            pasteLabelText = '▶ paste after M' + after1;
+        } else if (after1 === 0) {
+            pasteR = getMeasurePaperRect(0, mis);
+            pasteLabelText = '▶ paste at start';
+        }
+        if (pasteR) {
+            // Vertical bar at the right edge of the target measure
+            let xPos = after1 > 0 ? pasteR.right : pasteR.left - 5;
+            let box = document.createElement('div');
+            box.className = 'measure-paste-hl';
+            box.style.top    = (pasteR.top    - PAD) + 'px';
+            box.style.left   = (xPos - 4) + 'px';
+            box.style.width  = '8px';
+            box.style.height = (pasteR.bottom - pasteR.top + PAD * 2) + 'px';
+            paper.appendChild(box);
+
+            let badge = document.createElement('div');
+            badge.className = 'measure-num-badge-paste';
+            badge.style.top  = Math.max(0, pasteR.top - PAD - 13) + 'px';
+            badge.style.left = (xPos - 4) + 'px';
+            badge.textContent = pasteLabelText;
+            paper.appendChild(badge);
+        }
+    }
+
+    function executeCopyPasteMeasures() {
+        let { from, to, after } = getCmValues();
+        let from0  = from  - 1;
+        let to0    = to    - 1;
+        let after0 = after;
+        let numInserted = to0 - from0 + 1;  // number of measures being inserted
+
+        pushUndoState();
+
+        let activeKeys = getActiveKeys();
+        for (let vKey of activeKeys) {
+            let measures = getMeasuresFromNotes(vKey);
+            // Gather notes to copy (deep clone, skip invisible fill & directives)
+            let copiedNotes = [];
+            for (let mIdx = from0; mIdx <= to0; mIdx++) {
+                if (mIdx >= measures.length) {
+                    let cap = getMeasureCapacityAt(mIdx);
+                    copiedNotes.push({
+                        pitches: [{ pitch: 'z', octave: '', accidental: '' }],
+                        durationInQuarters: cap, abcUnits: cap / 0.25,
+                        triplet: false, tie: false, articulations: []
+                    });
+                    continue;
+                }
+                for (let item of measures[mIdx]) {
+                    let n = item.note;
+                    if (!n) continue;
+                    if (n.type === 'directive') continue;
+                    if (n.pitches && n.pitches[0].pitch === 'x') continue;
+                    copiedNotes.push(JSON.parse(JSON.stringify(n)));
+                }
+            }
+            if (copiedNotes.length === 0) continue;
+
+            // Find insertion index
+            let insertIdx;
+            if (after0 === 0) {
+                insertIdx = 0;
+            } else {
+                // after0 is 1-indexed measure, we want after 0-indexed measure after0-1
+                let afterMeasure = measures[after0 - 1];
+                if (!afterMeasure || afterMeasure.length === 0) {
+                    insertIdx = voicesData[vKey].notes.length;
+                } else {
+                    let lastNoteIdx = -1;
+                    for (let item of afterMeasure) {
+                        if (item.note && item.note.durationInQuarters) lastNoteIdx = item.index;
+                    }
+                    insertIdx = lastNoteIdx === -1 ? voicesData[vKey].notes.length : lastNoteIdx + 1;
+                }
+            }
+
+            voicesData[vKey].notes.splice(insertIdx, 0, ...copiedNotes);
+        }
+
+        // Shift all navigation markers (repeats, voltas, directives, key-sig changes)
+        // that sit at or after the insertion point forward by the number of inserted measures.
+        // after0 is the measure AFTER which we insert (1-indexed), so markers from
+        // measure index after0 (0-indexed) onward must be shifted.
+        shiftMeasureMarkers(after0, numInserted);
+
+        updateScore();
+        closeCopyMeasuresModal();
+    }
 
     // ==================== PRINT PDF ====================
     function printScorePDF() {
