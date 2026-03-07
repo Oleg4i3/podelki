@@ -413,6 +413,12 @@
         .mobile-ui .mob-hide { display: none !important; }
         .mobile-ui .divider  { display: none !important; }
 
+        /* Pack all toolbar sections flush — no space-between gaps when dividers are hidden */
+        .mobile-ui .top-bar  { justify-content: flex-start; gap: 0; padding: 0 4px; }
+        .mobile-ui .bar-section { gap: 4px; }
+        /* Keep ••• pinned to the right edge */
+        .mobile-ui #mob-overflow-wrap { margin-left: auto; }
+
         /* Slide-up toolbar toggle tab   width: 44px; height: 16px;*/
         #mob-toolbar-toggle {
             position: absolute; left: 50%; transform: translateX(-50%);
@@ -646,7 +652,7 @@ document.addEventListener('mousedown', function(e) {
 					<label class="mode-option" style="display:flex;align-items:center;gap:4px;">
 					<input type="radio" name="connection-mode" value="firebase" checked onchange="setConnectionMode('firebase')">
 					Firebase (iOS compatible)
-					<a href="FIREBASE_CLEANER.html" target="_blank" data-tooltip="Open Firebase Cleaner — clears stale room data" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#fff3e0;border:1px solid #ffb74d;color:#e65100;font-size:11px;text-decoration:none;flex-shrink:0;margin-left:2px;" onmouseover="this.style.background='#ffe0b2'" onmouseout="this.style.background='#fff3e0'">🧹</a>
+					<a href="FIREBASE_CLEANER.html" target="_blank" data-tooltip="Open Firebase Cleaner — clears stale room data" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#fff3e0;border:1px solid #ffb74d;color:#e65100;font-size:11px;text-decoration:none;flex-shrink:0;margin-left:2px;" onmouseover="this.style.background='#ffe0b2'" onmouseout="this.style.background='#fff3e0'">🧹</a><span id="fb-traffic-badge" title="Firebase session traffic — ↑ Sent (writes) | ↓ Received (reads). Free tier: 10 GB/mo download, 1 GB storage" style="display:none;align-items:center;gap:3px;margin-left:5px;padding:1px 6px;border-radius:8px;background:#f0f9ff;border:1px solid #bae6fd;font-size:9px;font-family:monospace;cursor:default;white-space:nowrap;line-height:1.8;"><span id="fb-traffic-up" style="color:#16a34a;">↑0B</span><span style="opacity:0.35;margin:0 1px;">|</span><span id="fb-traffic-down" style="color:#2563eb;">↓0B</span></span>
 					</label>
                 </div>
                 
@@ -708,17 +714,52 @@ document.addEventListener('mousedown', function(e) {
                 
 				<!-- Firebase секция -->
 <div id="firebase-section" class="mode-section">
-    <h5>Room name</h5>
-    <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
-        <input type="text" id="firebase-room-id" class="id-box" placeholder="Room ID" style="width: 120px;">
-        <button class="btn btn-join" onclick="generateFirebaseLink()">Generate Link</button>
+
+    <!-- DB selector -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <span style="font-size:10px;color:#666;white-space:nowrap;">🔥 Database:</span>
+        <select id="firebase-db-select" onchange="switchFirebaseDb(this.value)"
+            style="font-size:11px;border:1px solid #ccc;border-radius:5px;padding:2px 6px;
+                   background:#fff;color:#333;cursor:pointer;flex:1;min-width:0;">
+            <option value="primary">Primary (test account)</option>
+            <option value="backup">Backup (my account)</option>
+        </select>
+        <span id="firebase-db-status" style="font-size:9px;color:#aaa;white-space:nowrap;">●</span>
     </div>
-    <div style="font-size: 10px; color: #888; margin-bottom: 5px;">Share this link for collaboration.</div>
-    <div style="display: flex; gap: 5px; align-items: center;">
-        <input type="text" id="firebase-link-display" class="id-box" readonly style="width: 180px;" onclick="copyFirebaseLink()">
-        <button class="btn btn-copy" onclick="copyFirebaseLink()">Copy</button>
-        <button class="btn btn-qr" onclick="showQR('firebase-link-display')" data-tooltip="Generate QR Code"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="8" height="8"/><rect x="4" y="4" width="4" height="4" fill="white"/><rect x="14" y="2" width="8" height="8"/><rect x="16" y="4" width="4" height="4" fill="white"/><rect x="2" y="14" width="8" height="8"/><rect x="4" y="16" width="4" height="4" fill="white"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="3" height="3"/><rect x="14" y="19" width="3" height="3"/><rect x="19" y="19" width="3" height="3"/></svg></button>
+
+    <!-- Room name + generate button -->
+    <h5 style="margin:0 0 4px;">Room name</h5>
+    <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px;">
+        <input type="text" id="firebase-room-id" class="id-box" placeholder="Room ID" style="width:120px;">
+        <button id="firebase-gen-btn" class="btn btn-join" onclick="generateFirebaseLink()" style="white-space:nowrap;">Generate Link</button>
     </div>
+    <div style="font-size:10px;color:#888;margin-bottom:8px;">Share this link for collaboration.</div>
+
+    <!-- Link display (small, read-only) -->
+    <input type="text" id="firebase-link-display" class="id-box" readonly
+        style="width:100%;box-sizing:border-box;margin-bottom:8px;font-size:10px;color:#666;"
+        onclick="copyFirebaseLink()">
+
+    <!-- Big Copy + QR buttons -->
+    <div style="display:flex;gap:8px;">
+        <button onclick="copyFirebaseLink()" style="
+            flex:1;padding:10px 0;font-size:13px;font-weight:700;
+            background:#2196f3;color:#fff;border:none;border-radius:8px;
+            cursor:pointer;letter-spacing:.3px;display:flex;align-items:center;
+            justify-content:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Link
+        </button>
+        <button onclick="showQR('firebase-link-display')" style="
+            flex:1;padding:10px 0;font-size:13px;font-weight:700;
+            background:#4caf50;color:#fff;border:none;border-radius:8px;
+            cursor:pointer;display:flex;align-items:center;
+            justify-content:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="8" height="8"/><rect x="4" y="4" width="4" height="4" fill="#4caf50"/><rect x="14" y="2" width="8" height="8"/><rect x="16" y="4" width="4" height="4" fill="#4caf50"/><rect x="2" y="14" width="8" height="8"/><rect x="4" y="16" width="4" height="4" fill="#4caf50"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="3" height="3"/><rect x="14" y="19" width="3" height="3"/><rect x="19" y="19" width="3" height="3"/></svg>
+            QR Code
+        </button>
+    </div>
+
 </div>
                 <!-- MQTT секция -->
                 <div id="mqtt-section" class="mode-section" style="display: none;">
@@ -774,7 +815,7 @@ document.addEventListener('mousedown', function(e) {
 		 <div class="divider"></div>
 
         <div class="bar-section">
-          <button class="tool-btn" id="btn-undo" onclick="undo()" data-tooltip="Undo (Ctrl+Z)">↶</button>
+          <button class="tool-btn" id="btn-undo" onclick="undo()" data-tooltip="Undo (Ctrl+Z)">↺</button>
 			<button class="tool-btn mob-hide" id="btn-duplicate" onclick="duplicateSelected()" data-tooltip="Duplicate selected">❐</button>
 			<button class="tool-btn" id="btn-pin" onclick="togglePin()" data-tooltip="Pin/UnPin">📌</button>
             <button class="tool-btn mob-hide" id="btn-group" onclick="groupSelected()" data-tooltip="Group selected (Ctrl+G)">🪢</button>
@@ -939,6 +980,13 @@ document.addEventListener('mousedown', function(e) {
             <div class="shape-item" onclick="insert3DShape('cylinder');hideMobOverflow()"><span class="shape-icon"><svg width="13" height="16" viewBox="0 0 120 170" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"><ellipse cx="60" cy="28" rx="52" ry="18"/><ellipse cx="60" cy="142" rx="52" ry="18"/><line x1="8" y1="28" x2="8" y2="142"/><line x1="112" y1="28" x2="112" y2="142"/></svg></span>Cyl</div>
             <div class="shape-item" onclick="insert3DShape('cone');hideMobOverflow()"><span class="shape-icon"><svg width="13" height="16" viewBox="0 0 120 170" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"><ellipse cx="60" cy="142" rx="52" ry="18"/><line x1="60" y1="8" x2="8" y2="142"/><line x1="60" y1="8" x2="112" y2="142"/></svg></span>Cone</div>
             <div class="shape-item" onclick="insert3DShape('pyramid');hideMobOverflow()"><span class="shape-icon"><svg width="16" height="14" viewBox="0 0 155 150" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"><polygon points="5,148 115,148 143,118 33,118"/><line x1="5" y1="148" x2="74" y2="5"/><line x1="115" y1="148" x2="74" y2="5"/><line x1="143" y1="118" x2="74" y2="5"/><line x1="33" y1="118" x2="74" y2="5"/></svg></span>Pyr</div>
+        </div>
+        <div class="mob-row">
+            <span class="mob-row-label">PNG</span>
+            <div class="shape-item" onclick="insertPngShape('sphere.png');hideMobOverflow()"><span class="shape-icon">🌐</span>Globe</div>
+            <div class="shape-item" onclick="insertPngShape('ball.png');hideMobOverflow()"><span class="shape-icon">🪩</span>Ball</div>
+            <div class="shape-item" onclick="insertPngShape('ruler.png');hideMobOverflow()"><span class="shape-icon">📏</span>Ruler</div>
+            <div class="shape-item" onclick="insertPngShape('protractor.png');hideMobOverflow()"><span class="shape-icon">⊾</span>Prot</div>
         </div>
     </div>
     <div class="mob-row">
@@ -4277,7 +4325,27 @@ canvas.on('object:modified', (e) => {
             _imgDebounce[id] = setTimeout(() => {
                 delete _imgDebounce[id];
                 const current = findObjectById(id);
-                if (current) broadcast('modified', { data: current.toObject(syncProps) });
+                if (!current) return;
+                // Send full geometry + lock state so partner sees the final position
+                broadcast('modified', { data: {
+                    id:     current.id,
+                    type:   current.type,
+                    left:   current.left,
+                    top:    current.top,
+                    scaleX: current.scaleX,
+                    scaleY: current.scaleY,
+                    angle:  current.angle,
+                    width:  current.width,
+                    height: current.height,
+                    cropX:  current.cropX  || 0,
+                    cropY:  current.cropY  || 0,
+                    isPinned:       current.isPinned,
+                    lockMovementX:  current.lockMovementX,
+                    lockMovementY:  current.lockMovementY,
+                    lockRotation:   current.lockRotation,
+                    lockScalingX:   current.lockScalingX,
+                    lockScalingY:   current.lockScalingY,
+                }});
             }, 500);
         });
 
@@ -4326,15 +4394,31 @@ function getAbsoluteObjectData(obj, syncProps) {
 function handleLiveSync(e) {
     const target = e.target;
     if (!target) return;
-    if (target.__isLocal === true) return; // partner's object — don't re-broadcast its position
+    // NOTE: do NOT guard on target.__isLocal here.
+    // __isLocal marks objects that arrived from a remote draw message, but the
+    // LOCAL user must still be able to move/rotate them and have those changes
+    // broadcast to the partner.  Echo prevention is handled by isSendingToFirebase /
+    // isSendingToWs / isSendingToMqtt flags inside broadcast() itself.
 
-    if (target.type === 'image') return;
-    if (target.type === 'activeSelection' &&
-        target.getObjects().some(o => o.type === 'image')) return;
-    if (target.type === 'activeSelection') return;
+    if (target.type === 'activeSelection') return; // handled in object:modified
 
     const now = Date.now();
     if (now - lastMoveSend < MOVE_THROTTLE_MS) return;
+
+    // Images: send a lightweight position-only packet (no src — keeps messages small)
+    if (target.type === 'image') {
+        broadcast('modified', { data: {
+            id:     target.id,
+            type:   target.type,
+            left:   target.left,
+            top:    target.top,
+            scaleX: target.scaleX,
+            scaleY: target.scaleY,
+            angle:  target.angle
+        }});
+        lastMoveSend = now;
+        return;
+    }
 
     // TEXTBOX CRITICAL FIX: Fabric's toObject() always includes the full text/style
     // props regardless of what additionalProps you pass — it's an ADDITIVE parameter.
@@ -5547,17 +5631,36 @@ function applyRemoteDrawObject(d, onDone) {
     if (d.type === 'image' && d.src) {
         fabric.Image.fromURL(d.src, (img) => {
             if (!img) { if (onDone) onDone(); return; }
+
+            // ── Defensive dimension normalizer ───────────────────────────────
+            // The sender declares d.width × d.height (the compressed image size).
+            // After JPEG decode the browser's naturalWidth/Height should match,
+            // but JPEG sub-sampling, orientation EXIF, or any re-encode hop can
+            // produce a pixel count that is 1-2px off.  If there IS a mismatch,
+            // absorb it entirely into scaleX/scaleY so the rendered size is
+            // always exactly what the sender intended — no drawImage crop drift.
+            const actualW = (img.getElement && img.getElement() && img.getElement().naturalWidth)
+                            || img.width;
+            const actualH = (img.getElement && img.getElement() && img.getElement().naturalHeight)
+                            || img.height;
+            const declaredW = d.width  || actualW;
+            const declaredH = d.height || actualH;
+            // Scale ratio: if actual differs from declared, adjust scale to compensate
+            const normScaleX = (d.scaleX || 1) * (declaredW / actualW);
+            const normScaleY = (d.scaleY || 1) * (declaredH / actualH);
+            // ────────────────────────────────────────────────────────────────
+
             img.set({
                 id:     d.id,
                 left:   d.left   || 0,
                 top:    d.top    || 0,
-                scaleX: d.scaleX || 1,
-                scaleY: d.scaleY || 1,
+                scaleX: normScaleX,
+                scaleY: normScaleY,
                 angle:  d.angle  || 0,
                 cropX:  d.cropX  || 0,
                 cropY:  d.cropY  || 0,
-                width:  d.width  || img.width,
-                height: d.height || img.height,
+                width:  actualW,
+                height: actualH,
                 __isLocal: true,
                 selectable: true,
                 evented: true,
@@ -5571,8 +5674,26 @@ function applyRemoteDrawObject(d, onDone) {
             }
             const prev = isSendingToWs; isSendingToWs = true;
             const existing = findObjectById(d.id);
-            if (existing) canvas.remove(existing);
+            if (existing) {
+                // If the local user is currently transforming this object, replacing it
+                // would orphan the drag and cause the "sticks to cursor" bug.
+                // Skip the update — the in-flight drag will commit its own final position.
+                const active = canvas.getActiveObject();
+                const isDragging = (active === existing) ||
+                    (active && active.type === 'activeSelection' &&
+                     active.getObjects().includes(existing));
+                if (isDragging) {
+                    isSendingToWs = prev;
+                    if (onDone) onDone();
+                    return;
+                }
+                canvas.remove(existing);
+            }
             canvas.add(img);
+            // Clear __isLocal so the local user can modify and re-broadcast this image.
+            // Echo prevention during remote-message processing is handled by
+            // isSendingToFirebase / isSendingToWs flags, not by __isLocal.
+            img.__isLocal = false;
             isSendingToWs = prev;
             canvas.requestRenderAll();
             if (onDone) onDone();
@@ -5672,14 +5793,24 @@ function applyRemoteStateDump(stateData, onDone) {
             // Need to reload via fromURL
             if (existing) canvas.remove(existing);
             fabric.Image.fromURL(d.src, (img) => {
+                // ── Defensive dimension normalizer (same logic as applyRemoteDrawObject) ──
+                const actualW = (img.getElement && img.getElement() && img.getElement().naturalWidth)
+                                || img.width;
+                const actualH = (img.getElement && img.getElement() && img.getElement().naturalHeight)
+                                || img.height;
+                const declaredW = d.width  || actualW;
+                const declaredH = d.height || actualH;
+                const normScaleX = (d.scaleX || 1) * (declaredW / actualW);
+                const normScaleY = (d.scaleY || 1) * (declaredH / actualH);
+                // ─────────────────────────────────────────────────────────────────────────
                 img.set({
                     id: d.id, left: d.left || 0, top: d.top || 0,
-                    scaleX: d.scaleX || 1, scaleY: d.scaleY || 1,
+                    scaleX: normScaleX, scaleY: normScaleY,
                     angle: d.angle || 0,
                     cropX: d.cropX || 0, cropY: d.cropY || 0,
-                    width:  d.width  || img.width,
-                    height: d.height || img.height,
-                    __isLocal: true, selectable: true, evented: true
+                    width:  actualW,
+                    height: actualH,
+                    __isLocal: false, selectable: true, evented: true
                 });
                 // Restore image filter params from state dump
                 if (d._filterContrast !== undefined || d._filterSharpen !== undefined || d._filterBlur !== undefined) {
@@ -5831,10 +5962,22 @@ function broadcastCursor(e) {
 function _sendCursorPos(x, y, hidden) {
     const now = Date.now();
     const d = hidden ? { x, y, hidden: true } : { x, y };
-    if      (connectionMode === 'mqtt' && mqttClient && mqttClient.connected) publishMqttMessage('cursor', d);
-    else if (connectionMode === 'firebase' && firebaseRef)                    sendToFirebase('cursor', d);
-    else if (connectionMode === 'ws')                                         sendToWs('cursor', d);
-    else if (conn && conn.open)                                               conn.send({ type: 'cursor', ...d, timestamp: now });
+    if (connectionMode === 'mqtt' && mqttClient && mqttClient.connected) {
+        publishMqttMessage('cursor', d);
+    } else if (connectionMode === 'firebase' && firebaseRef) {
+        // ── Cursor bypass: write directly to cursor/{userId}, NOT messages.push()
+        // Payload: {x:int, y:int} = ~14 chars vs ~100 chars + push key overhead.
+        // .set() overwrites the same node — no accumulation, no child_added storm.
+        const payload = hidden
+            ? { x: Math.round(x), y: Math.round(y), h: 1 }
+            : { x: Math.round(x), y: Math.round(y) };
+        _fbTraffic.addSent(payload);
+        firebaseRef.child('cursor').child(myFirebaseId).set(payload);
+    } else if (connectionMode === 'ws') {
+        sendToWs('cursor', d);
+    } else if (conn && conn.open) {
+        conn.send({ type: 'cursor', ...d, timestamp: now });
+    }
 }
 setTimeout(initPartnerCursor, 1000);
 
@@ -7370,14 +7513,39 @@ function _broadcastImageWithJpegSrc(img, filename) {
         outSrc = tmp.toDataURL('image/jpeg', _bc.qMed);
     }
 
+    // ── Canonical scale: compensate for any downscaling applied above ──────────
+    // These are the ONE TRUE scaleX/scaleY that both sender and every receiver
+    // must use.  We compute them once here so there is no per-side ratio math.
+    const canonScaleX = img.scaleX * (origW / sw);
+    const canonScaleY = img.scaleY * (origH / sh);
+
+    // ── Step 1: Retcon the sender's own canvas object to match the compressed
+    //    image that is about to be stored in Firebase / broadcast.
+    //    Without this the sender's local element is still origW×origH while
+    //    every receiver gets sw×sh — causing divergent drawImage scaling.
+    if (sw !== origW || sh !== origH) {
+        // Load the compressed data URL into a new HTMLImageElement and swap it
+        // into the existing Fabric object so the sender's canvas is canonical.
+        const _canonEl = new Image();
+        _canonEl.onload = function () {
+            try {
+                img.setElement(_canonEl);
+                img.set({ width: sw, height: sh, scaleX: canonScaleX, scaleY: canonScaleY });
+                img.setCoords();
+                canvas.requestRenderAll();
+            } catch(e) { /* non-fatal — visual only on sender side */ }
+        };
+        _canonEl.src = outSrc;
+    }
+
     const data = {
         type:   'image',
         src:    outSrc,
         id:     img.id,
         left:   img.left,
         top:    img.top,
-        scaleX: img.scaleX * (origW / sw),
-        scaleY: img.scaleY * (origH / sh),
+        scaleX: canonScaleX,
+        scaleY: canonScaleY,
         angle:  img.angle  || 0,
         width:  sw,
         height: sh,
@@ -7962,6 +8130,7 @@ async function _fbResolveImgRef(imgRef) {
     if (!firebaseRef) return null;
     return new Promise(resolve => {
         firebaseRef.child('images').child(imgRef).once('value', snap => {
+            if (snap.val()) _fbTraffic.addRecv(snap.val());
             const src = snap.val();
             if (src) ImgCache.set(imgRef, src);
             resolve(src || null);
@@ -7991,6 +8160,7 @@ function _fbBroadcastImageWithRef(img, compressedSrc, filename) {
     ImgCache.set(imgId, compressedSrc);
 
     if (connectionMode === 'firebase' && firebaseRef) {
+        _fbTraffic.addSent(compressedSrc);
         firebaseRef.child('images').child(imgId).set(compressedSrc)
             .then(() => {
                 const imgData       = img.toObject(syncProps);
@@ -8028,6 +8198,7 @@ async function _fbStripAndStoreImages(stateData) {
         if (!cached) {
             // Upload to Firebase images/ node
             try {
+                _fbTraffic.addSent(obj.src);
                 await firebaseRef.child('images').child(imgId).set(obj.src);
                 ImgCache.set(imgId, obj.src);
             } catch(e) {
@@ -8041,25 +8212,83 @@ async function _fbStripAndStoreImages(stateData) {
     return clone;
 }
 
-const firebaseConfig = {
-    apiKey: "AIzaSyAeDjmTl5-xAHOmvkCgG-QzKhHaFuehpjY",
-    authDomain: "cheeseboard-c7f66.firebaseapp.com",
-    databaseURL: "https://cheeseboard-c7f66-default-rtdb.firebaseio.com",
-    projectId: "cheeseboard-c7f66",
-    storageBucket: "cheeseboard-c7f66.firebasestorage.app",
-    messagingSenderId: "575291335461",
-    appId: "1:575291335461:web:a5e06825990b41e7d330cc"
+// ── Firebase database registry ──────────────────────────────────────────────
+// To activate the backup DB: fill in the values from your Firebase project
+// (see the step-by-step instructions in FIREBASE_SETUP.md / printed in console).
+const FIREBASE_CONFIGS = {
+    primary: {
+        label:   "Primary (test account)",
+        apiKey:            "AIzaSyAeDjmTl5-xAHOmvkCgG-QzKhHaFuehpjY",
+        authDomain:        "cheeseboard-c7f66.firebaseapp.com",
+        databaseURL:       "https://cheeseboard-c7f66-default-rtdb.firebaseio.com",
+        projectId:         "cheeseboard-c7f66",
+        storageBucket:     "cheeseboard-c7f66.firebasestorage.app",
+        messagingSenderId: "575291335461",
+        appId:             "1:575291335461:web:a5e06825990b41e7d330cc"
+    },
+    backup: {
+        label:   "Backup (my account)",
+        apiKey:            "AIzaSyAnc8GOrjSl3kkOHBuCTRt3SF31DnypzBo",
+        authDomain:        "cheeseboard-7b01d.firebaseapp.com",
+        databaseURL:       "https://cheeseboard-7b01d-default-rtdb.firebaseio.com",
+        projectId:         "cheeseboard-7b01d",
+        storageBucket:     "cheeseboard-7b01d.firebasestorage.app",
+        messagingSenderId: "650005551830",
+        appId:             "1:650005551830:web:70e7c9a5d6a11bbc004777"
+    }
 };
+
+// Active config key — changed by the dropdown
+let _activeFirebaseDbKey = 'primary';
+
+function switchFirebaseDb(key) {
+    const cfg = FIREBASE_CONFIGS[key];
+    if (!cfg) return;
+    // Validate backup isn't still placeholder
+    if (cfg.apiKey.startsWith('PASTE_')) {
+                alert('⚠️ Backup Firebase config is not filled in yet.\n\nOpen the HTML file in a text editor and replace the PASTE_YOUR_* placeholders in FIREBASE_CONFIGS.backup with your real values.\n\nSee the step-by-step setup instructions (FIREBASE_SETUP.md).');
+        document.getElementById('firebase-db-select').value = _activeFirebaseDbKey;
+        return;
+    }
+    if (_activeFirebaseDbKey === key) return;
+    _activeFirebaseDbKey = key;
+    // Force re-init on next connect
+    firebaseApp      = null;
+    firebaseDatabase = null;
+    // Disconnect active room so user reconnects with new DB
+    if (firebaseRef) {
+        disconnectFirebase();
+        setStatus('Switched to ' + cfg.label + ' — reconnect to a room', 'ok');
+    }
+    const statusEl = document.getElementById('firebase-db-status');
+    if (statusEl) statusEl.textContent = key === 'backup' ? '★' : '●';
+    // Visually prompt user to re-generate the link for the new DB
+    const genBtn = document.getElementById('firebase-gen-btn');
+    if (genBtn) {
+        genBtn.textContent = '↺ Re-Generate';
+        genBtn.style.background = '#ff9800';
+        genBtn.style.color = '#fff';
+    }
+    // Clear stale link so user doesn't accidentally share wrong DB link
+    const linkInput = document.getElementById('firebase-link-display');
+    if (linkInput) linkInput.value = '';
+}
 
 // 2. Простая функция для работы с Firebase
 let firebaseApp = null;
 let firebaseDatabase = null;
 
 function getFirebase() {
+    const cfg = FIREBASE_CONFIGS[_activeFirebaseDbKey];
     if (!firebaseApp) {
-        // Загружаем Firebase только когда нужно
-        firebaseApp = firebase.initializeApp(firebaseConfig);
-        firebaseDatabase = firebase.database();
+        // Name each app instance uniquely so Firebase SDK doesn't complain
+        // about duplicate initializeApp calls when switching DBs.
+        try {
+            firebaseApp = firebase.app('cheeseboard-' + _activeFirebaseDbKey);
+        } catch(e) {
+            firebaseApp = firebase.initializeApp(cfg, 'cheeseboard-' + _activeFirebaseDbKey);
+        }
+        firebaseDatabase = firebaseApp.database();
     }
     return firebaseDatabase;
 }
@@ -8069,12 +8298,24 @@ function generateFirebaseLink() {
     let roomId = document.getElementById('firebase-room-id').value.trim();
     
     if (!roomId) {
-        roomId = Math.random().toString(36).substr(2, 6);
+        // Use date-time as default room name: MMDD-HHmm
+        const _n = new Date();
+        const _pad = v => String(v).padStart(2,'0');
+        roomId = _pad(_n.getMonth()+1) + _pad(_n.getDate()) + '-' + _pad(_n.getHours()) + _pad(_n.getMinutes());
         document.getElementById('firebase-room-id').value = roomId;
+    }
+    // Reset generate button style
+    const genBtn = document.getElementById('firebase-gen-btn');
+    if (genBtn) {
+        genBtn.textContent = 'Generate Link';
+        genBtn.style.background = '';
+        genBtn.style.color = '';
     }
     
     const currentUrl = window.location.href.split('?')[0];
-    const firebaseLink = `${currentUrl}?firebase=${roomId}`;
+    const fdbParam = (_activeFirebaseDbKey && _activeFirebaseDbKey !== 'primary')
+        ? '&fdb=' + encodeURIComponent(_activeFirebaseDbKey) : '';
+    const firebaseLink = `${currentUrl}?firebase=${roomId}${fdbParam}`;
     
     document.getElementById('firebase-link-display').value = firebaseLink;
     
@@ -8092,8 +8333,20 @@ function copyFirebaseLink() {
 function checkFirebaseAutoConnect() {
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('firebase');
-    
+    const fdbKey = urlParams.get('fdb');
+
     if (roomId && connectionMode === 'firebase') {
+        // Switch to the DB that the host used (encoded in the link)
+        if (fdbKey && FIREBASE_CONFIGS[fdbKey] && fdbKey !== _activeFirebaseDbKey) {
+            _activeFirebaseDbKey = fdbKey;
+            const sel = document.getElementById('firebase-db-select');
+            if (sel) sel.value = fdbKey;
+            const statusEl = document.getElementById('firebase-db-status');
+            if (statusEl) statusEl.textContent = fdbKey === 'backup' ? '★' : '●';
+            // Force re-init so getFirebase() picks the right config
+            firebaseApp      = null;
+            firebaseDatabase = null;
+        }
         document.getElementById('firebase-room-id').value = roomId;
         setTimeout(() => connectToFirebaseRoom(roomId), 1000);
     }
@@ -8122,6 +8375,7 @@ function connectToFirebaseRoom(roomId) {
         
         // Создаем ссылку на комнату
         firebaseRoomId = roomId;
+        _fbTraffic.reset(); // reset counter for fresh room session
         firebaseRef = db.ref(`cheeseboard/${roomId}`);
         
         // Удаляем старые сообщения (оставляем только последние 100)
@@ -8161,13 +8415,34 @@ function connectToFirebaseRoom(roomId) {
         firebaseRef.child('messages').limitToLast(50).on('child_added', (snapshot) => {
             const msg = snapshot.val();
             if (!msg) return;
+            if (msg.sender !== myFirebaseId) _fbTraffic.addRecv(msg);
             handleFirebaseMessage(msg);
         });
+
+        // ── Cursor-specific listener on dedicated cursor/{userId} node.
+        //    Uses child_changed (update) + child_added (first appearance).
+        //    Each event is just {x,y} or {x,y,h:1} — tiny, never accumulates.
+        function _onPartnerCursor(snapshot) {
+            if (snapshot.key === myFirebaseId) return; // ignore own writes
+            const d = snapshot.val();
+            if (!d) return;
+            _fbTraffic.addRecv(d);
+            if (d.h) {
+                if (partnerCursorDiv) partnerCursorDiv.style.display = 'none';
+                if (_partnerArrowDiv) _partnerArrowDiv.style.display = 'none';
+                partnerCursorVisible = false;
+            } else {
+                updatePartnerCursor(d.x, d.y);
+            }
+        }
+        firebaseRef.child('cursor').on('child_added',   _onPartnerCursor);
+        firebaseRef.child('cursor').on('child_changed', _onPartnerCursor);
 
         // Слушаем state_snapshot — отдельный узел куда хост пишет дамп борда
         firebaseRef.child('state_snapshot').on('value', (snapshot) => {
             const msg = snapshot.val();
             if (!msg || msg.sender === myFirebaseId) return;
+            _fbTraffic.addRecv(msg);
             handleFirebaseMessage(msg);
         });
         
@@ -8296,22 +8571,71 @@ function handleFirebaseMessage(msg) {
 }
 
 
+
+// ==========================================
+// FIREBASE TRAFFIC TRACKER
+// ==========================================
+const _fbTraffic = (function () {
+    let sent = 0, recv = 0;
+
+    function _fmt(bytes) {
+        if (bytes < 1024)       return bytes + 'B';
+        if (bytes < 1048576)    return (bytes / 1024).toFixed(1) + 'KB';
+        return (bytes / 1048576).toFixed(2) + 'MB';
+    }
+
+    // Color thresholds vs 10 GB/month download limit
+    function _color(bytes) {
+        const MB = bytes / 1048576;
+        if (MB < 50)   return null;           // default blue
+        if (MB < 500)  return '#d97706';      // amber — 50-500 MB
+        return '#dc2626';                      // red — 500 MB+
+    }
+
+    function _render() {
+        const badge = document.getElementById('fb-traffic-badge');
+        const up    = document.getElementById('fb-traffic-up');
+        const down  = document.getElementById('fb-traffic-down');
+        if (!badge || !up || !down) return;
+        badge.style.display = 'inline-flex';
+        up.textContent   = '↑' + _fmt(sent);
+        down.textContent = '↓' + _fmt(recv);
+        const c = _color(recv);
+        badge.style.borderColor    = c ? c : '#bae6fd';
+        badge.style.background     = c ? (c === '#dc2626' ? '#fff1f2' : '#fffbeb') : '#f0f9ff';
+        down.style.color           = c ? c : '#2563eb';
+    }
+
+    return {
+        /** Call with the raw value being written/read (object, string, or byte count) */
+        addSent: function (payload) {
+            try { sent += (typeof payload === 'string' ? payload : JSON.stringify(payload)).length; }
+            catch(e) { sent += 256; /* fallback estimate */ }
+            _render();
+        },
+        addRecv: function (payload) {
+            try { recv += (typeof payload === 'string' ? payload : JSON.stringify(payload)).length; }
+            catch(e) { recv += 256; }
+            _render();
+        },
+        reset: function () { sent = 0; recv = 0; _render(); }
+    };
+})();
+
 // 6. Отправка сообщений в Firebase
 function sendToFirebase(type, data) {
     if (!firebaseRef || isSendingToFirebase) {
         return;
     }
-    
+    // Cursor has its own dedicated node — must never enter messages.push() queue
+    if (type === 'cursor') return;
     
     // state_dump храним в отдельном узле — переподключившийся партнёр
     // всегда получит борд (не зависит от limitToLast(50))
     if (type === 'state_dump') {
-        firebaseRef.child('state_snapshot').set({
-            sender: myFirebaseId,
-            type: 'state_dump',
-            data: data,
-            timestamp: Date.now()
-        }).then(() => {
+        const _sdPayload = { sender: myFirebaseId, type: 'state_dump', data: data, timestamp: Date.now() };
+        _fbTraffic.addSent(_sdPayload);
+        firebaseRef.child('state_snapshot').set(_sdPayload).then(() => {
         }).catch(error => {
         });
         return;
@@ -8325,6 +8649,7 @@ function sendToFirebase(type, data) {
     };
     
     // Используем push для генерации уникального ID сообщения
+    _fbTraffic.addSent(message);
     const newMessageRef = firebaseRef.child('messages').push();
     newMessageRef.set(message).then(() => {
     }).catch(error => {
@@ -8352,9 +8677,11 @@ function disconnectFirebase() {
     if (firebaseRef) {
         firebaseRef.child('messages').off();
         firebaseRef.child('state_snapshot').off();
+        firebaseRef.child('cursor').off(); // remove cursor listeners
         
         if (myFirebaseId) {
             firebaseRef.child('users').child(myFirebaseId).remove();
+            firebaseRef.child('cursor').child(myFirebaseId).remove(); // clean up own cursor node
         }
         
         firebaseRef = null;
@@ -8366,6 +8693,7 @@ function disconnectFirebase() {
 window.addEventListener('beforeunload', function() {
     if (firebaseRef && myFirebaseId) {
         firebaseRef.child('users').child(myFirebaseId).remove();
+        firebaseRef.child('cursor').child(myFirebaseId).remove();
     }
 });
 
