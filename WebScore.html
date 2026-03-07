@@ -440,8 +440,19 @@
     <!-- ===== STARTUP MODAL ===== -->
     <div id="startupModal">
         <div class="startup-box">
-            <h2>🎼 WebScore</h2>
-            <p class="startup-sub">Enter a name for the new song, or open an existing ABC file.</p>
+            <h2>𝄞 WebScoreCreator</h2>
+			<div style="text-align: right; font-size: 0.85em; margin: 10px 0;">
+				Inspired by
+			
+			<a href="https://apps.apple.com/app/score-creator-compose-music/id627486149" target="_blank" style="text-decoration: none; color: #333; display: inline-flex; align-items: center;">
+			<img src="https://upload.wikimedia.org/wikipedia/commons/6/67/App_Store_%28iOS%29.svg" alt="App Store" style="height: 16px; margin-right: 5px;">
+			Score Creator 
+			</a>
+			<a href="https://play.google.com/store/apps/details?id=com.sc.scorecreator" target="_blank" style="text-decoration: none; color: #333; margin-right: 10px; display: inline-flex; align-items: center;">
+			<img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" style="height: 16px; margin-right: 5px;">
+			</a>
+			</div>
+				<p class="startup-sub">Enter a name for the new song, or open an existing ABC file.</p>
             <input type="text" id="startupTitleInput" value="New song" placeholder="Song name…"
                 onkeydown="if(event.key==='Enter') startupCreate()">
 
@@ -5275,8 +5286,7 @@ function generateMIDIWithBend() {
                         let targetKey = activeKeys[vIdx];
                         if (activeTrack !== targetKey) changeTrack(targetKey);
                         if (cls.includes('abcjs-clef') || cls.includes('abcjs-time-signature') || cls.includes('abcjs-key-signature')) {
-                            selectionAtStart = true; selection.start = 0; selection.end = 0; drawVisualSelection(); return;
-                        }
+                          selectionAtStart = true; selection.start = 0; selection.end = 0; drawVisualSelection(); showNoteInputPanel(); return;    }
                         let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
                         let visualToArrayMap = [];
                         let tNotes = voicesData[targetKey].notes;
