@@ -2471,41 +2471,58 @@ function splitNotesForSync(trackKey, insertTime, measureCapacity) {
     const mStart = getMeasureStartTime(mIdx);
     const mEnd = mStart + getMeasureCapacityAt(mIdx);
 
+    // If insertTime falls exactly on a measure boundary (offsetInMeasure == 0),
+    // the new note must start a brand-new measure BEFORE the current one (mIdx).
+    // Nothing from measure mIdx should mix with the new note — it shifts forward intact.
+    const atBoundary = (insertTime <= mStart + EPS);
+
     let notes = voicesData[trackKey].notes;
     let beforeMeasure = [], inMeasureBeforeInsert = [], inMeasureAfterInsert = [], afterMeasure = [];
     let cum = 0;
 
     for (let n of notes) {
         if (n.type === 'directive') {
-            // Directives go with the section they precede
-            if (cum < mEnd - EPS) {
-                if (cum < mStart + EPS) beforeMeasure.push(n);
-                else inMeasureBeforeInsert.push(n);
+            if (atBoundary) {
+                if (cum < mStart - EPS) beforeMeasure.push(n);
+                else afterMeasure.push(n);
             } else {
-                afterMeasure.push(n);
+                if (cum < mEnd - EPS) {
+                    if (cum < mStart + EPS) beforeMeasure.push(n);
+                    else inMeasureBeforeInsert.push(n);
+                } else {
+                    afterMeasure.push(n);
+                }
             }
             continue;
         }
         let dur = n.durationInQuarters || 0;
         let ns = cum, ne = cum + dur;
 
-        if (ne <= mStart + EPS) {
-            beforeMeasure.push(n);
-        } else if (ns >= mEnd - EPS) {
-            afterMeasure.push(n);
-        } else {
-            // Note is somewhere in [mStart, mEnd)
-            let isInvisible = n.pitches && n.pitches[0].pitch === 'x';
-            if (ns < insertTime - EPS) {
-                // Everything before cursor (real notes AND invisible rests) stays in place.
-                // Invisible rests between real notes must be preserved so that
-                // sum(inMeasureBeforeInsert) == offsetInMeasure exactly.
-                inMeasureBeforeInsert.push(n);
-            } else if (!isInvisible) {
-                // Real notes at/after cursor are displaced by the new content.
-                inMeasureAfterInsert.push(n);
+        if (atBoundary) {
+            // Split at mStart: everything strictly before mStart goes to beforeMeasure,
+            // everything from mStart onwards (the whole current measure + rest) to afterMeasure.
+            if (ne <= mStart + EPS) {
+                beforeMeasure.push(n);
+            } else {
+                afterMeasure.push(n);
             }
-            // Invisible rests at or after cursor are discarded — recalculated by rebuildWithTactsFromOffset
+        } else {
+            if (ne <= mStart + EPS) {
+                beforeMeasure.push(n);
+            } else if (ns >= mEnd - EPS) {
+                afterMeasure.push(n);
+            } else {
+                // Note is somewhere in [mStart, mEnd)
+                let isInvisible = n.pitches && n.pitches[0].pitch === 'x';
+                if (ns < insertTime - EPS) {
+                    // Everything before cursor stays in place.
+                    inMeasureBeforeInsert.push(n);
+                } else if (!isInvisible) {
+                    // Real notes at/after cursor are displaced by the new content.
+                    inMeasureAfterInsert.push(n);
+                }
+                // Invisible rests at or after cursor are discarded — recalculated by rebuildWithTactsFromOffset
+            }
         }
         cum = ne;
     }
@@ -2556,16 +2573,52 @@ function addNoteSync(noteBase, rowShift) {
         splitNotesForSync(activeTrack, insertTime, cap);
 
     let offsetInMeasure = insertTime - mStart; // how many quarters already used in current measure before insertTime
-    let spaceAvailable = cap - offsetInMeasure; // space from insertTime to end of current measure
+    let spaceAvailable = getMeasureCapacityAt(mIdx) - offsetInMeasure; // space from insertTime to end of current measure
 
     // Content to place from insertTime: new note + displaced tail notes
     let content = [newNote, ...inMeasureAfterInsert];
-    let packedContent = rebuildWithTactsFromOffset(content, cap, offsetInMeasure);
+    let packedContent = rebuildWithTactsFromOffset(content, getMeasureCapacityAt(mIdx), offsetInMeasure);
 
-    // Calculate how many NEW measures are needed beyond the current one
-    let packedDur = packedContent.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
-    let overflow = packedDur - spaceAvailable;
-    let newMeasuresNeeded = overflow > EPS ? Math.ceil(overflow / cap) : 0;
+    // Calculate how many NEW measures are actually needed beyond the current one.
+    // Count full measures that packedContent spans past the end of the current measure (mIdx).
+    // We do this by tracking cumulative duration starting at offsetInMeasure within mIdx.
+    let newMeasuresNeeded = 0;
+    {
+        let cur = offsetInMeasure;
+        let checkMIdx = mIdx;
+        for (let n of packedContent) {
+            if (n.type === 'directive') continue;
+            cur += n.durationInQuarters || 0;
+            let checkCap = getMeasureCapacityAt(checkMIdx);
+            while (cur >= checkCap - EPS) {
+                cur -= checkCap;
+                if (cur < -EPS) cur = 0;
+                checkMIdx++;
+                checkCap = getMeasureCapacityAt(checkMIdx);
+                if (checkMIdx > mIdx) {
+                    // This measure is beyond the current one — check if it existed before
+                    // We'll count measures needed after afterMeasure begins
+                }
+            }
+        }
+        // newMeasuresNeeded = how many measures packedContent extends into beyond mIdx,
+        // minus how many measures afterMeasure already occupies (those existed before)
+        let measuresUsedByPacked = checkMIdx - mIdx;
+        // afterMeasure content occupied (mTotalOld - mIdx - 1) measures after mIdx
+        let totalDurBefore = 0;
+        for (let n of [...beforeMeasure, ...inMeasureBeforeInsert, ...inMeasureAfterInsert, ...afterMeasure]) {
+            if (n.durationInQuarters) totalDurBefore += n.durationInQuarters;
+        }
+        // How many measures did the active track originally have?
+        let oldActiveDur = totalDurBefore;
+        let oldActiveMeasures = oldActiveDur > EPS ? getMeasureIdxAtTime(oldActiveDur - EPS) + 1 : 0;
+        // How many measures does active track have NOW?
+        let newActiveDur = 0;
+        let newActiveNotesTmp = [...beforeMeasure, ...inMeasureBeforeInsert, ...packedContent, ...afterMeasure];
+        for (let n of newActiveNotesTmp) { if (n.durationInQuarters) newActiveDur += n.durationInQuarters; }
+        let newActiveMeasures = newActiveDur > EPS ? getMeasureIdxAtTime(newActiveDur - EPS) + 1 : 0;
+        newMeasuresNeeded = Math.max(0, newActiveMeasures - oldActiveMeasures);
+    }
 
     // Assemble active track
     voicesData[activeTrack].notes = [
@@ -2575,18 +2628,43 @@ function addNoteSync(noteBase, rowShift) {
         ...afterMeasure
     ];
 
-    // Insert empty measures in all OTHER active tracks at measureIdx+1
+    // Insert empty measures in all OTHER active tracks.
+    // When inserting at a measure boundary (atBoundary), the new measure is inserted
+    // AT mIdx (the measure that shifts forward). Otherwise it goes AFTER mIdx.
     if (newMeasuresNeeded > 0) {
         let activeKeys = getActiveKeys();
+        const atBoundary = (insertTime <= mStart + EPS);
+        // Time at which to insert empty measures in other tracks
+        let insertAtTime = atBoundary ? mStart : getMeasureStartTime(mIdx + 1);
+        let markerShiftFrom = atBoundary ? mIdx : mIdx + 1;
         for (let key of activeKeys) {
             if (key === activeTrack) continue;
-            insertEmptyMeasuresIntoTrack(key, mIdx + 1, newMeasuresNeeded);
+            let trackNotes = voicesData[key].notes;
+            let cum = 0;
+            let insertIdx = trackNotes.length;
+            for (let i = 0; i < trackNotes.length; i++) {
+                if (trackNotes[i].durationInQuarters) {
+                    if (cum >= insertAtTime - EPS) { insertIdx = i; break; }
+                    cum += trackNotes[i].durationInQuarters;
+                }
+            }
+            let emptyNotes = [];
+            let baseMIdx = atBoundary ? mIdx : mIdx + 1;
+            for (let i = 0; i < newMeasuresNeeded; i++) {
+                const ecap = getMeasureCapacityAt(baseMIdx + i);
+                emptyNotes.push({
+                    pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                    durationInQuarters: ecap,
+                    abcUnits: ecap / 0.25,
+                    triplet: false, tie: false, articulations: []
+                });
+            }
+            trackNotes.splice(insertIdx, 0, ...emptyNotes);
         }
-        shiftMeasureMarkers(mIdx + 1, newMeasuresNeeded);
+        shiftMeasureMarkers(markerShiftFrom, newMeasuresNeeded);
     }
 
     padTracksToSameLength();
-    removeEmptyMeasures();
 
     // Update selection to the newly inserted note
     let newSelIdx = findIndexAtTime(activeTrack, insertTime);
@@ -3035,17 +3113,18 @@ function deleteSelectionSync() {
                 splitNotesForSync(activeTrack, insertTime, cap);
 
             let offsetInMeasure = insertTime - mStart;
-            let spaceAvailable = cap - offsetInMeasure;
 
             // Content from insertTime: clipboard notes + displaced tail
             let notesToPaste = clipboard.map(n => JSON.parse(JSON.stringify(n)));
             let content = [...notesToPaste, ...inMeasureAfterInsert];
-            let packedContent = rebuildWithTactsFromOffset(content, cap, offsetInMeasure);
+            let packedContent = rebuildWithTactsFromOffset(content, getMeasureCapacityAt(mIdx), offsetInMeasure);
 
-            // How many new measures are needed?
-            let packedDur = packedContent.reduce((acc, n) => acc + (n.durationInQuarters || 0), 0);
-            let overflow = packedDur - spaceAvailable;
-            let newMeasuresNeeded = overflow > EPS ? Math.ceil(overflow / cap) : 0;
+            // Compute how many NEW measures the active track gains after assembling
+            let totalDurBefore = 0;
+            for (let n of [...beforeMeasure, ...inMeasureBeforeInsert, ...inMeasureAfterInsert, ...afterMeasure]) {
+                if (n.durationInQuarters) totalDurBefore += n.durationInQuarters;
+            }
+            let oldActiveMeasures = totalDurBefore > EPS ? getMeasureIdxAtTime(totalDurBefore - EPS) + 1 : 0;
 
             // Assemble active track
             voicesData[activeTrack].notes = [
@@ -3055,18 +3134,45 @@ function deleteSelectionSync() {
                 ...afterMeasure
             ];
 
-            // Insert empty measures in all OTHER active tracks
+            let newActiveDur = 0;
+            for (let n of voicesData[activeTrack].notes) { if (n.durationInQuarters) newActiveDur += n.durationInQuarters; }
+            let newActiveMeasures = newActiveDur > EPS ? getMeasureIdxAtTime(newActiveDur - EPS) + 1 : 0;
+            let newMeasuresNeeded = Math.max(0, newActiveMeasures - oldActiveMeasures);
+
+            // Insert empty measures in all OTHER active tracks.
             if (newMeasuresNeeded > 0) {
                 let activeKeys = getActiveKeys();
+                const atBoundary = (insertTime <= mStart + EPS);
+                let insertAtTime = atBoundary ? mStart : getMeasureStartTime(mIdx + 1);
+                let markerShiftFrom = atBoundary ? mIdx : mIdx + 1;
                 for (let key of activeKeys) {
                     if (key === activeTrack) continue;
-                    insertEmptyMeasuresIntoTrack(key, mIdx + 1, newMeasuresNeeded);
+                    let trackNotes = voicesData[key].notes;
+                    let cum = 0;
+                    let insertIdx = trackNotes.length;
+                    for (let i = 0; i < trackNotes.length; i++) {
+                        if (trackNotes[i].durationInQuarters) {
+                            if (cum >= insertAtTime - EPS) { insertIdx = i; break; }
+                            cum += trackNotes[i].durationInQuarters;
+                        }
+                    }
+                    let emptyNotes = [];
+                    let baseMIdx = atBoundary ? mIdx : mIdx + 1;
+                    for (let i = 0; i < newMeasuresNeeded; i++) {
+                        const ecap = getMeasureCapacityAt(baseMIdx + i);
+                        emptyNotes.push({
+                            pitches: [{ pitch: 'x', octave: '', accidental: '' }],
+                            durationInQuarters: ecap,
+                            abcUnits: ecap / 0.25,
+                            triplet: false, tie: false, articulations: []
+                        });
+                    }
+                    trackNotes.splice(insertIdx, 0, ...emptyNotes);
                 }
-                shiftMeasureMarkers(mIdx + 1, newMeasuresNeeded);
+                shiftMeasureMarkers(markerShiftFrom, newMeasuresNeeded);
             }
 
             padTracksToSameLength();
-            removeEmptyMeasures();
 
             // Update selection to cover pasted notes
             let newStartIdx = findIndexAtTime(activeTrack, insertTime);
