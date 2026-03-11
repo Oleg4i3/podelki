@@ -4,7 +4,6 @@
     <title>Firebase Cleaner</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body { font-family: sans-serif; padding: 24px; max-width: 560px; background: #f5f5f5; }
         h2 { margin: 0 0 16px; font-size: 16px; color: #333; }
@@ -62,10 +61,10 @@
     </select>
 </div>
 
-<!-- Bandwidth card -->
+<!-- DB Stats card -->
 <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <span style="font-size:12px;color:#666;font-weight:600">📊 Downloads this month</span>
+        <span style="font-size:12px;color:#666;font-weight:600">📊 Traffic this month <span style="font-weight:400;color:#bbb">(from __stats__)</span></span>
         <span style="font-size:11px;color:#aaa" id="bw-period"></span>
     </div>
 
@@ -79,7 +78,7 @@
             </span>
         </div>
         <div class="bw-bar-track"><div class="bw-bar-fill ok" id="bw-bar-primary" style="width:0%"></div></div>
-        <div class="bw-status" id="bw-status-primary">Нажми Sign in Primary →</div>
+        <div class="bw-status" id="bw-status-primary">нажми ↻ для загрузки</div>
     </div>
 
     <!-- Backup -->
@@ -92,15 +91,14 @@
             </span>
         </div>
         <div class="bw-bar-track"><div class="bw-bar-fill ok" id="bw-bar-backup" style="width:0%"></div></div>
-        <div class="bw-status" id="bw-status-backup">Нажми Sign in Backup →</div>
+        <div class="bw-status" id="bw-status-backup">нажми ↻ для загрузки</div>
     </div>
 
     <div class="btn-row">
-        <button class="btn-green" id="btn-signin-primary" onclick="signIn('primary')">🔑 Sign in Primary</button>
-        <button class="btn-green" id="btn-signin-backup"  onclick="signIn('backup')">🔑 Sign in Backup</button>
-        <button class="btn-safe"  id="btn-refresh" onclick="fetchBoth()" style="flex:0.5">↻</button>
+        <button class="btn-safe" id="btn-refresh" onclick="fetchBoth()">↻ Refresh Stats</button>
+        <button class="btn-warn" id="btn-trim-stats" onclick="trimStats()" style="flex:0.7;font-size:12px">🗑 Trim old</button>
     </div>
-    <p class="bw-note">Лимит: 10 GB/мес на каждую базу. Токен действует ~1 час.</p>
+    <p class="bw-note">↓ recv + ↑ sent — данные пишет Cheeseboard при закрытии вкладки. __stats__ защищена от удаления. Лимит: 10 GB/мес download.</p>
 </div>
 
 <!-- Actions card -->
@@ -145,9 +143,10 @@ const CONFIGS = {
     }
 };
 
-const LIMIT_GB = 10;
+const LIMIT_GB  = 10; // Firebase free tier download limit
+const STATS_KEY = '__stats__'; // protected room — never deleted
 let db = null, activeKey = 'primary';
-const _appCache = {}, tokens = {}, tokenClients = {};
+const _appCache = {};
 
 // ── Firebase ──────────────────────────────────────────────────────
 function getDbForKey(key) {
@@ -178,97 +177,51 @@ function hideRoomList() {
     document.getElementById('room-list').innerHTML = '';
 }
 
-// ── OAuth ─────────────────────────────────────────────────────────
-function initClient(key) {
-    if (tokenClients[key]) return;
-    tokenClients[key] = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIGS[key].clientId,
-        scope: 'https://www.googleapis.com/auth/monitoring.read',
-        callback: async (resp) => {
-            if (resp.error) { setBwStatus(key, '❌ ' + resp.error); return; }
-            tokens[key] = resp.access_token;
-            document.getElementById('btn-signin-' + key).textContent = '✅ ' + (key === 'primary' ? 'Primary' : 'Backup');
-            setBwStatus(key, '✅ signed in');
-            await fetchOne(key);
-        }
-    });
-}
-
-function signIn(key) {
-    initClient(key);
-    tokenClients[key].requestAccessToken({ prompt: tokens[key] ? '' : 'consent' });
-}
-
 function setBwStatus(key, msg) {
     document.getElementById('bw-status-' + key).textContent = msg;
 }
 
-// ── Bandwidth ─────────────────────────────────────────────────────
-function monthInterval() {
-    const now = new Date(), start = new Date(now.getFullYear(), now.getMonth(), 1);
-    document.getElementById('bw-period').textContent =
-        start.toLocaleDateString('en-US', { month:'short', year:'numeric' });
-    return { startTime: start.toISOString(), endTime: now.toISOString() };
+// ── Traffic stats from __stats__ ─────────────────────────────────
+function fmtBytes(b) {
+    if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+    if (b >= 1048576)    return (b / 1048576).toFixed(1) + ' MB';
+    if (b >= 1024)       return (b / 1024).toFixed(0) + ' KB';
+    return b + ' B';
 }
 
-function fmtGb(gb) {
-    if (gb >= 1)     return gb.toFixed(2) + ' GB';
-    if (gb >= 0.001) return (gb * 1000).toFixed(1) + ' MB';
-    return (gb * 1e6).toFixed(0) + ' KB';
+function updateMonth() {
+    const now = new Date();
+    document.getElementById('bw-period').textContent =
+        now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return now.toISOString().slice(0, 7); // "2026-03"
 }
 
 async function fetchOne(key) {
-    if (!tokens[key]) return;
     setBwStatus(key, '⏳ загрузка...');
-    const { startTime, endTime } = monthInterval();
-    const pid = CONFIGS[key].projectId;
-    const filter = encodeURIComponent('metric.type="firebasedatabase.googleapis.com/network/sent_bytes_count"');
-    const url = `https://monitoring.googleapis.com/v3/projects/${pid}/timeSeries`
-        + `?filter=${filter}`
-        + `&interval.startTime=${encodeURIComponent(startTime)}`
-        + `&interval.endTime=${encodeURIComponent(endTime)}`
-        + `&aggregation.alignmentPeriod=2592000s`
-        + `&aggregation.crossSeriesReducer=REDUCE_SUM`
-        + `&aggregation.perSeriesAligner=ALIGN_SUM`;
+    const month = updateMonth();
     try {
-        const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + tokens[key] } });
-        if (!resp.ok) {
-            let reason = '';
-            try { const e = await resp.json(); reason = e?.error?.message || ''; } catch(_) {}
-            if (resp.status === 403) {
-                const pid = CONFIGS[key].projectId;
-                const isDisabled = reason.toLowerCase().includes('disabled') || reason.toLowerCase().includes('not been used');
-                const enableUrl = `https://console.cloud.google.com/apis/library/monitoring.googleapis.com?project=${pid}`;
-                const el = document.getElementById('bw-status-' + key);
-                if (isDisabled) {
-                    el.textContent = '❌ API не включён — ';
-                    const a = document.createElement('a');
-                    a.href = enableUrl; a.target = '_blank'; a.textContent = 'включить →';
-                    a.style.cssText = 'color:#1a73e8';
-                    el.appendChild(a);
-                } else {
-                    el.textContent = `❌ 403: ${reason || 'нет прав (IAM Monitoring Viewer?)'}`;
-                }
-            } else {
-                setBwStatus(key, `❌ HTTP ${resp.status}: ${reason}`);
+        const dbRef = getDbForKey(key);
+        const snap  = await dbRef.ref(`cheeseboard/${STATS_KEY}/sessions`).once('value');
+        const sessions = snap.val() || {};
+        let sent = 0, recv = 0, count = 0;
+        Object.values(sessions).forEach(s => {
+            if (s && s.month === month) {
+                sent  += s.sent  || 0;
+                recv  += s.recv  || 0;
+                count++;
             }
-            console.error(`[${key}] Monitoring API error ${resp.status}:`, reason);
-            return;
-        }
-        const data = await resp.json();
-        let bytes = 0;
-        (data.timeSeries || []).forEach(ts => (ts.points || []).forEach(pt =>
-            bytes += parseInt(pt.value.int64Value || pt.value.doubleValue || '0', 10)));
-        const gb  = bytes / (1024 ** 3);
-        const pct = Math.min(100, (gb / LIMIT_GB) * 100);
-        const cls = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : 'ok';
-        document.getElementById('bw-used-' + key).textContent = fmtGb(gb);
-        document.getElementById('bw-pct-'  + key).textContent = ` / ${LIMIT_GB} GB (${pct.toFixed(1)}%)`;
-        document.getElementById('bw-pct-'  + key).style.color = pct >= 90 ? '#e53935' : pct >= 70 ? '#ff9900' : '#aaa';
+        });
+        const total  = sent + recv;
+        const gb     = total / 1073741824;
+        const pct    = Math.min(100, (gb / LIMIT_GB) * 100);
+        const cls    = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : 'ok';
+        document.getElementById('bw-used-' + key).textContent = fmtBytes(total);
+        document.getElementById('bw-pct-'  + key).textContent =
+            ` ↑${fmtBytes(sent)} ↓${fmtBytes(recv)}  (${count} sessions)`;
         const bar = document.getElementById('bw-bar-' + key);
-        bar.style.width = pct + '%';
-        bar.className = 'bw-bar-fill ' + cls;
-        setBwStatus(key, '');
+        bar.style.width  = pct + '%';
+        bar.className    = 'bw-bar-fill ' + cls;
+        setBwStatus(key, pct > 0 ? `${pct.toFixed(1)}% of ${LIMIT_GB} GB limit` : 'нет данных за этот месяц');
     } catch(e) { setBwStatus(key, '❌ ' + e.message); }
 }
 
@@ -276,13 +229,36 @@ async function fetchBoth() {
     await Promise.all([fetchOne('primary'), fetchOne('backup')]);
 }
 
+/** Delete sessions older than current month to keep __stats__ lean */
+async function trimStats() {
+    const month = new Date().toISOString().slice(0, 7);
+    const key   = activeKey;
+    setStatus('Trimming old sessions...', 'run');
+    try {
+        const dbRef = getDbForKey(key);
+        const snap  = await dbRef.ref(`cheeseboard/${STATS_KEY}/sessions`).once('value');
+        const sessions = snap.val() || {};
+        let deleted = 0;
+        for (const [k, s] of Object.entries(sessions)) {
+            if (!s || s.month < month) {
+                await dbRef.ref(`cheeseboard/${STATS_KEY}/sessions/${k}`).remove();
+                deleted++;
+            }
+        }
+        setStatus(`✅ Trimmed ${deleted} old session(s) from ${CONFIGS[key].label}.`, 'ok');
+        await fetchOne(key);
+    } catch(e) { setStatus('❌ ' + e.message, 'err'); }
+}
+
 // ── Rooms ─────────────────────────────────────────────────────────
 function renderRooms(rooms) {
     const card = document.getElementById('rooms-card'), list = document.getElementById('room-list');
     list.innerHTML = '';
-    if (!rooms || !Object.keys(rooms).length) { card.style.display = 'none'; return; }
-    document.getElementById('rooms-summary').textContent = Object.keys(rooms).length + ' rooms found';
-    for (const id of Object.keys(rooms)) {
+    // filter out the protected __stats__ room
+    const ids = Object.keys(rooms || {}).filter(id => id !== STATS_KEY);
+    if (!ids.length) { card.style.display = 'none'; return; }
+    document.getElementById('rooms-summary').textContent = ids.length + ' rooms found';
+    for (const id of ids) {
         const r = rooms[id];
         const msgCount = r.messages ? Object.keys(r.messages).length : 0;
         const userKeys = r.users ? Object.keys(r.users) : [];
@@ -322,14 +298,15 @@ async function listRooms() {
         const snap = await db.ref('cheeseboard').once('value'), rooms = snap.val();
         if (!rooms) { setStatus('No rooms found.', 'ok'); hideRoomList(); return; }
         renderRooms(rooms);
-        setStatus(`Loaded ${Object.keys(rooms).length} room(s).`, 'ok');
+        const count = Object.keys(rooms).filter(id => id !== STATS_KEY).length;
+        setStatus(`Loaded ${count} room(s).`, 'ok');
     } catch(e) { setStatus('❌ ' + e.message, 'err'); }
 }
 
 async function deleteSelected() {
     const checked = document.querySelectorAll('.room-cb:checked');
     if (!checked.length) return;
-    const ids = Array.from(checked).map(cb => cb.dataset.id);
+    const ids = Array.from(checked).map(cb => cb.dataset.id).filter(id => id !== STATS_KEY);
     if (!confirm(`Delete ${ids.length} room(s)?`)) return;
     setStatus(`Deleting ${ids.length} room(s)...`, 'run');
     try {
@@ -347,6 +324,7 @@ async function cleanEmptyRooms() {
         if (!rooms) { setStatus('No rooms to clean.', 'ok'); return; }
         let deleted = 0;
         for (const id in rooms) {
+            if (id === STATS_KEY) continue; // ← protected
             const users = rooms[id].users ? Object.keys(rooms[id].users) : [];
             if (!users.some(uid => rooms[id].users[uid]?.online === true)) {
                 await db.ref('cheeseboard/' + id).remove(); deleted++;
@@ -358,25 +336,24 @@ async function cleanEmptyRooms() {
 }
 
 async function cleanAllRooms() {
-    if (!confirm('DELETE ALL ROOMS in ' + CONFIGS[activeKey].label + '?')) return;
+    if (!confirm('DELETE ALL ROOMS in ' + CONFIGS[activeKey].label + '?\n(__stats__ будет сохранён)')) return;
     if (!db) switchDb(activeKey);
     setStatus('Deleting all rooms...', 'run');
     try {
-        await db.ref('cheeseboard').remove();
-        setStatus('✅ All rooms deleted.', 'ok');
+        const snap = await db.ref('cheeseboard').once('value'), rooms = snap.val() || {};
+        let deleted = 0;
+        for (const id in rooms) {
+            if (id === STATS_KEY) continue; // ← protected
+            await db.ref('cheeseboard/' + id).remove(); deleted++;
+        }
+        setStatus(`✅ Deleted ${deleted} room(s). __stats__ preserved.`, 'ok');
         hideRoomList();
     } catch(e) { setStatus('❌ ' + e.message, 'err'); }
 }
 
 window.onload = () => {
     switchDb('primary');
-    const t = setInterval(() => {
-        if (typeof google !== 'undefined' && google.accounts) {
-            clearInterval(t);
-            initClient('primary');
-            initClient('backup');
-        }
-    }, 200);
+    fetchBoth();
 };
 </script>
 </body>
