@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ua">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4i3-Lab</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-sub: #636e72;
+            --accent: #0984e3;
+            --accent-hover: #74b9ff;
+            --border-radius: 8px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.06);
+            --shadow-hover: 0 8px 16px rgba(0,0,0,0.1);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            margin-top: 50px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.2rem;
+            margin: 0;
+            color: var(--text-main);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-sub);
+            font-size: 1.1rem;
+            margin-top: 8px;
+            font-weight: 300;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 700px;
+            display: grid;
+            gap: 16px;
+            padding-bottom: 60px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            text-decoration: none;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow);
+            transition: all 0.2s ease-in-out;
+            border-left: 4px solid transparent;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+            border-left: 4px solid var(--accent);
+        }
+
+        .card-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .icon {
+            font-size: 2rem;
+            width: 40px;
+            text-align: center;
+        }
+
+        .info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title {
+            font-weight: 600;
+            font-size: 1.15rem;
+            margin-bottom: 4px;
+        }
+
+        .filename {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            background: #f1f2f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        .desc {
+            font-size: 0.9rem;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .arrow {
+            color: #dfe6e9;
+            font-size: 1.5rem;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .card:hover .arrow {
+            color: var(--accent);
+            transform: translateX(4px);
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 30px;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Адаптив для мобильных */
+        @media (max-width: 500px) {
+            .card { padding: 16px; }
+            .icon { font-size: 1.6rem; }
+            .title { font-size: 1rem; }
+            .desc { font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+
+     <div class="container">
+          <p>Серйозні проєкти</p>
+
+        <a href="https://oleg4i3.github.io/NumMet/index.html" class="card">
+            <div class="card-content">
+                <span class="icon">🖥️</span>
+                <div class="info">
+                    <span class="title">Обчислювальна математика, ML&Data mining</span>
+					<span class="desc">Інтерактивна методичка дисципліни "Чисельні методи"</span>
+                    <span class="filename">https://oleg4i3.github.io/NumMet/</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+
+		
+        <a href="https://oleg4i3.github.io/DisrMath/index.html" class="card">
+            <div class="card-content">
+                <span class="icon">🧮</span>
+                <div class="info">
+                    <span class="title">Дискретна математика, Цифрова обробка інформації</span>
+					<span class="desc">Інтерактивна методичка дисципліни "Дискретна математика"</span>
+                    <span class="filename">https://oleg4i3.github.io/DisrMath/</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+			<a href="https://oleg4i3.github.io/newBoard/cheeseboard.html" class="card"> 
+            <div class="card-content">
+                <span class="icon">✏️</span>
+                <div class="info">
+                    <span class="title">Web whiteboard</span>
+                    <span class="desc">Kолаборативна онлайн дошка</span>
+                    <span class="filename">https://oleg4i3.github.io/newBoard/cheeseboard.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+	     <a href="WebScore.html" class="card">
+            <div class="card-content">
+                <span class="icon">𝄞𝄋</span>
+                <div class="info">
+                    <span class="title">Онлайн нотний редактор</span>
+                    <span class="desc">Web Score Creator</span>
+                    <span class="filename">WebScore.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+			</a>	
+
+		       <p>Інтерактивні освітні симуляції і моделі</p>
+
+	
+
+        <a href="HRPstarTrack-eu3.html" class="card">
+            <div class="card-content">
+                <span class="icon">🌟⋆˚࿔</span>
+                <div class="info">
+                    <span class="title">Діаграмма HR</span>
+                    <span class="desc">Еволюція зорі (Star Track)</span>
+                    <span class="filename">HRPstarTrack-eu3.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+        <a href="year2.html" class="card">
+            <div class="card-content">
+                <span class="icon">🌍</span>
+                <div class="info">
+                    <span class="title">Орбітальний рух Землі</span>
+                    <span class="desc">Зміна сезонів, полярні кола, тропіки</span>
+                    <span class="filename">year2.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+
+		  <a href="waves.html" class="card">
+            <div class="card-content">
+                <span class="icon">🌊</span>
+                <div class="info">
+                    <span class="title">Фізика хвиль</span>
+                    <span class="desc">Типи хвиль, поляризація</span>
+                    <span class="filename">waves.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+		 
+        <a href="orgChemS.html" class="card">
+            <div class="card-content">
+                <span class="icon">🧪</span>
+                <div class="info">
+                    <span class="title">Молекулярний конструктор</span>
+                    <span class="desc">Функціональні групи і класи органічних сполук</span>
+                    <span class="filename">orgChemS.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+        <a href="Evo.html" class="card">
+            <div class="card-content">
+                <span class="icon">🧬</span>
+                <div class="info">
+                    <span class="title">Мандрівка до LUCA</span>
+                    <span class="desc">Сучасна систематика (спрощена) живих організмів</span>
+                    <span class="filename">Evo.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+	
+        <a href="HR.html" class="card">
+            <div class="card-content">
+                <span class="icon">🫀</span>
+                <div class="info">
+                    <span class="title">Пульсометр</span>
+                    <span class="desc">Вимірюємо частоту пульсу не выдходячи від комп'ютера</span>
+                    <span class="filename">HR.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+		
+        <a href="GMD66.html" class="card">
+            <div class="card-content">
+                <span class="icon">🧲🌕</span>
+                <div class="info">
+                    <span class="title">Магнітна гідродинаміка</span>
+                    <span class="desc">Механізми генерації магнітних полів зір і планет</span>
+                    <span class="filename">GMD66.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+		
+       <a href="banana2.html" class="card">
+            <div class="card-content">
+                <span class="icon">༄</span>
+                <div class="info">
+                    <span class="title">Гідродинаміка ядра Землі</span>
+                    <span class="desc">Спроба <s>натягнути сову</s> апроксимувати рівняння Нав'є-Стокса на обертальний глобус гарячих частинок</span>
+                    <span class="filename">banana2.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+<p> Витребеньки </p>
+
+			<a href="UkraineWillWin.html" class="card">
+            <div class="card-content">
+                <span class="icon">🛡️📡</span>
+                <div class="info">
+                    <span class="title">3D Симулятор ПРО</span>
+                    <span class="desc">Оборона неба</span>
+                    <span class="filename">UkraineWillWin.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+        <a href="Ultimatum4.html" class="card">
+            <div class="card-content">
+                <span class="icon">💰</span>
+                <div class="info">
+                    <span class="title">гра «Ультиматум»</span>
+                    <span class="desc">Симуляор стратегій улюбленої гри поведінкової экономіки</span>
+                    <span class="filename">Ultimatum4.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+
+		    <a href="ultimate-tictactoe.html" class="card">
+            <div class="card-content">
+                <span class="icon">#⃣</span>
+                <div class="info">
+                    <span class="title">Супер Хрестики-нулики</span>
+                    <span class="desc">Іграшка на двох</span>
+                    <span class="filename">ultimate-tictactoe.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+			</a>
+		
+		     <a href="bath-ua.html" class="card">
+            <div class="card-content">
+                <span class="icon">🛁</span>
+                <div class="info">
+                    <span class="title">Оптимізація наповнення ванни</span>
+                    <span class="desc">Симуляор вибору стратегії наповнення ванни водою, нагрітою на плиті</span>
+                    <span class="filename">bath-ua.html</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+        		
+			
+  <a href="https://4i3.infinityfreeapp.com/DEMO" class="card">
+            <div class="card-content">
+                <span class="icon">🎹</span>
+                <div class="info">
+              
+					<span class="desc">Numa music demo player</span>
+                    <span class="filename"https://4i3.infinityfreeapp.com/DEMO/</span>
+                </div>
+            </div>
+            <span class="arrow">➜</span>
+        </a>
+
+
+   
+					<span class="desc">генерація текстів</span>
+	<a href="https://oleg4i3.github.io/podelki/beauty-zip.pdf" class="card">  </a>
+    <a href="https://oleg4i3.github.io/podelki/subject-calc.pdf" class="card">  </a>
+      
+
+		 
+    </div>
+
+    <footer>
+        <a href="https://github.com/Oleg4i3/podelki">GitHub Repository</a>
+    </footer>
+
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
