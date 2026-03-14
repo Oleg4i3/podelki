@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ППО Симулятор 2.0: Перехоплення</title>
+    <title>ППО Симулятор</title>
 	
 	<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -52,6 +52,18 @@
             animation: pulse-red 1.5s infinite;
         }
         #fire-btn:active { transform: scale(0.98); }
+
+        #new-target-btn {
+            display: block; width: 100%; margin-top: 10px;
+            padding: 12px; font-size: 16px; font-weight: bold;
+            background: #006600; color: #fff; border: 2px solid #00aa00;
+            border-radius: 6px; cursor: pointer;
+            animation: pulse-green 1.5s infinite;
+        }
+        #new-target-btn:hover { background: #008800; }
+        #new-target-btn:active { transform: scale(0.98); }
+
+        @keyframes pulse-green { 0% { box-shadow: 0 0 5px #00cc00; } 50% { box-shadow: 0 0 18px #00ff00; } 100% { box-shadow: 0 0 5px #00cc00; } }
 
         @keyframes pulse-red { 0% { box-shadow: 0 0 5px #ff0000; } 50% { box-shadow: 0 0 20px #ff0000; } 100% { box-shadow: 0 0 5px #ff0000; } }
 
@@ -107,12 +119,13 @@
     <div class="hud-title">КОМАНДНИЙ ПУНКТ (СН)</div>
     <div class="hud-text">Час симуляції: <span id="sim-time">0.00</span> с</div>
     <div class="hud-text">Статус цілі: <span id="hud-status">ПОШУК...</span></div>
-    <div class="hud-text">Група сканування: <span id="hud-wave-status">ОЧІКУВАННЯ</span></div>
+    <div class="hud-text">Сканування: <span id="hud-wave-status" style="font-variant-numeric:tabular-nums;">ОЧІКУВАННЯ</span></div>
     <hr>
     <div class="hud-text">Похибка позиції: <span id="err-pos" class="error-val">--</span> м</div>
     <div class="hud-text">Похибка швидкості: <span id="err-vel" class="error-val">--</span> м/с</div>
     
     <button id="fire-btn" disabled>ПУСК (НЕМАЄ РІШЕННЯ)</button>
+    <button id="new-target-btn" style="display:none;">🎯 НОВА ЦІЛЬ</button>
 
     <div style="margin-top: 15px;">
         <label class="hud-text" style="font-weight:bold">Швидкість часу: <span id="time-scale-val">4.0</span>x</label>
@@ -138,14 +151,21 @@
         <h2>Налаштування Групи ППО</h2>
         
         <h3>Агенти</h3>
-        <div class="control-group"><label>Кількість СВ (Радари):</label><input type="number" id="inp-sv-count" value="30"></div>
+        <div class="control-group"><label>Кількість СВ (Радари):</label><input type="number" id="inp-sv-count" value="10"></div>
         <div class="control-group"><label>Кількість ПУ (Пускові):</label><input type="number" id="inp-pu-count" value="4"></div>
-        <div class="control-group"><label>Розмір активної групи:</label><input type="number" id="inp-sv-group" value="5"></div>
+        <div class="control-group"><label>Розмір активної групи (кількість станцій):</label><input type="number" id="inp-sv-group" value="3"></div>
         <div class="control-group"><label>Швидкість руху СВ (м/с):</label><input type="number" id="inp-sv-speed" value="25"></div>
+
+        <h3>🔁 Режим Передачі Естафети</h3>
+        <div class="control-group">
+            <label><strong>Увімкнути режим естафети</strong> (рекомендовано):</label>
+            <input type="checkbox" id="inp-relay-mode" checked style="width:auto;transform:scale(1.4);margin-left:10px;">
+        </div>
+        <div class="control-group"><label>Час перекриття груп (с):</label><input type="number" id="inp-relay-overlap" value="1" step="0.5" min="0.5"></div>
         
         <h3>Радар та Сканування</h3>
         <div class="control-group"><label>Тривалість сканування (с):</label><input type="number" id="inp-scan-duration" value="5"></div>
-        <div class="control-group"><label>Період циклу (с):</label><input type="number" id="inp-cycle-period" value="15"></div>
+        <div class="control-group"><label>Період циклу (с):</label><input type="number" id="inp-cycle-period" value="300"></div>
         <div class="control-group"><label>Кут огляду радара (°):</label><input type="number" id="inp-beam-width" value="45"></div>
         
         <h3>Ціль (Ворог)</h3>
@@ -160,18 +180,76 @@
         <details>
             <summary>Технічна документація: Алгоритми та Тактика</summary>
             
-            <h3>1. Тактичний сценарій: "Мерехтливий рій"</h3>
+            <h3>1. Режим «Передача Естафети» <span style="color:#cc0000;font-size:0.85em">(алгоритм за замовчуванням)</span></h3>
+            <p>
+                Ключова проблема традиційного ППО: коли станція випромінює, вона — <em>мішень</em>. 
+                Режим <strong>«Передачі Естафети»</strong> вирішує це принципово: ціль ведуть <em>завжди</em> не менше трьох станцій, 
+                але їх паузи <em>асинхронні</em> — одні слідкують, інші в цей час переміщуються.
+            </p>
+            <p>
+                Це означає: <strong>ціль майже ніколи не втрачається</strong>, але станції захищені 
+                безперервним рухом і рандомним вмиканням/вимиканням — противник бачить сигнали, 
+                що спалахують у різних точках з непередбачуваними інтервалами.
+            </p>
+
+            <h4>Алгоритм (покрокова схема):</h4>
+            <ol>
+                <li><strong>Фаза 1 — Активне ведення.</strong> Група A (≥3 станцій) сканує і відслідковує ціль. 
+                Кожна станція всередині групи вмикається з незначним часовим зсувом ±1с (асинхронізація), 
+                що ускладнює пеленгацію джерел сигналу.</li>
+                
+                <li><strong>Фаза 2 — Передача естафети (Handoff).</strong> За <em>relayOverlap</em> секунд ДО завершення 
+                групи A стартує нова група B. Перш за все вона отримує по Data Link <strong>точні координати цілі від A</strong> — 
+                тобто група B одразу бере ціль на супровід без жодного пошуку.</li>
+                
+                <li><strong>Фаза 3 — Асинхронне відключення та маневр.</strong> Станції групи A вимикають радари 
+                кожна у свій час (з випадковим зсувом ±1с) і <strong>негайно виходять на нову позицію</strong>. 
+                Завдяки перекриттю в цей момент група B вже повністю веде ціль — розриву в даних немає.</li>
+                
+                <li><strong>Фаза 4 — Безперервний цикл.</strong> Поки група B сканує, відпочиваючі станції (A, C...) 
+                переміщуються в рандомних напрямках. Через деякий час стартує група C, передаючи координати B, і т.д.</li>
+            </ol>
+
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin:10px 0;">
+                <tr style="background:#f0f4ff;">
+                    <th style="border:1px solid #ccc;padding:6px">Параметр</th>
+                    <th style="border:1px solid #ccc;padding:6px">Класичний режим</th>
+                    <th style="border:1px solid #ccc;padding:6px">Режим Естафети</th>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #ccc;padding:6px">Розрив у веденні</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#aa0000">До (cyclePeriod − scanDuration) с</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#008800">≈ 0 с (перекриття груп)</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #ccc;padding:6px">Передбачуваність сигналів</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#aa0000">Регулярні спалахи</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#008800">Рандомні за часом і місцем</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #ccc;padding:6px">Рух станцій</td>
+                    <td style="border:1px solid #ccc;padding:6px">Між хвилями</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#008800">Безперервний у фоні</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #ccc;padding:6px">Захист від HARM</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#cc5500">Середній</td>
+                    <td style="border:1px solid #ccc;padding:6px;color:#008800">Максимальний</td>
+                </tr>
+            </table>
+
+            <h3>2. Тактичний сценарій: "Мерехтливий рій" (базова тактика)</h3>
             <p>
                 Для підвищення живучості системи ППО в умовах наявності у ворога протирадіолокаційних ракет (HARM) та засобів радіоелектронної розвідки, застосовується тактика <strong>розосередженого вахтового сканування</strong>.
             </p>
             <ul>
                 <li><strong>Фаза 1: Груповий пошук.</strong> З загального пулу станцій (наприклад, 30 од.) вибирається активна підгрупа \( N_{active} \) (наприклад, 3 од.). Тільки вони вмикають випромінювання.</li>
                 <li><strong>Фаза 2: Data Link.</strong> Якщо одна станція знаходить ціль, вона миттєво передає вектор іншим активним станціям ("підсвічує" ціль), що дозволяє здійснити миттєву триангуляцію без зайвого пошуку.</li>
-                <li><strong>Фаза 3: "Тиша і маневр".</strong> Після короткого сеансу роботи (5-10 с) група вимикає радари і <strong>негайно змінює позицію</strong> (move to safe spot). Це унеможливлює наведення ворожої артилерії чи ракет на джерело сигналу, якого там вже немає.</li>
+                <li><strong>Фаза 3: "Тиша і маневр".</strong> Після короткого сеансу роботи (5-10 с) група вимикає радари і <strong>негайно змінює позицію</strong>. Це унеможливлює наведення ворожої артилерії чи ракет на джерело сигналу, якого там вже немає.</li>
                 <li><strong>Фаза 4: Естафета.</strong> Сканування продовжує наступна група з іншої локації.</li>
             </ul>
 
-            <h3>2. Математична модель (Sensor Fusion)</h3>
+            <h3>3. Математична модель (Sensor Fusion)</h3>
             <p>СН (Станція Наведення) отримує набір "сирих" вимірів від \( k \) датчиків у різні моменти часу \( t_i \):</p>
             <ul>
                 <li>Позиція радара: \( \vec{S}_i = (S_{ix}, S_{iy}, S_{iz}) \)</li>
@@ -220,7 +298,7 @@
             <p>
                 Саме відхилення реальної траєкторії ракети (маневр) від цієї лінійної екстраполяції і формує "Похибку позиції", яка зростає з часом, поки не увімкнеться наступна група радарів.
             </p>
-          <h3>3. Балістика перехоплення (Zero-Order Prediction)</h3>
+          <h3>4. Балістика перехоплення (Zero-Order Prediction)</h3>
             <p>
                 Система не стріляє в поточне положення цілі. Для розрахунку <strong>Точки Зустрічі</strong> використовується алгоритм лінійної екстраполяції. Обчислюється час підльоту \( \Delta t \) і прогнозована координата \( \vec{P}_{impact} \):
             </p>
@@ -229,7 +307,7 @@
                 $$ \vec{P}_{impact} = \vec{P}_{target} + \vec{V}_{target} \cdot \Delta t $$
             </div>
 
-            <h3>4. Алгоритм Самонаведення (Homing Loop)</h3>
+            <h3>5. Алгоритм Самонаведення (Homing Loop)</h3>
             <p>
                 Ракета-перехоплювач використовує метод <strong>Lead Pursuit</strong> (наведення на випередження). Вона постійно коригує свій вектор швидкості \( \vec{V}_{m} \), намагаючись сумістити його з вектором на прогнозовану точку зустрічі.
             </p>
@@ -261,23 +339,27 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // --- CONFIG ---
 const CONFIG = {
-    svCount: 30,
-    puCount: 4,           // New: Launchers
-    groupSize: 5,
+    svCount: 10,
+    puCount: 4,
+    groupSize: 3,
     svSpeed: 25,
     scanDuration: 5,
-    cyclePeriod: 15,
+    cyclePeriod: 300,
     scanSpeed: 10,
     beamWidth: 45,
     targetSpeed: 100,
-    targetTurnRadius: 800, // New: Inertia
+    targetTurnRadius: 800,
     maneuverPeriod: 12,
-    intSpeed: 300,        // New: Interceptor speed
-    intLife: 20,          // New: Interceptor lifetime
+    intSpeed: 300,
+    intLife: 20,
     mapSize: 4000,
-    earthRadius: 10000,   // New: Curvature radius
+    earthRadius: 10000,
     timeScale: 4.0,
-    terrainHeight: 150
+    terrainHeight: 150,
+    // === RELAY MODE ===
+    relayMode: true,        // Режим передачі естафети (за замовчуванням)
+    relayOverlap: 1.0,      // Секунди перекриття між групами (нова група стартує ДО зупинки старої)
+    minActiveStations: 3    // Мінімальна кількість активних станцій у будь-який момент
 };
 
 const STATE = {
@@ -285,16 +367,22 @@ const STATE = {
     lastEstimate: { 
         pos: new THREE.Vector3(0, 1000, 0), 
         vel: new THREE.Vector3(100, 0, 0),
-        timestamp: -100 // Old enough to be invalid initially
+        timestamp: -100
     },
     hasLock: false,
     lockLostTime: 0,
     
-    // Scheduler State
+    // Scheduler State (classic mode)
     nextWaveTime: 0,
     stopScanTime: 0,
     currentGroupIndex: 0,
     activeStations: [],
+    
+    // Relay Mode State
+    waves: [],               // [{stations:[...], stopTimes:[...]}, ...] — активні хвилі
+    nextWaveStartTime: 0,    // коли стартує наступна хвиля естафети
+    lastHandoffPos: null,    // координати, передані новій групі (для відображення)
+    handoffFlashTime: -999,  // час останньої передачі естафети (для візуального спалаху)
     
     // Game State
     interceptors: [],
@@ -427,7 +515,7 @@ class Rocket {
     }
 
     reset() {
-        this.position.set(-1500, 800, -800);
+        this.position.set(-1500, 500, -800);
         this.velocity.set(1, 0, 0.5).normalize().multiplyScalar(CONFIG.targetSpeed);
         this.targetDir.copy(this.velocity).normalize();
         this.nextManeuver = 0;
@@ -443,33 +531,71 @@ class Rocket {
             return;
         }
 
-        // Maneuver Logic
+        // Maneuver Logic — м'яко додаємо шум до targetDir (не перезаписуємо)
         if (STATE.time > this.nextManeuver) {
-            const noise = new THREE.Vector3(Math.random()-0.5, Math.random()*0.2-0.1, Math.random()-0.5).normalize();
-            this.targetDir.copy(this.velocity).normalize().add(noise).normalize();
+            const noise = new THREE.Vector3(Math.random()-0.5, (Math.random()-0.5)*0.3, Math.random()-0.5);
+            this.targetDir.add(noise.multiplyScalar(0.6)).normalize();
             this.nextManeuver = STATE.time + CONFIG.maneuverPeriod;
         }
 
-        // Smooth Turn (Inertia)
+        // Smooth Turn — обмежений радіусом повороту
         const currentDir = this.velocity.clone().normalize();
-        const maxTurnAngle = (CONFIG.targetSpeed / CONFIG.targetTurnRadius) * dt; // rad/step
+        const maxTurnAngle = (CONFIG.targetSpeed / CONFIG.targetTurnRadius) * dt;
         const angle = currentDir.angleTo(this.targetDir);
-        
         if (angle > 0.001) {
             const alpha = Math.min(1.0, maxTurnAngle / angle);
             currentDir.lerp(this.targetDir, alpha).normalize();
         }
         this.velocity.copy(currentDir).multiplyScalar(CONFIG.targetSpeed);
 
+        // --- ПРЯМЕ гасіння швидкості біля меж ---
+        // Обхід обмеження радіусу повороту: безпосередньо прибираємо компоненту
+        // швидкості, що веде у стінку. Так ракета фізично не може туди влетіти.
+        const limit = CONFIG.mapSize / 2;
+        const wallZone = 400; // зона гальмування (м) від кожної стінки
+
+        const wx = limit - Math.abs(this.position.x);
+        if (wx < wallZone) {
+            const t = 1 - wx / wallZone; // 0→1 при наближенні до стіни
+            if (this.position.x > 0 && this.velocity.x > 0) this.velocity.x *= (1 - t * t);
+            if (this.position.x < 0 && this.velocity.x < 0) this.velocity.x *= (1 - t * t);
+            // Також штовхаємо targetDir від стіни
+            this.targetDir.x -= Math.sign(this.position.x) * t * 0.5;
+            this.targetDir.normalize();
+        }
+        const wz = limit - Math.abs(this.position.z);
+        if (wz < wallZone) {
+            const t = 1 - wz / wallZone;
+            if (this.position.z > 0 && this.velocity.z > 0) this.velocity.z *= (1 - t * t);
+            if (this.position.z < 0 && this.velocity.z < 0) this.velocity.z *= (1 - t * t);
+            this.targetDir.z -= Math.sign(this.position.z) * t * 0.5;
+            this.targetDir.normalize();
+        }
+        const wyTop = 700 - this.position.y;
+        if (wyTop < wallZone) {
+            const t = 1 - wyTop / wallZone;
+            if (this.velocity.y > 0) this.velocity.y *= (1 - t * t);
+            this.targetDir.y -= t * 0.5;
+            this.targetDir.normalize();
+        }
+        const wyBot = this.position.y - 300;
+        if (wyBot < wallZone) {
+            const t = 1 - wyBot / wallZone;
+            if (this.velocity.y < 0) this.velocity.y *= (1 - t * t);
+            this.targetDir.y += t * 0.5;
+            this.targetDir.normalize();
+        }
+
+        // Відновлюємо сталу швидкість (швидкість могла зменшитись через гасіння)
+        this.velocity.normalize().multiplyScalar(CONFIG.targetSpeed);
+
         // Movement
         this.position.addScaledVector(this.velocity, dt);
 
-        // Bouncing/Bounds Logic
-        const limit = CONFIG.mapSize / 2;
-        if (Math.abs(this.position.x) > limit) { this.velocity.x *= -1; this.targetDir.x *= -1; }
-        if (Math.abs(this.position.z) > limit) { this.velocity.z *= -1; this.targetDir.z *= -1; }
-        if (this.position.y > 2000) { this.velocity.y = -Math.abs(this.velocity.y); this.targetDir.y = -Math.abs(this.targetDir.y); }
-        if (this.position.y < 300) { this.velocity.y = Math.abs(this.velocity.y); this.targetDir.y = Math.abs(this.targetDir.y); }
+        // Аварійний hard clamp (остання лінія захисту)
+        this.position.x = Math.max(-limit + 5, Math.min(limit - 5, this.position.x));
+        this.position.z = Math.max(-limit + 5, Math.min(limit - 5, this.position.z));
+        this.position.y = Math.max(301, Math.min(699, this.position.y));
 
         this.mesh.position.copy(this.position);
         this.mesh.lookAt(this.position.clone().add(this.velocity));
@@ -507,7 +633,11 @@ class StationMobile {
         this.ray = new THREE.Mesh(rayGeo, new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 }));
         this.base.add(this.ray);
 
-        this.pos = new THREE.Vector3(0,0,0);
+        this.pos = new THREE.Vector3(
+            (Math.random()-0.5)*CONFIG.mapSize*0.95,
+            0,
+            (Math.random()-0.5)*CONFIG.mapSize*0.95
+        );
         this.vel = new THREE.Vector3(0,0,0);
         this.dest = new THREE.Vector3();
         
@@ -521,11 +651,29 @@ class StationMobile {
     }
 
     pickNewDestination() {
-        this.dest.set(
-            (Math.random()-0.5)*CONFIG.mapSize*0.8,
-            0,
-            (Math.random()-0.5)*CONFIG.mapSize*0.8
-        );
+        // Генеруємо кілька кандидатів і вибираємо той, що найдалі від решти станцій
+        const half = CONFIG.mapSize * 0.45;
+        let bestDest = null;
+        let bestMinDist = -1;
+        for (let attempt = 0; attempt < 6; attempt++) {
+            const candidate = new THREE.Vector3(
+                (Math.random() - 0.5) * half * 2,
+                0,
+                (Math.random() - 0.5) * half * 2
+            );
+            // Знаходимо найближчу іншу станцію до цього кандидата
+            let minDist = Infinity;
+            for (const s of stations) {
+                if (s === this) continue;
+                const d = s.pos.distanceTo(candidate);
+                if (d < minDist) minDist = d;
+            }
+            if (minDist > bestMinDist) {
+                bestMinDist = minDist;
+                bestDest = candidate;
+            }
+        }
+        this.dest.copy(bestDest);
         const dir = new THREE.Vector3().subVectors(this.dest, this.pos).normalize();
         this.vel.copy(dir).multiplyScalar(CONFIG.svSpeed);
     }
@@ -734,6 +882,7 @@ class Interceptor {
             STATE.targetAlive = false;
             document.getElementById('hud-status').innerText = "ЦІЛЬ ЗНИЩЕНО";
             document.getElementById('hud-status').className = "status-ok";
+            document.getElementById('new-target-btn').style.display = 'block';
         }
     }
 }
@@ -871,6 +1020,24 @@ function init() {
         resetSim();
     });
     document.getElementById('fire-btn').addEventListener('click', fireInterceptor);
+    document.getElementById('new-target-btn').addEventListener('click', () => {
+        document.getElementById('new-target-btn').style.display = 'none';
+        rocket.reset();
+        STATE.targetAlive = true;
+        STATE.hasLock = false;
+        STATE.lastEstimate.pos.set(rocket.position.x, rocket.position.y, rocket.position.z);
+        STATE.lastEstimate.vel.set(CONFIG.targetSpeed, 0, 0);
+        STATE.lastEstimate.timestamp = STATE.time - 10;
+        commandPost.measurementsBuffer = [];
+        commandPost.light.color.setHex(0xff0000);
+        STATE.interceptors.forEach(i => { i.alive = false; scene.remove(i.mesh); scene.remove(i.trailLine); });
+        STATE.interceptors = [];
+        document.getElementById('hud-status').innerText = "ПОШУК...";
+        document.getElementById('hud-status').className = "";
+        document.getElementById('fire-btn').disabled = true;
+        document.getElementById('fire-btn').innerText = "ПУСК (НЕМАЄ РІШЕННЯ)";
+        document.getElementById('fire-btn').classList.remove('ready');
+    });
     
     document.getElementById('time-scale-input').addEventListener('input', (e) => {
         CONFIG.timeScale = parseFloat(e.target.value);
@@ -903,6 +1070,8 @@ function applySettings() {
     CONFIG.maneuverPeriod = parseFloat(document.getElementById('inp-maneuver-period').value);
     CONFIG.intSpeed = parseFloat(document.getElementById('inp-int-speed').value);
     CONFIG.intLife = parseFloat(document.getElementById('inp-int-life').value);
+    CONFIG.relayMode = document.getElementById('inp-relay-mode').checked;
+    CONFIG.relayOverlap = parseFloat(document.getElementById('inp-relay-overlap').value);
     setupAgents();
 }
 
@@ -918,13 +1087,19 @@ function fireInterceptor() {
 function resetSim() {
     STATE.time = 0;
     STATE.hasLock = false;
-	STATE.nextWaveTime = 0;       // Скидаємо час наступного сканування
-    STATE.stopScanTime = 0;       // Скидаємо час зупинки
-    STATE.currentGroupIndex = 0;  // Починаємо з першої групи радарів
-    // Initial Intel: Roughly points to where rocket spawns (-1200, 600, -500)
-    STATE.lastEstimate.pos.set(-1500, 800, -800); 
-    STATE.lastEstimate.vel.set(CONFIG.targetSpeed, 0, 0); 
-    STATE.lastEstimate.timestamp = -10; // Old but valid for init
+    STATE.nextWaveTime = 0;
+    STATE.stopScanTime = 0;
+    STATE.currentGroupIndex = 0;
+    STATE.activeStations = [];
+    // Relay mode reset
+    STATE.waves = [];
+    STATE.nextWaveStartTime = 0;
+    STATE.lastHandoffPos = null;
+    STATE.handoffFlashTime = -999;
+    // Initial Intel
+    STATE.lastEstimate.pos.set(-1500, 500, -800);
+    STATE.lastEstimate.vel.set(CONFIG.targetSpeed, 0, 0);
+    STATE.lastEstimate.timestamp = -10;
     STATE.targetAlive = true;
     STATE.interceptors.forEach(i => scene.remove(i.mesh));
     STATE.interceptors = [];
@@ -939,6 +1114,7 @@ function resetSim() {
     
     document.getElementById('hud-status').innerText = "ПОШУК...";
     document.getElementById('hud-status').className = "";
+    document.getElementById('new-target-btn').style.display = 'none';
 }
 
 function step(dt) {
@@ -971,7 +1147,7 @@ function step(dt) {
         const limit = CONFIG.mapSize / 2;
         STATE.lastEstimate.pos.x = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.x));
         STATE.lastEstimate.pos.z = Math.max(-limit, Math.min(limit, STATE.lastEstimate.pos.z));
-        STATE.lastEstimate.pos.y = Math.max(100, Math.min(2500, STATE.lastEstimate.pos.y));
+        STATE.lastEstimate.pos.y = Math.max(100, Math.min(700, STATE.lastEstimate.pos.y));
 
         commandPost.estHelper.position.copy(STATE.lastEstimate.pos);
         commandPost.estHelper.visible = true;
@@ -1002,52 +1178,103 @@ function step(dt) {
             }
         }
     }
-    // -----------------------------------------------------
+    // =====================================================
     // --- SCHEDULER ---
-    if (STATE.activeStations.length > 0 && STATE.time >= STATE.stopScanTime) {
-        STATE.activeStations.forEach(s => s.stopScanAndMove());
-        STATE.activeStations = [];
-    }
+    // =====================================================
 
-    if (STATE.time >= STATE.nextWaveTime) {
-        // SMART GROUP SELECTION
-        let candidates = [];
-        const predPos = STATE.lastEstimate.pos;
-        
-        // Calculate scores for all stations based on distance to predicted target
-        const scoredStations = stations.map(s => {
-            return { s: s, dist: s.pos.distanceTo(predPos) };
-        });
-        
-        // Sort by distance (closest first)
-        scoredStations.sort((a,b) => a.dist - b.dist);
-        
-        // Select top N available, with some randomness to simulate rotation
-        // If track is lost, we might just pick random sectors
-        const startIndex = (STATE.currentGroupIndex) % stations.length;
-        
-        let group = [];
-        if (STATE.hasLock || timeSinceLock < 15.0) {
-            // Priority: Closest ones
-            group = scoredStations.slice(0, CONFIG.groupSize).map(o => o.s);
-        } else {
-            // Lost/Search: Round robin
-             for (let i = 0; i < CONFIG.groupSize; i++) {
-                const idx = (STATE.currentGroupIndex + i) % stations.length;
-                group.push(stations[idx]);
+    if (CONFIG.relayMode) {
+        // ── РЕЖИМ ЕСТАФЕТИ ──────────────────────────────
+        // Крок 1: Асинхронне вимкнення — кожна станція гасить радар у свій час
+        STATE.waves = STATE.waves.filter(w => {
+            for (let i = w.stations.length - 1; i >= 0; i--) {
+                if (STATE.time >= w.stopTimes[i]) {
+                    w.stations[i].stopScanAndMove();
+                    w.stations.splice(i, 1);
+                    w.stopTimes.splice(i, 1);
+                }
             }
-            STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
+            return w.stations.length > 0;
+        });
+
+        // Зводимо activeStations з усіх живих хвиль
+        STATE.activeStations = STATE.waves.flatMap(w => w.stations);
+
+        // Крок 2: Запуск нової хвилі — ПЕРЕДАЧА ЕСТАФЕТИ
+        if (STATE.time >= STATE.nextWaveStartTime) {
+            const predPos = STATE.lastEstimate.pos.clone();
+            const mode = (STATE.hasLock || timeSinceLock < 15.0) ? 'TRACK' : 'SEARCH';
+
+            // Відбираємо станції, що зараз не сканують
+            const busyIds = new Set(STATE.activeStations.map(s => s.id));
+            let available = stations.filter(s => !busyIds.has(s.id) && s.state !== 'SCANNING');
+
+            // Сортуємо по відстані до прогнозованої позиції цілі
+            if (mode === 'TRACK') {
+                available.sort((a, b) => a.pos.distanceTo(predPos) - b.pos.distanceTo(predPos));
+            } else {
+                // Пошук: ротація по колу
+                for (let i = 0; i < CONFIG.groupSize; i++) {
+                    const idx = (STATE.currentGroupIndex + i) % stations.length;
+                }
+                STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
+            }
+
+            const group = available.slice(0, CONFIG.groupSize);
+
+            if (group.length > 0) {
+                // === ПЕРЕДАЧА ЕСТАФЕТИ ===
+                // Нова група ОДРАЗУ отримує координати цілі від попередньої групи
+                STATE.lastHandoffPos = predPos.clone();
+                STATE.handoffFlashTime = STATE.time;
+
+                const wave = { stations: [], stopTimes: [] };
+                group.forEach((s, i) => {
+                    // Асинхронний старт: кожна станція вмикається з невеликим зсувом ±1с
+                    const asyncOffset = (Math.random() - 0.5) * 2.0;
+                    s.startScan(predPos, mode);
+                    wave.stations.push(s);
+                    // Асинхронне вимкнення: станції вимикаються в різний час
+                    wave.stopTimes.push(STATE.time + CONFIG.scanDuration + asyncOffset);
+                });
+                STATE.waves.push(wave);
+
+                // Наступна хвиля стартує за (scanDuration - relayOverlap) секунд
+                // тобто ДО того, як ця закінчиться — перекриття гарантує безперервне ведення
+                const nextStart = CONFIG.scanDuration - CONFIG.relayOverlap;
+                STATE.nextWaveStartTime = STATE.time + Math.max(1.5, nextStart);
+            }
         }
 
-        // Activate
-        const mode = (STATE.hasLock || timeSinceLock < 10.0) ? 'TRACK' : 'SEARCH';
-        
-        // If tracking, point to estimated pos. If searching, pass estimated pos (it might be old, radar will add offset)
-        group.forEach(s => s.startScan(predPos, mode));
-        STATE.activeStations = group;
+    } else {
+        // ── КЛАСИЧНИЙ РЕЖИМ (хвилі без перекриття) ──────
+        if (STATE.activeStations.length > 0 && STATE.time >= STATE.stopScanTime) {
+            STATE.activeStations.forEach(s => s.stopScanAndMove());
+            STATE.activeStations = [];
+        }
 
-        STATE.stopScanTime = STATE.time + CONFIG.scanDuration;
-        STATE.nextWaveTime = STATE.time + CONFIG.cyclePeriod;
+        if (STATE.time >= STATE.nextWaveTime) {
+            const predPos = STATE.lastEstimate.pos;
+            const scoredStations = stations.map(s => ({ s, dist: s.pos.distanceTo(predPos) }));
+            scoredStations.sort((a, b) => a.dist - b.dist);
+
+            let group = [];
+            if (STATE.hasLock || timeSinceLock < 15.0) {
+                group = scoredStations.slice(0, CONFIG.groupSize).map(o => o.s);
+            } else {
+                for (let i = 0; i < CONFIG.groupSize; i++) {
+                    const idx = (STATE.currentGroupIndex + i) % stations.length;
+                    group.push(stations[idx]);
+                }
+                STATE.currentGroupIndex = (STATE.currentGroupIndex + CONFIG.groupSize) % stations.length;
+            }
+
+            const mode = (STATE.hasLock || timeSinceLock < 10.0) ? 'TRACK' : 'SEARCH';
+            group.forEach(s => s.startScan(predPos, mode));
+            STATE.activeStations = group;
+
+            STATE.stopScanTime = STATE.time + CONFIG.scanDuration;
+            STATE.nextWaveTime = STATE.time + CONFIG.cyclePeriod;
+        }
     }
 
     // --- SENSOR FUSION & DATA LINK ---
@@ -1062,13 +1289,13 @@ function step(dt) {
         }
     });
 
-    // Data Link: Share info immediately within active group
+    // Data Link: Миттєва передача координат всередині активних груп
     if (sharedTargetPos) {
         STATE.activeStations.forEach(s => {
             if (!s.lockData) {
-                s.lookTarget.copy(sharedTargetPos); // Snap to target
-                s.ray.material.color.setHex(0xffee00); 
-                s.mode = 'TRACK'; // Switch to track mode
+                s.lookTarget.copy(sharedTargetPos);
+                s.ray.material.color.setHex(0xffee00);
+                s.mode = 'TRACK';
             }
         });
     }
@@ -1100,14 +1327,31 @@ function step(dt) {
     }
 
     // HUD Update
-    if (STATE.activeStations.length > 0) {
-        const timeLeft = (STATE.stopScanTime - STATE.time).toFixed(1);
-        document.getElementById('hud-wave-status').innerText = `АКТИВНА (${timeLeft}с)`;
-        document.getElementById('hud-wave-status').style.color = '#aa0000';
+    if (CONFIG.relayMode) {
+        const nActive = STATE.activeStations.length;
+        const nWaves = STATE.waves.length;
+        const flashAge = STATE.time - STATE.handoffFlashTime;
+        const handoffStr = flashAge < 1.5 ? ' 📡 ЕСТАФЕТА!' : '';
+
+        if (nActive > 0) {
+            document.getElementById('hud-wave-status').innerText =
+                `ЕСТАФЕТА ${nActive}ст/${nWaves}гр`;
+            document.getElementById('hud-wave-status').style.color = flashAge < 1.5 ? '#ff8800' : '#aa0000';
+        } else {
+            const timeToNext = Math.max(0, STATE.nextWaveStartTime - STATE.time).toFixed(1);
+            document.getElementById('hud-wave-status').innerText = `ПЕРЕХІД ${timeToNext}с`;
+            document.getElementById('hud-wave-status').style.color = '#555';
+        }
     } else {
-        const timeToNext = (STATE.nextWaveTime - STATE.time).toFixed(1);
-        document.getElementById('hud-wave-status').innerText = `ТИША (наст. ${timeToNext}с)`;
-        document.getElementById('hud-wave-status').style.color = '#333';
+        if (STATE.activeStations.length > 0) {
+            const timeLeft = (STATE.stopScanTime - STATE.time).toFixed(1);
+            document.getElementById('hud-wave-status').innerText = `АКТИВНА (${timeLeft}с)`;
+            document.getElementById('hud-wave-status').style.color = '#aa0000';
+        } else {
+            const timeToNext = (STATE.nextWaveTime - STATE.time).toFixed(1);
+            document.getElementById('hud-wave-status').innerText = `ТИША (наст. ${timeToNext}с)`;
+            document.getElementById('hud-wave-status').style.color = '#333';
+        }
     }
 }
 
