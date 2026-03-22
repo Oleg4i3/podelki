@@ -441,17 +441,7 @@
     <div id="startupModal">
         <div class="startup-box">
             <h2>𝄞 WebScoreCreator</h2>
-			<div style="text-align: right; font-size: 0.85em; margin: 10px 0;">
-				Inspired by
-			
-			<a href="https://apps.apple.com/app/score-creator-compose-music/id627486149" target="_blank" style="text-decoration: none; color: #333; display: inline-flex; align-items: center;">
-			<img src="https://upload.wikimedia.org/wikipedia/commons/6/67/App_Store_%28iOS%29.svg" alt="App Store" style="height: 16px; margin-right: 5px;">
-			Score Creator 
-			</a>
-			<a href="https://play.google.com/store/apps/details?id=com.sc.scorecreator" target="_blank" style="text-decoration: none; color: #333; margin-right: 10px; display: inline-flex; align-items: center;">
-			<img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" style="height: 16px; margin-right: 5px;">
-			</a>
-			</div>
+		
 				<p class="startup-sub">Enter a name for the new song, or open an existing ABC file.</p>
             <input type="text" id="startupTitleInput" value="New song" placeholder="Song name…"
                 onkeydown="if(event.key==='Enter') startupCreate()">
@@ -486,6 +476,7 @@
                         <option value="2/4">2/4</option>
                         <option value="5/4">5/4</option>
                         <option value="6/8">6/8</option>
+                        <option value="9/8">9/8</option>
                         <option value="5/8">5/8</option>
                     </select>
                 </label>
@@ -523,7 +514,7 @@
                     <option value="Cb">Cb / Abm</option>
                 </select>
             </label>
-            <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="5/8">5/8</option></select></label>
+            <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="9/8">9/8</option><option value="5/8">5/8</option></select></label>
             <label title="Pickup (anacrusis) — partial first measure before beat 1">Pickup: <select id="pickupSig" onchange="onPickupChange()"><option value="0">None</option></select></label>
             <label>Tempo: <input type="number" id="tempo" value="120" style="width: 60px;" onchange="updateScore()"></label>
             <label>Beaming: 
@@ -1911,7 +1902,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function onTimeSigChange() {
             const ts = document.getElementById('timeSig').value;
-            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
+            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '9/8': '3', '5/8': '5' };
             const beamSel = document.getElementById('beaming');
             if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
             rebuildPickupOptions();
@@ -5562,7 +5553,7 @@ function generateMIDIWithBend() {
             populateInstrumentSelect();
             initDefaultChannels();
             // Set default beaming based on initial time signature
-            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
+            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '9/8': '3', '5/8': '5' };
             const ts = document.getElementById('timeSig').value;
             const beamSel = document.getElementById('beaming');
             if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
