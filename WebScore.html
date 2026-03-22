@@ -590,6 +590,16 @@
     </div>
 
     <div id="stickyBottomWrap" style="position:sticky;bottom:0;z-index:1000;background:#eceff1;box-shadow:0 -4px 10px rgba(0,0,0,0.05);overflow:hidden;">
+    <!-- Pin button -->
+    <button id="panelPinBtn"
+        onclick="togglePanelPin()"
+        title="Pin panel — keep it always visible while scrolling"
+        style="position:absolute;top:4px;right:6px;z-index:1002;
+               width:26px;height:26px;padding:0;font-size:15px;line-height:1;
+               background:none;border:none;cursor:pointer;opacity:0.4;
+               transition:opacity 0.15s,transform 0.15s;"
+        onmouseenter="this.style.opacity='1'"
+        onmouseleave="this.style.opacity=isPanelPinned?'1':'0.4'">📌</button>
     <div class="control-panel">
         <!-- Infinite-string horizontal scrollbar (shown only in infinite mode) -->
         <div id="scoreScrollbarWrap">
@@ -1022,6 +1032,35 @@
         let synchroMode = false;
         let pickupDurQuarters = 0; // 0 = no pickup (anacrusis) measure
         let beatGroups = []; // [] = uniform; [3,3,2] = custom 8th-note groups for x/8 meter
+        let isPanelPinned = false;
+
+        function togglePanelPin() {
+            isPanelPinned = !isPanelPinned;
+            const wrap = document.getElementById('stickyBottomWrap');
+            const btn  = document.getElementById('panelPinBtn');
+            if (isPanelPinned) {
+                wrap.style.position = 'fixed';
+                wrap.style.bottom   = '0';
+                wrap.style.left     = '0';
+                wrap.style.right    = '0';
+                wrap.style.width    = '100%';
+                // Add padding to body so score content isn't hidden behind fixed panel
+                document.body.style.paddingBottom = wrap.offsetHeight + 'px';
+                btn.style.opacity   = '1';
+                btn.style.transform = 'rotate(-45deg)'; // tilted = "active"
+                btn.title = 'Unpin panel';
+            } else {
+                wrap.style.position = 'sticky';
+                wrap.style.bottom   = '0';
+                wrap.style.left     = '';
+                wrap.style.right    = '';
+                wrap.style.width    = '';
+                document.body.style.paddingBottom = '';
+                btn.style.opacity   = '0.4';
+                btn.style.transform = '';
+                btn.title = 'Pin panel — keep it always visible while scrolling';
+            }
+        }
 
         let audioContext = null;
         let activeAudioNodes = [];
@@ -5475,7 +5514,7 @@ function generateMIDIWithBend() {
                 let visualToArrayMap = [];
                 for (let i = 0; i < tNotes.length; i++) {
                     let n = tNotes[i];
-                    if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i);
+                    if (n.type !== 'directive' && n.type !== 'barline') visualToArrayMap.push(i);
                 }
 
                 let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
@@ -5533,7 +5572,7 @@ function generateMIDIWithBend() {
                         let tNotes = voicesData[targetKey].notes;
                         for (let i = 0; i < tNotes.length; i++) {
                             let n = tNotes[i];
-                            if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i);
+                            if (n.type !== 'directive' && n.type !== 'barline') visualToArrayMap.push(i);
                         }
                         let noteMinDist = Infinity; let closestVisIdx = -1;
                         trackEls.forEach((el, idx) => {
@@ -5602,7 +5641,7 @@ function generateMIDIWithBend() {
             let paperRect = paper.getBoundingClientRect();
             let visualToArrayMap = [];
             let tNotes = voicesData[activeTrack].notes;
-            for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i); }
+            for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline') visualToArrayMap.push(i); }
             for (let i = sel.start; i <= sel.end; i++) {
                 let visIdx = visualToArrayMap.indexOf(i);
                 if (visIdx !== -1 && visIdx < trackEls.length) {
@@ -6127,7 +6166,7 @@ function generateMIDIWithBend() {
                         let trackEls = Array.from(document.querySelectorAll(`.abcjs-v${vIdx}.abcjs-note, .abcjs-v${vIdx}.abcjs-rest`));
                         let visualToArrayMap = [];
                         let tNotes = voicesData[targetKey].notes;
-                        for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline' && (!n.pitches || n.pitches[0].pitch !== 'x')) visualToArrayMap.push(i); }
+                        for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline') visualToArrayMap.push(i); }
                         let noteIdx = trackEls.indexOf(closestEl);
                         if (noteIdx !== -1 && noteIdx < visualToArrayMap.length) { let actualArrayIdx = visualToArrayMap[noteIdx]; showContextMenu(e, actualArrayIdx); }
                     }
@@ -7117,19 +7156,26 @@ document.addEventListener('keydown', function(e) {
     // ==================== NOTE PANEL AUTO-HIDE (keys only) ====================
     function showNoteInputPanel() {
         document.querySelector('.note-panel').classList.remove('keys-hidden');
+        syncPinnedPadding();
     }
     function hideNoteInputPanel() {
         document.querySelector('.note-panel').classList.add('keys-hidden');
+        syncPinnedPadding();
+    }
+    function syncPinnedPadding() {
+        if (!isPanelPinned) return;
+        const wrap = document.getElementById('stickyBottomWrap');
+        document.body.style.paddingBottom = wrap.offsetHeight + 'px';
     }
 
-    // Hide on score scroll (infinite mode viewport scroll)
+    // Hide on score scroll (infinite mode viewport scroll) — only when unpinned
     document.getElementById('scoreViewport').addEventListener('scroll', function() {
-        hideNoteInputPanel();
+        if (!isPanelPinned) hideNoteInputPanel();
     }, { passive: true });
 
-    // Hide on window/page scroll
+    // Hide on window/page scroll — only when unpinned
     window.addEventListener('scroll', function() {
-        hideNoteInputPanel();
+        if (!isPanelPinned) hideNoteInputPanel();
     }, { passive: true });
 
     // Hide keys when bottom spoiler is opened
