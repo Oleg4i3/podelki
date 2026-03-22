@@ -470,15 +470,23 @@
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
                     Time
-                    <select id="startupTimeSig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;" onchange="startupUpdatePickup()">
+                    <select id="startupTimeSig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;" onchange="startupUpdatePickup(); startupToggleCustomGroups()">
                         <option value="4/4">4/4</option>
                         <option value="3/4">3/4</option>
                         <option value="2/4">2/4</option>
                         <option value="5/4">5/4</option>
                         <option value="6/8">6/8</option>
-                        <option value="9/8">9/8</option>
                         <option value="5/8">5/8</option>
+                        <option value="x/8">x/8 — custom</option>
                     </select>
+                </label>
+                <label id="startupCustomGroupsWrap" style="display:none;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
+                    Beat groups (8ths)
+                    <input type="text" id="startupCustomGroupsInput"
+                        placeholder="e.g. 3 3 2"
+                        style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;width:110px;"
+                        oninput="startupUpdatePickup()">
+                    <span style="font-size:10px;color:#90a4ae;line-height:1.3;">Space-separated 8th-note group<br>sizes. Sum = total 8ths.</span>
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
                     Pickup (anacrusis)
@@ -514,7 +522,15 @@
                     <option value="Cb">Cb / Abm</option>
                 </select>
             </label>
-            <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="9/8">9/8</option><option value="5/8">5/8</option></select></label>
+            <label>Time: <select id="timeSig" onchange="onTimeSigChange()"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="5/4">5/4</option><option value="6/8">6/8</option><option value="5/8">5/8</option><option value="x/8">x/8…</option></select></label>
+            <label id="customGroupsWrap" style="display:none;align-items:center;gap:5px;"
+                title="Define custom beat groups in 8th-note units.&#10;Space-separated numbers that must sum to the total number of 8ths.&#10;&#10;Examples:&#10;  3 3 2  → 8/8  grouped 3+3+2&#10;  3 3 3  → 9/8  (three dotted quarters)&#10;  4 4 3  → 11/8 (asymmetric)&#10;  5 5 2  → 12/8 (non-standard)&#10;&#10;Border turns green when valid.">
+                Groups:&thinsp;<input type="text" id="customGroupsInput"
+                    placeholder="e.g. 3 3 2"
+                    style="width:80px;padding:3px 5px;border:1px solid #b0bec5;border-radius:4px;font-size:13px;outline:none;"
+                    oninput="onBeatGroupsChange(this.value)"><span id="customGroupsHint"
+                    style="font-size:10px;color:#78909c;margin-left:3px;"></span>
+            </label>
             <label title="Pickup (anacrusis) — partial first measure before beat 1">Pickup: <select id="pickupSig" onchange="onPickupChange()"><option value="0">None</option></select></label>
             <label>Tempo: <input type="number" id="tempo" value="120" style="width: 60px;" onchange="updateScore()"></label>
             <label>Beaming: 
@@ -884,11 +900,34 @@
             const keySigEl = document.getElementById('keySig');
             if (keySel && keySigEl) keySigEl.value = keySel.value;
 
-            // Apply time signature
+            // Apply time signature (and custom groups for x/8)
             const timeSel = document.getElementById('startupTimeSig');
             const timeSigEl = document.getElementById('timeSig');
             if (timeSel && timeSigEl) {
-                timeSigEl.value = timeSel.value;
+                if (timeSel.value === 'x/8') {
+                    // Parse groups from startup input
+                    const rawGrp = (document.getElementById('startupCustomGroupsInput') || {}).value || '';
+                    const nums = rawGrp.trim().split(/[\s,+]+/).map(Number).filter(n => n > 0 && Number.isFinite(n));
+                    if (nums.length >= 2) {
+                        beatGroups = nums;
+                        timeSigEl.value = 'x/8';
+                        // Show custom groups panel in main UI
+                        const grpWrap = document.getElementById('customGroupsWrap');
+                        if (grpWrap) grpWrap.style.display = 'inline-flex';
+                        const grpInput = document.getElementById('customGroupsInput');
+                        if (grpInput) { grpInput.value = nums.join(' '); grpInput.style.borderColor = '#4caf50'; }
+                        const hint = document.getElementById('customGroupsHint');
+                        const sum = nums.reduce((a,b)=>a+b,0);
+                        if (hint) hint.textContent = `= ${sum}/8`;
+                    } else {
+                        // Fallback: treat as 4/4 if no groups entered
+                        beatGroups = [];
+                        timeSigEl.value = '4/4';
+                    }
+                } else {
+                    beatGroups = [];
+                    timeSigEl.value = timeSel.value;
+                }
                 onTimeSigChange(); // rebuilds pickup options in main UI
             }
 
@@ -904,42 +943,49 @@
             closeStartupModal();
         }
 
+        // Show/hide the custom-groups input in the startup modal
+        function startupToggleCustomGroups() {
+            const timeSel = document.getElementById('startupTimeSig');
+            const wrap    = document.getElementById('startupCustomGroupsWrap');
+            if (!timeSel || !wrap) return;
+            wrap.style.display = (timeSel.value === 'x/8') ? 'flex' : 'none';
+        }
+
         // Rebuild pickup options in the startup modal when time signature changes
         function startupUpdatePickup() {
-            const timeSel = document.getElementById('startupTimeSig');
+            const timeSel   = document.getElementById('startupTimeSig');
             const pickupSel = document.getElementById('startupPickup');
             if (!timeSel || !pickupSel) return;
-            const timeStr = timeSel.value; // e.g. "4/4"
-            const parts = timeStr.split('/');
-            const num = parseInt(parts[0]);
-            const den = parseInt(parts[1]);
-            const measureQ = num * (4 / den); // measure duration in quarter notes
+            const timeStr = timeSel.value;
+
+            let measureQ;
+            if (timeStr === 'x/8') {
+                // Derive from whatever is typed in the custom groups field
+                const rawGrp = (document.getElementById('startupCustomGroupsInput') || {}).value || '';
+                const nums = rawGrp.trim().split(/[\s,+]+/).map(Number).filter(n => n > 0 && Number.isFinite(n));
+                measureQ = nums.length >= 2 ? nums.reduce((a,b)=>a+b,0) * 0.5 : 4; // default 4 quarters
+            } else {
+                const parts = timeStr.split('/');
+                const num = parseInt(parts[0]);
+                const den = parseInt(parts[1]);
+                measureQ = num * (4 / den);
+            }
+
             pickupSel.innerHTML = '<option value="0">None</option>';
-            // Build beat subdivisions up to (but not including) a full measure
-            const steps = [];
-            const beatQ = 4 / den;
+            const beatQ = 0.5; // always 8th-note steps for the startup picker
             let q = beatQ;
+            const seen = new Set();
             while (q < measureQ - 0.001) {
-                steps.push(q);
-                q += beatQ;
+                if (!seen.has(q)) {
+                    seen.add(q);
+                    const opt = document.createElement('option');
+                    opt.value = q;
+                    const label = q % 1 === 0 ? q + ' beat' + (q > 1 ? 's' : '') : q + ' q';
+                    opt.textContent = label;
+                    pickupSel.appendChild(opt);
+                }
+                q = Math.round((q + beatQ) * 1000) / 1000;
             }
-            // Also add common sub-beat values for compound meters
-            if (den === 8) {
-                const sub = beatQ / 2;
-                if (!steps.includes(sub)) steps.unshift(sub);
-            }
-            steps.sort((a, b) => a - b);
-            steps.forEach(q => {
-                const opt = document.createElement('option');
-                opt.value = q;
-                // Display as fraction of measure
-                const frac = q / measureQ;
-                const beatsLabel = q / beatQ;
-                opt.textContent = beatsLabel % 1 === 0
-                    ? beatsLabel + ' beat' + (beatsLabel > 1 ? 's' : '')
-                    : q + ' q';
-                pickupSel.appendChild(opt);
-            });
         }
 
         function startupOpenABC() {
@@ -975,6 +1021,7 @@
 
         let synchroMode = false;
         let pickupDurQuarters = 0; // 0 = no pickup (anacrusis) measure
+        let beatGroups = []; // [] = uniform; [3,3,2] = custom 8th-note groups for x/8 meter
 
         let audioContext = null;
         let activeAudioNodes = [];
@@ -1902,9 +1949,23 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
         function onTimeSigChange() {
             const ts = document.getElementById('timeSig').value;
-            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '9/8': '3', '5/8': '5' };
-            const beamSel = document.getElementById('beaming');
-            if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+
+            // Show/hide custom-groups panel
+            const grpWrap = document.getElementById('customGroupsWrap');
+            if (grpWrap) grpWrap.style.display = (ts === 'x/8') ? 'inline-flex' : 'none';
+
+            if (ts !== 'x/8') {
+                // Uniform meter: reset beatGroups and apply default beaming
+                beatGroups = [];
+                const grpInput = document.getElementById('customGroupsInput');
+                if (grpInput) { grpInput.value = ''; grpInput.style.borderColor = ''; }
+                const hint = document.getElementById('customGroupsHint');
+                if (hint) hint.textContent = '';
+                const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
+                const beamSel = document.getElementById('beaming');
+                if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+            }
+            // For x/8: beatGroups must be filled by the user via onBeatGroupsChange
             rebuildPickupOptions();
             updateScore();
         }
@@ -1914,12 +1975,58 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             updateScore();
         }
 
+        // ---- Custom beat-groups validation & application ----
+        function onBeatGroupsChange(rawVal) {
+            const hint    = document.getElementById('customGroupsHint');
+            const input   = document.getElementById('customGroupsInput');
+            const nums    = rawVal.trim().split(/[\s,+]+/).map(Number).filter(n => n > 0 && Number.isFinite(n));
+            const sum     = nums.reduce((a, b) => a + b, 0);
+
+            if (rawVal.trim() === '' || nums.length === 0) {
+                beatGroups = [];
+                if (input) input.style.borderColor = '';
+                if (hint)  hint.textContent = '';
+                updateScore();
+                return;
+            }
+            if (nums.length < 2) {
+                beatGroups = [];
+                if (input) input.style.borderColor = '#f44336';
+                if (hint)  hint.textContent = 'Need ≥ 2 groups';
+                return;
+            }
+            // Valid — accept any sum, it defines the meter (x = sum)
+            beatGroups = nums;
+            if (input) input.style.borderColor = '#4caf50';
+            if (hint)  hint.textContent = `= ${sum}/8`;
+            rebuildPickupOptions();
+            updateScore();
+        }
+
+        // Returns the ABC M: value — plain "11/8" when groups are set (grouping only affects beaming)
+        function getMeterString() {
+            if (beatGroups.length >= 2) {
+                const sum = beatGroups.reduce((a, b) => a + b, 0);
+                return `${sum}/8`;
+            }
+            const ts = document.getElementById('timeSig').value;
+            return (ts === 'x/8') ? '4/4' : ts; // fallback until groups are entered
+        }
+
+        // Returns measure capacity in quarter-note units for any meter incl. x/8
+        function getMeasureCapacityFromString(tsStr) {
+            if (beatGroups.length >= 2) return beatGroups.reduce((a, b) => a + b, 0) * 0.5; // 8ths → quarters
+            if (tsStr === 'x/8') return 4; // fallback: 4 quarters until user enters groups
+            const [num, den] = tsStr.split('/').map(Number);
+            if (!den) return 4; // safety
+            return num * (4 / den);
+        }
+
         function rebuildPickupOptions() {
             const sel = document.getElementById('pickupSig');
             if (!sel) return;
-            const ts = document.getElementById('timeSig').value;
-            const [num, den] = ts.split('/').map(Number);
-            const cap = num * (4 / den); // full measure in quarters
+            const ts  = document.getElementById('timeSig').value;
+            const cap = getMeasureCapacityFromString(ts);
             const curVal = parseFloat(sel.value) || 0;
 
             // Build candidate pickup durations (must be < full measure)
@@ -1934,6 +2041,8 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 { label: '5/8',   v: 2.5 },
                 { label: '3/4',   v: 3.0 },
                 { label: '7/8',   v: 3.5 },
+                { label: '1',     v: 4.0 },
+                { label: '5/4',   v: 5.0 },
             ].filter(c => c.v < cap - 0.001);
 
             sel.innerHTML = '';
@@ -1944,7 +2053,6 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 if (Math.abs(c.v - curVal) < 0.001) opt.selected = true;
                 sel.appendChild(opt);
             }
-            // If old value is not available, default to None
             if (!Array.from(sel.options).some(o => o.selected)) {
                 sel.value = '0';
                 pickupDurQuarters = 0;
@@ -2145,8 +2253,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         // ==================== MEASURE UTILITIES ====================
         function getMeasureCapacity() {
             const time = document.getElementById('timeSig').value;
-            const [num, den] = time.split('/').map(Number);
-            return num * (4 / den);
+            return getMeasureCapacityFromString(time);
         }
 
         function getMeasuresFromNotes(vKey) {
@@ -3264,7 +3371,28 @@ function deleteSelectionSync() {
                         let keyMatch = contents.match(/K:(.*)/);
                         if (keyMatch) document.getElementById('keySig').value = keyMatch[1].trim();
                         let timeMatch = contents.match(/M:(.*)/);
-                        if (timeMatch) document.getElementById('timeSig').value = timeMatch[1].trim();
+                        if (timeMatch) {
+                            const mVal = timeMatch[1].trim(); // e.g. "(3+3+2)/8" or "6/8"
+                            const groupedMatch = mVal.match(/^\(([0-9+]+)\)\/(\d+)$/);
+                            if (groupedMatch) {
+                                // Custom grouped meter: restore beatGroups and set timeSig to x/8
+                                const grpNums = groupedMatch[1].split('+').map(Number);
+                                beatGroups = grpNums;
+                                document.getElementById('timeSig').value = 'x/8';
+                                // Populate main UI custom-groups field
+                                const grpWrap  = document.getElementById('customGroupsWrap');
+                                const grpInput = document.getElementById('customGroupsInput');
+                                const hint     = document.getElementById('customGroupsHint');
+                                if (grpWrap)  grpWrap.style.display = 'inline-flex';
+                                if (grpInput) { grpInput.value = grpNums.join(' '); grpInput.style.borderColor = '#4caf50'; }
+                                if (hint)     hint.textContent = `= ${grpNums.reduce((a,b)=>a+b,0)}/8`;
+                            } else {
+                                beatGroups = [];
+                                const grpWrap = document.getElementById('customGroupsWrap');
+                                if (grpWrap) grpWrap.style.display = 'none';
+                                document.getElementById('timeSig').value = mVal;
+                            }
+                        }
                         let tempoMatch = contents.match(/Q:1\/4=(.*)/);
                         if (tempoMatch) document.getElementById('tempo').value = tempoMatch[1].trim();
                         let titleMatch = contents.match(/T:(.*)/);
@@ -3358,7 +3486,12 @@ function generateMIDIWithBend() {
 
     // Tempo track
     let tempoVal = Math.round(60000000 / tempo);
-    let [tNum, tDen] = document.getElementById('timeSig').value.split('/').map(Number);
+    let [tNum, tDen] = (function() {
+        const ts = document.getElementById('timeSig').value;
+        if (ts === 'x/8' && beatGroups.length >= 2)
+            return [beatGroups.reduce((a,b)=>a+b,0), 8];
+        return ts.split('/').map(Number);
+    })();
     let tempoData = buildTrack([
         { tick: 0, priority: 0, bytes: [0xFF, 0x51, 0x03, (tempoVal>>16)&0xFF, (tempoVal>>8)&0xFF, tempoVal&0xFF] },
         { tick: 0, priority: 1, bytes: [0xFF, 0x58, 0x04, tNum, Math.log2(tDen), 24, 8] },
@@ -3552,8 +3685,7 @@ function generateMIDIWithBend() {
 
             currentTempo = parseInt(document.getElementById('tempo').value) || 120;
             const timeStr = document.getElementById('timeSig').value;
-            const [num, den] = timeStr.split('/').map(Number);
-            const measureCapacity = num * (4 / den);
+            const measureCapacity = getMeasureCapacity(); // x/8-aware
 
             let maxEndQ = 0;
             let rawTimeline = [];
@@ -4530,8 +4662,7 @@ function generateMIDIWithBend() {
             const tempo = document.getElementById('tempo').value;
             const title = document.getElementById('title').value || 'Untitled';
             const groupSize = parseInt(document.getElementById('beaming').value);
-            const [num, den] = time.split('/').map(Number);
-            const measureCapacity = num * (4 / den);
+            const measureCapacity = getMeasureCapacity(); // handles x/8 via beatGroups
 
             for (let vKey of getOrderedKeys()) {
                 let notes = voicesData[vKey].notes;
@@ -4696,7 +4827,7 @@ function generateMIDIWithBend() {
             // Anacrusis: if pickup set, add %%MIDI barstart and use abc's 'M:' directive
             // abcjs renders pickup via the 'anacrusis' header or we just let the first measure be short
             let pickupUnits = pickupDurQuarters > 0 ? Math.round(pickupDurQuarters / 0.125) : 0;
-            let abcString = `X:1\nT:${title}\nM:${time}\nL:1/32\nQ:1/4=${tempo}\n`;
+            let abcString = `X:1\nT:${title}\nM:${getMeterString()}\nL:1/32\nQ:1/4=${tempo}\n`;
             if (pickupUnits > 0) abcString += `%%MIDI barstart ${pickupUnits}\n`;
             abcString += `K:${key}\n`;
 
@@ -4751,9 +4882,18 @@ function generateMIDIWithBend() {
                             vStr += `x${emptyUnits} `;
                         } else {
                             // Smart metric-aware beaming
-                            // groupSizeQ = beam group width in quarter notes
-                            // groupSize UI setting = number of 8th notes per beam group
+                            // groupSizeQ = beam group width in quarter notes (uniform mode)
                             let groupSizeQ = groupSize > 0 ? groupSize * 0.5 : 0;
+
+                            // Custom beat-group boundaries (in quarter-note offsets from measure start)
+                            // e.g. beatGroups=[3,3,2] for 8/8 → boundaries=[0, 1.5, 3.0, 4.0]
+                            let groupBoundaries = null;
+                            if (beatGroups.length >= 2) {
+                                groupBoundaries = [0];
+                                let cum = 0;
+                                for (let g of beatGroups) { cum += g * 0.5; groupBoundaries.push(cum); }
+                            }
+
                             let measureQOffset = 0; // quarter position within this measure
                             let inTripletCount = 0;
 
@@ -4783,18 +4923,22 @@ function generateMIDIWithBend() {
                                         let durMatch = item.text.match(/\d+/);
                                         let safeUnits = durMatch ? parseInt(durMatch[0]) : 0;
                                         // With L:1/32: quarter = 8 units; beam only notes shorter than quarter
-                                        let isBeamable = groupSizeQ > 0 && safeUnits < 8
-                                            && !item.text.includes('z') && !item.text.includes('x');
+                                        let isRest = item.text.includes('z') || item.text.includes('x');
 
-                                        if (isBeamable) {
-                                            // Add space when this note's END reaches or crosses a beam-group boundary.
-                                            // Both comparisons use +eps so an exact boundary (e.g. 2.0 → group 1)
-                                            // correctly separates from the previous group (still in group 0).
+                                        if (groupBoundaries && safeUnits < 8 && !isRest) {
+                                            // Custom groups: break beam when note end crosses a group boundary
+                                            let noteEndQ = measureQOffset + noteDurQ;
+                                            let crossesBoundary = groupBoundaries.some(
+                                                b => b > measureQOffset + 1e-9 && b < noteEndQ + 1e-9
+                                            );
+                                            if (crossesBoundary) vStr += " ";
+                                            // else: no space — beam continues within same group
+                                        } else if (groupSizeQ > 0 && safeUnits < 8 && !isRest) {
+                                            // Uniform groups: break when end crosses a grid boundary
                                             let noteEndQ = measureQOffset + noteDurQ;
                                             let grpBefore = Math.floor((measureQOffset + 1e-9) / groupSizeQ);
                                             let grpAfter  = Math.floor((noteEndQ  + 1e-9) / groupSizeQ);
                                             if (grpAfter > grpBefore) vStr += " ";
-                                            // else: no space — beam continues within same group
                                         } else {
                                             vStr += " "; // quarter or longer, rest, etc.
                                         }
@@ -5553,10 +5697,13 @@ function generateMIDIWithBend() {
             populateInstrumentSelect();
             initDefaultChannels();
             // Set default beaming based on initial time signature
-            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '9/8': '3', '5/8': '5' };
+            const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
             const ts = document.getElementById('timeSig').value;
             const beamSel = document.getElementById('beaming');
             if (beamSel && beamingMap[ts]) beamSel.value = beamingMap[ts];
+            // Ensure custom-groups panel is hidden on load (x/8 not selected by default)
+            const grpWrap = document.getElementById('customGroupsWrap');
+            if (grpWrap) grpWrap.style.display = 'none';
             rebuildPickupOptions();
             updateNoteButtonIcons(); 
             updateScore();
@@ -6025,7 +6172,14 @@ function generateMIDIWithBend() {
             const tempo = parseInt(document.getElementById('tempo').value) || 120;
             const keySig = document.getElementById('keySig').value;
             const timeSig = document.getElementById('timeSig').value;
-            const [beats, beatType] = timeSig.split('/').map(Number);
+            // For x/8 custom meter: beats = sum of groups, beatType = 8
+            let beats, beatType;
+            if (timeSig === 'x/8' && beatGroups.length >= 2) {
+                beats    = beatGroups.reduce((a, b) => a + b, 0);
+                beatType = 8;
+            } else {
+                [beats, beatType] = timeSig.split('/').map(Number);
+            }
 
             visibleKeys.forEach((key, partIndex) => {
                 xml += `  <part id="P${partIndex+1}">\n`;
