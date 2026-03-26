@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SF2 MIDI Player</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --bg:      #eef0f5;
+  --panel:   #ffffff;
+  --strip:   #f0f2f8;
+  --border:  #cdd4e4;
+  --border2: #b4bdd4;
+  --accent:  #b86c08;
+  --accent2: #1478c0;
+  --mute-c:  #c06010;
+  --solo-c:  #1478c0;
+  --text:    #1c2030;
+  --dim:     #6878a0;
+  --green:   #158040;
+  --yellow:  #a09000;
+  --red:     #c01818;
+  --play:    #158040;
+  --fader:   #7888a4;
+  --fader-a: #b86c08;
+  --radius:  6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Barlow Condensed',sans-serif;
+  display:flex;flex-direction:column;height:100vh;
+  overflow:hidden;user-select:none;
+}
+/* ── HEADER ── */
+.hdr{
+  background:var(--panel);border-bottom:1px solid var(--border);
+  padding:8px 14px;display:flex;align-items:center;gap:12px;
+  flex-shrink:0;flex-wrap:wrap;
+}
+.logo{font-size:17px;font-weight:700;letter-spacing:2px;color:var(--accent);
+  white-space:nowrap;text-shadow:0 0 20px rgba(232,160,32,0.4);}
+.hbtn{
+  background:var(--strip);border:1px solid var(--border2);
+  color:var(--text);font-family:inherit;font-size:13px;font-weight:600;
+  padding:5px 13px;border-radius:3px;cursor:pointer;letter-spacing:.5px;
+  transition:border-color .15s,color .15s;white-space:nowrap;
+}
+.hbtn:hover{border-color:var(--accent);color:var(--accent);}
+.hbtn.sf2ok{border-color:var(--green);color:var(--green);}
+.hbtn.midiok{border-color:var(--accent2);color:var(--accent2);}
+.hstat{
+  font-size:11px;font-family:'Share Tech Mono',monospace;
+  color:var(--dim);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:180px;flex-shrink:1;
+}
+.hstat.ok{color:var(--green);}
+.hstat.ok2{color:var(--accent2);}
+.hstat.synth{color:var(--accent);}
+/* ── TRANSPORT ── */
+.transport{
+  background:var(--panel);border-bottom:2px solid var(--border);
+  padding:9px 14px;display:flex;align-items:center;gap:10px;
+  flex-shrink:0;flex-wrap:nowrap;overflow-x:auto;
+}
+.t-btn{
+  width:34px;height:34px;border-radius:50%;
+  border:2px solid var(--border2);background:var(--strip);
+  color:var(--text);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.t-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+.t-btn:disabled{opacity:.3;cursor:default;}
+.t-btn#playBtn.playing{background:#d0f0da;border-color:var(--play);color:var(--play);}
+.seek-wrap{
+  flex:1;min-width:80px;height:8px;background:var(--strip);
+  border-radius:4px;position:relative;cursor:pointer;
+  border:1px solid var(--border);overflow:visible;
+}
+.seek-prog{height:100%;background:var(--accent);border-radius:4px;pointer-events:none;width:0;}
+.seek-handle{
+  position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:14px;height:14px;background:var(--accent);border-radius:50%;
+  pointer-events:none;left:0;transition:left .05s;
+  box-shadow:0 0 6px rgba(232,160,32,0.6);
+}
+.time-disp{
+  font-family:'Share Tech Mono',monospace;font-size:13px;
+  color:var(--accent);white-space:nowrap;flex-shrink:0;min-width:115px;
+}
+.t-sep{color:var(--dim);margin:0 2px;}
+.tot-t{color:var(--dim);}
+.bpm-disp{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);white-space:nowrap;flex-shrink:0;}
+.bpm-val{color:var(--text);}
+.master-row{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.master-lbl{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:1px;}
+input#masterVol{
+  width:65px;-webkit-appearance:none;height:4px;
+  background:linear-gradient(to right,var(--accent) 0%,var(--accent) var(--pct,67%),var(--strip) var(--pct,67%));
+  border-radius:2px;outline:none;cursor:pointer;
+}
+input#masterVol::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;
+}
+/* ── RENDER MODE / OUTPUT MODE TOGGLES ── */
+.rm-grp{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+.rm-lbl{font-size:9px;font-weight:700;color:var(--dim);letter-spacing:1px;white-space:nowrap;margin-right:3px;}
+.rm-btn{
+  font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.8px;
+  padding:4px 7px;border-radius:2px;cursor:pointer;
+  border:1px solid var(--border2);background:var(--strip);color:var(--dim);
+  transition:all .12s;white-space:nowrap;
+}
+.rm-btn.active{background:var(--accent2);border-color:var(--accent2);color:#fff;}
+.rm-btn:not(.active):hover{border-color:var(--accent2);color:var(--accent2);}
+/* ── EXPORT BUTTONS ── */
+.exp-row{display:flex;gap:6px;flex-shrink:0;}
+.exp-btn{
+  font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.5px;
+  padding:5px 11px;border-radius:3px;cursor:pointer;
+  border:1px solid var(--border2);background:var(--strip);
+  color:var(--dim);transition:all .15s;
+}
+.exp-btn:not(:disabled):hover{border-color:var(--accent2);color:var(--accent2);}
+.exp-btn:disabled{opacity:.3;cursor:default;}
+/* ── RECORDING BAR ── */
+.rec-bar{
+  background:#180808;border-bottom:2px solid #a01010;
+  padding:5px 14px;display:none;align-items:center;gap:10px;
+  flex-shrink:0;
+}
+.rec-bar.on{display:flex;}
+.rec-dot{color:#ff4040;font-size:15px;animation:recblink .9s step-end infinite;}
+@keyframes recblink{0%,100%{opacity:1}50%{opacity:0;}}
+.rec-badge{font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;color:#ff5050;letter-spacing:2px;}
+.rec-time{font-family:'Share Tech Mono',monospace;font-size:13px;color:#ff3030;min-width:70px;}
+.rec-info{flex:1;font-family:'Share Tech Mono',monospace;font-size:10px;color:#804040;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rec-sbtn{
+  font-family:inherit;font-size:11px;font-weight:700;
+  padding:4px 10px;border:1px solid #c04040;background:#3c0000;
+  color:#ff8080;border-radius:3px;cursor:pointer;letter-spacing:.5px;
+}
+.rec-sbtn:hover{background:#600000;color:#ffaaaa;}
+.rec-xbtn{
+  font-family:inherit;font-size:11px;font-weight:700;
+  padding:4px 10px;border:1px solid var(--border2);background:var(--strip);
+  color:var(--dim);border-radius:3px;cursor:pointer;letter-spacing:.5px;
+}
+.rec-xbtn:hover{border-color:var(--red);color:var(--red);}
+/* ── MIXER ── */
+.mixer-outer{
+  flex:1;min-height:0;overflow:hidden;
+  background:linear-gradient(180deg,#eaecf4 0%,#e8eaf2 100%);
+  position:relative;
+}
+.mixer{
+  display:flex;height:100%;overflow-x:auto;overflow-y:hidden;
+  padding:12px;gap:6px;align-items:stretch;
+}
+.mixer::-webkit-scrollbar{height:7px;}
+.mixer::-webkit-scrollbar-track{background:var(--panel);}
+.mixer::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.empty{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  color:var(--dim);gap:10px;pointer-events:none;
+}
+.empty-icon{font-size:52px;opacity:.25;}
+.empty-title{font-size:16px;font-weight:700;letter-spacing:2px;opacity:.7;}
+.empty-sub{font-size:12px;opacity:.4;}
+/* ── CHANNEL STRIP ── */
+.ch{
+  width:88px;min-width:88px;background:var(--strip);border:1px solid var(--border);
+  border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;
+  padding:8px 6px 6px;gap:5px;flex-shrink:0;transition:border-color .2s,opacity .2s;position:relative;
+}
+.ch:hover{border-color:var(--border2);}
+.ch.ch-muted{opacity:.45;}
+.ch.ch-soloed{border-color:var(--solo-c) !important;box-shadow:0 0 10px rgba(56,170,238,0.15);}
+.ch.ch-drums{border-color:#5a3820;}
+.ch-num{font-size:9px;font-weight:700;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;}
+.ch-name{font-size:11px;font-weight:600;color:var(--text);text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;}
+.ch-sel{width:100%;font-family:inherit;font-size:9.5px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:2px 3px;cursor:pointer;outline:none;}
+.ch-sel:hover,.ch-sel:focus{border-color:var(--accent);}
+.ms-row{display:flex;gap:4px;width:100%;}
+.m-btn,.s-btn{flex:1;height:22px;border-radius:3px;border:1px solid var(--border);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;transition:all .1s;letter-spacing:.5px;}
+.m-btn{background:var(--panel);color:var(--mute-c);}
+.m-btn.on{background:var(--mute-c);color:#fff;border-color:var(--mute-c);}
+.s-btn{background:var(--panel);color:var(--solo-c);}
+.s-btn.on{background:var(--solo-c);color:#fff;border-color:var(--solo-c);}
+.level-row{flex:1;min-height:0;display:flex;align-items:stretch;gap:5px;width:100%;min-height:80px;}
+.vu{width:18px;flex-shrink:0;background:#e0e4ee;border:1px solid #c8d0e0;border-radius:2px;position:relative;overflow:hidden;}
+.vu-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(to top,var(--green) 0%,var(--green) 58%,var(--yellow) 74%,var(--red) 100%);transition:height .04s;}
+.vu-peak{position:absolute;left:1px;right:1px;height:2px;background:rgba(255,60,60,0.9);bottom:0%;transition:bottom .12s;}
+.vu::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(to bottom,transparent 0,transparent 5px,rgba(200,210,230,.5) 5px,rgba(200,210,230,.5) 6px);pointer-events:none;}
+.fader-wrap{flex:1;position:relative;display:flex;justify-content:center;align-items:center;}
+.ch-fader{-webkit-appearance:none;appearance:none;writing-mode:vertical-lr;direction:rtl;width:100%;height:100%;cursor:pointer;outline:none;background:transparent;padding:0;}
+.ch-fader::-webkit-slider-container{width:100%;height:100%;}
+.ch-fader::-webkit-slider-runnable-track{width:5px;background:linear-gradient(to top,var(--fader-a) 0%,var(--fader-a) var(--pct,100%),var(--border2) var(--pct,100%));border-radius:3px;border:none;}
+.ch-fader.inactive::-webkit-slider-runnable-track{background:var(--border);}
+.ch-fader::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:11px;background:linear-gradient(to bottom,#c8ccd8,#9098ac);border:1px solid #9098ac;border-radius:2px;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.2);margin-left:-11px;}
+.ch-fader::-moz-range-track{width:5px;background:var(--border2);border-radius:3px;}
+.ch-fader::-moz-range-thumb{width:22px;height:9px;background:linear-gradient(to bottom,#c8ccd8,#9098ac);border:1px solid #9098ac;border-radius:2px;}
+.ch-vol-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);text-align:center;}
+.ch-divider{width:1px;background:var(--border);flex-shrink:0;align-self:stretch;margin:0 2px;}
+/* ── OVERLAYS ── */
+.drop-overlay{position:fixed;inset:0;background:rgba(184,108,8,.07);border:3px dashed var(--accent);z-index:100;display:none;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--accent);letter-spacing:3px;pointer-events:none;}
+.drop-overlay.on{display:flex;}
+.exp-overlay{position:fixed;inset:0;background:rgba(255,255,255,.92);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--accent);font-size:15px;font-weight:700;letter-spacing:1px;}
+.exp-overlay.on{display:flex;}
+.exp-pbar-wrap{width:320px;height:5px;background:var(--strip);border-radius:3px;}
+.exp-pbar{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .25s;}
+/* ── STATUS ── */
+.status{background:var(--panel);border-top:1px solid var(--border);padding:3px 14px;font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+</style>
+</head>
+<body>
+
+<div class="drop-overlay" id="dropOverlay">◉ DROP SF2 OR MIDI</div>
+<div class="exp-overlay" id="expOverlay">
+  <div id="expMsg">Rendering…</div>
+  <div class="exp-pbar-wrap"><div class="exp-pbar" id="expBar"></div></div>
+</div>
+
+<!-- ════ HEADER ════ -->
+<div class="hdr">
+  <div class="logo">◉ MIDI PLAYER</div>
+  <button class="hbtn" id="sf2Btn" onclick="$('sf2In').click()">🎷 Load SF2</button>
+  <input type="file" id="sf2In" accept=".sf2" style="display:none" onchange="onSF2(event)">
+  <span class="hstat synth" id="sf2Stat">No SF2 — system synth</span>
+  <button class="hbtn" id="midiBtn" onclick="$('midiIn').click()">♫ Load MIDI</button>
+  <input type="file" id="midiIn" accept=".mid,.midi" style="display:none" onchange="onMIDI(event)">
+  <span class="hstat" id="midiStat">No MIDI file</span>
+</div>
+
+<!-- ════ TRANSPORT ════ -->
+<div class="transport">
+  <button class="t-btn" id="playBtn" onclick="togglePlay()" disabled title="Play/Pause (Space)">▶</button>
+  <button class="t-btn" id="stopBtn" onclick="doStop()"    disabled title="Stop">■</button>
+
+  <div class="seek-wrap" id="seekWrap" onmousedown="seekDown(event)">
+    <div class="seek-prog" id="seekProg"></div>
+    <div class="seek-handle" id="seekHnd"></div>
+  </div>
+
+  <div class="time-disp">
+    <span id="curT">0:00.0</span><span class="t-sep">/</span><span class="tot-t" id="totT">0:00.0</span>
+  </div>
+  <div class="bpm-disp">BPM <span class="bpm-val" id="bpmV">—</span></div>
+
+  <div class="master-row">
+    <span class="master-lbl">MSTR</span>
+    <input type="range" id="masterVol" min="0" max="150" value="100" oninput="onMasterVol(this)">
+    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);min-width:32px" id="mVolLbl">100%</span>
+  </div>
+
+  <!-- RENDER MODE: Express / Live -->
+  <div class="rm-grp">
+    <span class="rm-lbl">RND</span>
+    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
+    <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
+  </div>
+
+  <!-- OUTPUT MODE: Mix / Stems -->
+  <div class="rm-grp">
+    <span class="rm-lbl">OUT</span>
+    <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
+    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
+  </div>
+
+  <div class="exp-row">
+    <button class="exp-btn" id="wavBtn" onclick="doExportWAV()" disabled>⬇ WAV</button>
+    <button class="exp-btn" id="mp3Btn" onclick="doExportMP3()" disabled>⬇ MP3</button>
+  </div>
+</div>
+
+<!-- ════ RECORDING BAR (shown during live recording) ════ -->
+<div class="rec-bar" id="recBar">
+  <span class="rec-dot">●</span>
+  <span class="rec-badge">REC</span>
+  <span class="rec-time" id="recTime">0:00.0</span>
+  <span class="rec-info" id="recInfo"></span>
+  <button class="rec-sbtn" onclick="finalizeLiveRecording(false)">■ STOP &amp; SAVE</button>
+  <button class="rec-xbtn" onclick="finalizeLiveRecording(true)">✕ CANCEL</button>
+</div>
+
+<!-- ════ MIXER ════ -->
+<div class="mixer-outer">
+  <div class="mixer" id="mixer">
+    <div class="empty" id="emptyMsg">
+      <div class="empty-icon">🎹</div>
+      <div class="empty-title">SF2 MIDI PLAYER</div>
+      <div class="empty-sub">Load a MIDI file to start — SF2 optional (system synth used by default)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ STATUS ════ -->
+<div class="status" id="statusBar">Ready — load a MIDI file (SF2 optional; system synth used for playback)</div>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+/* ════════════════════════════════════════════
+   GM INSTRUMENT LIST
+════════════════════════════════════════════ */
+const GM = [
+  'Acoustic Grand Piano','Bright Acoustic Piano','Electric Grand Piano','Honky-tonk Piano',
+  'Electric Piano 1','Electric Piano 2','Harpsichord','Clavi',
+  'Celesta','Glockenspiel','Music Box','Vibraphone',
+  'Marimba','Xylophone','Tubular Bells','Dulcimer',
+  'Drawbar Organ','Percussive Organ','Rock Organ','Church Organ',
+  'Reed Organ','Accordion','Harmonica','Tango Accordion',
+  'Acoustic Guitar (nylon)','Acoustic Guitar (steel)','Electric Guitar (jazz)','Electric Guitar (clean)',
+  'Electric Guitar (muted)','Overdriven Guitar','Distortion Guitar','Guitar Harmonics',
+  'Acoustic Bass','Electric Bass (finger)','Electric Bass (pick)','Fretless Bass',
+  'Slap Bass 1','Slap Bass 2','Synth Bass 1','Synth Bass 2',
+  'Violin','Viola','Cello','Contrabass',
+  'Tremolo Strings','Pizzicato Strings','Orchestral Harp','Timpani',
+  'String Ensemble 1','String Ensemble 2','Synth Strings 1','Synth Strings 2',
+  'Choir Aahs','Voice Oohs','Synth Voice','Orchestra Hit',
+  'Trumpet','Trombone','Tuba','Muted Trumpet',
+  'French Horn','Brass Section','Synth Brass 1','Synth Brass 2',
+  'Soprano Sax','Alto Sax','Tenor Sax','Baritone Sax',
+  'Oboe','English Horn','Bassoon','Clarinet',
+  'Piccolo','Flute','Recorder','Pan Flute',
+  'Blown Bottle','Shakuhachi','Whistle','Ocarina',
+  'Lead 1 (square)','Lead 2 (sawtooth)','Lead 3 (calliope)','Lead 4 (chiff)',
+  'Lead 5 (charang)','Lead 6 (voice)','Lead 7 (fifths)','Lead 8 (bass+lead)',
+  'Pad 1 (new age)','Pad 2 (warm)','Pad 3 (polysynth)','Pad 4 (choir)',
+  'Pad 5 (bowed)','Pad 6 (metallic)','Pad 7 (halo)','Pad 8 (sweep)',
+  'FX 1 (rain)','FX 2 (soundtrack)','FX 3 (crystal)','FX 4 (atmosphere)',
+  'FX 5 (brightness)','FX 6 (goblins)','FX 7 (echoes)','FX 8 (sci-fi)',
+  'Sitar','Banjo','Shamisen','Koto',
+  'Kalimba','Bagpipe','Fiddle','Shanai',
+  'Tinkle Bell','Agogo','Steel Drums','Woodblock',
+  'Taiko Drum','Melodic Tom','Synth Drum','Reverse Cymbal',
+  'Guitar Fret Noise','Breath Noise','Seashore','Bird Tweet',
+  'Telephone Ring','Helicopter','Applause','Gunshot'
+];
+
+/* ════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════ */
+let AC = null, masterGain = null;
+let sf2 = null;
+const sf2Cache = {};
+let midi = null;
+let midiEvts = [];
+let tempoMap = [];
+let TPB = 480;
+let totalTicks = 0, totalSecs = 0;
+
+// Web MIDI fallback (when no SF2 loaded)
+let midiAccess = null;
+let midiOut    = null;  // MIDIOutput
+// Per-channel fake VU state for MIDI mode (since audio bypasses Web Audio graph)
+const midiVU   = Array.from({length:16}, ()=>({level:0, peak:0, peakTime:0}));
+
+const CH = Array.from({length:16}, (_,i) => ({
+  id:i, name:`CH ${i+1}`, program:0,
+  vol:100, muted:false, soloed:false, active:false,
+  gainNode:null, analyser:null, analyserBuf:null,
+  vuSmooth:0, peak:0, peakTime:0,
+  userOverride: null   // set when user manually changes instrument
+}));
+
+let playing   = false;
+let pbStartAC = 0;
+let pbStartTick = 0;
+let evtIdx    = 0;
+let schedTimer = null;
+let pendingNotes = {};
+let activeNodes  = [];
+let rafId = null;
+const LOOKAHEAD = 0.3;
+const SCHED_MS  = 40;
+
+// ── New render/output state ──
+let renderMode = 'express'; // 'express' | 'live'
+let outputMode = 'mix';     // 'mix' | 'stems'
+let liveRec    = null;      // live recording state object
+
+/* ════════════════════════════════════════════
+   AUDIO CONTEXT
+════════════════════════════════════════════ */
+function ensureAC() {
+  if (!AC) {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = AC.createGain();
+    masterGain.gain.value = 1.0;
+    masterGain.connect(AC.destination);
+    CH.forEach(ch => {
+      ch.gainNode = AC.createGain();
+      ch.gainNode.gain.value = 1.0;
+      ch.analyser = AC.createAnalyser();
+      ch.analyser.fftSize = 256;
+      ch.analyser.smoothingTimeConstant = 0.75;
+      ch.analyserBuf = new Float32Array(ch.analyser.fftSize);
+      ch.gainNode.connect(ch.analyser);
+      ch.analyser.connect(masterGain);
+    });
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+
+function chGainVal(ch) {
+  const anySolo = CH.some(c => c.soloed && c.active);
+  if (ch.muted) return 0;
+  if (anySolo && !ch.soloed) return 0;
+  return ch.vol / 100;
+}
+
+function refreshChGain(chIdx) {
+  const ch = CH[chIdx];
+  if (!ch.gainNode || !AC) return;
+  ch.gainNode.gain.setTargetAtTime(chGainVal(ch), AC.currentTime, 0.02);
+}
+
+function updateButtonStates() {
+  const hasMidi = !!midi;
+  const canExport = hasMidi && !!sf2; // export requires SF2
+  $('playBtn').disabled = !hasMidi;
+  $('stopBtn').disabled = !hasMidi;
+  $('wavBtn').disabled  = !canExport;
+  $('mp3Btn').disabled  = !canExport;
+  $('wavBtn').title = canExport ? '' : 'Load SF2 soundfont to enable WAV export';
+  $('mp3Btn').title = canExport ? '' : 'Load SF2 soundfont to enable MP3 export';
+}
+
+/* ════════════════════════════════════════════
+   WEB MIDI — system synth fallback
+   Used when no SF2 is loaded.
+   Notes are sent via setTimeout (no timestamp-API issues).
+   VU meters are simulated from note velocity.
+════════════════════════════════════════════ */
+async function initMIDIOut() {
+  if (!navigator.requestMIDIAccess) {
+    setStatus('Web MIDI not supported in this browser (try Chrome/Edge)');
+    return;
+  }
+  try {
+    midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+    pickMIDIOut();
+    midiAccess.onstatechange = pickMIDIOut;
+  } catch(e) {
+    setStatus('MIDI access denied — load an SF2 soundfont for audio playback');
+    console.warn('MIDI:', e);
+  }
+}
+
+function pickMIDIOut() {
+  const outputs = [...midiAccess.outputs.values()];
+  midiOut = outputs[0] || null;
+  if (midiOut) {
+    $('sf2Stat').textContent = `⬩ ${midiOut.name}`;
+    $('sf2Stat').className = 'hstat synth';
+    setStatus(`System synth: ${midiOut.name}`);
+  } else {
+    $('sf2Stat').textContent = 'No MIDI output found';
+    $('sf2Stat').className = 'hstat';
+  }
+}
+
+/** Schedule a raw MIDI message via setTimeout (ms delay from now). */
+function midiSend(msg, delayMs) {
+  if (!midiOut) return;
+  const d = Math.max(0, delayMs);
+  if (d < 1) {
+    try { midiOut.send(msg); } catch(e) {}
+  } else {
+    setTimeout(() => { try { midiOut.send(msg); } catch(e) {} }, d);
+  }
+}
+
+function midiAllOff() {
+  if (!midiOut) return;
+  for (let ch = 0; ch < 16; ch++) {
+    try {
+      midiOut.send([0xB0 | ch, 123, 0]); // all notes off
+      midiOut.send([0xB0 | ch, 120, 0]); // all sound off
+    } catch(e) {}
+  }
+}
+
+function midiSyncPrograms() {
+  // Send PC + CC7 for all active channels to sync state after seek
+  if (!midiOut || sf2) return;
+  CH.forEach(ch => {
+    if (!ch.active) return;
+    if (ch.id !== 9) {
+      try { midiOut.send([0xC0 | ch.id, ch.program]); } catch(e) {}
+    }
+    // Channel volume
+    const anySolo = CH.some(c => c.soloed && c.active);
+    const muted   = ch.muted || (anySolo && !ch.soloed);
+    const vol     = muted ? 0 : Math.round(Math.min(127, ch.vol / 150 * 127));
+    try { midiOut.send([0xB0 | ch.id, 7, vol]); } catch(e) {}
+  });
+}
+
+/** Update fake VU for MIDI mode — called when note-on fires. */
+function midiVUHit(chIdx, vel) {
+  const pct = (vel / 127) * 100;
+  midiVU[chIdx].level = Math.max(midiVU[chIdx].level, pct);
+  if (pct > midiVU[chIdx].peak) {
+    midiVU[chIdx].peak     = pct;
+    midiVU[chIdx].peakTime = Date.now() + 1500;
+  }
+}
+
+/** Tick fake VU decay — called from rafLoop in MIDI mode. */
+function midiVUDecay(now) {
+  CH.forEach((ch, i) => {
+    if (!ch.active) return;
+    const v = midiVU[i];
+    v.level = Math.max(0, v.level - 3.5);
+    if (now > v.peakTime) v.peak = Math.max(0, v.peak - 0.8);
+    const fill = document.querySelector(`.vu-fill[data-ch="${i}"]`);
+    const peak = document.querySelector(`.vu-peak[data-ch="${i}"]`);
+    if (fill) fill.style.height = v.level + '%';
+    if (peak) peak.style.bottom = v.peak + '%';
+  });
+}
+
+/* ════════════════════════════════════════════
+   SF2 PARSER
+════════════════════════════════════════════ */
+function parseSF2(ab) {
+  const v = new DataView(ab);
+  const fcc = o => String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3));
+  if (fcc(0)!=='RIFF') throw new Error('Not a RIFF file');
+  if (fcc(8)!=='sfbk') throw new Error('Not SF2 (sfbk)');
+  const lists = {};
+  let off = 12;
+  while (off+8 <= ab.byteLength) {
+    const id = fcc(off), sz = v.getUint32(off+4,true);
+    if (id==='LIST') {
+      const lid = fcc(off+8), sub = {};
+      let so=off+12, se=off+8+sz;
+      while (so+8<=se) {
+        const sid=fcc(so), ssz=v.getUint32(so+4,true);
+        sub[sid]={start:so+8,size:ssz}; so+=8+ssz; if(so&1)so++;
+      }
+      lists[lid]=sub;
+    }
+    off+=8+sz; if(off&1)off++;
+  }
+  const sdta=lists.sdta||{}, pdta=lists.pdta||{};
+  const smpl=sdta.smpl;
+  if (!smpl) throw new Error('No smpl chunk');
+  for (const k of ['shdr','inst','ibag','igen','phdr','pbag','pgen'])
+    if (!pdta[k]) throw new Error('Missing SF2 chunk: '+k);
+  const C=pdta;
+  const shdrN = Math.floor(C.shdr.size/46), shdrs=[];
+  for (let i=0;i<shdrN;i++) {
+    const o=C.shdr.start+i*46, st=v.getUint16(o+44,true);
+    if (st===0||(st&0x8000)){shdrs.push(null);continue;}
+    const dS=v.getUint32(o+20,true), dE=v.getUint32(o+24,true);
+    if (dE<=dS){shdrs.push(null);continue;}
+    shdrs.push({dS,dE,dSl:v.getUint32(o+28,true),dEl:v.getUint32(o+32,true),
+      sr:v.getUint32(o+36,true),pitch:v.getUint8(o+40),fine:v.getUint8(o+41)});
+  }
+  const ibagN=Math.floor(C.ibag.size/4), ibagG=new Uint16Array(ibagN);
+  for(let i=0;i<ibagN;i++) ibagG[i]=v.getUint16(C.ibag.start+i*4,true);
+  const igenN=Math.floor(C.igen.size/4), iOp=new Uint16Array(igenN), iAm=new Uint16Array(igenN);
+  for(let i=0;i<igenN;i++){const o=C.igen.start+i*4;iOp[i]=v.getUint16(o,true);iAm[i]=v.getUint16(o+2,true);}
+  const instN=Math.floor(C.inst.size/22), instB=new Uint16Array(instN);
+  for(let i=0;i<instN;i++) instB[i]=v.getUint16(C.inst.start+i*22+20,true);
+  function buildZones(ii) {
+    if (ii>=instN-1) return [];
+    const bs=instB[ii], be=instB[ii+1], zones=[];
+    for (let b=bs;b<be;b++) {
+      const gs=ibagG[b], ge=(b+1<ibagN)?ibagG[b+1]:igenN;
+      let kl=0,kh=127,vl=0,vh=127,sid=-1,rk=-1,ct=0,ft=0,sc=100;
+      for (let g=gs;g<ge;g++) {
+        const op=iOp[g],am=iAm[g];
+        if(op===43){kl=am&0xFF;kh=(am>>8)&0xFF;}
+        if(op===44){vl=am&0xFF;vh=(am>>8)&0xFF;}
+        if(op===51){ct=am&0xFF;if(ct>127)ct-=256;}
+        if(op===52){ft=am&0xFF;if(ft>127)ft-=256;}
+        if(op===53) sid=am;
+        if(op===56) sc=am&0xFFFF;
+        if(op===58){const rr=am&0xFF;if(rr<=127)rk=rr;}
+      }
+      if (sid>=0 && sid<shdrs.length && shdrs[sid]) {
+        const sh=shdrs[sid];
+        const sf=sh.fine>127?sh.fine-256:sh.fine;
+        zones.push({kl,kh,vl,vh,sid,rk:rk>=0?rk:sh.pitch,ct,ft:ft+sf,
+          sc:sc>0?sc:100,lS:sh.dSl-sh.dS,lE:sh.dEl-sh.dS,
+          hasLoop:sh.dEl>sh.dSl&&sh.dSl>=sh.dS});
+      }
+    }
+    return zones;
+  }
+  const pbagN=Math.floor(C.pbag.size/4), pbagG=new Uint16Array(pbagN);
+  for(let i=0;i<pbagN;i++) pbagG[i]=v.getUint16(C.pbag.start+i*4,true);
+  const pgenN=Math.floor(C.pgen.size/4), pOp=new Uint16Array(pgenN), pAm=new Uint16Array(pgenN);
+  for(let i=0;i<pgenN;i++){const o=C.pgen.start+i*4;pOp[i]=v.getUint16(o,true);pAm[i]=v.getUint16(o+2,true);}
+  const phdrN=Math.floor(C.phdr.size/38);
+  const progZ={}, percZ={};
+  for (let i=0;i<phdrN-1;i++) {
+    const o=C.phdr.start+i*38;
+    const preset=v.getUint16(o+20,true), bank=v.getUint16(o+22,true);
+    if(bank!==0&&bank!==128) continue;
+    const bs=v.getUint16(o+24,true), be=v.getUint16(C.phdr.start+(i+1)*38+24,true);
+    const zones=[];
+    for(let b=bs;b<be;b++){
+      const gs=pbagG[b], ge=(b+1<pbagN)?pbagG[b+1]:pgenN;
+      for(let g=gs;g<ge;g++) if(pOp[g]===41) zones.push(...buildZones(pAm[g]));
+    }
+    if(zones.length>0) (bank===128?percZ:progZ)[preset]=zones;
+  }
+  if (!Object.keys(progZ).length && !Object.keys(percZ).length)
+    throw new Error('No GM presets found');
+  return {v, smplOff:smpl.start, shdrs, progZ, percZ};
+}
+
+function sf2Buf(ctx, sf2d, cache, sid) {
+  if (cache[sid]) return cache[sid];
+  const sh=sf2d.shdrs[sid];
+  if (!sh||sh.sr<=0) return null;
+  const n=sh.dE-sh.dS; if(n<=0||n>8e6) return null;
+  const buf=ctx.createBuffer(1,n,sh.sr), data=buf.getChannelData(0);
+  const base=sf2d.smplOff+sh.dS*2;
+  for(let i=0;i<n;i++) data[i]=sf2d.v.getInt16(base+i*2,true)/32768;
+  cache[sid]=buf; return buf;
+}
+
+function sf2Zone(sf2d, prog, note, vel, isPerc) {
+  let zones;
+  if (isPerc) {
+    zones = sf2d.percZ[prog] || sf2d.percZ[0] || sf2d.progZ[0];
+  } else {
+    zones = sf2d.progZ[prog];
+    if (!zones) {
+      const ks=Object.keys(sf2d.progZ).map(Number).sort((a,b)=>a-b);
+      if (!ks.length) return null;
+      zones=sf2d.progZ[ks.reduce((p,c)=>Math.abs(c-prog)<Math.abs(p-prog)?c:p)];
+    }
+  }
+  if (!zones) return null;
+  const vv=vel??64;
+  return zones.find(z=>note>=z.kl&&note<=z.kh&&vv>=(z.vl||0)&&vv<=(z.vh||127))
+      || zones.find(z=>note>=z.kl&&note<=z.kh)
+      || zones[0];
+}
+
+function sf2Play(ctx, sf2d, cache, note, prog, t0, dur, gain, vel, dest, isPerc) {
+  if (!sf2d||!ctx) return null;
+  const zone=sf2Zone(sf2d, prog, note, vel, isPerc);
+  if (!zone) return null;
+  const ab=sf2Buf(ctx, sf2d, cache, zone.sid);
+  if (!ab) return null;
+  const cents = isPerc
+    ? zone.ct*100 + zone.ft
+    : (note-zone.rk)*zone.sc + zone.ct*100 + zone.ft;
+  const rate=Math.pow(2,cents/1200);
+  const src=ctx.createBufferSource();
+  src.buffer=ab; src.playbackRate.value=rate;
+  if (zone.hasLoop && zone.lE>zone.lS && zone.lE<=ab.length) {
+    src.loop=true;
+    src.loopStart=zone.lS/ab.sampleRate;
+    src.loopEnd=zone.lE/ab.sampleRate;
+  }
+  const gn=ctx.createGain();
+  const sg=Math.max(0.001,Math.min(2,gain));
+  gn.gain.setValueAtTime(sg,t0);
+  src.connect(gn); gn.connect(dest||ctx.destination);
+  if(dur===null) {
+    src.start(t0);
+    if(!zone.hasLoop) src.stop(t0+30);
+    const node={src,gn,sg,
+      stop(){ try{gn.gain.cancelScheduledValues(0);src.stop(0);}catch(e){} },
+      stopAt(t){
+        try{
+          const rt=Math.max(t0,t), rel=0.05;
+          gn.gain.cancelScheduledValues(rt);
+          gn.gain.setValueAtTime(sg,rt);
+          gn.gain.linearRampToValueAtTime(0.0001,rt+rel);
+          src.stop(rt+rel+0.025);
+        }catch(e){}
+      }
+    };
+    return node;
+  } else {
+    const rel=Math.min(0.06,dur*0.05), fs=t0+dur-rel;
+    gn.gain.setValueAtTime(sg,Math.max(t0,fs));
+    gn.gain.linearRampToValueAtTime(0.0001,t0+dur);
+    src.start(t0); src.stop(t0+dur+0.025);
+    return {src,gn,sg,
+      stop(){ try{gn.gain.cancelScheduledValues(0);src.stop(0);}catch(e){} },
+      stopAt(t){ try{src.stop(Math.max(t0,t)+0.025);}catch(e){} }
+    };
+  }
+}
+
+/* ════════════════════════════════════════════
+   MIDI PARSER
+════════════════════════════════════════════ */
+function parseMIDI(ab) {
+  const d=new DataView(ab); let p=0;
+  const r32=()=>{const v=d.getUint32(p);p+=4;return v;};
+  const r16=()=>{const v=d.getUint16(p);p+=2;return v;};
+  const r8=()=>d.getUint8(p++);
+  const rVL=()=>{let v=0,b;do{b=r8();v=(v<<7)|(b&0x7F);}while(b&0x80);return v;};
+  if(r32()!==0x4D546864) throw new Error('Not a MIDI file');
+  p+=4;
+  const fmt=r16(), nTrk=r16(), tpb=r16();
+  const tracks=[];
+  for(let t=0;t<nTrk;t++) {
+    const cid=r32();
+    if(cid!==0x4D54726B){ const skip=r32(); p+=skip; tracks.push([]); continue; }
+    const tLen=r32(), tEnd=p+tLen;
+    const evts=[]; let tick=0, lastSt=0;
+    while(p<tEnd) {
+      const delta=rVL(); tick+=delta;
+      let st=d.getUint8(p);
+      if(st&0x80){lastSt=st;p++;}else st=lastSt;
+      const ty=st&0xF0, ch=st&0x0F;
+      if(ty===0x80||ty===0x90){
+        const nt=r8(),vel=r8();
+        evts.push({tick,type:(ty===0x90&&vel>0)?'on':'off',ch,note:nt,vel});
+      } else if(ty===0xA0){r8();r8();}
+      else if(ty===0xB0){
+        const cc=r8(),vv=r8();
+        evts.push({tick,type:'cc',ch,cc,vv});
+      } else if(ty===0xC0){
+        const prog=r8();
+        evts.push({tick,type:'pc',ch,prog});
+      } else if(ty===0xD0){r8();}
+      else if(ty===0xE0){
+        const lo=r8(),hi=r8();
+        evts.push({tick,type:'pb',ch,val:((hi<<7)|lo)-8192});
+      } else if(st===0xFF){
+        const mt=r8(), ml=rVL(), ms=p;
+        if(mt===0x51){
+          const us=(d.getUint8(p)<<16)|(d.getUint8(p+1)<<8)|d.getUint8(p+2);
+          evts.push({tick,type:'tempo',uspb:us});
+        } else if(mt===0x03){
+          let nm=''; for(let i=0;i<ml;i++) nm+=String.fromCharCode(d.getUint8(p+i));
+          evts.push({tick,type:'name',name:nm});
+        }
+        p=ms+ml;
+      } else if(st===0xF0||st===0xF7){
+        p+=rVL();
+      } else { lastSt=0; }
+      if(p>tEnd) break;
+    }
+    p=tEnd; tracks.push(evts);
+  }
+  return {fmt, tpb, tracks};
+}
+
+/* ════════════════════════════════════════════
+   TIMING
+════════════════════════════════════════════ */
+function buildTempo(midi) {
+  const map=[{tick:0,uspb:500000,time:0}];
+  const te=[];
+  for(const tr of midi.tracks) for(const e of tr) if(e.type==='tempo') te.push(e);
+  te.sort((a,b)=>a.tick-b.tick);
+  for(const t of te) {
+    if(t.tick===0){map[0].uspb=t.uspb;continue;}
+    const last=map[map.length-1];
+    const dt=(t.tick-last.tick)*last.uspb/(TPB*1e6);
+    map.push({tick:t.tick,uspb:t.uspb,time:last.time+dt});
+  }
+  return map;
+}
+
+function t2s(tick) {
+  let e=tempoMap[0];
+  for(let i=tempoMap.length-1;i>=0;i--){if(tempoMap[i].tick<=tick){e=tempoMap[i];break;}}
+  return e.time+(tick-e.tick)*e.uspb/(TPB*1e6);
+}
+
+function s2t(sec) {
+  let e=tempoMap[0];
+  for(let i=tempoMap.length-1;i>=0;i--){if(tempoMap[i].time<=sec){e=tempoMap[i];break;}}
+  return e.tick+(sec-e.time)*TPB*1e6/e.uspb;
+}
+
+function bpmAt(tick) {
+  let u=500000;
+  for(const e of tempoMap){if(e.tick<=tick)u=e.uspb;else break;}
+  return Math.round(60000000/u);
+}
+
+/* ════════════════════════════════════════════
+   PROCESS MIDI → CHANNEL STATE
+════════════════════════════════════════════ */
+function processMIDI(data) {
+  midi=data; TPB=data.tpb;
+  tempoMap=buildTempo(data);
+  const all=[];
+  for(const tr of data.tracks) for(const e of tr) all.push(e);
+  all.sort((a,b)=>a.tick!==b.tick?a.tick-b.tick:
+    (a.type==='off'?-1:b.type==='off'?1:0));
+  midiEvts=all;
+  totalTicks=all.reduce((m,e)=>Math.max(m,e.tick),0);
+  totalSecs=t2s(totalTicks)+0.5;
+  CH.forEach(ch=>{ch.active=false;ch.program=0;ch.name=`CH ${ch.id+1}`;ch.userOverride=null;});
+  const trackChMap={};
+  for(const tr of data.tracks){
+    const nameEvt=tr.find(e=>e.type==='name');
+    const firstNote=tr.find(e=>e.type==='on');
+    if(nameEvt&&firstNote) trackChMap[firstNote.ch]=nameEvt.name;
+    for(const e of tr){
+      if(e.type==='pc') CH[e.ch].program=e.prog;
+      if(e.type==='on') CH[e.ch].active=true;
+    }
+  }
+  if(!CH[9].active && all.some(e=>e.type==='on'&&e.ch===9)) CH[9].active=true;
+  CH.forEach(ch=>{
+    if(trackChMap[ch.id]) ch.name=trackChMap[ch.id];
+    else if(ch.id===9&&ch.active) ch.name='Drums';
+  });
+  renderMixer();
+  updateTransport();
+  setStatus(`Loaded: ${data.tracks.length} tracks · ${all.filter(e=>e.type==='on').length} notes · ${fmtTime(totalSecs)} · playback: ${sf2?'SF2':'system MIDI'}`);
+  updateButtonStates();
+}
+
+/* ════════════════════════════════════════════
+   PLAYBACK ENGINE
+════════════════════════════════════════════ */
+function schedLoop() {
+  if(!playing) return;
+  const now=AC.currentTime;
+  const elapsed=now-pbStartAC;
+  const nowSec=t2s(pbStartTick)+elapsed;
+  const schedUntilTick=s2t(nowSec+LOOKAHEAD);
+
+  while(evtIdx<midiEvts.length) {
+    const e=midiEvts[evtIdx];
+    if(e.tick>schedUntilTick) break;
+    const eSec=t2s(e.tick), eAC=pbStartAC+(eSec-t2s(pbStartTick));
+    const ch=CH[e.ch];
+
+    if(e.type==='on'&&ch.active) {
+      const key=`${e.ch}:${e.note}`;
+      const existing=pendingNotes[key];
+      if(existing&&existing.node) existing.node.stopAt(eAC);
+      const isP=(e.ch===9);
+
+      const anySolo=CH.some(c=>c.soloed&&c.active);
+      const muted=ch.muted||(anySolo&&!ch.soloed);
+
+      if (sf2) {
+        // ── SF2 path ──
+        const gain=(e.vel/127);
+        const node=sf2Play(AC,sf2,sf2Cache,e.note,ch.program,eAC,
+          isP?2.0:null,gain,e.vel,ch.gainNode,isP);
+        if(node) activeNodes.push(node);
+        pendingNotes[key]={node,vel:e.vel,prog:ch.program};
+      } else {
+        // ── System MIDI path ──
+        // delay in ms from now until the event's scheduled AC time
+        const delayMs=(eAC-AC.currentTime)*1000;
+        if(!muted) {
+          const vel=Math.round(e.vel*(ch.vol/100));
+          midiSend([0x90|e.ch, e.note, Math.max(1,Math.min(127,vel))], delayMs);
+          // Fake VU — fire at the same delay
+          setTimeout(()=>{ if(playing) midiVUHit(e.ch, e.vel); }, Math.max(0,delayMs));
+        }
+        pendingNotes[key]={node:null,vel:e.vel,prog:ch.program,muted,delayMs};
+      }
+    } else if(e.type==='off') {
+      const key=`${e.ch}:${e.note}`;
+      const st=pendingNotes[key];
+      if(st){
+        delete pendingNotes[key];
+        if(sf2) {
+          if(st.node) st.node.stopAt(eAC);
+        } else {
+          const delayMs=(eAC-AC.currentTime)*1000;
+          if(!st.muted) midiSend([0x80|e.ch, e.note, 0], delayMs);
+        }
+      }
+    } else if(e.type==='pc') {
+      ch.program=e.prog;
+      const sel=document.querySelector(`.ch-sel[data-ch="${e.ch}"]`);
+      if(sel) sel.value=e.prog;
+      if(!sf2 && e.ch!==9) {
+        const delayMs=(eAC-AC.currentTime)*1000;
+        midiSend([0xC0|e.ch, e.prog], delayMs);
+      }
+    }
+    evtIdx++;
+  }
+
+  if(evtIdx>=midiEvts.length) {
+    const remain=totalSecs-nowSec;
+    setTimeout(()=>{ if(playing) doStop(); }, Math.max(500,remain*1000+800));
+  }
+}
+
+function startPlay() {
+  if(!AC) ensureAC();
+  if(!midi) return;
+  AC.resume();
+  playing=true;
+  pbStartAC=AC.currentTime;
+
+  // Replay PC events before start tick (MIDI file programs)
+  CH.forEach(ch=>{ch.program=0;});
+  evtIdx=0;
+  while(evtIdx<midiEvts.length&&midiEvts[evtIdx].tick<pbStartTick){
+    const e=midiEvts[evtIdx];
+    if(e.type==='pc') CH[e.ch].program=e.prog;
+    evtIdx++;
+  }
+  // Apply user overrides on top of MIDI file programs
+  CH.forEach(ch=>{
+    if(ch.userOverride!==null) ch.program=ch.userOverride;
+  });
+  // Sync system MIDI state (programs + volumes) after seek/start
+  if(!sf2) midiSyncPrograms();
+
+  for(const k in pendingNotes) delete pendingNotes[k];
+  schedLoop();
+  schedTimer=setInterval(schedLoop,SCHED_MS);
+  $('playBtn').innerHTML='⏸';
+  $('playBtn').classList.add('playing');
+  startRAF();
+}
+
+function pausePlay() {
+  playing=false;
+  clearInterval(schedTimer);
+  const elapsed=AC.currentTime-pbStartAC;
+  pbStartTick=Math.round(s2t(t2s(pbStartTick)+elapsed));
+  killNodes();
+  $('playBtn').innerHTML='▶';
+  $('playBtn').classList.remove('playing');
+}
+
+function doStop() {
+  playing=false;
+  clearInterval(schedTimer);
+  killNodes();
+  pbStartTick=0;
+  $('playBtn').innerHTML='▶';
+  $('playBtn').classList.remove('playing');
+  updateTransport();
+  // Auto-finalize live recording when song ends
+  if(liveRec) setTimeout(()=>finalizeLiveRecording(false), 250);
+}
+
+function togglePlay() {
+  if(!midi) return;
+  ensureAC();
+  if(liveRec) return; // don't allow toggle during live recording
+  playing ? pausePlay() : startPlay();
+}
+
+function killNodes() {
+  activeNodes.forEach(n=>{try{n.stop();}catch(e){}});
+  activeNodes=[];
+  for(const k in pendingNotes) delete pendingNotes[k];
+  if(!sf2) midiAllOff();
+}
+
+/* ════════════════════════════════════════════
+   RAF LOOP — VU + TRANSPORT + REC TIMER
+════════════════════════════════════════════ */
+function startRAF(){ if(rafId) cancelAnimationFrame(rafId); rafLoop(); }
+
+function rafLoop() {
+  rafId=requestAnimationFrame(rafLoop);
+  if(playing&&AC) {
+    const elapsed=AC.currentTime-pbStartAC;
+    const curSec=t2s(pbStartTick)+elapsed;
+    const pct=Math.min(1,curSec/Math.max(1,totalSecs));
+    $('seekProg').style.width=(pct*100)+'%';
+    $('seekHnd').style.left=(pct*100)+'%';
+    $('curT').textContent=fmtTime(curSec);
+    $('bpmV').textContent=bpmAt(Math.round(s2t(curSec)));
+    if(curSec>=totalSecs+0.3) doStop();
+  }
+  // Update rec timer
+  if(liveRec&&liveRec.startAC!==undefined&&AC) {
+    const recElapsed=AC.currentTime-liveRec.startAC;
+    $('recTime').textContent=fmtTime(Math.max(0,recElapsed));
+  }
+  // VU meters
+  const now=Date.now();
+  if(sf2) {
+    // SF2: read real Web Audio analyser data
+    CH.forEach((ch,i)=>{
+      if(!ch.active||!ch.analyser||!ch.analyserBuf) return;
+      ch.analyser.getFloatTimeDomainData(ch.analyserBuf);
+      let rms=0;
+      for(const s of ch.analyserBuf) rms+=s*s;
+      rms=Math.sqrt(rms/ch.analyserBuf.length);
+      const db=20*Math.log10(Math.max(rms,1e-10));
+      const pct=Math.max(0,Math.min(100,(db+60)/60*100));
+      ch.vuSmooth=ch.vuSmooth*0.65+pct*0.35;
+      if(pct>ch.peak){ch.peak=pct;ch.peakTime=now+1800;}
+      if(now>ch.peakTime) ch.peak=Math.max(0,ch.peak-0.8);
+      const fill=document.querySelector(`.vu-fill[data-ch="${i}"]`);
+      const peak=document.querySelector(`.vu-peak[data-ch="${i}"]`);
+      if(fill) fill.style.height=ch.vuSmooth+'%';
+      if(peak) peak.style.bottom=ch.peak+'%';
+    });
+  } else {
+    // MIDI: use simulated VU driven by note-on velocity hits
+    midiVUDecay(now);
+  }
+}
+
+/* ════════════════════════════════════════════
+   SEEK
+════════════════════════════════════════════ */
+let seekActive=false;
+function seekDown(e){
+  if(!midi||liveRec) return;
+  seekActive=true;
+  doSeek(e);
+  const mv=ev=>{if(seekActive)doSeek(ev);};
+  const up=ev=>{seekActive=false;doSeek(ev);
+    document.removeEventListener('mousemove',mv);
+    document.removeEventListener('mouseup',up);};
+  document.addEventListener('mousemove',mv);
+  document.addEventListener('mouseup',up);
+}
+function doSeek(e) {
+  const r=$('seekWrap').getBoundingClientRect();
+  const pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  const newSec=pct*totalSecs, newTick=Math.round(s2t(newSec));
+  $('seekProg').style.width=(pct*100)+'%';
+  $('seekHnd').style.left=(pct*100)+'%';
+  $('curT').textContent=fmtTime(newSec);
+  const wasPlaying=playing;
+  if(wasPlaying) pausePlay();
+  pbStartTick=newTick;
+  if(wasPlaying) startPlay();
+}
+
+/* ════════════════════════════════════════════
+   MIXER UI
+════════════════════════════════════════════ */
+const GM_OPTS = GM.map((n,i)=>`<option value="${i}">${i}: ${n}</option>`).join('');
+
+function renderMixer() {
+  const mixer=$('mixer');
+  const active=CH.filter(c=>c.active);
+  if(!active.length){
+    mixer.innerHTML=`<div class="empty" id="emptyMsg">
+      <div class="empty-icon">🎹</div>
+      <div class="empty-title">SF2 MIDI PLAYER</div>
+      <div class="empty-sub">Load a MIDI file to start — SF2 soundfont optional</div>
+    </div>`;
+    return;
+  }
+  mixer.innerHTML=active.map(ch=>stripHTML(ch)).join('<div class="ch-divider"></div>');
+  requestAnimationFrame(postRender);
+}
+
+function stripHTML(ch) {
+  const drums=ch.id===9;
+  const instSel=drums
+    ? `<select class="ch-sel" data-ch="${ch.id}"><option value="-1">🥁 Percussion</option></select>`
+    : `<select class="ch-sel" data-ch="${ch.id}" onchange="onInstChange(${ch.id},this.value)">${GM_OPTS}</select>`;
+  return `
+<div class="ch${ch.muted?' ch-muted':''}${ch.soloed?' ch-soloed':''}${drums?' ch-drums':''}" id="ch${ch.id}">
+  <div class="ch-num">CH ${ch.id+1}</div>
+  <div class="ch-name" title="${ch.name}">${ch.name.length>9?ch.name.slice(0,9)+'…':ch.name}</div>
+  ${instSel}
+  <div class="ms-row">
+    <button class="m-btn${ch.muted?' on':''}" onclick="onMute(${ch.id})">M</button>
+    <button class="s-btn${ch.soloed?' on':''}" onclick="onSolo(${ch.id})">S</button>
+  </div>
+  <div class="level-row">
+    <div class="vu">
+      <div class="vu-fill" data-ch="${ch.id}" style="height:0%"></div>
+      <div class="vu-peak" data-ch="${ch.id}" style="bottom:0%"></div>
+    </div>
+    <div class="fader-wrap">
+      <input type="range" class="ch-fader"
+        data-ch="${ch.id}" min="0" max="150" value="${ch.vol}"
+        orient="vertical"
+        oninput="onVol(${ch.id},this.value)">
+    </div>
+  </div>
+  <div class="ch-vol-lbl" id="vl${ch.id}">${ch.vol}%</div>
+</div>`;
+}
+
+function postRender() {
+  CH.filter(c=>c.active).forEach(ch=>{
+    const sel=document.querySelector(`.ch-sel[data-ch="${ch.id}"]`);
+    if(sel&&ch.id!==9) sel.value=ch.program;
+  });
+}
+
+function onInstChange(chIdx, val) {
+  const prog = parseInt(val);
+  CH[chIdx].program = prog;
+  CH[chIdx].userOverride = prog;
+  if(!sf2 && chIdx!==9) midiSend([0xC0|chIdx, prog], 0);
+}
+
+function onMute(chIdx) {
+  const ch=CH[chIdx]; ch.muted=!ch.muted;
+  refreshChGain(chIdx);
+  const strip=$(`ch${chIdx}`);
+  strip?.classList.toggle('ch-muted',ch.muted);
+  strip?.querySelector('.m-btn')?.classList.toggle('on',ch.muted);
+  if(!sf2) {
+    const anySolo=CH.some(c=>c.soloed&&c.active);
+    const muted=ch.muted||(anySolo&&!ch.soloed);
+    const v=muted?0:Math.round(Math.min(127,ch.vol/150*127));
+    midiSend([0xB0|chIdx,7,v],0);
+  }
+}
+
+function onSolo(chIdx) {
+  const ch=CH[chIdx]; ch.soloed=!ch.soloed;
+  CH.forEach((_,i)=>refreshChGain(i));
+  CH.filter(c=>c.active).forEach(c=>{
+    const strip=$(`ch${c.id}`);
+    strip?.classList.toggle('ch-soloed',c.soloed);
+    strip?.querySelector('.s-btn')?.classList.toggle('on',c.soloed);
+  });
+  // Sync all channel volumes to MIDI out to reflect solo state
+  if(!sf2) {
+    const anySolo=CH.some(c=>c.soloed&&c.active);
+    CH.forEach(c=>{
+      if(!c.active) return;
+      const muted=c.muted||(anySolo&&!c.soloed);
+      const v=muted?0:Math.round(Math.min(127,c.vol/150*127));
+      midiSend([0xB0|c.id,7,v],0);
+    });
+  }
+}
+
+function onVol(chIdx, val) {
+  const ch=CH[chIdx]; ch.vol=parseInt(val);
+  refreshChGain(chIdx);
+  const lbl=$(`vl${chIdx}`); if(lbl) lbl.textContent=ch.vol+'%';
+  if(!sf2) {
+    const anySolo=CH.some(c=>c.soloed&&c.active);
+    const muted=ch.muted||(anySolo&&!ch.soloed);
+    const v=muted?0:Math.round(Math.min(127,parseInt(val)/150*127));
+    midiSend([0xB0|chIdx,7,v],0);
+  }
+}
+
+function onMasterVol(el) {
+  const v=el.value;
+  if(masterGain&&AC) masterGain.gain.setTargetAtTime(v/100,AC.currentTime,0.02);
+  $('mVolLbl').textContent=v+'%';
+  el.style.setProperty('--pct',(v/150*100)+'%');
+}
+
+/* ════════════════════════════════════════════
+   TRANSPORT DISPLAY
+════════════════════════════════════════════ */
+function updateTransport() {
+  $('curT').textContent=fmtTime(t2s(pbStartTick));
+  $('totT').textContent=fmtTime(totalSecs);
+  $('seekProg').style.width='0%'; $('seekHnd').style.left='0%';
+  $('bpmV').textContent=midi?bpmAt(0):'—';
+}
+
+function fmtTime(s) {
+  if(!isFinite(s)||s<0) s=0;
+  const m=Math.floor(s/60), ss=Math.floor(s%60), d=Math.floor((s%1)*10);
+  return `${m}:${String(ss).padStart(2,'0')}.${d}`;
+}
+
+/* ════════════════════════════════════════════
+   RENDER MODE / OUTPUT MODE
+════════════════════════════════════════════ */
+function setRenderMode(mode) {
+  renderMode=mode;
+  $('rmExpress').classList.toggle('active', mode==='express');
+  $('rmLive').classList.toggle('active',    mode==='live');
+}
+
+function setOutputMode(mode) {
+  outputMode=mode;
+  $('roMix').classList.toggle('active',   mode==='mix');
+  $('roStems').classList.toggle('active', mode==='stems');
+}
+
+/* ════════════════════════════════════════════
+   EXPORT DISPATCH
+════════════════════════════════════════════ */
+function doExportWAV() {
+  if(liveRec) return;
+  if(renderMode==='live') doLiveExport('wav');
+  else doExpressExport('wav');
+}
+
+function doExportMP3() {
+  if(liveRec) return;
+  if(renderMode==='live') doLiveExport('mp3');
+  else doExpressExport('mp3');
+}
+
+/* ════════════════════════════════════════════
+   EXPRESS RENDER — offline OfflineAudioContext
+════════════════════════════════════════════ */
+async function doExpressExport(fmt) {
+  if(outputMode==='stems') await doExpressStemsExport(fmt);
+  else await doExpressMixExport(fmt);
+}
+
+async function doExpressMixExport(fmt) {
+  showExport('Rendering audio…');
+  try {
+    const buf=await renderOffline(p=>setExpPct(p));
+    if(fmt==='wav') {
+      setExpPct(82); setExpMsg('Encoding WAV…');
+      await tick();
+      const wav=encodeWAV(buf);
+      setExpPct(100);
+      dlBlob(new Blob([wav],{type:'audio/wav'}),'midi-export.wav');
+    } else {
+      setExpPct(75); setExpMsg('Encoding MP3…');
+      await tick();
+      const mp3blob=await encodeMP3Async(buf,p=>setExpPct(75+Math.round(p*0.22)));
+      setExpPct(100);
+      dlBlob(mp3blob,'midi-export.mp3');
+    }
+  } catch(e){ console.error(e); alert('Export error: '+e.message); }
+  finally { hideExport(); }
+}
+
+async function doExpressStemsExport(fmt) {
+  if(!midi||!sf2) return;
+  const activeChs=CH.filter(c=>c.active);
+  if(!activeChs.length) return;
+
+  const useZip=(activeChs.length>1);
+  const zip=useZip?(new JSZip()):null;
+  const midiName=($('midiStat').textContent||'export').replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_');
+
+  showExport(`Rendering ${activeChs.length} stems…`);
+  try {
+    for(let i=0;i<activeChs.length;i++) {
+      const ch=activeChs[i];
+      const progName=ch.id===9?'Drums':(GM[ch.program]||`prog${ch.program}`);
+      const fname=`stem_ch${ch.id+1}_${sanitizeName(progName)}.${fmt}`;
+      const total=activeChs.length;
+      const baseP=Math.round((i/total)*78);
+      const stepP=Math.round(78/total);
+
+      setExpMsg(`[${i+1}/${total}] Rendering: ${ch.name}…`);
+      const buf=await renderOfflineChannel(ch.id, p=>{
+        setExpPct(baseP + Math.round(p/100*stepP*0.8));
+      });
+      if(!buf) continue;
+
+      setExpMsg(`[${i+1}/${total}] Encoding: ${ch.name}…`);
+
+      let fileData;
+      if(fmt==='wav') {
+        fileData=new Uint8Array(encodeWAV(buf));
+      } else {
+        const blob=await encodeMP3Async(buf, p=>setExpPct(baseP+Math.round(stepP*(0.8+p/100*0.2))));
+        fileData=new Uint8Array(await blob.arrayBuffer());
+      }
+
+      if(zip) {
+        zip.file(fname, fileData);
+      } else {
+        dlBlob(new Blob([fileData],{type:fmt==='wav'?'audio/wav':'audio/mp3'}), fname);
+      }
+      await tick();
+    }
+
+    if(zip) {
+      setExpMsg(`Packing ZIP…`); setExpPct(90);
+      await tick();
+      const zipBlob=await zip.generateAsync({type:'blob',compression:'DEFLATE',
+        compressionOptions:{level:1}}, meta=>{
+        setExpPct(90+Math.round(meta.percent/10));
+      });
+      setExpPct(100);
+      dlBlob(zipBlob,`${midiName}_stems.zip`);
+    } else {
+      setExpPct(100);
+    }
+    setExpMsg(`Done — ${activeChs.length} stem${activeChs.length>1?'s':''} saved`);
+    await new Promise(r=>setTimeout(r,700));
+  } catch(e){ console.error(e); alert('Stems export error: '+e.message); }
+  finally { hideExport(); }
+}
+
+/* ── Full mix offline render (with animated progress) ── */
+async function renderOffline(onProgress) {
+  if(!midi) return null;
+  const SR=44100, dur=totalSecs+2;
+  const offCtx=new OfflineAudioContext(2,Math.ceil(dur*SR),SR);
+  const mst=offCtx.createGain();
+  mst.gain.value=parseFloat($('masterVol').value)/100;
+  mst.connect(offCtx.destination);
+
+  const chGains=CH.map(ch=>{
+    const g=offCtx.createGain(); g.gain.value=chGainVal(ch);
+    g.connect(mst); return g;
+  });
+
+  const offCache={}, offProgs=CH.map(c=>c.program);
+  const offPending={};
+
+  for(const e of midiEvts) {
+    const ch=CH[e.ch];
+    if(e.type==='pc'){ offProgs[e.ch]=e.prog; continue; }
+    if(e.type==='on'&&ch.active){
+      const key=`${e.ch}:${e.note}`;
+      const t=t2s(e.tick);
+      if(offPending[key]){
+        const st=offPending[key];
+        sf2Play(offCtx,sf2,offCache,e.note,st.prog,st.t,Math.max(0.05,t-st.t),(ch.vol/100)*(st.vel/127),st.vel,chGains[e.ch],e.ch===9);
+      }
+      offPending[key]={t,vel:e.vel,prog:offProgs[e.ch]};
+    } else if(e.type==='off'){
+      const key=`${e.ch}:${e.note}`, st=offPending[key];
+      if(st){
+        delete offPending[key];
+        const t=t2s(e.tick), ch2=CH[e.ch];
+        sf2Play(offCtx,sf2,offCache,e.note,st.prog,st.t,Math.max(0.05,t-st.t),(ch2.vol/100)*(st.vel/127),st.vel,chGains[e.ch],e.ch===9);
+      }
+    }
+  }
+  for(const [key,st] of Object.entries(offPending)) {
+    const [chIdx]=key.split(':').map(Number);
+    sf2Play(offCtx,sf2,offCache,parseInt(key.split(':')[1]),st.prog,st.t,0.5,(CH[chIdx].vol/100)*(st.vel/127),st.vel,chGains[chIdx],chIdx===9);
+  }
+
+  onProgress&&onProgress(28);
+  await tick();
+
+  // Animate progress bar while rendering (avoids "stuck at middle then jump to end")
+  let fakePct=28;
+  const progTimer=setInterval(()=>{
+    fakePct=Math.min(68, fakePct+1.5);
+    onProgress&&onProgress(Math.floor(fakePct));
+  }, 180);
+
+  const buf=await offCtx.startRendering();
+  clearInterval(progTimer);
+  onProgress&&onProgress(70);
+  return buf;
+}
+
+/* ── Per-channel offline render for stems ── */
+async function renderOfflineChannel(chIdx, onProgress) {
+  if(!midi) return null;
+  const SR=44100, dur=totalSecs+2;
+  const offCtx=new OfflineAudioContext(2,Math.ceil(dur*SR),SR);
+  const mst=offCtx.createGain();
+  mst.gain.value=1.0;
+  mst.connect(offCtx.destination);
+
+  const chGain=offCtx.createGain();
+  chGain.gain.value=CH[chIdx].vol/100;
+  chGain.connect(mst);
+
+  const offCache={};
+  let offProg=CH[chIdx].program;
+  const offPending={};
+
+  for(const e of midiEvts) {
+    if(e.ch!==chIdx) continue;
+    if(e.type==='pc'){ offProg=e.prog; continue; }
+    const t=t2s(e.tick);
+    if(e.type==='on'){
+      const key=`${chIdx}:${e.note}`;
+      if(offPending[key]){
+        const st=offPending[key];
+        sf2Play(offCtx,sf2,offCache,e.note,st.prog,st.t,Math.max(0.05,t-st.t),st.vel/127,st.vel,chGain,chIdx===9);
+      }
+      offPending[key]={t,vel:e.vel,prog:offProg};
+    } else if(e.type==='off'){
+      const key=`${chIdx}:${e.note}`, st=offPending[key];
+      if(st){
+        delete offPending[key];
+        sf2Play(offCtx,sf2,offCache,e.note,st.prog,st.t,Math.max(0.05,t-st.t),st.vel/127,st.vel,chGain,chIdx===9);
+      }
+    }
+  }
+  for(const [key,st] of Object.entries(offPending)) {
+    sf2Play(offCtx,sf2,offCache,parseInt(key.split(':')[1]),st.prog,st.t,0.5,st.vel/127,st.vel,chGain,chIdx===9);
+  }
+
+  let fakePct=0;
+  const timer=setInterval(()=>{
+    fakePct=Math.min(90,fakePct+3);
+    onProgress&&onProgress(Math.floor(fakePct));
+  },100);
+
+  const buf=await offCtx.startRendering();
+  clearInterval(timer);
+  onProgress&&onProgress(100);
+  return buf;
+}
+
+/* ── MP3 encoder helper (async, with progress) ── */
+async function encodeMP3Async(buf, onProgress) {
+  if(typeof lamejs==='undefined')
+    return new Blob([encodeWAV(buf)],{type:'audio/wav'});
+  const SR=buf.sampleRate, nCh=buf.numberOfChannels;
+  const enc=new lamejs.Mp3Encoder(nCh,SR,192);
+  const L=buf.getChannelData(0), R=nCh>1?buf.getChannelData(1):L;
+  const toI16=f=>{const a=new Int16Array(f.length);for(let i=0;i<f.length;i++)a[i]=Math.max(-32768,Math.min(32767,f[i]*32767|0));return a;};
+  const Li=toI16(L), Ri=toI16(R);
+  const chunks=[], BS=1152;
+  for(let i=0;i<Li.length;i+=BS){
+    const c=enc.encodeBuffer(Li.subarray(i,i+BS),Ri.subarray(i,i+BS));
+    if(c.length) chunks.push(new Int8Array(c));
+    if(i%(BS*80)===0){ onProgress&&onProgress(Math.round(i/Li.length*100)); await tick(); }
+  }
+  const last=enc.flush(); if(last.length) chunks.push(new Int8Array(last));
+  const total=chunks.reduce((s,c)=>s+c.length,0);
+  const mp3=new Int8Array(total); let off=0;
+  chunks.forEach(c=>{mp3.set(c,off);off+=c.length;});
+  return new Blob([mp3],{type:'audio/mp3'});
+}
+
+/* ════════════════════════════════════════════
+   LIVE RECORDING
+   Captures audio via MediaRecorder during real playback.
+   Mix mode: one recorder on masterGain output.
+   Stems mode: one recorder per active channel gainNode.
+════════════════════════════════════════════ */
+async function doLiveExport(fmt) {
+  if(!midi||liveRec) return;
+  ensureAC();
+
+  const isStem=(outputMode==='stems');
+  const activeChs=CH.filter(c=>c.active);
+
+  // Pick best supported MIME type
+  const mimeType=(['audio/webm;codecs=opus','audio/webm','audio/ogg']
+    .find(m=>MediaRecorder.isTypeSupported(m))) || '';
+
+  liveRec={fmt, isStem, dests:[], startAC:0, cancelled:false};
+
+  if(isStem) {
+    activeChs.forEach(ch=>{
+      const dest=AC.createMediaStreamDestination();
+      ch.gainNode.connect(dest);
+      const rec=new MediaRecorder(dest.stream, mimeType?{mimeType}:{});
+      const chunks=[];
+      rec.ondataavailable=e=>{if(e.data.size>0&&!liveRec?.cancelled) chunks.push(e.data);};
+      rec.start(100);
+      liveRec.dests.push({ch, dest, rec, chunks});
+    });
+  } else {
+    const dest=AC.createMediaStreamDestination();
+    masterGain.connect(dest);
+    const rec=new MediaRecorder(dest.stream, mimeType?{mimeType}:{});
+    const chunks=[];
+    rec.ondataavailable=e=>{if(e.data.size>0&&!liveRec?.cancelled) chunks.push(e.data);};
+    rec.start(100);
+    liveRec.dests.push({ch:null, dest, rec, chunks});
+  }
+
+  // Start playback from the beginning
+  if(playing) pausePlay();
+  pbStartTick=0;
+  startPlay();
+  liveRec.startAC=AC.currentTime;
+
+  // Show recording bar
+  $('recBar').classList.add('on');
+  $('recInfo').textContent=isStem
+    ? `${activeChs.length} stems · ${fmt.toUpperCase()} · change levels/instruments freely`
+    : `Mix · ${fmt.toUpperCase()} · change levels/instruments freely`;
+  $('recTime').textContent='0:00.0';
+}
+
+async function finalizeLiveRecording(cancel) {
+  if(!liveRec) return;
+  const rec=liveRec;
+  liveRec=null;
+  rec.cancelled=cancel;
+
+  $('recBar').classList.remove('on');
+
+  // Stop all recorders and wait for final data
+  const stopPromises=rec.dests.map(d=>new Promise(resolve=>{
+    d.rec.onstop=()=>resolve(d);
+    try{ d.rec.stop(); }catch(e){ resolve(d); }
+  }));
+
+  // Disconnect from audio graph
+  rec.dests.forEach(d=>{
+    try{
+      if(d.ch) d.ch.gainNode.disconnect(d.dest);
+      else masterGain.disconnect(d.dest);
+    }catch(e){}
+  });
+
+  if(cancel){ await Promise.all(stopPromises); return; }
+
+  showExport('Processing recording…');
+  const midiName=($('midiStat').textContent||'export').replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_');
+  const useZip=rec.isStem && rec.dests.length>1;
+  const zip=useZip?new JSZip():null;
+
+  try {
+    const results=await Promise.all(stopPromises);
+
+    for(let i=0;i<results.length;i++){
+      const d=results[i];
+      const label=d.ch?d.ch.name:'mix';
+      setExpMsg(`Processing ${label} (${i+1}/${results.length})…`);
+      setExpPct(Math.round((i/results.length)*55));
+
+      if(!d.chunks.length){
+        setStatus(`Warning: no audio captured for "${label}"`);
+        continue;
+      }
+
+      const blob=new Blob(d.chunks,{type:d.rec.mimeType||'audio/webm'});
+      const ab=await blob.arrayBuffer();
+
+      // Decode recorded audio
+      let audioBuf;
+      try {
+        audioBuf=await new Promise((res,rej)=>AC.decodeAudioData(ab,res,rej));
+      } catch(e) {
+        const tmpCtx=new AudioContext();
+        try{ audioBuf=await new Promise((res,rej)=>tmpCtx.decodeAudioData(ab.slice(0),res,rej)); }
+        finally{ tmpCtx.close(); }
+      }
+
+      const fname=d.ch
+        ? `live_ch${d.ch.id+1}_${sanitizeName(d.ch.id===9?'Drums':GM[d.ch.program])}.${rec.fmt}`
+        : `live_mix.${rec.fmt}`;
+
+      let fileData;
+      const baseP=Math.round((i/results.length)*55);
+      if(rec.fmt==='wav'){
+        setExpPct(baseP+20);
+        fileData=new Uint8Array(encodeWAV(audioBuf));
+      } else {
+        const mp3=await encodeMP3Async(audioBuf, p=>
+          setExpPct(baseP+Math.round(p*0.35)));
+        fileData=new Uint8Array(await mp3.arrayBuffer());
+      }
+
+      if(zip){
+        zip.file(fname, fileData);
+      } else {
+        dlBlob(new Blob([fileData],{type:rec.fmt==='wav'?'audio/wav':'audio/mp3'}), fname);
+      }
+      await tick();
+    }
+
+    if(zip){
+      setExpMsg('Packing ZIP…'); setExpPct(90);
+      await tick();
+      const zipBlob=await zip.generateAsync({type:'blob',compression:'DEFLATE',
+        compressionOptions:{level:1}}, m=>setExpPct(90+Math.round(m.percent/10)));
+      setExpPct(100);
+      dlBlob(zipBlob,`${midiName}_live_stems.zip`);
+    } else {
+      setExpPct(100);
+    }
+    setExpMsg('Done!');
+    await new Promise(r=>setTimeout(r,700));
+  } catch(e){ console.error(e); alert('Recording processing error: '+e.message); }
+  finally { hideExport(); }
+}
+
+/* ════════════════════════════════════════════
+   WAV ENCODER
+════════════════════════════════════════════ */
+function encodeWAV(buf) {
+  const nCh=buf.numberOfChannels, SR=buf.sampleRate, len=buf.length;
+  const bps=16, ba=nCh*bps/8, dataSize=len*ba;
+  const ab=new ArrayBuffer(44+dataSize); const v=new DataView(ab);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF');v.setUint32(4,36+dataSize,true);ws(8,'WAVE');ws(12,'fmt ');
+  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,nCh,true);
+  v.setUint32(24,SR,true);v.setUint32(28,SR*ba,true);
+  v.setUint16(32,ba,true);v.setUint16(34,bps,true);ws(36,'data');
+  v.setUint32(40,dataSize,true);
+  let o=44;
+  for(let i=0;i<len;i++) for(let c=0;c<nCh;c++){
+    const s=buf.getChannelData(c)[i];
+    v.setInt16(o,Math.max(-32768,Math.min(32767,s*32767|0)),true); o+=2;
+  }
+  return ab;
+}
+
+function dlBlob(blob,name){
+  const u=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();
+  document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(u),5000);
+}
+
+function showExport(m){$('expOverlay').classList.add('on');setExpMsg(m);setExpPct(5);}
+function hideExport(){$('expOverlay').classList.remove('on');}
+function setExpMsg(m){$('expMsg').textContent=m;}
+function setExpPct(p){$('expBar').style.width=Math.max(0,Math.min(100,p))+'%';}
+function sanitizeName(s){return(s||'track').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').toLowerCase().slice(0,30);}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+
+/* ════════════════════════════════════════════
+   FILE HANDLERS
+════════════════════════════════════════════ */
+async function onSF2(evt) {
+  const file=evt.target.files[0]; if(!file) return;
+  setStatus(`Loading SF2: ${file.name}…`);
+  try {
+    const ab=await file.arrayBuffer();
+    sf2=parseSF2(ab);
+    for(const k in sf2Cache) delete sf2Cache[k];
+    const np=Object.keys(sf2.progZ).length, npc=Object.keys(sf2.percZ).length;
+    $('sf2Stat').textContent=file.name;
+    $('sf2Stat').className='hstat ok';
+    $('sf2Btn').classList.add('sf2ok');
+    setStatus(`SF2: ${file.name} — ${np} melodic + ${npc} percussion presets`);
+    updateButtonStates();
+  } catch(e){ setStatus('SF2 error: '+e.message); alert('SF2 load failed: '+e.message); }
+  evt.target.value='';
+}
+
+async function onMIDI(evt) {
+  const file=evt.target.files[0]; if(!file) return;
+  setStatus(`Loading MIDI: ${file.name}…`);
+  if(playing) doStop();
+  try {
+    const ab=await file.arrayBuffer();
+    processMIDI(parseMIDI(ab));
+    postRender();
+    $('midiStat').textContent=file.name;
+    $('midiStat').className='hstat ok2';
+    $('midiBtn').classList.add('midiok');
+  } catch(e){ setStatus('MIDI error: '+e.message); alert('MIDI load failed: '+e.message); }
+  evt.target.value='';
+}
+
+/* Drag & Drop */
+document.addEventListener('dragover',e=>{e.preventDefault();$('dropOverlay').classList.add('on');});
+document.addEventListener('dragleave',e=>{
+  if(!e.relatedTarget||!document.body.contains(e.relatedTarget))
+    $('dropOverlay').classList.remove('on');
+});
+document.addEventListener('drop',async e=>{
+  e.preventDefault(); $('dropOverlay').classList.remove('on');
+  for(const f of e.dataTransfer.files) {
+    const n=f.name.toLowerCase();
+    if(n.endsWith('.sf2')) await onSF2({target:{files:[f],value:''}});
+    else if(n.endsWith('.mid')||n.endsWith('.midi')) await onMIDI({target:{files:[f],value:''}});
+  }
+});
+
+/* Keyboard shortcut */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  if(e.code==='Space'){e.preventDefault();togglePlay();}
+});
+
+/* ════════════════════════════════════════════
+   MISC
+════════════════════════════════════════════ */
+function setStatus(m){ $('statusBar').textContent=m; }
+
+(function(){
+  const mv=$('masterVol');
+  mv.style.setProperty('--pct',(mv.value/150*100)+'%');
+})();
+
+startRAF();
+initMIDIOut();
+</script>
+</body>
+</html>
