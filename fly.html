@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Павук і Муха PRO - Звук та Анімація</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f0f0; color: #333; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        #ui-layer {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(255, 255, 255, 0.95); padding: 14px 16px;
+            border-radius: 12px; border: 1px solid #ccc;
+            width: 270px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 100;
+        }
+        h2 { margin: 0 0 10px 0; font-size: 20px; color: #2c3e50; text-align: center;}
+        p.instr { font-size: 13px; margin: 5px 0 15px 0; color: #666; line-height: 1.4; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; font-size: 14px; margin-bottom: 5px; color: #333; font-weight: 500;}
+        .flex-row { display: flex; align-items: center; justify-content: space-between; }
+        
+        input[type=checkbox] { transform: scale(1.3); cursor: pointer; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #4CAF50; }
+        .val-display { font-weight: bold; color: #4CAF50; min-width: 40px; text-align: right;}
+
+        button {
+            background-color: #4CAF50; color: white; border: none;
+            padding: 10px 15px; width: 100%;
+            border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: 0.2s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #aaa; color: #555; cursor: not-allowed; }
+        
+        #debug-info { font-size: 12px; color: #555; margin-top: 15px; font-family: monospace; border-top: 1px solid #eee; padding-top: 10px; font-weight: bold;}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <h2 style="margin:0; font-size:18px; color:#2c3e50;">Павук і Муха PRO</h2>
+        <button id="btn-sound" title="Звук" style="width:auto;margin:0;padding:5px 10px;font-size:18px;background:#eee;color:#333;border:1px solid #ccc;border-radius:6px;">🔊</button>
+    </div>
+    <p class="instr"><b>Клік:</b> перемістити найближчу комаху.<br><b>Ctrl + Перетягування:</b> вільно тягнути по стінах і стелі.</p>
+    
+    <div class="control-group flex-row">
+        <button id="btn-random" style="width: auto; margin: 0; padding: 8px 12px;">Випадкові позиції</button>
+        <button id="btn-anim" disabled style="width: auto; margin: 0; padding: 8px 12px; background-color: #ff9800;">СТАРТ</button>
+    </div>
+
+    <div class="control-group" style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
+        <div class="flex-row">
+            <label for="rng-anim-speed">Швидкість анімації</label>
+            <span class="val-display" id="val-anim-speed">1.0x</span>
+        </div>
+        <input type="range" id="rng-anim-speed" min="0.1" max="5" step="0.1" value="1">
+    </div>
+
+    <div class="control-group" style="border-top: 1px solid #eee; padding-top: 10px;">
+        <div class="flex-row">
+            <label for="chk-web">🕸️ Дозволити павутинку</label>
+            <input type="checkbox" id="chk-web">
+        </div>
+    </div>
+
+    <div id="web-controls" style="display: none; opacity: 0.5; transition: opacity 0.3s;">
+        <div class="control-group">
+            <div class="flex-row">
+                <label for="rng-cost">Вартість павутинки (x шлях)</label>
+                <span class="val-display" id="val-cost">1.0</span>
+            </div>
+            <input type="range" id="rng-cost" min="1" max="3" step="0.1" value="1">
+        </div>
+
+        <div class="control-group">
+            <div class="flex-row">
+                <label for="chk-time">⏱️ Мінімізувати ЧАС</label>
+                <input type="checkbox" id="chk-time">
+            </div>
+        </div>
+
+        <div id="time-sliders" style="display: none; padding-left: 15px; border-left: 2px solid #ccc;">
+            <div class="control-group">
+                <div class="flex-row">
+                    <label for="rng-spd-up">Швидкість ВГОРУ (павутинка)</label>
+                    <span class="val-display" id="val-spd-up">0.3</span>
+                </div>
+                <input type="range" id="rng-spd-up" min="0.3" max="5" step="0.1" value="0.3">
+            </div>
+            <div class="control-group">
+                <div class="flex-row">
+                    <label for="rng-spd-down">Швидкість ВНИЗ (павутинка)</label>
+                    <span class="val-display" id="val-spd-down">2.0</span>
+                </div>
+                <input type="range" id="rng-spd-down" min="0.3" max="5" step="0.1" value="2">
+            </div>
+        </div>
+    </div>
+    
+    <div id="debug-info">Очікування дії...</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script>
+    // --- АУДІО ---
+    const sndWalk = new Audio('1.mp3'); sndWalk.loop = true;
+    const sndWeb = new Audio('2.mp3'); sndWeb.loop = true;
+    const sndFinish = new Audio('3.mp3'); sndFinish.loop = false;
+
+    let currentAudioState = 'stop'; 
+
+    function manageAudio(state) {
+        if (state === currentAudioState) return; 
+        
+        if (state === 'stop') {
+            sndWalk.pause(); sndWeb.pause(); 
+            sndWalk.currentTime = 0; sndWeb.currentTime = 0;
+        } else if (state === 'walk') {
+            sndWeb.pause(); 
+            let playPromise = sndWalk.play();
+            if (playPromise !== undefined) playPromise.catch(e => console.log("Автозапуск аудіо заблоковано браузером"));
+        } else if (state === 'web') {
+            sndWalk.pause();
+            let playPromise = sndWeb.play();
+            if (playPromise !== undefined) playPromise.catch(e => console.log("Автозапуск аудіо заблоковано браузером"));
+        } else if (state === 'finish') {
+            sndWalk.pause(); sndWeb.pause();
+            sndWalk.currentTime = 0; sndWeb.currentTime = 0;
+            let playPromise = sndFinish.play();
+            if (playPromise !== undefined) playPromise.catch(e => console.log("Автозапуск аудіо заблоковано браузером"));
+        }
+        currentAudioState = state;
+    }
+
+    // --- ІНТЕРФЕЙС ---
+    const btnRandom = document.getElementById('btn-random');
+    const btnAnim = document.getElementById('btn-anim');
+    const btnSound = document.getElementById('btn-sound');
+    let isMuted = false;
+    btnSound.addEventListener('click', () => {
+        isMuted = !isMuted;
+        btnSound.textContent = isMuted ? '🔇' : '🔊';
+        sndWalk.muted = isMuted;
+        sndWeb.muted  = isMuted;
+        sndFinish.muted = isMuted;
+    });
+    const rngAnimSpeed = document.getElementById('rng-anim-speed');
+    const valAnimSpeed = document.getElementById('val-anim-speed');
+    const chkWeb = document.getElementById('chk-web');
+    const webControls = document.getElementById('web-controls');
+    const rngCost = document.getElementById('rng-cost');
+    const valCost = document.getElementById('val-cost');
+    const chkTime = document.getElementById('chk-time');
+    const timeSliders = document.getElementById('time-sliders');
+    const rngSpdUp = document.getElementById('rng-spd-up');
+    const valSpdUp = document.getElementById('val-spd-up');
+    const rngSpdDown = document.getElementById('rng-spd-down');
+    const valSpdDown = document.getElementById('val-spd-down');
+    const debugInfo = document.getElementById('debug-info');
+
+    let settings = { webAllowed: false, webCostMultiplier: 1.0, minimizeTime: false, speedUp: 0.3, speedDown: 2.0, globalAnimSpeed: 1.0 };
+
+    rngAnimSpeed.addEventListener('input', (e) => { settings.globalAnimSpeed = parseFloat(e.target.value); valAnimSpeed.innerText = settings.globalAnimSpeed.toFixed(1) + 'x'; });
+    chkWeb.addEventListener('change', (e) => { settings.webAllowed = e.target.checked; webControls.style.display = settings.webAllowed ? 'block' : 'none'; webControls.style.opacity = settings.webAllowed ? 1 : 0.5; quickUpdatePath(); });
+    rngCost.addEventListener('input', (e) => { settings.webCostMultiplier = parseFloat(e.target.value); valCost.innerText = settings.webCostMultiplier.toFixed(1); if (!settings.minimizeTime) quickUpdatePath(); });
+    chkTime.addEventListener('change', (e) => { settings.minimizeTime = e.target.checked; timeSliders.style.display = settings.minimizeTime ? 'block' : 'none'; quickUpdatePath(); });
+    rngSpdUp.addEventListener('input', (e) => { settings.speedUp = parseFloat(e.target.value); valSpdUp.innerText = settings.speedUp.toFixed(1); if (settings.minimizeTime) quickUpdatePath(); });
+    rngSpdDown.addEventListener('input', (e) => { settings.speedDown = parseFloat(e.target.value); valSpdDown.innerText = settings.speedDown.toFixed(1); if (settings.minimizeTime) quickUpdatePath(); });
+
+    // --- НАЛАШТУВАННЯ СЦЕНИ ---
+    const W = 16, H = 10, D = 12; 
+    const EPS = 0.05; 
+    const ROOM_COLOR = 0xffffff;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0); 
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(20, 15, 25);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true; 
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    mainLight.position.set(10, 20, 10);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    scene.add(mainLight);
+
+    const backLight = new THREE.PointLight(0xffffff, 0.3);
+    backLight.position.set(-10, -10, -10);
+    scene.add(backLight);
+
+    // --- КІМНАТА ---
+    const floorGeo = new THREE.BoxGeometry(W, 0.1, D);
+    const floorMat = new THREE.MeshStandardMaterial({ color: ROOM_COLOR, roughness: 0.8 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.y = -H/2 - 0.05;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const roomGeometry = new THREE.BoxGeometry(W, H, D);
+    const roomMaterial = new THREE.MeshPhysicalMaterial({ color: ROOM_COLOR, transparent: true, opacity: 0.1, side: THREE.BackSide, depthWrite: false });
+    const roomMesh = new THREE.Mesh(roomGeometry, roomMaterial);
+    scene.add(roomMesh);
+    
+    const edges = new THREE.EdgesGeometry(roomGeometry);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x444444, linewidth: 2 });
+    const roomEdges = new THREE.LineSegments(edges, lineMaterial);
+    scene.add(roomEdges);
+
+    const clickMaterial = new THREE.MeshBasicMaterial({ side: THREE.BackSide, visible: false });
+    const clickMesh = new THREE.Mesh(roomGeometry, clickMaterial);
+    clickMesh.name = "RoomIntersector";
+    scene.add(clickMesh);
+
+    const hoverFaceMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+    const hoverFaceMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), hoverFaceMaterial);
+    hoverFaceMesh.visible = false;
+    scene.add(hoverFaceMesh);
+
+    // --- СТВОРЕННЯ КОМАХ ---
+    let spiderGroup, flyGroup;
+    let spiderLegs = [];
+    let spiderPos = null, flyPos = null;
+
+    function createSpider() {
+        const group = new THREE.Group();
+        const matBody = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+        const matLeg = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 });
+
+        const bodyOffset = 0.25; 
+
+        // Головогруди (центр моделі, звідки ростуть ноги)
+        const cephalothorax = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 12), matBody);
+        cephalothorax.scale.set(1, 0.7, 1.1);
+        cephalothorax.position.set(0, bodyOffset, 0);
+        cephalothorax.castShadow = true;
+        group.add(cephalothorax);
+
+        // Черевце (позаду, вісь -Z)
+        const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 12), matBody);
+        abdomen.position.set(0, bodyOffset + 0.1, -0.45);
+        abdomen.scale.set(1.1, 0.9, 1.4);
+        abdomen.castShadow = true;
+        group.add(abdomen);
+
+        // Очі (попереду, вісь +Z)
+        const matEye = new THREE.MeshBasicMaterial({ color: 0xcc0000 });
+        for (let i = 0; i < 4; i++) {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), matEye);
+            eye.position.set((i < 2 ? -1 : 1) * 0.1, bodyOffset + 0.15, 0.2);
+            group.add(eye);
+        }
+
+        // Ікла (попереду, вісь +Z)
+        const fangGeo = new THREE.ConeGeometry(0.05, 0.2, 8);
+        const fangL = new THREE.Mesh(fangGeo, matLeg);
+        fangL.position.set(-0.1, bodyOffset - 0.1, 0.3);
+        fangL.rotation.x = -Math.PI / 4;
+        group.add(fangL);
+        const fangR = fangL.clone();
+        fangR.position.x = 0.1;
+        group.add(fangR);
+
+        spiderLegs = [];
+        // Fan angles per leg pair (front→back).
+        // rotation.y=θ maps local +X to world (cosθ, 0, −sinθ).
+        // Negative θ → leg goes forward (+Z); positive → backward (−Z).
+        const fanAngles = [-55, -18, 18, 55].map(a => a * Math.PI / 180);
+        const zAttach   = [0.10, 0.04, -0.04, -0.10]; // slight body-spread along Z
+
+        const seg1Len = 0.50;
+        const seg2Len = 0.44;
+        const tilt = 0.18;       // upward tilt of seg1 from horizontal (rad)
+        const dropAngle = 0.50;  // outward-downward tilt of seg2 from vertical (rad)
+
+        for (let i = 0; i < 8; i++) {
+            const isLeft  = i < 4;
+            const legIndex = i % 4;
+            const sign    = isLeft ? 1 : -1; // +1 left (outward=+X), -1 right (outward=-X)
+
+            const legGroup = new THREE.Group();
+            legGroup.position.set(sign * 0.14, bodyOffset, zAttach[legIndex]);
+            // Mirror fan: left uses fanAngles directly, right negates them
+            legGroup.rotation.y = sign * fanAngles[legIndex];
+
+            // Segment 1 — slightly upward from horizontal
+            // Cylinder axis points along (cos tilt, sin tilt, 0) in local space (sign-flipped for right)
+            const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.017, seg1Len), matLeg);
+            seg1.rotation.z = sign * (Math.PI / 2 - tilt);
+            seg1.position.set(sign * Math.cos(tilt) * seg1Len / 2,
+                                    Math.sin(tilt) * seg1Len / 2, 0);
+            legGroup.add(seg1);
+
+            // Joint — at the tip of seg1
+            const joint = new THREE.Group();
+            joint.position.set(sign * Math.cos(tilt) * seg1Len,
+                                     Math.sin(tilt) * seg1Len, 0);
+            legGroup.add(joint);
+
+            // Segment 2 — drops down and slightly outward from the knee
+            const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.005, seg2Len), matLeg);
+            seg2.rotation.z = sign * dropAngle;
+            seg2.position.set(sign * Math.sin(dropAngle) * seg2Len / 2,
+                                   -Math.cos(dropAngle)  * seg2Len / 2, 0);
+            joint.add(seg2);
+
+            group.add(legGroup);
+            spiderLegs.push({ group: legGroup, isLeft });
+        }
+
+        group.scale.set(0.8, 0.8, 0.8);
+        return group;
+    }
+
+    function createFly() {
+        const group = new THREE.Group();
+        // Зелена муха
+        const matBody = new THREE.MeshStandardMaterial({ color: 0x228B22, metalness: 0.3, roughness: 0.6 }); 
+        // Темніші крила
+        const matWing = new THREE.MeshBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+        const matEye = new THREE.MeshStandardMaterial({ color: 0x880000, roughness: 0.2 });
+
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), matBody);
+        body.scale.set(1, 0.8, 1.4);
+        body.castShadow = true;
+        group.add(body);
+
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), matEye);
+        eyeL.position.set(-0.1, 0.05, 0.15); // Очі спереду
+        group.add(eyeL);
+        const eyeR = eyeL.clone();
+        eyeR.position.x = 0.1;
+        group.add(eyeR);
+
+        const wingShape = new THREE.Shape();
+        wingShape.absellipse(0, 0, 0.2, 0.5, 0, Math.PI * 2);
+        const wingGeo = new THREE.ShapeGeometry(wingShape);
+        
+        const wingL = new THREE.Mesh(wingGeo, matWing);
+        wingL.position.set(-0.15, 0.15, -0.1);
+        wingL.rotation.set(-Math.PI/2, -Math.PI/10, Math.PI/6);
+        group.add(wingL);
+        
+        const wingR = wingL.clone();
+        wingR.position.x = 0.15;
+        wingR.rotation.y = Math.PI/10;
+        wingR.rotation.z = -Math.PI/6;
+        group.add(wingR);
+
+        const matLeg = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+
+        // 3 пари ніг із 2 сегментами кожна
+        // fanY: кут розвороту пари вперед/назад (в рад)
+        const legPairs = [
+            { z:  0.10, fanY: -0.45 },  // передня пара — вперед
+            { z: -0.02, fanY:  0.0  },  // середня — прямо
+            { z: -0.14, fanY:  0.45 },  // задня — назад
+        ];
+        const seg1Len = 0.28, seg2Len = 0.24;
+
+        legPairs.forEach(({ z, fanY }) => {
+            for (let side = 0; side < 2; side++) {
+                const isLeft = side === 0;
+                const sign = isLeft ? 1 : -1;
+
+                const legGroup = new THREE.Group();
+                legGroup.position.set(sign * 0.12, -0.06, z);
+                // fan: ліва нога має rotation.y=fanY, права — дзеркально
+                legGroup.rotation.y = isLeft ? fanY : -fanY;
+
+                // Сегмент 1: майже горизонтальний назовні з легким підйомом
+                // θ > π/2 → top у -X напрямку, bottom у +X і злегка +Y
+                const seg1Angle = sign * (Math.PI / 2 + 0.18);
+                const seg1 = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.009, 0.009, seg1Len), matLeg);
+                seg1.rotation.z = seg1Angle;
+                // Центр циліндра: top збігається з точкою прикріплення (0,0,0)
+                seg1.position.set(
+                    Math.sin(seg1Angle) * seg1Len / 2,
+                    -Math.cos(seg1Angle) * seg1Len / 2,
+                    0
+                );
+                legGroup.add(seg1);
+
+                // Суглоб — на кінці seg1
+                const joint = new THREE.Group();
+                joint.position.set(
+                    Math.sin(seg1Angle) * seg1Len,
+                    -Math.cos(seg1Angle) * seg1Len,
+                    0
+                );
+                legGroup.add(joint);
+
+                // Сегмент 2: вниз і злегка назовні (класичний коліновий вигин)
+                const seg2Angle = sign * 0.65;
+                const seg2 = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.009, 0.004, seg2Len), matLeg);
+                seg2.rotation.z = seg2Angle;
+                seg2.position.set(
+                    Math.sin(seg2Angle) * seg2Len / 2,
+                    -Math.cos(seg2Angle) * seg2Len / 2,
+                    0
+                );
+                joint.add(seg2);
+
+                group.add(legGroup);
+            }
+        });
+
+        group.scale.set(0.6, 0.6, 0.6);
+        return group;
+    }
+
+    spiderGroup = createSpider();
+    spiderGroup.visible = false;
+    spiderGroup.name = "Spider";
+    scene.add(spiderGroup);
+
+    flyGroup = createFly();
+    flyGroup.visible = false;
+    flyGroup.name = "Fly";
+    scene.add(flyGroup);
+
+    // --- ЛОГІКА ПЕРЕТЯГУВАННЯ ТА ПРИЛИПАННЯ ДО СТІН/СТЕЛІ ---
+    let pathLine = null;
+    let webLines = [];
+    let calculatedPath = [];
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let isDragging = false;
+    let draggedObject = null;
+    let clickStartX = 0, clickStartY = 0;
+
+    function snapToSurface(pos) {
+        let snapped = pos.clone();
+        let nx = Math.abs(pos.x / (W/2));
+        let ny = Math.abs(pos.y / (H/2));
+        let nz = Math.abs(pos.z / (D/2));
+        let max = Math.max(nx, ny, nz);
+        
+        let normal = new THREE.Vector3();
+        if (max === nx) {
+            snapped.x = Math.sign(pos.x) * W/2;
+            normal.set(-Math.sign(pos.x), 0, 0); 
+        } else if (max === ny) {
+            snapped.y = Math.sign(pos.y) * H/2;
+            normal.set(0, -Math.sign(pos.y), 0);
+        } else {
+            snapped.z = Math.sign(pos.z) * D/2;
+            normal.set(0, 0, -Math.sign(pos.z));
+        }
+        return { pos: snapped, normal: normal };
+    }
+
+    function updateObjectPos(group, rawPos) {
+        let { pos, normal } = snapToSurface(rawPos);
+        if (group) {
+            group.position.copy(pos).add(normal.clone().multiplyScalar(EPS));
+            // За замовчуванням просто ставимо об'єкт на поверхню
+            group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+        }
+        return pos;
+    }
+
+    function highlightFace(intersect) {
+        if (intersect && intersect.object.name === "RoomIntersector") {
+            let { normal } = snapToSurface(intersect.point);
+            hoverFaceMesh.geometry.dispose();
+            if (Math.abs(normal.x) > 0.5) {
+                hoverFaceMesh.geometry = new THREE.PlaneGeometry(D, H);
+                hoverFaceMesh.rotation.set(0, Math.PI / 2 * Math.sign(normal.x), 0);
+                hoverFaceMesh.position.set(-Math.sign(normal.x) * W/2 * 0.99, 0, 0);
+            } else if (Math.abs(normal.y) > 0.5) {
+                hoverFaceMesh.geometry = new THREE.PlaneGeometry(W, D);
+                hoverFaceMesh.rotation.set(Math.PI / 2 * Math.sign(normal.y), 0, 0);
+                hoverFaceMesh.position.set(0, -Math.sign(normal.y) * H/2 * 0.99, 0);
+            } else {
+                hoverFaceMesh.geometry = new THREE.PlaneGeometry(W, H);
+                hoverFaceMesh.rotation.set(0, 0, 0);
+                hoverFaceMesh.position.set(0, 0, -Math.sign(normal.z) * D/2 * 0.99);
+            }
+            hoverFaceMesh.visible = true;
+        } else {
+            hoverFaceMesh.visible = false;
+        }
+    }
+
+    function quickUpdatePath() {
+        if (spiderPos && flyPos) calculateAndDrawPath();
+    }
+
+    window.addEventListener('keydown', (e) => { if (e.key === 'Control' || e.key === 'Meta') controls.enabled = false; });
+    window.addEventListener('keyup', (e) => { if (e.key === 'Control' || e.key === 'Meta') { controls.enabled = true; isDragging = false; draggedObject = null; hoverFaceMesh.visible = false; } });
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+        if(e.target !== renderer.domElement) return;
+        clickStartX = e.clientX; clickStartY = e.clientY;
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+
+        if (e.ctrlKey || e.metaKey) {
+            const intersects = raycaster.intersectObjects([spiderGroup, flyGroup], true);
+            if (intersects.length > 0) {
+                isDragging = true;
+                draggedObject = intersects[0].object;
+                while(draggedObject.parent && draggedObject.parent !== scene) draggedObject = draggedObject.parent;
+                controls.enabled = false;
+                e.stopPropagation();
+            }
+        }
+    });
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(clickMesh);
+        
+        if(e.ctrlKey || isDragging) highlightFace(intersects[0]);
+        else hoverFaceMesh.visible = false;
+
+        if (isDragging && draggedObject && intersects.length > 0) {
+            if (draggedObject.name === "Spider") spiderPos = updateObjectPos(spiderGroup, intersects[0].point);
+            else if (draggedObject.name === "Fly") flyPos = updateObjectPos(flyGroup, intersects[0].point);
+            quickUpdatePath();
+        }
+    });
+
+    window.addEventListener('pointerup', (e) => {
+        controls.enabled = true;
+        if (isDragging) { isDragging = false; draggedObject = null; hoverFaceMesh.visible = false; return; }
+
+        let dist = Math.hypot(e.clientX - clickStartX, e.clientY - clickStartY);
+        if (dist < 5 && !e.ctrlKey) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(clickMesh);
+            if (intersects.length > 0 && spiderGroup.visible && flyGroup.visible) {
+                let pt = intersects[0].point;
+                if (pt.distanceTo(spiderGroup.position) < pt.distanceTo(flyGroup.position)) {
+                    spiderPos = updateObjectPos(spiderGroup, pt);
+                } else {
+                    flyPos = updateObjectPos(flyGroup, pt);
+                }
+                quickUpdatePath();
+            }
+        }
+    });
+
+    function generateRandomSetup() {
+        if (Math.random() < 0.9) {
+            spiderPos = new THREE.Vector3((Math.random() - 0.5) * (W-2), -H/2, (Math.random() - 0.5) * (D-2));
+            flyPos = new THREE.Vector3((Math.random() - 0.5) * (W-2), H/2, (Math.random() - 0.5) * (D-2));
+            if (Math.random() < 0.5) [spiderPos, flyPos] = [flyPos, spiderPos];
+        } else {
+            let faces = ['x', '-x', 'y', '-y', 'z', '-z'];
+            let getP = () => {
+                let f = faces[Math.floor(Math.random() * faces.length)];
+                let p = new THREE.Vector3((Math.random() - 0.5)*(W-2), (Math.random() - 0.5)*(H-2), (Math.random() - 0.5)*(D-2));
+                if(f === 'x') p.x = W/2; if(f === '-x') p.x = -W/2;
+                if(f === 'y') p.y = H/2; if(f === '-y') p.y = -H/2;
+                if(f === 'z') p.z = D/2; if(f === '-z') p.z = -D/2;
+                return p;
+            };
+            spiderPos = getP(); flyPos = getP();
+        }
+        updateObjectPos(spiderGroup, spiderPos); spiderGroup.visible = true;
+        updateObjectPos(flyGroup, flyPos); flyGroup.visible = true;
+        quickUpdatePath();
+    }
+    btnRandom.addEventListener('click', generateRandomSetup);
+
+    // --- АЛГОРИТМ ДЕЙКСТРИ ---
+    function shareFace(u, v) {
+        const eps = 0.05;
+        return (Math.abs(u.x - W/2) < eps && Math.abs(v.x - W/2) < eps) ||
+               (Math.abs(u.x + W/2) < eps && Math.abs(v.x + W/2) < eps) ||
+               (Math.abs(u.y - H/2) < eps && Math.abs(v.y - H/2) < eps) ||
+               (Math.abs(u.y + H/2) < eps && Math.abs(v.y + H/2) < eps) ||
+               (Math.abs(u.z - D/2) < eps && Math.abs(v.z - D/2) < eps) ||
+               (Math.abs(u.z + D/2) < eps && Math.abs(v.z + D/2) < eps);
+    }
+
+    function getEdgeWeight(u, v) {
+        let dist = u.distanceTo(v);
+        let isVerticalWeb = Math.abs(u.x - v.x) < 0.01 && Math.abs(u.z - v.z) < 0.01;
+        if (isVerticalWeb) {
+            if (settings.minimizeTime) {
+                let speed = (v.y > u.y) ? settings.speedUp : settings.speedDown;
+                return dist / speed;
+            } else {
+                return dist * settings.webCostMultiplier;
+            }
+        }
+        return dist;
+    }
+
+    function calculateShortestPath(startPos, endPos) {
+        let nodes = [];
+        const N = 40; 
+        
+        for(let i=0; i<=N; i++) {
+            let x = -W/2 + (W/N)*i;
+            nodes.push(new THREE.Vector3(x, H/2, D/2), new THREE.Vector3(x, H/2, -D/2));
+            nodes.push(new THREE.Vector3(x, -H/2, D/2), new THREE.Vector3(x, -H/2, -D/2));
+            
+            let y = -H/2 + (H/N)*i;
+            nodes.push(new THREE.Vector3(W/2, y, D/2), new THREE.Vector3(W/2, y, -D/2));
+            nodes.push(new THREE.Vector3(-W/2, y, D/2), new THREE.Vector3(-W/2, y, -D/2));
+            
+            let z = -D/2 + (D/N)*i;
+            nodes.push(new THREE.Vector3(W/2, H/2, z), new THREE.Vector3(-W/2, H/2, z));
+            nodes.push(new THREE.Vector3(W/2, -H/2, z), new THREE.Vector3(-W/2, -H/2, z));
+        }
+
+        nodes.push(startPos.clone(), endPos.clone());
+        let startIdx = nodes.length - 2;
+        let endIdx = nodes.length - 1;
+
+        if (settings.webAllowed) {
+            let projections = [
+                new THREE.Vector3(startPos.x, -H/2, startPos.z),
+                new THREE.Vector3(startPos.x, H/2, startPos.z),
+                new THREE.Vector3(endPos.x, -H/2, endPos.z),
+                new THREE.Vector3(endPos.x, H/2, endPos.z) 
+            ];
+            projections.forEach(p => {
+                if (p.distanceTo(startPos) > 0.1 && p.distanceTo(endPos) > 0.1) nodes.push(p);
+            });
+        }
+
+        let dist = new Float32Array(nodes.length).fill(Infinity);
+        let prev = new Int32Array(nodes.length).fill(-1);
+        let visited = new Uint8Array(nodes.length).fill(0);
+        dist[startIdx] = 0;
+
+        for (let i = 0; i < nodes.length; i++) {
+            let u = -1, minDist = Infinity;
+            for (let j = 0; j < nodes.length; j++) {
+                if (visited[j] === 0 && dist[j] < minDist) { minDist = dist[j]; u = j; }
+            }
+            if (u === -1 || u === endIdx) break;
+            visited[u] = 1;
+
+            for (let v = 0; v < nodes.length; v++) {
+                if (visited[v] === 1) continue;
+
+                let uNode = nodes[u], vNode = nodes[v];
+                let canConnect = shareFace(uNode, vNode);
+                
+                if (settings.webAllowed && !canConnect) {
+                    let isUOnFloorOrCeil = Math.abs(Math.abs(uNode.y) - H/2) < 0.05;
+                    let isVOnFloorOrCeil = Math.abs(Math.abs(vNode.y) - H/2) < 0.05;
+                    let sameXZ = Math.abs(uNode.x - vNode.x) < 0.01 && Math.abs(uNode.z - vNode.z) < 0.01;
+                    if (sameXZ && (isUOnFloorOrCeil || isVOnFloorOrCeil)) canConnect = true;
+                }
+
+                if (canConnect) {
+                    let weight = getEdgeWeight(uNode, vNode);
+                    if (dist[u] + weight < dist[v]) { dist[v] = dist[u] + weight; prev[v] = u; }
+                }
+            }
+        }
+
+        if (dist[endIdx] === Infinity) return null; 
+
+        let path = [];
+        let curr = endIdx;
+        while (curr !== -1) { path.unshift(nodes[curr]); curr = prev[curr]; }
+        
+        let totalTime = settings.minimizeTime ? dist[endIdx] : -1;
+        let totalDist = 0;
+        for(let i=0; i<path.length-1; i++) totalDist += path[i].distanceTo(path[i+1]);
+
+        return { path, totalDist, totalTime };
+    }
+
+    // --- ВІЗУАЛІЗАЦІЯ ШЛЯХУ ТА АНІМАЦІЯ ---
+    function clearVisuals() {
+        if (pathLine) { scene.remove(pathLine); pathLine.geometry.dispose(); pathLine = null; }
+        webLines.forEach(line => { scene.remove(line); line.geometry.dispose(); });
+        webLines = [];
+        btnAnim.disabled = true;
+        isAnimating = false;
+        manageAudio('stop');
+        resetSpiderLegsAnimation();
+    }
+
+    function calculateAndDrawPath() {
+        if (!spiderPos || !flyPos) return;
+        clearVisuals();
+        
+        let result = calculateShortestPath(spiderPos, flyPos);
+        if (!result) { debugInfo.innerText = "Помилка: Шлях неможливий"; return; }
+
+        calculatedPath = result.path;
+        let infoStr = `Шлях: ${result.totalDist.toFixed(2)} м`;
+        if (result.totalTime > 0) infoStr += ` | Час: ${result.totalTime.toFixed(2)} с`;
+        debugInfo.innerText = infoStr;
+
+        const points = calculatedPath.map(p => {
+            let p_vis = p.clone();
+            let { normal } = snapToSurface(p);
+            p_vis.add(normal.multiplyScalar(0.06));
+            return p_vis;
+        });
+
+        const pathGeom = new THREE.BufferGeometry().setFromPoints(points);
+        const pathMat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 3 });
+        pathLine = new THREE.Line(pathGeom, pathMat);
+        scene.add(pathLine);
+
+        const matWeb = new THREE.LineBasicMaterial({ color: 0x0066ff, transparent: true, opacity: 0.8 });
+        for(let i=0; i<calculatedPath.length-1; i++) {
+            let u = calculatedPath[i], v = calculatedPath[i+1];
+            if (Math.abs(u.x - v.x) < 0.01 && Math.abs(u.z - v.z) < 0.01) {
+                const webLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([u, v]), matWeb);
+                scene.add(webLine); webLines.push(webLine);
+            }
+        }
+        
+        btnAnim.disabled = false;
+        if(calculatedPath.length > 0) updateObjectPos(spiderGroup, calculatedPath[0]);
+    }
+
+    let isAnimating = false;
+    let animSegIndex = 0;
+    let animProgress = 0; 
+    let walkAnimTime = 0; 
+
+    function resetSpiderLegsAnimation() { spiderLegs.forEach(leg => leg.group.rotation.z = 0); }
+
+    btnAnim.addEventListener('click', () => {
+        isAnimating = true; animSegIndex = 0; animProgress = 0; walkAnimTime = 0;
+        if(calculatedPath.length > 0) updateObjectPos(spiderGroup, calculatedPath[0]);
+        btnAnim.disabled = true; 
+        
+        // Дозволяємо браузеру відтворювати аудіо після кліку користувача
+        manageAudio('walk');
+    });
+
+    let clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        let dt = clock.getDelta();
+
+        if (isAnimating && calculatedPath && animSegIndex < calculatedPath.length - 1) {
+            let p1 = calculatedPath[animSegIndex], p2 = calculatedPath[animSegIndex + 1];
+            let dist = p1.distanceTo(p2);
+            let isVerticalWeb = Math.abs(p1.x - p2.x) < 0.01 && Math.abs(p1.z - p2.z) < 0.01;
+
+            manageAudio(isVerticalWeb ? 'web' : 'walk');
+
+            let currentSpeed = 3.0; 
+            if (isVerticalWeb) currentSpeed = (p2.y > p1.y) ? settings.speedUp * 2 : settings.speedDown * 2;
+            
+            animProgress += currentSpeed * dt * settings.globalAnimSpeed;
+            walkAnimTime += dt * settings.globalAnimSpeed * 15; 
+            
+            spiderLegs.forEach((legData, idx) => {
+                legData.group.rotation.z = Math.sin(walkAnimTime + (idx % 4) * 1.5) * 0.2 * (legData.isLeft ? 1 : -1);
+            });
+
+            if (animProgress >= dist) {
+                animProgress = 0; animSegIndex++;
+                updateObjectPos(spiderGroup, p2);
+                if (animSegIndex >= calculatedPath.length - 1) {
+                    isAnimating = false; btnAnim.disabled = false;
+                    resetSpiderLegsAnimation();
+                    manageAudio('finish');
+                    debugInfo.innerText += " — Фініш!";
+                }
+            } else {
+                let currentPos = new THREE.Vector3().lerpVectors(p1, p2, animProgress / dist);
+                let { normal } = snapToSurface(currentPos);
+
+                if (!isVerticalWeb) {
+                    spiderGroup.position.copy(currentPos).add(normal.clone().multiplyScalar(EPS));
+                    
+                    // Логіка повороту головою вперед вздовж стіни
+                    let forward = new THREE.Vector3().subVectors(p2, p1).normalize();
+                    let projectedForward = forward.projectOnPlane(normal).normalize();
+                    
+                    if (projectedForward.lengthSq() > 0.001) {
+                        // Правостороння основа: right = normal × forward (det = +1)
+                        let right = new THREE.Vector3().crossVectors(normal, projectedForward).normalize();
+                        let matrix = new THREE.Matrix4();
+                        // Колонки: X=right (локальний), Y=normal (від поверхні), Z=forward (рух)
+                        matrix.makeBasis(right, normal, projectedForward);
+                        spiderGroup.quaternion.setFromRotationMatrix(matrix);
+                    } else {
+                        spiderGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+                    }
+                } else {
+                    // Рух по павутинці (вертикально)
+                    spiderGroup.position.copy(currentPos);
+                    let signY = Math.sign(p2.y - p1.y);
+                    let forward = new THREE.Vector3(0, signY, 0);
+                    let matrix = new THREE.Matrix4();
+                    // Правостороння основа для вертикального руху: det = signY² = +1
+                    matrix.makeBasis(new THREE.Vector3(0, 0, signY), new THREE.Vector3(1, 0, 0), forward);
+                    spiderGroup.quaternion.setFromRotationMatrix(matrix);
+                }
+            }
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    generateRandomSetup();
+    animate();
+
+</script>
+</body>
+</html>
