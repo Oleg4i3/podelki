@@ -299,15 +299,15 @@ input.ch-pan.panned-r::-webkit-slider-thumb{background:var(--accent2);}
   <div style="flex:1;min-width:6px;"></div>
   <!-- RENDER MODE -->
   <div class="rm-grp">
-    <span class="rm-lbl">RND</span>
-    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
+    <span class="rm-lbl">Render</span>
+    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">Express</button>
     <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
   </div>
   <!-- OUTPUT MODE -->
   <div class="rm-grp">
     <span class="rm-lbl">OUT</span>
     <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
-    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
+    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">batch</button>
   </div>
   <!-- EXPORT -->
   <div class="exp-row">
