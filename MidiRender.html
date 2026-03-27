@@ -42,7 +42,7 @@ body{
   padding:8px 14px;display:flex;align-items:center;gap:12px;
   flex-shrink:0;flex-wrap:wrap;
 }
-.logo{font-size:17px;font-weight:700;letter-spacing:2px;color:var(--accent);
+.logo{font-size:13px;font-weight:500;letter-spacing:2px;color:var(--accent);
   white-space:nowrap;text-shadow:0 0 20px rgba(232,160,32,0.4);}
 .hbtn{
   background:var(--strip);border:1px solid var(--border2);
@@ -154,17 +154,21 @@ input#masterVol::-webkit-slider-thumb{
 .rec-xbtn:hover{border-color:var(--red);color:var(--red);}
 /* ── MIXER ── */
 .mixer-outer{
-  flex:1;min-height:0;overflow:hidden;
+  flex:1;min-height:0;
+  overflow-x:auto;overflow-y:auto;
   background:linear-gradient(180deg,#eaecf4 0%,#e8eaf2 100%);
   position:relative;
 }
 .mixer{
-  display:flex;height:100%;overflow-x:auto;overflow-y:hidden;
-  padding:12px;gap:6px;align-items:stretch;
+  display:inline-flex;min-width:100%;min-height:100%;
+  padding:12px;gap:6px;align-items:flex-start;
+  overflow:visible;
 }
-.mixer::-webkit-scrollbar{height:7px;}
-.mixer::-webkit-scrollbar-track{background:var(--panel);}
-.mixer::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+/* custom scrollbars for mixer-outer */
+.mixer-outer::-webkit-scrollbar{width:7px;height:7px;}
+.mixer-outer::-webkit-scrollbar-track{background:var(--panel);}
+.mixer-outer::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.mixer-outer::-webkit-scrollbar-corner{background:var(--panel);}
 .empty{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -175,7 +179,8 @@ input#masterVol::-webkit-slider-thumb{
 .empty-sub{font-size:12px;opacity:.4;}
 /* ── CHANNEL STRIP ── */
 .ch{
-  width:88px;min-width:88px;background:var(--strip);border:1px solid var(--border);
+  width:88px;min-width:88px;min-height:260px;
+  background:var(--strip);border:1px solid var(--border);
   border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;
   padding:8px 6px 6px;gap:5px;flex-shrink:0;transition:border-color .2s,opacity .2s;position:relative;
 }
@@ -184,7 +189,13 @@ input#masterVol::-webkit-slider-thumb{
 .ch.ch-soloed{border-color:var(--solo-c) !important;box-shadow:0 0 10px rgba(56,170,238,0.15);}
 .ch.ch-drums{border-color:#5a3820;}
 .ch-num{font-size:9px;font-weight:700;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;}
-.ch-name{font-size:11px;font-weight:600;color:var(--text);text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;}
+.ch-name{font-size:11px;font-weight:600;color:var(--text);text-align:center;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;cursor:text;border-radius:2px;}
+.ch-name:hover{background:rgba(184,108,8,0.08);}
+.ch-name-input{
+  width:100%;font-family:inherit;font-size:11px;font-weight:600;color:var(--text);
+  text-align:center;background:var(--panel);border:1px solid var(--accent);
+  border-radius:2px;padding:1px 3px;outline:none;
+}
 .ch-sel{width:100%;font-family:inherit;font-size:9.5px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:2px 3px;cursor:pointer;outline:none;}
 .ch-sel:hover,.ch-sel:focus{border-color:var(--accent);}
 .ms-row{display:flex;gap:4px;width:100%;}
@@ -193,10 +204,10 @@ input#masterVol::-webkit-slider-thumb{
 .m-btn.on{background:var(--mute-c);color:#fff;border-color:var(--mute-c);}
 .s-btn{background:var(--panel);color:var(--solo-c);}
 .s-btn.on{background:var(--solo-c);color:#fff;border-color:var(--solo-c);}
-.level-row{flex:1;min-height:0;display:flex;align-items:stretch;gap:5px;width:100%;min-height:80px;}
+.level-row{flex:1;min-height:80px;display:flex;align-items:stretch;gap:5px;width:100%;}
 .vu{width:18px;flex-shrink:0;background:#e0e4ee;border:1px solid #c8d0e0;border-radius:2px;position:relative;overflow:hidden;}
-.vu-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(to top,var(--green) 0%,var(--green) 58%,var(--yellow) 74%,var(--red) 100%);transition:height .04s;}
-.vu-peak{position:absolute;left:1px;right:1px;height:2px;background:rgba(255,60,60,0.9);bottom:0%;transition:bottom .12s;}
+.vu-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:#158040;transition:height .04s;}
+.vu-peak{position:absolute;left:1px;right:1px;height:2px;background:rgba(192,24,24,0.9);bottom:0%;transition:bottom .12s;}
 .vu::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(to bottom,transparent 0,transparent 5px,rgba(200,210,230,.5) 5px,rgba(200,210,230,.5) 6px);pointer-events:none;}
 .fader-wrap{flex:1;position:relative;display:flex;justify-content:center;align-items:center;}
 .ch-fader{-webkit-appearance:none;appearance:none;writing-mode:vertical-lr;direction:rtl;width:100%;height:100%;cursor:pointer;outline:none;background:transparent;padding:0;}
@@ -242,6 +253,28 @@ input#masterVol::-webkit-slider-thumb{
 .tlane-toggle{font-family:inherit;font-size:9px;font-weight:700;padding:4px 7px;border-radius:2px;cursor:pointer;border:1px solid var(--border2);background:var(--strip);color:var(--dim);transition:all .12s;white-space:nowrap;letter-spacing:.8px;}
 .tlane-toggle:hover{border-color:var(--accent);color:var(--accent);}
 .tlane-toggle.open{border-color:var(--accent);color:var(--accent);background:rgba(184,108,8,.08);}
+/* ── PAN SLIDER ── full-width, label below, dbl-click resets ── */
+.pan-row{width:100%;padding:0 1px;display:block;}
+input.ch-pan{
+  display:block;width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;
+  height:3px;border-radius:2px;outline:none;cursor:pointer;margin:0;
+  background:linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--border2) 50%,var(--border2) 100%);
+}
+input.ch-pan::-webkit-slider-thumb{
+  -webkit-appearance:none;width:9px;height:9px;border-radius:50%;
+  background:var(--fader);cursor:pointer;border:1px solid var(--border2);
+}
+input.ch-pan::-moz-range-thumb{width:9px;height:9px;border-radius:50%;background:var(--fader);border:1px solid var(--border2);cursor:pointer;}
+input.ch-pan.panned-l::-webkit-slider-thumb{background:var(--accent);}
+input.ch-pan.panned-r::-webkit-slider-thumb{background:var(--accent2);}
+.pan-val-lbl{font-size:8px;color:var(--dim);text-align:center;font-family:'Share Tech Mono',monospace;margin-top:1px;height:10px;line-height:10px;}
+/* ── MASTER VU — horizontal stereo bars ── */
+.master-vu-h{display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px;max-width:280px;}
+.master-vu-h-track{display:flex;align-items:center;gap:4px;}
+.master-vu-side{font-size:8px;font-weight:700;color:var(--dim);font-family:'Share Tech Mono',monospace;width:7px;flex-shrink:0;text-align:center;}
+.master-vu-h-bar{flex:1;height:7px;background:#e0e4ee;border:1px solid #c8d0e0;border-radius:2px;position:relative;overflow:hidden;}
+.master-vu-h-fill{position:absolute;top:0;left:0;height:100%;width:0%;background:#158040;transition:width .04s;}
+.master-vu-h-peak{position:absolute;top:1px;bottom:1px;width:2px;left:0%;background:rgba(192,24,24,0.85);border-radius:1px;transition:left .12s;}
 /* ── STATUS ── */
 .status{background:var(--panel);border-top:1px solid var(--border);padding:3px 14px;font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 </style>
@@ -256,13 +289,32 @@ input#masterVol::-webkit-slider-thumb{
 
 <!-- ════ HEADER ════ -->
 <div class="hdr">
-  <div class="logo">◉ MIDI PLAYER</div>
+  <div class="logo">MIDI mixer/render</div>
   <button class="hbtn" id="sf2Btn" onclick="$('sf2In').click()">🎷 Load SF2</button>
   <input type="file" id="sf2In" accept=".sf2" style="display:none" onchange="onSF2(event)">
   <span class="hstat synth" id="sf2Stat">No SF2 — system synth</span>
   <button class="hbtn" id="midiBtn" onclick="$('midiIn').click()">♫ Load MIDI</button>
   <input type="file" id="midiIn" accept=".mid,.midi" style="display:none" onchange="onMIDI(event)">
   <span class="hstat" id="midiStat">No MIDI file</span>
+  <div style="flex:1;min-width:6px;"></div>
+  <!-- RENDER MODE -->
+  <div class="rm-grp">
+    <span class="rm-lbl">RND</span>
+    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
+    <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
+  </div>
+  <!-- OUTPUT MODE -->
+  <div class="rm-grp">
+    <span class="rm-lbl">OUT</span>
+    <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
+    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
+  </div>
+  <!-- EXPORT -->
+  <div class="exp-row">
+    <button class="exp-btn" id="wavBtn" onclick="doExportWAV()" disabled>⬇ WAV</button>
+    <button class="exp-btn" id="mp3Btn" onclick="doExportMP3()" disabled>⬇ MP3</button>
+  </div>
+  <button class="tlane-toggle" id="tlaneToggle" onclick="toggleTempoLane()" title="Tempo envelope lane">TEMPO ▾</button>
 </div>
 
 <!-- ════ TRANSPORT ════ -->
@@ -284,27 +336,17 @@ input#masterVol::-webkit-slider-thumb{
     <span class="master-lbl">MSTR</span>
     <input type="range" id="masterVol" min="0" max="150" value="100" oninput="onMasterVol(this)">
     <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);min-width:32px" id="mVolLbl">100%</span>
+    <div class="master-vu-h" id="masterVU" title="Master output L/R">
+      <div class="master-vu-h-track">
+        <span class="master-vu-side">L</span>
+        <div class="master-vu-h-bar"><div class="master-vu-h-fill" id="masterVuL"></div><div class="master-vu-h-peak" id="masterVuPeakL"></div></div>
+      </div>
+      <div class="master-vu-h-track">
+        <span class="master-vu-side">R</span>
+        <div class="master-vu-h-bar"><div class="master-vu-h-fill" id="masterVuR"></div><div class="master-vu-h-peak" id="masterVuPeakR"></div></div>
+      </div>
+    </div>
   </div>
-
-  <!-- RENDER MODE: Express / Live -->
-  <div class="rm-grp">
-    <span class="rm-lbl">RND</span>
-    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
-    <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
-  </div>
-
-  <!-- OUTPUT MODE: Mix / Stems -->
-  <div class="rm-grp">
-    <span class="rm-lbl">OUT</span>
-    <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
-    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
-  </div>
-
-  <div class="exp-row">
-    <button class="exp-btn" id="wavBtn" onclick="doExportWAV()" disabled>⬇ WAV</button>
-    <button class="exp-btn" id="mp3Btn" onclick="doExportMP3()" disabled>⬇ MP3</button>
-  </div>
-  <button class="tlane-toggle" id="tlaneToggle" onclick="toggleTempoLane()" title="Tempo envelope lane">TEMPO ▾</button>
 </div>
 
 <!-- ════ TEMPO LANE ════ -->
@@ -397,6 +439,10 @@ const GM = [
    STATE
 ════════════════════════════════════════════ */
 let AC = null, masterGain = null;
+let masterAnalyserL = null, masterAnalyserR = null;
+let masterAnalyserBufL = null, masterAnalyserBufR = null;
+let masterVuPeakL = 0, masterVuPeakR = 0, masterVuPeakTimeL = 0, masterVuPeakTimeR = 0;
+let masterVuSmoothL = 0, masterVuSmoothR = 0;
 let sf2 = null;
 const sf2Cache = {};
 let midi = null;
@@ -413,8 +459,8 @@ const midiVU   = Array.from({length:16}, ()=>({level:0, peak:0, peakTime:0}));
 
 const CH = Array.from({length:16}, (_,i) => ({
   id:i, name:`CH ${i+1}`, program:0,
-  vol:100, muted:false, soloed:false, active:false,
-  gainNode:null, analyser:null, analyserBuf:null,
+  vol:100, pan:0, muted:false, soloed:false, active:false,
+  gainNode:null, panNode:null, analyser:null, analyserBuf:null,
   vuSmooth:0, peak:0, peakTime:0,
   userOverride: null   // set when user manually changes instrument
 }));
@@ -579,15 +625,27 @@ function ensureAC() {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = AC.createGain();
     masterGain.gain.value = 1.0;
+    // Stereo master VU via channel splitter
+    const splitter = AC.createChannelSplitter(2);
+    masterAnalyserL = AC.createAnalyser(); masterAnalyserL.fftSize=256; masterAnalyserL.smoothingTimeConstant=0.75;
+    masterAnalyserR = AC.createAnalyser(); masterAnalyserR.fftSize=256; masterAnalyserR.smoothingTimeConstant=0.75;
+    masterAnalyserBufL = new Float32Array(masterAnalyserL.fftSize);
+    masterAnalyserBufR = new Float32Array(masterAnalyserR.fftSize);
+    masterGain.connect(splitter);
+    splitter.connect(masterAnalyserL, 0);
+    splitter.connect(masterAnalyserR, 1);
     masterGain.connect(AC.destination);
     CH.forEach(ch => {
       ch.gainNode = AC.createGain();
       ch.gainNode.gain.value = 1.0;
+      ch.panNode = AC.createStereoPanner();
+      ch.panNode.pan.value = ch.pan / 100;
       ch.analyser = AC.createAnalyser();
       ch.analyser.fftSize = 256;
       ch.analyser.smoothingTimeConstant = 0.75;
       ch.analyserBuf = new Float32Array(ch.analyser.fftSize);
-      ch.gainNode.connect(ch.analyser);
+      ch.gainNode.connect(ch.panNode);
+      ch.panNode.connect(ch.analyser);
       ch.analyser.connect(masterGain);
     });
   }
@@ -708,8 +766,8 @@ function midiVUDecay(now) {
     if (now > v.peakTime) v.peak = Math.max(0, v.peak - 0.8);
     const fill = document.querySelector(`.vu-fill[data-ch="${i}"]`);
     const peak = document.querySelector(`.vu-peak[data-ch="${i}"]`);
-    if (fill) fill.style.height = v.level + '%';
-    if (peak) peak.style.bottom = v.peak + '%';
+    if (fill) { fill.style.height = v.level + '%'; fill.style.background = vuColor(v.level); }
+    if (peak) { peak.style.bottom = v.peak + '%'; peak.style.background = vuColor(v.peak); }
   });
 }
 
@@ -990,7 +1048,7 @@ function processMIDI(data) {
   midiEvts=all;
   totalTicks=all.reduce((m,e)=>Math.max(m,e.tick),0);
   totalSecs=t2s(totalTicks)+0.5;
-  CH.forEach(ch=>{ch.active=false;ch.program=0;ch.name=`CH ${ch.id+1}`;ch.userOverride=null;});
+  CH.forEach(ch=>{ch.active=false;ch.program=0;ch.name=`CH ${ch.id+1}`;ch.userOverride=null;ch.pan=0;});
   const trackChMap={};
   for(const tr of data.tracks){
     const nameEvt=tr.find(e=>e.type==='name');
@@ -1171,6 +1229,35 @@ function killNodes() {
 }
 
 /* ════════════════════════════════════════════
+   VU COLOR — dynamic level-dependent colour
+   0–60 % → green   60–78 % → green→yellow
+   78–90 % → yellow→orange   90–100 % → orange→red
+════════════════════════════════════════════ */
+function vuColor(pct) {
+  const lerp = (a, b, t) => Math.round(a + (b - a) * Math.max(0, Math.min(1, t)));
+  let r, g, b;
+  if (pct <= 60) {
+    r = 21; g = 148; b = 64;
+  } else if (pct <= 78) {
+    const t = (pct - 60) / 18;
+    r = lerp(21,  210, t);
+    g = lerp(148, 170, t);
+    b = lerp(64,    0, t);
+  } else if (pct <= 90) {
+    const t = (pct - 78) / 12;
+    r = lerp(210, 210, t);
+    g = lerp(170,  60, t);
+    b = 0;
+  } else {
+    const t = (pct - 90) / 10;
+    r = lerp(210, 220, t);
+    g = lerp( 60,  18, t);
+    b = 0;
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ════════════════════════════════════════════
    RAF LOOP — VU + TRANSPORT + REC TIMER
 ════════════════════════════════════════════ */
 function startRAF(){ if(rafId) cancelAnimationFrame(rafId); rafLoop(); }
@@ -1199,6 +1286,30 @@ function rafLoop() {
   }
   // VU meters
   const now=Date.now();
+  // Master VU (stereo horizontal)
+  if(masterAnalyserL && masterAnalyserBufL) {
+    const calcVu=(analyser, buf)=>{
+      analyser.getFloatTimeDomainData(buf);
+      let rms=0; for(const s of buf) rms+=s*s;
+      rms=Math.sqrt(rms/buf.length);
+      const db=20*Math.log10(Math.max(rms,1e-10));
+      return Math.max(0,Math.min(100,(db+60)/60*100));
+    };
+    const pctL=calcVu(masterAnalyserL, masterAnalyserBufL);
+    const pctR=calcVu(masterAnalyserR, masterAnalyserBufR);
+    masterVuSmoothL=masterVuSmoothL*0.65+pctL*0.35;
+    masterVuSmoothR=masterVuSmoothR*0.65+pctR*0.35;
+    if(pctL>masterVuPeakL){masterVuPeakL=pctL;masterVuPeakTimeL=now+1800;}
+    if(now>masterVuPeakTimeL) masterVuPeakL=Math.max(0,masterVuPeakL-0.8);
+    if(pctR>masterVuPeakR){masterVuPeakR=pctR;masterVuPeakTimeR=now+1800;}
+    if(now>masterVuPeakTimeR) masterVuPeakR=Math.max(0,masterVuPeakR-0.8);
+    const vuL=$('masterVuL'), vuR=$('masterVuR');
+    const vpL=$('masterVuPeakL'), vpR=$('masterVuPeakR');
+    if(vuL){ vuL.style.width=masterVuSmoothL+'%'; vuL.style.background=vuColor(masterVuSmoothL); }
+    if(vuR){ vuR.style.width=masterVuSmoothR+'%'; vuR.style.background=vuColor(masterVuSmoothR); }
+    if(vpL){ vpL.style.left=Math.max(0,masterVuPeakL-1)+'%'; vpL.style.background=vuColor(masterVuPeakL); }
+    if(vpR){ vpR.style.left=Math.max(0,masterVuPeakR-1)+'%'; vpR.style.background=vuColor(masterVuPeakR); }
+  }
   if(sf2) {
     // SF2: read real Web Audio analyser data
     CH.forEach((ch,i)=>{
@@ -1214,8 +1325,8 @@ function rafLoop() {
       if(now>ch.peakTime) ch.peak=Math.max(0,ch.peak-0.8);
       const fill=document.querySelector(`.vu-fill[data-ch="${i}"]`);
       const peak=document.querySelector(`.vu-peak[data-ch="${i}"]`);
-      if(fill) fill.style.height=ch.vuSmooth+'%';
-      if(peak) peak.style.bottom=ch.peak+'%';
+      if(fill){ fill.style.height=ch.vuSmooth+'%'; fill.style.background=vuColor(ch.vuSmooth); }
+      if(peak){ peak.style.bottom=ch.peak+'%'; peak.style.background=vuColor(ch.peak); }
     });
   } else {
     // MIDI: use simulated VU driven by note-on velocity hits
@@ -1279,12 +1390,20 @@ function stripHTML(ch) {
   return `
 <div class="ch${ch.muted?' ch-muted':''}${ch.soloed?' ch-soloed':''}${drums?' ch-drums':''}" id="ch${ch.id}">
   <div class="ch-num">CH ${ch.id+1}</div>
-  <div class="ch-name" title="${ch.name}">${ch.name.length>9?ch.name.slice(0,9)+'…':ch.name}</div>
+  <div class="ch-name" id="cn${ch.id}" title="Click to rename" onclick="onRenameStart(${ch.id})">${ch.name.length>9?ch.name.slice(0,9)+'…':ch.name}</div>
   ${instSel}
   <div class="ms-row">
     <button class="m-btn${ch.muted?' on':''}" onclick="onMute(${ch.id})">M</button>
     <button class="s-btn${ch.soloed?' on':''}" onclick="onSolo(${ch.id})">S</button>
   </div>
+  <div class="pan-row">
+    <input type="range" class="ch-pan${ch.pan<0?' panned-l':ch.pan>0?' panned-r':''}"
+      data-ch="${ch.id}" min="-100" max="100" value="${ch.pan}"
+      oninput="onPan(${ch.id},this.value)"
+      ondblclick="onPanReset(${ch.id})"
+      title="Pan — dbl-click to center">
+  </div>
+  <div class="pan-val-lbl" id="pl${ch.id}">${ch.pan===0?'◉ C':ch.pan<0?'◁ L'+Math.abs(ch.pan):'▷ R'+ch.pan}</div>
   <div class="level-row">
     <div class="vu">
       <div class="vu-fill" data-ch="${ch.id}" style="height:0%"></div>
@@ -1305,6 +1424,33 @@ function postRender() {
   CH.filter(c=>c.active).forEach(ch=>{
     const sel=document.querySelector(`.ch-sel[data-ch="${ch.id}"]`);
     if(sel&&ch.id!==9) sel.value=ch.program;
+  });
+}
+
+function onRenameStart(chIdx) {
+  const el=$(`cn${chIdx}`);
+  if(!el||el.querySelector('input')) return; // already editing
+  const ch=CH[chIdx];
+  el.innerHTML='';
+  const inp=document.createElement('input');
+  inp.className='ch-name-input';
+  inp.value=ch.name;
+  inp.maxLength=24;
+  el.appendChild(inp);
+  inp.focus();
+  inp.select();
+  const commit=()=>{
+    const v=inp.value.trim()||ch.name;
+    ch.name=v;
+    el.title=v;
+    el.innerHTML=v.length>9?v.slice(0,9)+'…':v;
+    el.onclick=()=>onRenameStart(chIdx);
+  };
+  inp.addEventListener('blur',commit);
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();inp.blur();}
+    if(e.key==='Escape'){inp.value=ch.name;inp.blur();}
+    e.stopPropagation(); // don't trigger space=play etc
   });
 }
 
@@ -1359,6 +1505,36 @@ function onVol(chIdx, val) {
     const v=muted?0:Math.round(Math.min(127,parseInt(val)/150*127));
     midiSend([0xB0|chIdx,7,v],0);
   }
+}
+
+function onPan(chIdx, val) {
+  const ch=CH[chIdx]; ch.pan=parseInt(val);
+  if(ch.panNode && AC) ch.panNode.pan.setTargetAtTime(ch.pan/100, AC.currentTime, 0.02);
+  const lbl=$(`pl${chIdx}`);
+  if(lbl) lbl.textContent=ch.pan===0?'◉ C':ch.pan<0?'◁ L'+Math.abs(ch.pan):'▷ R'+ch.pan;
+  const slider=document.querySelector(`.ch-pan[data-ch="${chIdx}"]`);
+  if(slider){
+    slider.classList.toggle('panned-l', ch.pan<0);
+    slider.classList.toggle('panned-r', ch.pan>0);
+    // Update track colour: highlight left or right of centre
+    const pct=((ch.pan+100)/200*100).toFixed(1);
+    if(ch.pan<0)
+      slider.style.background=`linear-gradient(to right,var(--border2) 0%,var(--accent) ${pct}%,var(--accent) 50%,var(--border2) 50%)`;
+    else if(ch.pan>0)
+      slider.style.background=`linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--accent2) 50%,var(--accent2) ${pct}%,var(--border2) ${pct}%)`;
+    else
+      slider.style.background='linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--border2) 50%,var(--border2) 100%)';
+  }
+  if(!sf2 && midiOut) {
+    const cc10val = Math.round((ch.pan+100)/200*127);
+    midiSend([0xB0|chIdx, 10, cc10val], 0);
+  }
+}
+
+function onPanReset(chIdx) {
+  const slider=document.querySelector(`.ch-pan[data-ch="${chIdx}"]`);
+  if(slider){ slider.value=0; }
+  onPan(chIdx, 0);
 }
 
 function onMasterVol(el) {
@@ -1515,7 +1691,8 @@ async function renderOffline(onProgress) {
 
   const chGains=CH.map(ch=>{
     const g=offCtx.createGain(); g.gain.value=chGainVal(ch);
-    g.connect(mst); return g;
+    const p=offCtx.createStereoPanner(); p.pan.value=ch.pan/100;
+    g.connect(p); p.connect(mst); return g;
   });
 
   const offCache={}, offProgs=CH.map(c=>c.program);
@@ -1573,7 +1750,10 @@ async function renderOfflineChannel(chIdx, onProgress) {
 
   const chGain=offCtx.createGain();
   chGain.gain.value=CH[chIdx].vol/100;
-  chGain.connect(mst);
+  const chPan=offCtx.createStereoPanner();
+  chPan.pan.value=CH[chIdx].pan/100;
+  chGain.connect(chPan);
+  chPan.connect(mst);
 
   const offCache={};
   let offProg=CH[chIdx].program;
@@ -1826,7 +2006,7 @@ const MULT_MAX    = 3.0;
 const TLANE_PAD_L = 34;
 const TLANE_PAD_R = 8;
 const TLANE_PAD_T = 6;
-const TLANE_PAD_B = 16;
+const TLANE_PAD_B = 22;
 
 let tlaneOpen  = false;
 let tlaneDrag  = null;
@@ -1960,6 +2140,38 @@ function drawTempoCurve(playheadPos) {
     html += `<text x="${cL-3}" y="${(parseFloat(y)+3.5).toFixed(1)}" text-anchor="end"
       font-size="8" fill="${isOne?'var(--accent)':'var(--dim)'}"
       font-family="Share Tech Mono,monospace">${m}×</text>`;
+  }
+
+  // ── Time axis (X) ──
+  {
+    const axisY = H - TLANE_PAD_B + 3;
+    const totalDur = modTotal || totalSecs || 0;
+    if (totalDur > 0) {
+      // Choose tick interval: aim for ~5-8 ticks visible
+      const visibleDur = totalDur * (tlaneVE - tlaneVS);
+      const rawStep = visibleDur / 6;
+      const nice = [0.5,1,2,5,10,15,20,30,60,120,180,300,600];
+      const step = nice.find(s=>s>=rawStep) || nice[nice.length-1];
+      // Start from first tick >= visible start
+      const tStart = Math.floor(tlaneVS * totalDur / step) * step;
+      for (let t = tStart; t <= totalDur * tlaneVE + step; t += step) {
+        const pos = t / totalDur;
+        if (pos < tlaneVS - 0.001 || pos > tlaneVE + 0.001) continue;
+        const x = posToX(pos, W);
+        if (x < cL - 2 || x > cR + 2) continue;
+        const mins = Math.floor(t/60), secs = Math.floor(t%60);
+        const label = totalDur >= 60
+          ? `${mins}:${String(secs).padStart(2,'0')}`
+          : `${secs}s`;
+        html += `<line x1="${x.toFixed(1)}" y1="${(H-TLANE_PAD_B).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(H-TLANE_PAD_B+4).toFixed(1)}"
+          stroke="var(--border2)" stroke-width="0.8"/>`;
+        html += `<text x="${x.toFixed(1)}" y="${(axisY+8).toFixed(1)}" text-anchor="middle"
+          font-size="7.5" fill="var(--dim)" font-family="Share Tech Mono,monospace">${label}</text>`;
+      }
+      // Axis baseline
+      html += `<line x1="${cL}" y1="${(H-TLANE_PAD_B).toFixed(1)}" x2="${cR}" y2="${(H-TLANE_PAD_B).toFixed(1)}"
+        stroke="rgba(180,189,212,0.35)" stroke-width="0.8"/>`;
+    }
   }
 
   // ── Playhead ──
