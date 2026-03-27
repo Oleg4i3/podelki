@@ -195,8 +195,8 @@ input#masterVol::-webkit-slider-thumb{
 .s-btn.on{background:var(--solo-c);color:#fff;border-color:var(--solo-c);}
 .level-row{flex:1;min-height:0;display:flex;align-items:stretch;gap:5px;width:100%;min-height:80px;}
 .vu{width:18px;flex-shrink:0;background:#e0e4ee;border:1px solid #c8d0e0;border-radius:2px;position:relative;overflow:hidden;}
-.vu-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(to top,var(--green) 0%,var(--green) 58%,var(--yellow) 74%,var(--red) 100%);transition:height .04s;}
-.vu-peak{position:absolute;left:1px;right:1px;height:2px;background:rgba(255,60,60,0.9);bottom:0%;transition:bottom .12s;}
+.vu-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:#158040;transition:height .04s;}
+.vu-peak{position:absolute;left:1px;right:1px;height:2px;background:rgba(192,24,24,0.9);bottom:0%;transition:bottom .12s;}
 .vu::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(to bottom,transparent 0,transparent 5px,rgba(200,210,230,.5) 5px,rgba(200,210,230,.5) 6px);pointer-events:none;}
 .fader-wrap{flex:1;position:relative;display:flex;justify-content:center;align-items:center;}
 .ch-fader{-webkit-appearance:none;appearance:none;writing-mode:vertical-lr;direction:rtl;width:100%;height:100%;cursor:pointer;outline:none;background:transparent;padding:0;}
@@ -215,6 +215,55 @@ input#masterVol::-webkit-slider-thumb{
 .exp-overlay.on{display:flex;}
 .exp-pbar-wrap{width:320px;height:5px;background:var(--strip);border-radius:3px;}
 .exp-pbar{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width .25s;}
+/* ── TEMPO LANE ── */
+.tlane-wrap{background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;height:0;transition:height .22s ease;}
+.tlane-wrap.open{overflow:visible;}
+.tlane-inner{padding:6px 14px 0;display:flex;flex-direction:column;height:100%;}
+.tlane-top{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;flex-shrink:0;}
+.tlane-lbl{font-size:9px;font-weight:700;color:var(--dim);letter-spacing:1.2px;white-space:nowrap;}
+.tlane-ch-checks{display:flex;gap:5px;flex-wrap:wrap;flex:1;overflow:hidden;}
+.tlane-ch-check{font-size:9.5px;color:var(--dim);cursor:pointer;display:flex;align-items:center;gap:3px;user-select:none;white-space:nowrap;}
+.tlane-ch-check input{cursor:pointer;accent-color:var(--accent2);}
+.tlane-zoom-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--accent2);white-space:nowrap;min-width:28px;text-align:right;}
+.tlane-reset{font-family:inherit;font-size:9px;font-weight:700;padding:2px 7px;border:1px solid var(--border2);background:var(--strip);color:var(--dim);border-radius:2px;cursor:pointer;letter-spacing:.5px;white-space:nowrap;}
+.tlane-reset:hover{border-color:var(--accent2);color:var(--accent2);}
+.tlane-svg-wrap{position:relative;flex:1;min-height:0;overflow:hidden;}
+.tlane-svg{width:100%;height:100%;display:block;cursor:crosshair;}
+/* scrollbar */
+.tlane-sb{height:7px;margin:2px 34px 0 34px;background:var(--strip);border-radius:4px;position:relative;flex-shrink:0;display:none;}
+.tlane-sb.vis{display:block;}
+.tlane-sb-thumb{position:absolute;top:1px;height:5px;background:var(--border2);border-radius:3px;cursor:grab;transition:background .1s;min-width:16px;}
+.tlane-sb-thumb:hover,.tlane-sb-thumb.drag{background:var(--accent2);cursor:grabbing;}
+/* resize handle at bottom */
+.tlane-rh{height:7px;cursor:ns-resize;background:var(--strip);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;}
+.tlane-rh:hover{background:rgba(184,108,8,.12);}
+.tlane-rh::after{content:'';width:28px;height:2px;background:var(--border2);border-radius:1px;}
+.tlane-hint{font-size:9px;color:var(--dim);padding:2px 0 3px;opacity:.65;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tlane-toggle{font-family:inherit;font-size:9px;font-weight:700;padding:4px 7px;border-radius:2px;cursor:pointer;border:1px solid var(--border2);background:var(--strip);color:var(--dim);transition:all .12s;white-space:nowrap;letter-spacing:.8px;}
+.tlane-toggle:hover{border-color:var(--accent);color:var(--accent);}
+.tlane-toggle.open{border-color:var(--accent);color:var(--accent);background:rgba(184,108,8,.08);}
+/* ── PAN SLIDER ── full-width, label below, dbl-click resets ── */
+.pan-row{width:100%;padding:0 1px;display:block;}
+input.ch-pan{
+  display:block;width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;
+  height:3px;border-radius:2px;outline:none;cursor:pointer;margin:0;
+  background:linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--border2) 50%,var(--border2) 100%);
+}
+input.ch-pan::-webkit-slider-thumb{
+  -webkit-appearance:none;width:9px;height:9px;border-radius:50%;
+  background:var(--fader);cursor:pointer;border:1px solid var(--border2);
+}
+input.ch-pan::-moz-range-thumb{width:9px;height:9px;border-radius:50%;background:var(--fader);border:1px solid var(--border2);cursor:pointer;}
+input.ch-pan.panned-l::-webkit-slider-thumb{background:var(--accent);}
+input.ch-pan.panned-r::-webkit-slider-thumb{background:var(--accent2);}
+.pan-val-lbl{font-size:8px;color:var(--dim);text-align:center;font-family:'Share Tech Mono',monospace;margin-top:1px;height:10px;line-height:10px;}
+/* ── MASTER VU — horizontal stereo bars ── */
+.master-vu-h{display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px;max-width:280px;}
+.master-vu-h-track{display:flex;align-items:center;gap:4px;}
+.master-vu-side{font-size:8px;font-weight:700;color:var(--dim);font-family:'Share Tech Mono',monospace;width:7px;flex-shrink:0;text-align:center;}
+.master-vu-h-bar{flex:1;height:7px;background:#e0e4ee;border:1px solid #c8d0e0;border-radius:2px;position:relative;overflow:hidden;}
+.master-vu-h-fill{position:absolute;top:0;left:0;height:100%;width:0%;background:#158040;transition:width .04s;}
+.master-vu-h-peak{position:absolute;top:1px;bottom:1px;width:2px;left:0%;background:rgba(192,24,24,0.85);border-radius:1px;transition:left .12s;}
 /* ── STATUS ── */
 .status{background:var(--panel);border-top:1px solid var(--border);padding:3px 14px;font-size:11px;color:var(--dim);font-family:'Share Tech Mono',monospace;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 </style>
@@ -236,6 +285,25 @@ input#masterVol::-webkit-slider-thumb{
   <button class="hbtn" id="midiBtn" onclick="$('midiIn').click()">♫ Load MIDI</button>
   <input type="file" id="midiIn" accept=".mid,.midi" style="display:none" onchange="onMIDI(event)">
   <span class="hstat" id="midiStat">No MIDI file</span>
+  <div style="flex:1;min-width:6px;"></div>
+  <!-- RENDER MODE -->
+  <div class="rm-grp">
+    <span class="rm-lbl">RND</span>
+    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
+    <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
+  </div>
+  <!-- OUTPUT MODE -->
+  <div class="rm-grp">
+    <span class="rm-lbl">OUT</span>
+    <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
+    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
+  </div>
+  <!-- EXPORT -->
+  <div class="exp-row">
+    <button class="exp-btn" id="wavBtn" onclick="doExportWAV()" disabled>⬇ WAV</button>
+    <button class="exp-btn" id="mp3Btn" onclick="doExportMP3()" disabled>⬇ MP3</button>
+  </div>
+  <button class="tlane-toggle" id="tlaneToggle" onclick="toggleTempoLane()" title="Tempo envelope lane">TEMPO ▾</button>
 </div>
 
 <!-- ════ TRANSPORT ════ -->
@@ -257,25 +325,35 @@ input#masterVol::-webkit-slider-thumb{
     <span class="master-lbl">MSTR</span>
     <input type="range" id="masterVol" min="0" max="150" value="100" oninput="onMasterVol(this)">
     <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);min-width:32px" id="mVolLbl">100%</span>
+    <div class="master-vu-h" id="masterVU" title="Master output L/R">
+      <div class="master-vu-h-track">
+        <span class="master-vu-side">L</span>
+        <div class="master-vu-h-bar"><div class="master-vu-h-fill" id="masterVuL"></div><div class="master-vu-h-peak" id="masterVuPeakL"></div></div>
+      </div>
+      <div class="master-vu-h-track">
+        <span class="master-vu-side">R</span>
+        <div class="master-vu-h-bar"><div class="master-vu-h-fill" id="masterVuR"></div><div class="master-vu-h-peak" id="masterVuPeakR"></div></div>
+      </div>
+    </div>
   </div>
+</div>
 
-  <!-- RENDER MODE: Express / Live -->
-  <div class="rm-grp">
-    <span class="rm-lbl">RND</span>
-    <button class="rm-btn active" id="rmExpress" onclick="setRenderMode('express')" title="Offline fast render">EXPR</button>
-    <button class="rm-btn"        id="rmLive"    onclick="setRenderMode('live')"    title="Record during live playback — tweak levels on the fly">LIVE ●</button>
-  </div>
-
-  <!-- OUTPUT MODE: Mix / Stems -->
-  <div class="rm-grp">
-    <span class="rm-lbl">OUT</span>
-    <button class="rm-btn active" id="roMix"   onclick="setOutputMode('mix')"   title="All channels mixed to one file">MIX</button>
-    <button class="rm-btn"        id="roStems" onclick="setOutputMode('stems')" title="Each channel to a separate file">STEMS</button>
-  </div>
-
-  <div class="exp-row">
-    <button class="exp-btn" id="wavBtn" onclick="doExportWAV()" disabled>⬇ WAV</button>
-    <button class="exp-btn" id="mp3Btn" onclick="doExportMP3()" disabled>⬇ MP3</button>
+<!-- ════ TEMPO LANE ════ -->
+<div class="tlane-wrap" id="tempoLane">
+  <div class="tlane-inner">
+    <div class="tlane-top">
+      <span class="tlane-lbl">ENVELOPE</span>
+      <div class="tlane-ch-checks" id="tlaneChChecks"><span style="font-size:9px;color:var(--dim);opacity:.5">load MIDI to enable</span></div>
+      <span class="tlane-zoom-lbl" id="tlaneZoomLbl"></span>
+      <button class="tlane-reset" onclick="resetTempoZoom()" title="Fit full track in view">⌖ FIT</button>
+      <button class="tlane-reset" onclick="resetTempoCurve()" title="Reset tempo to flat 1×" style="border-color:var(--border2)">↺ RESET</button>
+    </div>
+    <div class="tlane-svg-wrap" id="tlaneSvgWrap">
+      <svg class="tlane-svg" id="tlaneSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="tlane-sb" id="tlaneSb"><div class="tlane-sb-thumb" id="tlaneSbThumb"></div></div>
+    <div class="tlane-hint">Click → add node · Drag ↕↔ → tempo/position · Dbl-click → remove · Wheel → zoom · Drag bar → pan</div>
+    <div class="tlane-rh" id="tlaneRh" title="Drag to resize"></div>
   </div>
 </div>
 
@@ -350,6 +428,10 @@ const GM = [
    STATE
 ════════════════════════════════════════════ */
 let AC = null, masterGain = null;
+let masterAnalyserL = null, masterAnalyserR = null;
+let masterAnalyserBufL = null, masterAnalyserBufR = null;
+let masterVuPeakL = 0, masterVuPeakR = 0, masterVuPeakTimeL = 0, masterVuPeakTimeR = 0;
+let masterVuSmoothL = 0, masterVuSmoothR = 0;
 let sf2 = null;
 const sf2Cache = {};
 let midi = null;
@@ -366,8 +448,8 @@ const midiVU   = Array.from({length:16}, ()=>({level:0, peak:0, peakTime:0}));
 
 const CH = Array.from({length:16}, (_,i) => ({
   id:i, name:`CH ${i+1}`, program:0,
-  vol:100, muted:false, soloed:false, active:false,
-  gainNode:null, analyser:null, analyserBuf:null,
+  vol:100, pan:0, muted:false, soloed:false, active:false,
+  gainNode:null, panNode:null, analyser:null, analyserBuf:null,
   vuSmooth:0, peak:0, peakTime:0,
   userOverride: null   // set when user manually changes instrument
 }));
@@ -389,6 +471,142 @@ let outputMode = 'mix';     // 'mix' | 'stems'
 let liveRec    = null;      // live recording state object
 
 /* ════════════════════════════════════════════
+   BASIC SYNTH — oscillator fallback when no SF2 & no MIDI out
+════════════════════════════════════════════ */
+const BasicSynth = (function(){
+  const voices = {};
+  function noteOn(ac, chIdx, note, vel, t0, dest) {
+    const key = `${chIdx}:${note}`;
+    _off(key, t0);
+    const g = (vel / 127) * 0.18;
+    const gn = ac.createGain();
+    gn.gain.setValueAtTime(0, t0);
+    gn.gain.linearRampToValueAtTime(g, t0 + 0.012);
+    gn.connect(dest);
+    if (chIdx === 9) {
+      // Percussive noise burst
+      const len = Math.ceil(ac.sampleRate * 0.35);
+      const buf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.5) * (note < 50 ? 2 : 1);
+      const src = ac.createBufferSource(); src.buffer = buf;
+      src.connect(gn); src.start(t0); src.stop(t0 + 0.36);
+      voices[key] = {gn, src, t0, g, perc:true};
+    } else {
+      const freq = 440 * Math.pow(2, (note - 69) / 12);
+      const o1 = ac.createOscillator(), o2 = ac.createOscillator();
+      o1.type = 'triangle'; o2.type = 'sine';
+      o1.frequency.value = freq; o2.frequency.value = freq * 1.0015;
+      o1.connect(gn); o2.connect(gn);
+      o1.start(t0); o2.start(t0);
+      voices[key] = {gn, o1, o2, t0, g};
+    }
+  }
+  function _off(key, t0) {
+    const v = voices[key]; if (!v) return;
+    delete voices[key];
+    try {
+      v.gn.gain.cancelScheduledValues(t0);
+      v.gn.gain.setValueAtTime(v.g, t0);
+      v.gn.gain.linearRampToValueAtTime(0.0001, t0 + 0.08);
+      if (v.perc) { v.src.stop(t0 + 0.09); }
+      else { v.o1.stop(t0 + 0.09); v.o2.stop(t0 + 0.09); }
+    } catch(e) {}
+  }
+  function noteOff(chIdx, note, t0) { _off(`${chIdx}:${note}`, t0); }
+  function allOff() {
+    const t = (typeof AC !== 'undefined' && AC) ? AC.currentTime : 0;
+    Object.keys(voices).forEach(k => _off(k, t));
+  }
+  return {noteOn, noteOff, allOff};
+})();
+
+/* ════════════════════════════════════════════
+   TEMPO CURVE STATE
+════════════════════════════════════════════ */
+let tempoCurve = [{pos:0,mult:1},{pos:1,mult:1}]; // nodes sorted by pos
+const MOD_N = 1500;       // table resolution
+let modTable  = null;     // Float64Array[MOD_N+1]: tick-index→wall-clock-seconds
+let modTotal  = 0;        // total wall-clock duration under current curve
+let envChannels = null;   // Set<chIdx> of channels contributing to envelope
+let envData   = null;     // Float32Array[ENV_N] amplitude 0-1
+
+const ENV_N = 400;        // envelope resolution
+
+function getTempoMult(pos) {
+  const c = tempoCurve;
+  if (!c.length) return 1;
+  if (pos <= c[0].pos) return c[0].mult;
+  if (pos >= c[c.length-1].pos) return c[c.length-1].mult;
+  for (let i=0; i<c.length-1; i++) {
+    if (pos >= c[i].pos && pos <= c[i+1].pos) {
+      const t = (pos-c[i].pos)/(c[i+1].pos-c[i].pos);
+      return c[i].mult*(1-t)+c[i+1].mult*t;
+    }
+  }
+  return 1;
+}
+
+function buildModTable() {
+  if (!midi || totalTicks <= 0) { modTable=null; modTotal=totalSecs; return; }
+  modTable = new Float64Array(MOD_N+1);
+  let time=0;
+  const dtTick = totalTicks / MOD_N;
+  for (let i=0; i<=MOD_N; i++) {
+    modTable[i] = time;
+    if (i < MOD_N) {
+      const tick = i * dtTick;
+      const baseDur = t2s(tick+dtTick) - t2s(tick);
+      const mult = getTempoMult(i/MOD_N);
+      time += baseDur / Math.max(0.1, mult);
+    }
+  }
+  modTotal = time;
+}
+
+function tick2mod(tick) {
+  if (!modTable) return t2s(tick);
+  const frac = Math.max(0, Math.min(1, tick/totalTicks));
+  const fi = frac * MOD_N;
+  const i = Math.min(Math.floor(fi), MOD_N-1);
+  const rem = fi - i;
+  return modTable[i] + (modTable[i+1]-modTable[i])*rem;
+}
+
+function mod2tick(mod) {
+  if (!modTable) return s2t(mod);
+  let lo=0, hi=MOD_N;
+  while (lo<hi-1) { const m=(lo+hi)>>1; if(modTable[m]<=mod) lo=m; else hi=m; }
+  const t0=modTable[lo], t1=modTable[lo+1]??modTable[lo];
+  const span=t1-t0, rem=span>0?(mod-t0)/span:0;
+  return (lo+rem)/MOD_N * totalTicks;
+}
+
+function computeEnvelope() {
+  if (!midi || !midiEvts.length) { envData=null; return; }
+  const arr = new Float32Array(ENV_N);
+  const noteState = {}; // key -> {startTick, vel}
+  let maxVal = 0;
+  for (const e of midiEvts) {
+    if (envChannels && !envChannels.has(e.ch)) continue;
+    if (e.type==='on') {
+      const key=`${e.ch}:${e.note}`;
+      noteState[key] = {startTick:e.tick, vel:e.vel};
+    } else if (e.type==='off') {
+      const key=`${e.ch}:${e.note}`, st=noteState[key];
+      if (st) {
+        delete noteState[key];
+        const t0=st.startTick/totalTicks, t1=e.tick/totalTicks;
+        const i0=Math.floor(t0*ENV_N), i1=Math.min(Math.ceil(t1*ENV_N), ENV_N-1);
+        for (let i=i0;i<=i1;i++) { arr[i]+=st.vel/127; if(arr[i]>maxVal) maxVal=arr[i]; }
+      }
+    }
+  }
+  if (maxVal>0) for (let i=0;i<ENV_N;i++) arr[i]/=maxVal;
+  envData = arr;
+}
+
+/* ════════════════════════════════════════════
    AUDIO CONTEXT
 ════════════════════════════════════════════ */
 function ensureAC() {
@@ -396,15 +614,27 @@ function ensureAC() {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = AC.createGain();
     masterGain.gain.value = 1.0;
+    // Stereo master VU via channel splitter
+    const splitter = AC.createChannelSplitter(2);
+    masterAnalyserL = AC.createAnalyser(); masterAnalyserL.fftSize=256; masterAnalyserL.smoothingTimeConstant=0.75;
+    masterAnalyserR = AC.createAnalyser(); masterAnalyserR.fftSize=256; masterAnalyserR.smoothingTimeConstant=0.75;
+    masterAnalyserBufL = new Float32Array(masterAnalyserL.fftSize);
+    masterAnalyserBufR = new Float32Array(masterAnalyserR.fftSize);
+    masterGain.connect(splitter);
+    splitter.connect(masterAnalyserL, 0);
+    splitter.connect(masterAnalyserR, 1);
     masterGain.connect(AC.destination);
     CH.forEach(ch => {
       ch.gainNode = AC.createGain();
       ch.gainNode.gain.value = 1.0;
+      ch.panNode = AC.createStereoPanner();
+      ch.panNode.pan.value = ch.pan / 100;
       ch.analyser = AC.createAnalyser();
       ch.analyser.fftSize = 256;
       ch.analyser.smoothingTimeConstant = 0.75;
       ch.analyserBuf = new Float32Array(ch.analyser.fftSize);
-      ch.gainNode.connect(ch.analyser);
+      ch.gainNode.connect(ch.panNode);
+      ch.panNode.connect(ch.analyser);
       ch.analyser.connect(masterGain);
     });
   }
@@ -525,8 +755,8 @@ function midiVUDecay(now) {
     if (now > v.peakTime) v.peak = Math.max(0, v.peak - 0.8);
     const fill = document.querySelector(`.vu-fill[data-ch="${i}"]`);
     const peak = document.querySelector(`.vu-peak[data-ch="${i}"]`);
-    if (fill) fill.style.height = v.level + '%';
-    if (peak) peak.style.bottom = v.peak + '%';
+    if (fill) { fill.style.height = v.level + '%'; fill.style.background = vuColor(v.level); }
+    if (peak) { peak.style.bottom = v.peak + '%'; peak.style.background = vuColor(v.peak); }
   });
 }
 
@@ -807,7 +1037,7 @@ function processMIDI(data) {
   midiEvts=all;
   totalTicks=all.reduce((m,e)=>Math.max(m,e.tick),0);
   totalSecs=t2s(totalTicks)+0.5;
-  CH.forEach(ch=>{ch.active=false;ch.program=0;ch.name=`CH ${ch.id+1}`;ch.userOverride=null;});
+  CH.forEach(ch=>{ch.active=false;ch.program=0;ch.name=`CH ${ch.id+1}`;ch.userOverride=null;ch.pan=0;});
   const trackChMap={};
   for(const tr of data.tracks){
     const nameEvt=tr.find(e=>e.type==='name');
@@ -825,8 +1055,14 @@ function processMIDI(data) {
   });
   renderMixer();
   updateTransport();
-  setStatus(`Loaded: ${data.tracks.length} tracks · ${all.filter(e=>e.type==='on').length} notes · ${fmtTime(totalSecs)} · playback: ${sf2?'SF2':'system MIDI'}`);
+  setStatus(`Loaded: ${data.tracks.length} tracks · ${all.filter(e=>e.type==='on').length} notes · ${fmtTime(totalSecs)} · playback: ${sf2?'SF2':midiOut?'system MIDI':'built-in synth'}`);
   updateButtonStates();
+  // Init envelope channels (all active) and build timing table
+  envChannels = new Set(CH.filter(c=>c.active).map(c=>c.id));
+  computeEnvelope();
+  buildModTable();
+  renderEnvelopeChannelChecks();
+  drawTempoCurve();
 }
 
 /* ════════════════════════════════════════════
@@ -836,13 +1072,14 @@ function schedLoop() {
   if(!playing) return;
   const now=AC.currentTime;
   const elapsed=now-pbStartAC;
-  const nowSec=t2s(pbStartTick)+elapsed;
-  const schedUntilTick=s2t(nowSec+LOOKAHEAD);
+  const pbMod=tick2mod(pbStartTick);
+  const curMod=pbMod+elapsed;
+  const schedUntilTick=mod2tick(curMod+LOOKAHEAD);
 
   while(evtIdx<midiEvts.length) {
     const e=midiEvts[evtIdx];
     if(e.tick>schedUntilTick) break;
-    const eSec=t2s(e.tick), eAC=pbStartAC+(eSec-t2s(pbStartTick));
+    const eMod=tick2mod(e.tick), eAC=pbStartAC+(eMod-pbMod);
     const ch=CH[e.ch];
 
     if(e.type==='on'&&ch.active) {
@@ -861,17 +1098,26 @@ function schedLoop() {
           isP?2.0:null,gain,e.vel,ch.gainNode,isP);
         if(node) activeNodes.push(node);
         pendingNotes[key]={node,vel:e.vel,prog:ch.program};
-      } else {
+      } else if (midiOut) {
         // ── System MIDI path ──
-        // delay in ms from now until the event's scheduled AC time
         const delayMs=(eAC-AC.currentTime)*1000;
         if(!muted) {
           const vel=Math.round(e.vel*(ch.vol/100));
           midiSend([0x90|e.ch, e.note, Math.max(1,Math.min(127,vel))], delayMs);
-          // Fake VU — fire at the same delay
-          setTimeout(()=>{ if(playing) midiVUHit(e.ch, e.vel); }, Math.max(0,delayMs));
+          // Fake VU — scale by channel volume so slider affects meter
+          const vuVel = Math.round(e.vel*(ch.vol/100));
+          setTimeout(()=>{ if(playing) midiVUHit(e.ch, vuVel); }, Math.max(0,delayMs));
         }
-        pendingNotes[key]={node:null,vel:e.vel,prog:ch.program,muted,delayMs};
+        pendingNotes[key]={node:null,vel:e.vel,prog:ch.program,muted,eAC};
+      } else {
+        // ── BasicSynth fallback ──
+        const delayMs=(eAC-AC.currentTime)*1000;
+        if(!muted) {
+          BasicSynth.noteOn(AC, e.ch, e.note, e.vel, eAC, ch.gainNode);
+          const vuVel = Math.round(e.vel*(ch.vol/100));
+          setTimeout(()=>{ if(playing) midiVUHit(e.ch, vuVel); }, Math.max(0,delayMs));
+        }
+        pendingNotes[key]={node:null,vel:e.vel,prog:ch.program,muted,eAC};
       }
     } else if(e.type==='off') {
       const key=`${e.ch}:${e.note}`;
@@ -880,16 +1126,18 @@ function schedLoop() {
         delete pendingNotes[key];
         if(sf2) {
           if(st.node) st.node.stopAt(eAC);
-        } else {
+        } else if (midiOut) {
           const delayMs=(eAC-AC.currentTime)*1000;
           if(!st.muted) midiSend([0x80|e.ch, e.note, 0], delayMs);
+        } else {
+          if(!st.muted) BasicSynth.noteOff(e.ch, e.note, eAC);
         }
       }
     } else if(e.type==='pc') {
       ch.program=e.prog;
       const sel=document.querySelector(`.ch-sel[data-ch="${e.ch}"]`);
       if(sel) sel.value=e.prog;
-      if(!sf2 && e.ch!==9) {
+      if(!sf2 && midiOut && e.ch!==9) {
         const delayMs=(eAC-AC.currentTime)*1000;
         midiSend([0xC0|e.ch, e.prog], delayMs);
       }
@@ -898,7 +1146,7 @@ function schedLoop() {
   }
 
   if(evtIdx>=midiEvts.length) {
-    const remain=totalSecs-nowSec;
+    const remain=modTotal-(pbMod+elapsed);
     setTimeout(()=>{ if(playing) doStop(); }, Math.max(500,remain*1000+800));
   }
 }
@@ -966,7 +1214,36 @@ function killNodes() {
   activeNodes.forEach(n=>{try{n.stop();}catch(e){}});
   activeNodes=[];
   for(const k in pendingNotes) delete pendingNotes[k];
-  if(!sf2) midiAllOff();
+  if(!sf2) { midiAllOff(); BasicSynth.allOff(); }
+}
+
+/* ════════════════════════════════════════════
+   VU COLOR — dynamic level-dependent colour
+   0–60 % → green   60–78 % → green→yellow
+   78–90 % → yellow→orange   90–100 % → orange→red
+════════════════════════════════════════════ */
+function vuColor(pct) {
+  const lerp = (a, b, t) => Math.round(a + (b - a) * Math.max(0, Math.min(1, t)));
+  let r, g, b;
+  if (pct <= 60) {
+    r = 21; g = 148; b = 64;
+  } else if (pct <= 78) {
+    const t = (pct - 60) / 18;
+    r = lerp(21,  210, t);
+    g = lerp(148, 170, t);
+    b = lerp(64,    0, t);
+  } else if (pct <= 90) {
+    const t = (pct - 78) / 12;
+    r = lerp(210, 210, t);
+    g = lerp(170,  60, t);
+    b = 0;
+  } else {
+    const t = (pct - 90) / 10;
+    r = lerp(210, 220, t);
+    g = lerp( 60,  18, t);
+    b = 0;
+  }
+  return `rgb(${r},${g},${b})`;
 }
 
 /* ════════════════════════════════════════════
@@ -978,13 +1255,18 @@ function rafLoop() {
   rafId=requestAnimationFrame(rafLoop);
   if(playing&&AC) {
     const elapsed=AC.currentTime-pbStartAC;
-    const curSec=t2s(pbStartTick)+elapsed;
-    const pct=Math.min(1,curSec/Math.max(1,totalSecs));
+    const pbMod=tick2mod(pbStartTick);
+    const curMod=pbMod+elapsed;
+    const curTick=mod2tick(curMod);
+    const pct=Math.min(1,curTick/Math.max(1,totalTicks));
+    const curSec=t2s(curTick);
     $('seekProg').style.width=(pct*100)+'%';
     $('seekHnd').style.left=(pct*100)+'%';
     $('curT').textContent=fmtTime(curSec);
-    $('bpmV').textContent=bpmAt(Math.round(s2t(curSec)));
-    if(curSec>=totalSecs+0.3) doStop();
+    $('bpmV').textContent=Math.round(bpmAt(Math.round(curTick))*getTempoMult(pct));
+    // Draw playhead on tempo lane
+    drawTempoCurve(pct);
+    if(curMod>=modTotal+0.3) doStop();
   }
   // Update rec timer
   if(liveRec&&liveRec.startAC!==undefined&&AC) {
@@ -993,6 +1275,30 @@ function rafLoop() {
   }
   // VU meters
   const now=Date.now();
+  // Master VU (stereo horizontal)
+  if(masterAnalyserL && masterAnalyserBufL) {
+    const calcVu=(analyser, buf)=>{
+      analyser.getFloatTimeDomainData(buf);
+      let rms=0; for(const s of buf) rms+=s*s;
+      rms=Math.sqrt(rms/buf.length);
+      const db=20*Math.log10(Math.max(rms,1e-10));
+      return Math.max(0,Math.min(100,(db+60)/60*100));
+    };
+    const pctL=calcVu(masterAnalyserL, masterAnalyserBufL);
+    const pctR=calcVu(masterAnalyserR, masterAnalyserBufR);
+    masterVuSmoothL=masterVuSmoothL*0.65+pctL*0.35;
+    masterVuSmoothR=masterVuSmoothR*0.65+pctR*0.35;
+    if(pctL>masterVuPeakL){masterVuPeakL=pctL;masterVuPeakTimeL=now+1800;}
+    if(now>masterVuPeakTimeL) masterVuPeakL=Math.max(0,masterVuPeakL-0.8);
+    if(pctR>masterVuPeakR){masterVuPeakR=pctR;masterVuPeakTimeR=now+1800;}
+    if(now>masterVuPeakTimeR) masterVuPeakR=Math.max(0,masterVuPeakR-0.8);
+    const vuL=$('masterVuL'), vuR=$('masterVuR');
+    const vpL=$('masterVuPeakL'), vpR=$('masterVuPeakR');
+    if(vuL){ vuL.style.width=masterVuSmoothL+'%'; vuL.style.background=vuColor(masterVuSmoothL); }
+    if(vuR){ vuR.style.width=masterVuSmoothR+'%'; vuR.style.background=vuColor(masterVuSmoothR); }
+    if(vpL){ vpL.style.left=Math.max(0,masterVuPeakL-1)+'%'; vpL.style.background=vuColor(masterVuPeakL); }
+    if(vpR){ vpR.style.left=Math.max(0,masterVuPeakR-1)+'%'; vpR.style.background=vuColor(masterVuPeakR); }
+  }
   if(sf2) {
     // SF2: read real Web Audio analyser data
     CH.forEach((ch,i)=>{
@@ -1008,8 +1314,8 @@ function rafLoop() {
       if(now>ch.peakTime) ch.peak=Math.max(0,ch.peak-0.8);
       const fill=document.querySelector(`.vu-fill[data-ch="${i}"]`);
       const peak=document.querySelector(`.vu-peak[data-ch="${i}"]`);
-      if(fill) fill.style.height=ch.vuSmooth+'%';
-      if(peak) peak.style.bottom=ch.peak+'%';
+      if(fill){ fill.style.height=ch.vuSmooth+'%'; fill.style.background=vuColor(ch.vuSmooth); }
+      if(peak){ peak.style.bottom=ch.peak+'%'; peak.style.background=vuColor(ch.peak); }
     });
   } else {
     // MIDI: use simulated VU driven by note-on velocity hits
@@ -1079,6 +1385,14 @@ function stripHTML(ch) {
     <button class="m-btn${ch.muted?' on':''}" onclick="onMute(${ch.id})">M</button>
     <button class="s-btn${ch.soloed?' on':''}" onclick="onSolo(${ch.id})">S</button>
   </div>
+  <div class="pan-row">
+    <input type="range" class="ch-pan${ch.pan<0?' panned-l':ch.pan>0?' panned-r':''}"
+      data-ch="${ch.id}" min="-100" max="100" value="${ch.pan}"
+      oninput="onPan(${ch.id},this.value)"
+      ondblclick="onPanReset(${ch.id})"
+      title="Pan — dbl-click to center">
+  </div>
+  <div class="pan-val-lbl" id="pl${ch.id}">${ch.pan===0?'◉ C':ch.pan<0?'◁ L'+Math.abs(ch.pan):'▷ R'+ch.pan}</div>
   <div class="level-row">
     <div class="vu">
       <div class="vu-fill" data-ch="${ch.id}" style="height:0%"></div>
@@ -1153,6 +1467,36 @@ function onVol(chIdx, val) {
     const v=muted?0:Math.round(Math.min(127,parseInt(val)/150*127));
     midiSend([0xB0|chIdx,7,v],0);
   }
+}
+
+function onPan(chIdx, val) {
+  const ch=CH[chIdx]; ch.pan=parseInt(val);
+  if(ch.panNode && AC) ch.panNode.pan.setTargetAtTime(ch.pan/100, AC.currentTime, 0.02);
+  const lbl=$(`pl${chIdx}`);
+  if(lbl) lbl.textContent=ch.pan===0?'◉ C':ch.pan<0?'◁ L'+Math.abs(ch.pan):'▷ R'+ch.pan;
+  const slider=document.querySelector(`.ch-pan[data-ch="${chIdx}"]`);
+  if(slider){
+    slider.classList.toggle('panned-l', ch.pan<0);
+    slider.classList.toggle('panned-r', ch.pan>0);
+    // Update track colour: highlight left or right of centre
+    const pct=((ch.pan+100)/200*100).toFixed(1);
+    if(ch.pan<0)
+      slider.style.background=`linear-gradient(to right,var(--border2) 0%,var(--accent) ${pct}%,var(--accent) 50%,var(--border2) 50%)`;
+    else if(ch.pan>0)
+      slider.style.background=`linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--accent2) 50%,var(--accent2) ${pct}%,var(--border2) ${pct}%)`;
+    else
+      slider.style.background='linear-gradient(to right,var(--border2) 0%,var(--border2) 50%,var(--border2) 50%,var(--border2) 100%)';
+  }
+  if(!sf2 && midiOut) {
+    const cc10val = Math.round((ch.pan+100)/200*127);
+    midiSend([0xB0|chIdx, 10, cc10val], 0);
+  }
+}
+
+function onPanReset(chIdx) {
+  const slider=document.querySelector(`.ch-pan[data-ch="${chIdx}"]`);
+  if(slider){ slider.value=0; }
+  onPan(chIdx, 0);
 }
 
 function onMasterVol(el) {
@@ -1309,7 +1653,8 @@ async function renderOffline(onProgress) {
 
   const chGains=CH.map(ch=>{
     const g=offCtx.createGain(); g.gain.value=chGainVal(ch);
-    g.connect(mst); return g;
+    const p=offCtx.createStereoPanner(); p.pan.value=ch.pan/100;
+    g.connect(p); p.connect(mst); return g;
   });
 
   const offCache={}, offProgs=CH.map(c=>c.program);
@@ -1367,7 +1712,10 @@ async function renderOfflineChannel(chIdx, onProgress) {
 
   const chGain=offCtx.createGain();
   chGain.gain.value=CH[chIdx].vol/100;
-  chGain.connect(mst);
+  const chPan=offCtx.createStereoPanner();
+  chPan.pan.value=CH[chIdx].pan/100;
+  chGain.connect(chPan);
+  chPan.connect(mst);
 
   const offCache={};
   let offProg=CH[chIdx].program;
@@ -1613,6 +1961,421 @@ function sanitizeName(s){return(s||'track').replace(/[^a-zA-Z0-9]/g,'_').replace
 const tick=()=>new Promise(r=>setTimeout(r,0));
 
 /* ════════════════════════════════════════════
+   TEMPO LANE UI
+════════════════════════════════════════════ */
+const MULT_MIN    = 0.5;
+const MULT_MAX    = 3.0;
+const TLANE_PAD_L = 34;
+const TLANE_PAD_R = 8;
+const TLANE_PAD_T = 6;
+const TLANE_PAD_B = 22;
+
+let tlaneOpen  = false;
+let tlaneDrag  = null;
+let tlaneH     = 90;          // SVG area height px
+let tlaneZoom  = 1.0;         // horizontal zoom factor (1 = full)
+let tlaneVS    = 0;           // view start (0..1)
+let tlaneVE    = 1;           // view end   (0..1)
+
+const TLANE_H_MIN   = 55;
+const TLANE_H_MAX   = 500;
+const TLANE_CHROME  = 78;     // px above+below svg (top row+hint+scrollbar+resize handle+padding)
+const TLANE_ZOOM_MAX = 80;
+
+/* ── open / close ── */
+function toggleTempoLane() {
+  tlaneOpen = !tlaneOpen;
+  $('tlaneToggle').classList.toggle('open', tlaneOpen);
+  $('tlaneToggle').textContent = tlaneOpen ? 'TEMPO ▴' : 'TEMPO ▾';
+  applyTlaneHeight(true);
+  if (tlaneOpen) requestAnimationFrame(drawTempoCurve);
+}
+
+function applyTlaneHeight(animate) {
+  const wrap = $('tempoLane');
+  if (animate) wrap.style.transition = 'height .22s ease';
+  else         wrap.style.transition = 'none';
+  wrap.style.height = tlaneOpen ? (tlaneH + TLANE_CHROME) + 'px' : '0';
+  wrap.classList.toggle('open', tlaneOpen);
+  const svg = $('tlaneSvg');
+  if (svg) svg.style.height = tlaneH + 'px';
+}
+
+/* ── reset curve / zoom ── */
+function resetTempoCurve() {
+  tempoCurve = [{pos:0,mult:1},{pos:1,mult:1}];
+  buildModTable(); drawTempoCurve();
+}
+function resetTempoZoom() {
+  tlaneZoom = 1; tlaneVS = 0; tlaneVE = 1;
+  updateScrollbar(); drawTempoCurve();
+}
+
+/* ── channel checkbox list ── */
+function renderEnvelopeChannelChecks() {
+  const wrap = $('tlaneChChecks');
+  if (!midi) { wrap.innerHTML='<span style="font-size:9px;color:var(--dim);opacity:.5">load MIDI to enable</span>'; return; }
+  const active = CH.filter(c=>c.active);
+  wrap.innerHTML = active.map(ch=>`
+    <label class="tlane-ch-check">
+      <input type="checkbox" ${envChannels.has(ch.id)?'checked':''} onchange="onEnvChChange(${ch.id},this.checked)">
+      CH${ch.id+1}
+    </label>`).join('');
+}
+function onEnvChChange(chIdx, checked) {
+  if (checked) envChannels.add(chIdx); else envChannels.delete(chIdx);
+  computeEnvelope(); drawTempoCurve();
+}
+
+/* ── coordinate helpers (zoom-aware) ── */
+function posToX(pos, w) {
+  const vr = tlaneVE - tlaneVS;
+  return TLANE_PAD_L + (pos - tlaneVS) / vr * (w - TLANE_PAD_L - TLANE_PAD_R);
+}
+function xToPos(x, w) {
+  const vr = tlaneVE - tlaneVS;
+  return tlaneVS + (x - TLANE_PAD_L) / (w - TLANE_PAD_L - TLANE_PAD_R) * vr;
+}
+function multToY(mult, h) {
+  const t=TLANE_PAD_T, b=TLANE_PAD_B, usable=h-t-b;
+  return t + usable*(1-(mult-MULT_MIN)/(MULT_MAX-MULT_MIN));
+}
+function yToMult(y, h) {
+  const t=TLANE_PAD_T, b=TLANE_PAD_B, usable=h-t-b;
+  return Math.max(MULT_MIN,Math.min(MULT_MAX, MULT_MIN+(1-(y-t)/usable)*(MULT_MAX-MULT_MIN)));
+}
+
+/* ── scrollbar ── */
+function updateScrollbar() {
+  const sb = $('tlaneSb'), thumb = $('tlaneSbThumb');
+  if (!sb || !thumb) return;
+  const zoomed = tlaneZoom > 1.04;
+  sb.classList.toggle('vis', zoomed);
+  $('tlaneZoomLbl').textContent = zoomed ? Math.round(tlaneZoom)+'×' : '';
+  if (!zoomed) return;
+  const sbW = sb.clientWidth;
+  const thumbW = Math.max(16, sbW / tlaneZoom);
+  const thumbL = tlaneVS * sbW;
+  thumb.style.width  = thumbW + 'px';
+  thumb.style.left   = Math.min(sbW - thumbW, thumbL) + 'px';
+}
+
+/* ── draw ── */
+function drawTempoCurve(playheadPos) {
+  if (!tlaneOpen) return;
+  const svg = $('tlaneSvg');
+  if (!svg) return;
+  const W = svg.clientWidth  || $('tlaneSvgWrap').clientWidth  || 600;
+  const H = svg.clientHeight || tlaneH;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  // clip region
+  const cL = TLANE_PAD_L, cR = W - TLANE_PAD_R;
+
+  let html = `<defs><clipPath id="tcClip"><rect x="${cL}" y="0" width="${cR-cL}" height="${H}"/></clipPath></defs>`;
+
+  // ── Envelope background ──
+  if (envData && envData.length) {
+    const usableH = H - TLANE_PAD_T - TLANE_PAD_B;
+    const vr = tlaneVE - tlaneVS;
+    const barPx = Math.max(0.8, (cR - cL) / (ENV_N * vr));
+    let rects = '';
+    for (let i=0; i<ENV_N; i++) {
+      const p = i/ENV_N;
+      if (p < tlaneVS - 2/ENV_N || p > tlaneVE + 2/ENV_N) continue;
+      if (envData[i] < 0.005) continue;
+      const x = posToX(p, W);
+      const h = envData[i] * usableH * 0.92;
+      rects += `<rect x="${x.toFixed(1)}" y="${(H-TLANE_PAD_B-h).toFixed(1)}" width="${(barPx+0.5).toFixed(1)}" height="${h.toFixed(1)}" fill="rgba(100,140,200,0.18)"/>`;
+    }
+    html += `<g clip-path="url(#tcClip)">${rects}</g>`;
+  }
+
+  // ── Grid / Y-axis ──
+  const gridMults = MULT_MAX<=2 ? [0.5,0.75,1,1.5,2] : [0.5,0.75,1,1.5,2,2.5,3];
+  for (const m of gridMults) {
+    if (m < MULT_MIN || m > MULT_MAX) continue;
+    const y = multToY(m, H).toFixed(1);
+    const isOne = m===1.0;
+    html += `<line x1="${cL}" y1="${y}" x2="${cR}" y2="${y}"
+      stroke="${isOne?'rgba(184,108,8,0.35)':'rgba(180,189,212,0.3)'}"
+      stroke-width="${isOne?1.5:0.8}" stroke-dasharray="${isOne?'':'3,3'}"/>`;
+    html += `<text x="${cL-3}" y="${(parseFloat(y)+3.5).toFixed(1)}" text-anchor="end"
+      font-size="8" fill="${isOne?'var(--accent)':'var(--dim)'}"
+      font-family="Share Tech Mono,monospace">${m}×</text>`;
+  }
+
+  // ── Time axis (X) ──
+  {
+    const axisY = H - TLANE_PAD_B + 3;
+    const totalDur = modTotal || totalSecs || 0;
+    if (totalDur > 0) {
+      // Choose tick interval: aim for ~5-8 ticks visible
+      const visibleDur = totalDur * (tlaneVE - tlaneVS);
+      const rawStep = visibleDur / 6;
+      const nice = [0.5,1,2,5,10,15,20,30,60,120,180,300,600];
+      const step = nice.find(s=>s>=rawStep) || nice[nice.length-1];
+      // Start from first tick >= visible start
+      const tStart = Math.floor(tlaneVS * totalDur / step) * step;
+      for (let t = tStart; t <= totalDur * tlaneVE + step; t += step) {
+        const pos = t / totalDur;
+        if (pos < tlaneVS - 0.001 || pos > tlaneVE + 0.001) continue;
+        const x = posToX(pos, W);
+        if (x < cL - 2 || x > cR + 2) continue;
+        const mins = Math.floor(t/60), secs = Math.floor(t%60);
+        const label = totalDur >= 60
+          ? `${mins}:${String(secs).padStart(2,'0')}`
+          : `${secs}s`;
+        html += `<line x1="${x.toFixed(1)}" y1="${(H-TLANE_PAD_B).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(H-TLANE_PAD_B+4).toFixed(1)}"
+          stroke="var(--border2)" stroke-width="0.8"/>`;
+        html += `<text x="${x.toFixed(1)}" y="${(axisY+8).toFixed(1)}" text-anchor="middle"
+          font-size="7.5" fill="var(--dim)" font-family="Share Tech Mono,monospace">${label}</text>`;
+      }
+      // Axis baseline
+      html += `<line x1="${cL}" y1="${(H-TLANE_PAD_B).toFixed(1)}" x2="${cR}" y2="${(H-TLANE_PAD_B).toFixed(1)}"
+        stroke="rgba(180,189,212,0.35)" stroke-width="0.8"/>`;
+    }
+  }
+
+  // ── Playhead ──
+  if (playheadPos !== undefined && playheadPos >= tlaneVS && playheadPos <= tlaneVE) {
+    const px = posToX(playheadPos, W).toFixed(1);
+    html += `<line x1="${px}" y1="${TLANE_PAD_T}" x2="${px}" y2="${H-TLANE_PAD_B}"
+      stroke="var(--accent)" stroke-width="1.5" opacity="0.75"/>`;
+  }
+
+  // ── Tempo curve path (clipped) ──
+  const pts = tempoCurve.map(n => [posToX(n.pos, W), multToY(n.mult, H)]);
+  if (pts.length >= 2) {
+    let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+    for (let i=1; i<pts.length; i++) d += ` L ${pts[i][0].toFixed(1)} ${pts[i][1].toFixed(1)}`;
+    html += `<path d="${d}" stroke="var(--accent2)" stroke-width="2" fill="none"
+      stroke-linejoin="round" clip-path="url(#tcClip)"/>`;
+  }
+
+  // ── Nodes ──
+  for (let i=0; i<tempoCurve.length; i++) {
+    const n = tempoCurve[i];
+    const nx = posToX(n.pos, W);
+    // hide nodes that are way out of view
+    if (nx < cL - 14 || nx > cR + 14) continue;
+    const x = nx.toFixed(1);
+    const y = multToY(n.mult, H).toFixed(1);
+    const isEnd = i===0||i===tempoCurve.length-1;
+    const bpm = midi ? Math.round(bpmAt(Math.round(n.pos*totalTicks))*n.mult) : Math.round(120*n.mult);
+    html += `<circle cx="${x}" cy="${y}" r="${isEnd?5:6}"
+      fill="${isEnd?'var(--accent)':'var(--accent2)'}"
+      stroke="white" stroke-width="1.5"
+      style="cursor:${isEnd?'ns-resize':'move'}"
+      data-ni="${i}" class="tnode"/>`;
+    html += `<text x="${x}" y="${(parseFloat(y)-8).toFixed(1)}" text-anchor="middle"
+      font-size="8" fill="${isEnd?'var(--accent)':'var(--accent2)'}"
+      font-family="Share Tech Mono,monospace"
+      class="tnode-lbl" data-ni="${i}">${bpm}</text>`;
+  }
+
+  svg.innerHTML = html;
+  svg.querySelectorAll('.tnode').forEach(el => {
+    el.addEventListener('mousedown', tlaneNodeDown);
+    el.addEventListener('dblclick', tlaneNodeDbl);
+  });
+
+  updateScrollbar();
+}
+
+/* ── node interactions ── */
+function tlaneNodeDown(e) {
+  e.preventDefault(); e.stopPropagation();
+  const idx = parseInt(e.target.dataset.ni);
+  const svg  = $('tlaneSvg');
+  const H    = svg.clientHeight || tlaneH;
+  const isEnd = idx===0||idx===tempoCurve.length-1;
+  tlaneDrag = {idx, startY:e.clientY, startX:e.clientX,
+               startMult:tempoCurve[idx].mult, startPos:tempoCurve[idx].pos};
+
+  const onMove = ev => {
+    const dy = ev.clientY - tlaneDrag.startY;
+    const usable = H - TLANE_PAD_T - TLANE_PAD_B;
+    const dm = -dy/usable*(MULT_MAX-MULT_MIN);
+    tempoCurve[idx].mult = Math.max(MULT_MIN, Math.min(MULT_MAX, tlaneDrag.startMult + dm));
+    if (!isEnd) {
+      const W = svg.clientWidth || 600;
+      const dx = ev.clientX - tlaneDrag.startX;
+      const dpos = dx / (W - TLANE_PAD_L - TLANE_PAD_R) * (tlaneVE - tlaneVS);
+      let np = Math.max(0, Math.min(1, tlaneDrag.startPos + dpos));
+      if (idx>0) np = Math.max(tempoCurve[idx-1].pos + 0.002, np);
+      if (idx<tempoCurve.length-1) np = Math.min(tempoCurve[idx+1].pos - 0.002, np);
+      tempoCurve[idx].pos = np;
+    }
+    buildModTable(); drawTempoCurve();
+  };
+  const onUp = () => {
+    tlaneDrag = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function tlaneNodeDbl(e) {
+  e.stopPropagation();
+  const idx = parseInt(e.target.dataset.ni);
+  if (idx===0||idx===tempoCurve.length-1) return;
+  tempoCurve.splice(idx, 1);
+  buildModTable(); drawTempoCurve();
+}
+
+/* ── SVG background: add node on click ── */
+$('tlaneSvg').addEventListener('mousedown', function(e) {
+  if (e.target.classList.contains('tnode') || e.target.classList.contains('tnode-lbl')) return;
+  if (e.button !== 0) return;
+  const svg  = $('tlaneSvg');
+  const rect = svg.getBoundingClientRect();
+  const W    = svg.clientWidth  || 600;
+  const H    = svg.clientHeight || tlaneH;
+  const lx   = e.clientX - rect.left;
+  const ly   = e.clientY - rect.top;
+  if (lx < TLANE_PAD_L-4 || lx > W-TLANE_PAD_R+4) return;
+  if (ly < TLANE_PAD_T-4 || ly > H-TLANE_PAD_B+4) return;
+
+  const pos  = Math.max(0.001, Math.min(0.999, xToPos(lx, W)));
+  const mult = yToMult(ly, H);
+  const node = {pos, mult};
+  tempoCurve.push(node);
+  tempoCurve.sort((a,b)=>a.pos-b.pos);
+  buildModTable(); drawTempoCurve();
+
+  // Immediately drag the new node
+  const startY = e.clientY, startX = e.clientX;
+  const startMult = mult, startPos = pos;
+  const onMove = ev => {
+    const dy = ev.clientY - startY;
+    const dx = ev.clientX - startX;
+    const usable = H - TLANE_PAD_T - TLANE_PAD_B;
+    node.mult = Math.max(MULT_MIN, Math.min(MULT_MAX, startMult - dy/usable*(MULT_MAX-MULT_MIN)));
+    const dpos = dx / (W - TLANE_PAD_L - TLANE_PAD_R) * (tlaneVE - tlaneVS);
+    const ni = tempoCurve.indexOf(node);
+    let np = Math.max(0.001, Math.min(0.999, startPos + dpos));
+    if (ni>0) np = Math.max(tempoCurve[ni-1].pos+0.002, np);
+    if (ni<tempoCurve.length-1) np = Math.min(tempoCurve[ni+1].pos-0.002, np);
+    node.pos = np;
+    buildModTable(); drawTempoCurve();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  e.preventDefault();
+});
+
+/* ── Wheel: zoom horizontally ── */
+$('tlaneSvg').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const svg  = $('tlaneSvg');
+  const rect = svg.getBoundingClientRect();
+  const W    = svg.clientWidth || 600;
+  const mousePos = Math.max(0, Math.min(1, xToPos(e.clientX - rect.left, W)));
+
+  const factor = e.deltaY > 0 ? 1.3 : (1/1.3);
+  tlaneZoom = Math.max(1, Math.min(TLANE_ZOOM_MAX, tlaneZoom * factor));
+
+  const vr = 1 / tlaneZoom;
+  const cursorFrac = tlaneVE > tlaneVS
+    ? Math.max(0, Math.min(1, (mousePos - tlaneVS) / (tlaneVE - tlaneVS))) : 0.5;
+  let vs = mousePos - cursorFrac * vr;
+  vs = Math.max(0, Math.min(1 - vr, vs));
+  tlaneVS = vs; tlaneVE = vs + vr;
+
+  updateScrollbar(); drawTempoCurve();
+}, {passive: false});
+
+/* ── Touch pinch-to-zoom ── */
+let _tPinch = null;
+$('tlaneSvg').addEventListener('touchstart', function(e) {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _tPinch = {dist: Math.hypot(dx,dy), zoom: tlaneZoom, vs: tlaneVS, ve: tlaneVE,
+               cx: (e.touches[0].clientX+e.touches[1].clientX)/2};
+  }
+}, {passive:false});
+$('tlaneSvg').addEventListener('touchmove', function(e) {
+  if (e.touches.length === 2 && _tPinch) {
+    e.preventDefault();
+    const svg  = $('tlaneSvg');
+    const rect = svg.getBoundingClientRect();
+    const W    = svg.clientWidth || 600;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx,dy);
+    const factor = _tPinch.dist > 0 ? dist / _tPinch.dist : 1;
+    tlaneZoom = Math.max(1, Math.min(TLANE_ZOOM_MAX, _tPinch.zoom / factor));
+    const vr = 1 / tlaneZoom;
+    const cx = (_tPinch.cx - rect.left);
+    const cp = Math.max(0, Math.min(1, xToPos(cx, W)));
+    const cf = _tPinch.ve > _tPinch.vs
+      ? (cp - _tPinch.vs)/(_tPinch.ve-_tPinch.vs) : 0.5;
+    let vs = cp - cf * vr;
+    vs = Math.max(0, Math.min(1-vr, vs));
+    tlaneVS = vs; tlaneVE = vs + vr;
+    updateScrollbar(); drawTempoCurve();
+  }
+}, {passive:false});
+$('tlaneSvg').addEventListener('touchend', ()=>{ _tPinch = null; });
+
+/* ── Scrollbar thumb drag ── */
+(function(){
+  const thumb = $('tlaneSbThumb');
+  thumb.addEventListener('mousedown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    thumb.classList.add('drag');
+    const sb     = $('tlaneSb');
+    const sbW    = sb.clientWidth;
+    const startX = e.clientX, startVS = tlaneVS;
+    const vr     = tlaneVE - tlaneVS;
+    const onMove = ev => {
+      const dx = (ev.clientX - startX) / sbW;
+      let vs = Math.max(0, Math.min(1-vr, startVS + dx));
+      tlaneVS = vs; tlaneVE = vs + vr;
+      updateScrollbar(); drawTempoCurve();
+    };
+    const onUp = () => {
+      thumb.classList.remove('drag');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
+
+/* ── Resize handle (vertical) ── */
+$('tlaneRh').addEventListener('mousedown', function(e) {
+  e.preventDefault();
+  const startY = e.clientY, startH = tlaneH;
+  const wrap = $('tempoLane');
+  const svg  = $('tlaneSvg');
+  wrap.style.transition = 'none';
+  const onMove = ev => {
+    tlaneH = Math.max(TLANE_H_MIN, Math.min(TLANE_H_MAX, startH + ev.clientY - startY));
+    wrap.style.height = (tlaneH + TLANE_CHROME) + 'px';
+    if (svg) svg.style.height = tlaneH + 'px';
+    drawTempoCurve();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+
+window.addEventListener('resize', ()=>{ if(tlaneOpen){ updateScrollbar(); drawTempoCurve(); } });
+
+/* ════════════════════════════════════════════
    FILE HANDLERS
 ════════════════════════════════════════════ */
 async function onSF2(evt) {
@@ -1680,6 +2443,26 @@ function setStatus(m){ $('statusBar').textContent=m; }
 
 startRAF();
 initMIDIOut();
+
+/* ── Auto-load AG.sf2 from same directory ── */
+(async function autoLoadSF2() {
+  try {
+    const resp = await fetch('AG.sf2', {method:'HEAD'});
+    if (!resp.ok) return;
+    setStatus('Loading AG.sf2…');
+    const full = await fetch('AG.sf2');
+    if (!full.ok) return;
+    const ab = await full.arrayBuffer();
+    sf2 = parseSF2(ab);
+    for (const k in sf2Cache) delete sf2Cache[k];
+    const np = Object.keys(sf2.progZ).length, npc = Object.keys(sf2.percZ).length;
+    $('sf2Stat').textContent = 'AG.sf2';
+    $('sf2Stat').className  = 'hstat ok';
+    $('sf2Btn').classList.add('sf2ok');
+    setStatus(`Auto-loaded AG.sf2 — ${np} melodic + ${npc} percussion presets`);
+    updateButtonStates();
+  } catch(e) { /* AG.sf2 not found — silent */ }
+})();
 </script>
 </body>
 </html>
