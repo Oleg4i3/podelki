@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Трафік — Маршрутизація A*</title>
+    <style>
+        :root { --bg:#f0f2f5; --card:#fff; --text:#1a1a1b; --accent:#2ecc71; --danger:#e74c3c; --border:#dcdde1; }
+        body { font-family:'Segoe UI',sans-serif; background:var(--bg); color:var(--text); margin:0; display:flex; flex-direction:column; align-items:center; }
+        header { width:100%; padding:15px; text-align:center; border-bottom:1px solid var(--border); background:var(--card); box-shadow:0 2px 4px rgba(0,0,0,.05); }
+        .main-container { display:flex; gap:20px; padding:20px; max-width:1400px; width:100%; justify-content:center; }
+        .world-box { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:15px; box-shadow:0 4px 15px rgba(0,0,0,.1); }
+        canvas { background:#34495e; border-radius:8px; cursor:crosshair; }
+        .stats-bar { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; width:100%; max-width:1200px; margin:20px 0; }
+        .sub2 { font-size:10px; color:#9b59b6; margin-top:3px; display:block; font-weight:600; }
+        .stat-card { background:var(--card); padding:15px; border-radius:8px; border:1px solid var(--border); text-align:center; }
+        .val { font-size:28px; font-weight:700; display:block; }
+        .label { font-size:11px; color:#7f8c8d; text-transform:uppercase; letter-spacing:1px; }
+        .sub { font-size:10px; color:#aaa; margin-top:4px; display:block; }
+        .controls { background:var(--card); border:1px solid var(--border); padding:20px; border-radius:12px; width:100%; max-width:1160px; display:grid; grid-template-columns:repeat(3,1fr); gap:30px; margin-bottom:20px; }
+        .control-group label { display:block; margin-bottom:8px; font-weight:600; font-size:13px; }
+        input[type=range] { width:100%; accent-color:var(--accent); }
+        .btn { background:#3498db; color:#fff; border:none; padding:12px 20px; border-radius:6px; cursor:pointer; font-weight:bold; width:100%; transition:.2s; }
+        .btn:hover { background:#2980b9; }
+        #road-editor { position:absolute; display:none; background:var(--card); border:1px solid var(--border); padding:15px; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,.2); z-index:100; }
+
+        /* ── Спойлер з поясненнями ── */
+        .concepts-spoiler {
+            width:100%; max-width:1160px;
+            margin:0 0 40px;
+            border:1px solid var(--border);
+            border-radius:12px;
+            overflow:hidden;
+            background:var(--card);
+            box-shadow:0 2px 8px rgba(0,0,0,.06);
+        }
+        .concepts-spoiler summary {
+            padding:16px 22px;
+            font-weight:700;
+            font-size:15px;
+            cursor:pointer;
+            user-select:none;
+            list-style:none;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            background:var(--card);
+            border-bottom:1px solid transparent;
+            transition:border-color .2s;
+        }
+        .concepts-spoiler[open] summary {
+            border-bottom-color:var(--border);
+        }
+        .concepts-spoiler summary::before {
+            content:'▶';
+            font-size:11px;
+            color:#3498db;
+            transition:transform .25s;
+            display:inline-block;
+        }
+        .concepts-spoiler[open] summary::before { transform:rotate(90deg); }
+        .concepts-spoiler summary::-webkit-details-marker { display:none; }
+        .concepts-body {
+            display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(310px,1fr));
+            gap:0;
+        }
+        .concept-card {
+            padding:20px 22px;
+            border-right:1px solid var(--border);
+            border-bottom:1px solid var(--border);
+        }
+        .concept-card:last-child, .concept-card:nth-child(3n) { border-right:none; }
+        .concept-card h4 {
+            margin:0 0 8px;
+            font-size:13px;
+            text-transform:uppercase;
+            letter-spacing:.8px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .concept-card p {
+            margin:0;
+            font-size:13px;
+            line-height:1.6;
+            color:#444;
+        }
+        .concept-icon {
+            width:26px; height:26px;
+            border-radius:6px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            font-size:14px;
+            flex-shrink:0;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Міський трафік — Маршрутизація A*</h1>
+    <p>Ідентичні автомобілі · A*-маршрути з урахуванням трафіку · Адаптивні світлофори + зелена хвиля</p>
+</header>
+<div class="stats-bar">
+    <div class="stat-card" style="border-top:4px solid var(--danger)">
+        <span class="label">🚦 Світлофори — середній час поїздки</span>
+        <span id="stat-lights" class="val">0.0s</span>
+        <span id="stat-lights-sub" class="sub">Г-зелений: 50%</span>
+        <span id="stat-stops-L" class="sub2">⏸ Зупинки: 0s</span>
+    </div>
+    <div class="stat-card" style="border-top:4px solid var(--accent)">
+        <span class="label">🤖 AI V2X — середній час поїздки</span>
+        <span id="stat-ai" class="val">0.0s</span>
+        <span class="sub">Аукціон V2I</span>
+        <span id="stat-stops-A" class="sub2">⏸ Зупинки: 0s</span>
+    </div>
+    <div class="stat-card" style="border-top:4px solid #3498db">
+        <span class="label">📊 Перевага ШІ</span>
+        <span id="stat-gain" class="val">0%</span>
+        <span class="sub">економія часу поїздки</span>
+        <span id="stat-stop-ratio" class="sub2">⏸ Зупинки: —</span>
+    </div>
+</div>
+<div class="main-container">
+    <div class="world-box">
+        <h3 style="margin:0 0 10px;color:#e74c3c">Класичні світлофори (адаптивні)</h3>
+        <canvas id="canvasL" width="550" height="400"></canvas>
+    </div>
+    <div class="world-box">
+        <h3 style="margin:0 0 10px;color:#2ecc71">AI Аукціон (V2I/V2X)</h3>
+        <canvas id="canvasA" width="550" height="400"></canvas>
+    </div>
+</div>
+<div class="controls">
+    <div class="control-group">
+        <label>Швидкість симуляції: <span id="v-sim">1.0</span>x</label>
+        <input type="range" id="simSpeed" min="0.1" max="3" step="0.1" value="1">
+    </div>
+    <div class="control-group">
+        <label>Щільність трафіку: <span id="v-dens">15</span>%</label>
+        <input type="range" id="densSlider" min="1" max="60" value="15">
+    </div>
+    <div class="control-group">
+        <button class="btn" onclick="resetStats()">Скинути статистику</button>
+    </div>
+</div>
+
+<!-- ── СПОЙЛЕР З ПОЯСНЕННЯМИ ── -->
+<details class="concepts-spoiler">
+    <summary>📖 Як працює симуляція — пояснення концепцій</summary>
+    <div class="concepts-body">
+
+        <div class="concept-card" style="grid-column:1/-1; border-right:none; background:#f8f9ff;">
+            <h4><span class="concept-icon" style="background:#dce8ff">🎯</span>Мета симуляції</h4>
+            <p>Сучасне місто витрачає величезну кількість часу й енергії на очікування біля світлофорів. Ця симуляція ставить просте запитання: <strong>що зміниться, якщо автомобілі зможуть «домовлятись» між собою та з дорожньою інфраструктурою?</strong> Ліворуч — звичайне місто з адаптивними світлофорами та «зеленою хвилею», праворуч — те саме місто, де кожен автомобіль керується штучним інтелектом і комунікує з перехрестями в реальному часі. Обидві симуляції отримують однаковий трафік, щоб порівняння було чесним. Статистика вгорі показує, наскільки ШІ-підхід скорочує середній час поїздки та кількість часу, проведеного у стоянні.</p>
+        </div>
+
+        <div class="concept-card">
+            <h4><span class="concept-icon" style="background:#fff3cd">🌊</span>Зелена хвиля</h4>
+            <p>Уявіть, що ви їдете вулицею й усі світлофори по черзі перемикаються на зелений саме тоді, коли ви до них наближаєтесь. Це і є зелена хвиля. Досягається вона простим прийомом: кожен наступний перехрест вмикає зелений із невеликою затримкою відносно попереднього — рівно такою, щоб автомобіль, який їде з оптимальною швидкістю, встиг подолати відстань між ними. Якщо основний потік горизонтальний — хвиля йде по горизонталі, якщо вертикальний — по вертикалі. У симуляції напрямок хвилі перемикається автоматично залежно від того, де більше машин.</p>
+        </div>
+
+        <div class="concept-card">
+            <h4><span class="concept-icon" style="background:#fce4e4">🚦</span>Адаптивні світлофори</h4>
+            <p>Традиційний світлофор «не бачить» трафіку — він просто перемикається за розкладом. Адаптивний світлофор натомість слідкує за реальним завантаженням і подовжує зелену фазу в тому напрямку, де зараз більше автомобілів. Якщо вранці всі їдуть у центр міста, горизонтальний потік отримує більше зеленого часу; коли ввечері напрямок змінюється — фаза підлаштовується. Це дозволяє обслужити більше автомобілів за той самий цикл без будь-яких змін в інфраструктурі.</p>
+        </div>
+
+        <div class="concept-card">
+            <h4><span class="concept-icon" style="background:#e8f4fd">📡</span>V2I та V2X — автомобіль у мережі</h4>
+            <p><strong>V2I</strong> (Vehicle-to-Infrastructure) означає, що автомобіль постійно обмінюється даними з дорожньою інфраструктурою — перехрестями, датчиками, знаками. Він «знає», коли зміниться сигнал, де утворився затор, яку швидкість вибрати, щоб потрапити на зелений. <strong>V2X</strong> (Vehicle-to-Everything) — ширший стандарт, що охоплює також зв'язок між автомобілями (V2V) та із загальною міською мережею. У праворучній симуляції саме завдяки V2I кожне авто ще на підʼїзді до перехрестя «знає» рішення аукціону і або гальмує заздалегідь, або прискорюється, щоб пройти без зупинки.</p>
+        </div>
+
+        <div class="concept-card" style="grid-column: span 2; border-right:none;">
+            <h4><span class="concept-icon" style="background:#e8fdf0">🏆</span>Аукціон права проїзду</h4>
+            <p>Замість того щоб переключати сигнал за розкладом, кожен перехресток у ШІ-симуляції перед кожним циклом проводить <strong>аукціон</strong>. Принцип такий: перехресток «дивиться» на всі автомобілі, що наближаються з горизонтального та вертикального напрямків, і рахує їх кількість. Напрямок, де більше машин, отримує право проїзду.</p>
+            <p style="margin-top:10px">Чому це краще за звичайний світлофор? Бо перевагу отримує та черга, яка справді цього потребує прямо зараз. Якщо з горизонталі підʼїхало 8 машин, а з вертикалі — лише 1, немає сенсу витрачати половину циклу на вертикальний напрямок. Аукціон перерозподіляє час динамічно — кожні кілька секунд, а не раз на хвилину.</p>
+            <p style="margin-top:10px">Важливо: цей аукціон можливий лише тому, що автомобілі передають свої координати та намір через V2I. Звичайні машини цього не вміють — тому ліва симуляція використовує непрямий метод адаптації (підрахунок на основі вже присутніх авто на полотні), тоді як права реагує на дані від кожного конкретного учасника руху.</p>
+        </div>
+
+        <div class="concept-card" style="grid-column:1/-1; border-right:none;">
+            <h4><span class="concept-icon" style="background:#f3e8fd">🗺️</span>Алгоритм A* — як автомобіль обирає маршрут</h4>
+            <p>Кожен ШІ-автомобіль самостійно прокладає маршрут від точки входу до точки виходу. Але як? Місто — це граф: вузли — перехрестки, ребра — вулиці між ними. Задача — знайти найдешевший шлях від А до Б, де «ціна» ребра — це реальна відстань плюс штраф за завантаженість ділянки.</p>
+            <p style="margin-top:10px"><strong>Алгоритм A*</strong> вирішує цю задачу елегантно. На кожному кроці він оцінює кожен можливий наступний вузол двома числами: скільки ми вже проїхали від старту, і скільки ще, найменше, залишилось до мети. Для оцінки «залишку» використовується пряма відстань по повітрю — це й є евристика. Навіть якщо насправді доведеться об'їжджати, пряма відстань — найменше можливе значення, тому алгоритм ніколи не помиляється у виборі.</p>
+            <p style="margin-top:10px">A* щоразу розширює вузол з найменшою сумарною оцінкою. Це означає, що він не «обходить» весь граф наосліп, як простий перебір, а цілеспрямовано рухається в сторону мети, ігноруючи вузли, які явно гірші. Саме тому A* значно швидший за повний перебір і оптимальніший за жадібний пошук.</p>
+            <p style="margin-top:10px"><strong>Адаптація до трафіку:</strong> у цій симуляції маршрут перераховується заново щоразу, коли автомобіль підʼїжджає до чергового перехрестя. Якщо попереду утворився затор — ціна того вузла зростає, і A* автоматично знайде обхідний шлях. Завдяки цьому ШІ-автомобілі самоорганізуються: вони рівномірно розподіляються по доступних маршрутах, не накопичуючись в одному місці.</p>
+        </div>
+
+        <div class="concept-card" style="border-right:none; border-bottom:none;">
+            <h4><span class="concept-icon" style="background:#fdf3e8">⏸</span>Що показує «час зупинок»</h4>
+            <p>Час у русі — не єдина метрика якості трафіку. Зупинка — це не лише втрачений час, а й зайвий витрата палива (або заряду), додаткове гальмування й прискорення, знос гальм і покриття. Тому симуляція окремо рахує, скільки сумарних секунд усі автомобілі разом провели у повній зупинці. Співвідношення між лівою і правою симуляцією показує, наскільки ШІ-керування «розгальмовує» місто — чи справді автомобілі частіше проїжджають без зупинки, а не просто трохи швидше у середньому.</p>
+        </div>
+
+    </div>
+</details>
+
+<div id="road-editor">
+    <div style="font-weight:bold;margin-bottom:10px">Налаштування потоку</div>
+    <label style="font-size:11px">ПОТІК А (Вправо/Вниз)</label>
+    <input type="range" id="flow-a" min="0" max="100" value="15">
+    <label style="font-size:11px;margin-top:10px;display:block">ПОТІК Б (Вліво/Вгору)</label>
+    <input type="range" id="flow-b" min="0" max="100" value="15">
+    <button class="btn" onclick="closeEditor()" style="margin-top:10px;font-size:12px;background:#95a5a6">Закрити</button>
+</div>
+<script>
+const ROWS=3,COLS=4,ROAD_W=40,CAR_LEN=16,CAR_W=10;
+const HARD_STOP=CAR_LEN+4,SOFT_STOP=CAR_LEN*2.5,INTER_HALF=ROAD_W/2;
+const BRAKE_FAR=65,TURN_R=14,CYCLE=100;
+const CORNER_R=7;
+
+let settings={simSpeed:1,baseSpeed:2.2};
+let stats={
+    lights:{completedSum:0,completedCount:0,stopTimeSum:0},
+    ai:{completedSum:0,completedCount:0,stopTimeSum:0}
+};
+
+/* ── НЕРЕГУЛЯРНА СІТКА ВУЛИЦЬ ── */
+const laneX=[65,185,345,490], laneY=[75,205,330];
+
+let hDens=laneY.map(()=>({a:.15,b:.15}));
+let vDens=laneX.map(()=>({a:.15,b:.15}));
+
+const cL=document.getElementById('canvasL'),ctxL=cL.getContext('2d');
+const cA=document.getElementById('canvasA'),ctxA=cA.getContext('2d');
+let carsL=[],carsA=[];
+
+/* ── ГРАФ ── */
+const OPP={right:'left',left:'right',up:'down',down:'up'};
+function buildGraph(){
+    const nodes={},adj={};
+    const addN=(id,x,y,type,r,c)=>{nodes[id]={id,x,y,type,r:r??-1,c:c??-1};adj[id]=[];};
+    const addE=(a,b,d,dir)=>{adj[a].push({to:b,d,dir});adj[b].push({to:a,d,dir:OPP[dir]});};
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)addN(`I${r}${c}`,laneX[c],laneY[r],'I',r,c);
+    laneY.forEach((y,r)=>{addN(`EL${r}`,-50,y,'E');addN(`ER${r}`,600,y,'E');});
+    laneX.forEach((x,c)=>{addN(`ET${c}`,x,-50,'E');addN(`EB${c}`,x,450,'E');});
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+        if(c+1<COLS){
+            if(!(r===1&&c===0))
+                addE(`I${r}${c}`,`I${r}${c+1}`,laneX[c+1]-laneX[c],'right');
+        }
+        if(r+1<ROWS){
+            if(!(r===0&&c===2))
+                addE(`I${r}${c}`,`I${r+1}${c}`,laneY[r+1]-laneY[r],'down');
+        }
+    }
+    laneY.forEach((_,r)=>{
+        addE(`I${r}0`,`EL${r}`,laneX[0],'left');
+        addE(`I${r}${COLS-1}`,`ER${r}`,550-laneX[COLS-1],'right');
+    });
+    laneX.forEach((_,c)=>{
+        addE(`I0${c}`,`ET${c}`,laneY[0],'up');
+        addE(`I${ROWS-1}${c}`,`EB${c}`,400-laneY[ROWS-1],'down');
+    });
+    return{nodes,adj};
+}
+const G=buildGraph();
+
+/* ── ПОПЕРЕДНІЙ РОЗРАХУНОК СЕГМЕНТІВ ── */
+const hSegs=[],vSegs=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-1;c++){
+    if(G.adj[`I${r}${c}`].some(e=>e.to===`I${r}${c+1}`))hSegs.push([r,c]);
+}
+for(let r=0;r<ROWS-1;r++)for(let c=0;c<COLS;c++){
+    if(G.adj[`I${r}${c}`].some(e=>e.to===`I${r+1}${c}`))vSegs.push([r,c]);
+}
+
+/* ── A* ── */
+function heur(a,b){const na=G.nodes[a],nb=G.nodes[b];return(na&&nb)?Math.hypot(na.x-nb.x,na.y-nb.y):9999;}
+function tpen(nid,cars){
+    const n=G.nodes[nid];if(!n||n.type==='E')return 0;
+    let k=0;for(const c of cars)if(Math.hypot(c.x-n.x,c.y-n.y)<80)k++;
+    return k*18;
+}
+function aStar(fromId,fromDir,toId,cars){
+    const open=[{nid:fromId,dir:fromDir,g:0,f:heur(fromId,toId),path:[fromId]}];
+    const vis=new Set();
+    while(open.length){
+        open.sort((a,b)=>a.f-b.f);
+        const cur=open.shift();
+        const key=cur.nid+'|'+cur.dir;
+        if(vis.has(key))continue;vis.add(key);
+        if(cur.nid===toId)return cur.path;
+        for(const e of(G.adj[cur.nid]||[])){
+            if(e.dir===OPP[cur.dir])continue;
+            if(vis.has(e.to+'|'+e.dir))continue;
+            const g=cur.g+e.d+tpen(e.to,cars);
+            open.push({nid:e.to,dir:e.dir,g,f:g+heur(e.to,toId),path:[...cur.path,e.to]});
+        }
+    }
+    return null;
+}
+
+/* ── ТОЧКИ В'ЇЗДУ / ВИЇЗДУ ── */
+const ENTRIES=[];
+laneY.forEach((y,r)=>{
+    ENTRIES.push({x:-30,y:y+10,vxS:1,vyS:0,nid:`I${r}0`,dir:'right',noX:`EL${r}`,dens:()=>hDens[r].a});
+    ENTRIES.push({x:580,y:y-10,vxS:-1,vyS:0,nid:`I${r}${COLS-1}`,dir:'left',noX:`ER${r}`,dens:()=>hDens[r].b});
+});
+laneX.forEach((x,c)=>{
+    ENTRIES.push({x:x-10,y:-30,vxS:0,vyS:1,nid:`I0${c}`,dir:'down',noX:`ET${c}`,dens:()=>vDens[c].a});
+    ENTRIES.push({x:x+10,y:430,vxS:0,vyS:-1,nid:`I${ROWS-1}${c}`,dir:'up',noX:`EB${c}`,dens:()=>vDens[c].b});
+});
+const EXITS=[];
+laneY.forEach((_,r)=>{EXITS.push({id:`EL${r}`,w:()=>hDens[r].b});EXITS.push({id:`ER${r}`,w:()=>hDens[r].a});});
+laneX.forEach((_,c)=>{EXITS.push({id:`ET${c}`,w:()=>vDens[c].b});EXITS.push({id:`EB${c}`,w:()=>vDens[c].a});});
+
+function pickExit(noX){
+    const opts=EXITS.filter(e=>e.id!==noX);
+    const ws=opts.map(e=>Math.max(.01,e.w()));
+    const tot=ws.reduce((s,w)=>s+w,0);
+    let r=Math.random()*tot;
+    for(let i=0;i<opts.length;i++){r-=ws[i];if(r<=0)return opts[i].id;}
+    return opts[opts.length-1].id;
+}
+
+/* ── ПЕРЕХРЕСТЯ ── */
+let intersections=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)
+    intersections.push({r,c,x:laneX[c],y:laneY[r],tlState:0,tlTimer:0,auctionWinner:0});
+
+let masterTimer=0,hGreenFrac=0.5;
+
+function updateIntersections(dt){
+    masterTimer=(masterTimer+0.4*dt)%CYCLE;
+    let tH=0,tV=0;
+    for(const c of carsL){if(c.vx!==0)tH++;else tV++;}
+    const tot=tH+tV||1;
+    hGreenFrac+=(Math.max(.25,Math.min(.75,tH/tot))-hGreenFrac)*.008*dt;
+
+    const hStep=(laneX[1]-laneX[0])*.4/settings.baseSpeed;
+    const vStep=(laneY[1]-laneY[0])*.4/settings.baseSpeed;
+
+    intersections.forEach(inter=>{
+        const offset=(tH>=tV)?inter.c*hStep:inter.r*vStep;
+        const phase=(masterTimer+offset)%CYCLE;
+        inter.tlTimer=phase;
+        inter.tlState=phase<hGreenFrac*CYCLE?0:1;
+        const wH=qw(inter,'H',carsA),wV=qw(inter,'V',carsA);
+        if(wH>0||wV>0)inter.auctionWinner=wH>=wV?0:1;
+    });
+    document.getElementById('stat-lights-sub').innerText=
+        `Г-зелений: ${(hGreenFrac*100).toFixed(0)}%  |  `+(tH>=tV?'→ хвиля':'↓ хвиля');
+}
+function qw(inter,axis,cars){
+    let w=0;
+    for(const c of cars){
+        if(Math.hypot(c.x-inter.x,c.y-inter.y)>160)continue;
+        if(axis==='H'&&Math.abs(c.y-inter.y)<17){if(c.vx>0&&c.x<inter.x)w++;if(c.vx<0&&c.x>inter.x)w++;}
+        if(axis==='V'&&Math.abs(c.x-inter.x)<17){if(c.vy>0&&c.y<inter.y)w++;if(c.vy<0&&c.y>inter.y)w++;}
+    }
+    return w;
+}
+
+/* ── КЛАС АВТОМОБІЛЯ ── */
+class Car{
+    constructor(id,x,y,vxS,vyS,world,color,destId){
+        this.id=id;this.x=x;this.y=y;
+        this.vx=vxS*settings.baseSpeed;this.vy=vyS*settings.baseSpeed;
+        this.currentV=settings.baseSpeed;
+        this.color=color;this.startTime=Date.now();
+        this.world=world;this.destId=destId;
+        this.turning=false;this.route=null;this.rfi=null;
+        this.angle=Math.atan2(vyS,vxS);
+        this.stopTime=0; // загальний час зупинок цього авто (секунди)
+    }
+    get travelDir(){
+        if(this.vx>.1)return'right';if(this.vx<-.1)return'left';
+        if(this.vy>.1)return'down';return'up';
+    }
+}
+
+/* ── ХЕЛПЕРИ ── */
+function distAhead(c,list){
+    let best=9999;const isH=c.vx!==0;const myL=isH?c.y:c.x;
+    for(const o of list){
+        if(o.id===c.id)continue;
+        const dx=o.x-c.x,dy=o.y-c.y;
+        if(isH?Math.abs(o.y-myL)>11:Math.abs(o.x-myL)>11)continue;
+        if((c.vx>0&&dx>0)||(c.vx<0&&dx<0)||(c.vy>0&&dy>0)||(c.vy<0&&dy<0))
+            best=Math.min(best,Math.hypot(dx,dy));
+    }
+    return best;
+}
+
+/* ── ГОЛОВНИЙ КРОК ── */
+// frameDt в мс (приблизно 16.67 мс при 60 fps × simSpeed)
+const FRAME_MS=1000/60;
+
+function simulateWorld(list,mode,dt){
+    for(let i=list.length-1;i>=0;i--){
+        const c=list[i];
+
+        // Контекст перехресть
+        let atInter=null,inInter=false,nextInter=null,nextD=9999;
+        for(const inter of intersections){
+            const adx=Math.abs(c.x-inter.x),ady=Math.abs(c.y-inter.y);
+            if(adx<INTER_HALF&&ady<INTER_HALF)inInter=true;
+            if(adx<TURN_R&&ady<TURN_R)atInter=inter;
+            const onR=c.vx!==0&&ady<17,onC=c.vy!==0&&adx<17;
+            const fwd=(c.vx>0&&inter.x>c.x+INTER_HALF)||(c.vx<0&&inter.x<c.x-INTER_HALF)||
+                      (c.vy>0&&inter.y>c.y+INTER_HALF)||(c.vy<0&&inter.y<c.y-INTER_HALF);
+            const d=Math.hypot(adx,ady);
+            if((onR||onC)&&fwd&&d<nextD){nextD=d;nextInter=inter;}
+        }
+
+        // Перерахунок маршруту при підʼїзді
+        if(!inInter&&nextInter&&nextD<BRAKE_FAR){
+            const nid=`I${nextInter.r}${nextInter.c}`;
+            if(c.rfi!==nid){c.rfi=nid;c.route=aStar(nid,c.travelDir,c.destId,list);}
+        }
+
+        // Поворот у центрі перехрестя
+        if(atInter&&!c.turning){
+            const nid=`I${atInter.r}${atInter.c}`;
+            if(!c.route||c.rfi!==nid){c.rfi=nid;c.route=aStar(nid,c.travelDir,c.destId,list);}
+            if(c.route&&c.route.length>1){
+                const nn=G.nodes[c.route[1]];
+                if(nn){
+                    const ddx=nn.x-atInter.x,ddy=nn.y-atInter.y;
+                    if(Math.abs(ddx)>Math.abs(ddy)){
+                        const nvx=ddx>0?settings.baseSpeed:-settings.baseSpeed;
+                        if(c.vy!==0)c.y=atInter.y+(nvx>0?10:-10);
+                        c.vx=nvx;c.vy=0;
+                    }else{
+                        const nvy=ddy>0?settings.baseSpeed:-settings.baseSpeed;
+                        if(c.vx!==0)c.x=atInter.x+(nvy>0?-10:10);
+                        c.vy=nvy;c.vx=0;
+                    }
+                }
+            }
+            c.turning=true;c.rfi=null;
+        }
+        if(!atInter)c.turning=false;
+
+        // Відстань попереду
+        const da=distAhead(c,list);
+
+        // Жорсткий стоп
+        if(da<HARD_STOP){
+            c.currentV=0;
+            c.stopTime+=FRAME_MS*dt/1000; // накопичуємо час зупинки
+            c.x-=(c.vx/settings.baseSpeed)*dt*.3;
+            c.y-=(c.vy/settings.baseSpeed)*dt*.3;
+            _smoothAngle(c,dt);
+            if(c.x<-50||c.x>600||c.y<-50||c.y>450)done(list,i,c);
+            continue;
+        }
+
+        // Сигнальний стоп
+        let stopSig=false;
+        if(!inInter&&nextInter&&nextD<BRAKE_FAR){
+            let red=false;
+            if(mode==='lights'){
+                if(c.vx!==0&&nextInter.tlState===1)red=true;
+                if(c.vy!==0&&nextInter.tlState===0)red=true;
+            }else{
+                if(c.vx!==0&&nextInter.auctionWinner===1)red=true;
+                if(c.vy!==0&&nextInter.auctionWinner===0)red=true;
+            }
+            stopSig=red;
+        }
+        const stopCar=da<(inInter?HARD_STOP*1.5:SOFT_STOP);
+        const canMove=!stopSig&&!stopCar;
+
+        if(!canMove){
+            c.currentV*=.75;
+            if(c.currentV<.15){
+                c.currentV=0;
+                c.stopTime+=FRAME_MS*dt/1000; // стоїть — рахуємо
+            }
+        }
+        else c.currentV+=(settings.baseSpeed-c.currentV)*.25;
+
+        c.x+=(c.vx/settings.baseSpeed)*c.currentV*dt;
+        c.y+=(c.vy/settings.baseSpeed)*c.currentV*dt;
+
+        _smoothAngle(c,dt);
+
+        if(c.x<-50||c.x>600||c.y<-50||c.y>450)done(list,i,c);
+    }
+}
+
+function _smoothAngle(c,dt){
+    const target=Math.atan2(c.vy,c.vx);
+    let dA=target-c.angle;
+    while(dA>Math.PI)dA-=2*Math.PI;
+    while(dA<-Math.PI)dA+=2*Math.PI;
+    c.angle+=dA*Math.min(1,0.17*dt);
+}
+
+function done(list,i,c){
+    stats[c.world].completedSum+=(Date.now()-c.startTime)/1000;
+    stats[c.world].completedCount++;
+    stats[c.world].stopTimeSum+=c.stopTime; // зберігаємо час зупинок
+    list.splice(i,1);
+}
+
+/* ── СТАТИСТИКА ── */
+function liveAvg(world,active){
+    const s=stats[world],now=Date.now();
+    let sum=s.completedSum,cnt=s.completedCount;
+    for(const c of active){sum+=(now-c.startTime)/1000;cnt++;}
+    return cnt>0?sum/cnt:0;
+}
+
+function liveTotalStop(world,active){
+    let sum=stats[world].stopTimeSum;
+    for(const c of active) sum+=c.stopTime;
+    return sum;
+}
+
+/* ── РЕНДЕРИНГ ДОРІГ ── */
+function drawRoads(ctx){
+    const RW=ROAD_W,BG='#34495e',RD='#2c3e50';
+    ctx.fillStyle=RD;
+
+    intersections.forEach(({x,y})=>ctx.fillRect(x-RW/2,y-RW/2,RW,RW));
+
+    hSegs.forEach(([r,c])=>{
+        const x1=laneX[c]+RW/2, x2=laneX[c+1]-RW/2;
+        ctx.fillRect(x1,laneY[r]-RW/2,x2-x1,RW);
+    });
+    vSegs.forEach(([r,c])=>{
+        const y1=laneY[r]+RW/2, y2=laneY[r+1]-RW/2;
+        ctx.fillRect(laneX[c]-RW/2,y1,RW,y2-y1);
+    });
+    laneY.forEach(y=>{
+        ctx.fillRect(0,y-RW/2,laneX[0]-RW/2,RW);
+        ctx.fillRect(laneX[COLS-1]+RW/2,y-RW/2,550-laneX[COLS-1]-RW/2,RW);
+    });
+    laneX.forEach(x=>{
+        ctx.fillRect(x-RW/2,0,RW,laneY[0]-RW/2);
+        ctx.fillRect(x-RW/2,laneY[ROWS-1]+RW/2,RW,400-laneY[ROWS-1]-RW/2);
+    });
+
+    ctx.fillStyle=BG;
+    const CR=CORNER_R;
+    intersections.forEach(({x,y,r,c})=>{
+        const hasL=c===0        ||hSegs.some(([sr,sc])=>sr===r&&sc===c-1);
+        const hasR=c===COLS-1   ||hSegs.some(([sr,sc])=>sr===r&&sc===c);
+        const hasU=r===0        ||vSegs.some(([sr,sc])=>sr===r-1&&sc===c);
+        const hasD=r===ROWS-1   ||vSegs.some(([sr,sc])=>sr===r&&sc===c);
+
+        if(hasL&&hasU) _cornerArc(ctx,x-RW/2,y-RW/2,CR,'TL');
+        if(hasR&&hasU) _cornerArc(ctx,x+RW/2,y-RW/2,CR,'TR');
+        if(hasL&&hasD) _cornerArc(ctx,x-RW/2,y+RW/2,CR,'BL');
+        if(hasR&&hasD) _cornerArc(ctx,x+RW/2,y+RW/2,CR,'BR');
+    });
+
+    ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([10,10]);ctx.lineWidth=1;
+    hSegs.forEach(([r,c])=>{
+        ctx.beginPath();ctx.moveTo(laneX[c],laneY[r]);ctx.lineTo(laneX[c+1],laneY[r]);ctx.stroke();
+    });
+    vSegs.forEach(([r,c])=>{
+        ctx.beginPath();ctx.moveTo(laneX[c],laneY[r]);ctx.lineTo(laneX[c],laneY[r+1]);ctx.stroke();
+    });
+    laneY.forEach(y=>{
+        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(laneX[0],y);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(laneX[COLS-1],y);ctx.lineTo(550,y);ctx.stroke();
+    });
+    laneX.forEach(x=>{
+        ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,laneY[0]);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(x,laneY[ROWS-1]);ctx.lineTo(x,400);ctx.stroke();
+    });
+    ctx.setLineDash([]);ctx.lineWidth=1;
+}
+
+function _cornerArc(ctx,cx,cy,r,corner){
+    ctx.beginPath();
+    if(corner==='TL'){
+        ctx.moveTo(cx,cy);ctx.lineTo(cx+r,cy);
+        ctx.arc(cx+r,cy+r,r,-Math.PI/2,Math.PI,true);ctx.closePath();
+    }else if(corner==='TR'){
+        ctx.moveTo(cx,cy);ctx.lineTo(cx-r,cy);
+        ctx.arc(cx-r,cy+r,r,-Math.PI/2,0,false);ctx.closePath();
+    }else if(corner==='BL'){
+        ctx.moveTo(cx,cy);ctx.lineTo(cx+r,cy);
+        ctx.arc(cx+r,cy-r,r,Math.PI/2,Math.PI,false);ctx.closePath();
+    }else{
+        ctx.moveTo(cx,cy);ctx.lineTo(cx-r,cy);
+        ctx.arc(cx-r,cy-r,r,0,Math.PI/2,false);ctx.closePath();
+    }
+    ctx.fill();
+}
+
+/* ── РЕНДЕРИНГ АВТОМОБІЛІВ ── */
+function drawCar(ctx,c){
+    ctx.save();
+    ctx.translate(c.x,c.y);
+    ctx.rotate(c.angle);
+
+    const L=CAR_LEN,W=CAR_W;
+    const L2=L/2,W2=W/2;
+
+    ctx.fillStyle='rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    if(ctx.roundRect){ctx.roundRect(-L2+1,-W2+1,L,W,2);}
+    else{ctx.rect(-L2+1,-W2+1,L,W);}
+    ctx.fill();
+
+    ctx.fillStyle=c.color;
+    ctx.beginPath();
+    if(ctx.roundRect){ctx.roundRect(-L2,-W2,L,W,2);}
+    else{ctx.rect(-L2,-W2,L,W);}
+    ctx.fill();
+
+    ctx.fillStyle='rgba(255,255,255,0.13)';
+    ctx.fillRect(L2-5,-W2+1.5,4.5,W-3);
+    ctx.fillStyle='rgba(0,0,0,0.30)';
+    ctx.fillRect(-L2+3,-W2+1.5,L/2-1,W-3);
+    ctx.fillStyle='rgba(140,210,255,0.65)';
+    ctx.fillRect(L2-5.5,-W2+1.5,3.5,W-3);
+    ctx.fillStyle='rgba(140,210,255,0.45)';
+    ctx.fillRect(-L2+1,-W2+1.5,2.5,W-3);
+    ctx.fillStyle='rgba(255,255,210,1)';
+    ctx.fillRect(L2-1.5,-W2+0.5,2,2.2);
+    ctx.fillRect(L2-1.5, W2-2.7,2,2.2);
+    ctx.fillStyle='rgba(255,40,40,0.95)';
+    ctx.fillRect(-L2,-W2+0.5,2,2.2);
+    ctx.fillRect(-L2, W2-2.7,2,2.2);
+
+    ctx.restore();
+}
+
+/* ── РЕНДЕРИНГ СВІТЛОФОРІВ ── */
+function drawLights(ctx,inter,mode){
+    const RW=ROAD_W,x=inter.x,y=inter.y,r=inter.r,c=inter.c;
+    const hasL=c===0        ||hSegs.some(([sr,sc])=>sr===r&&sc===c-1);
+    const hasR=c===COLS-1   ||hSegs.some(([sr,sc])=>sr===r&&sc===c);
+    const hasU=r===0        ||vSegs.some(([sr,sc])=>sr===r-1&&sc===c);
+    const hasD=r===ROWS-1   ||vSegs.some(([sr,sc])=>sr===r&&sc===c);
+
+    if(mode==='lights'){
+        const hGreen=inter.tlState===0;
+        ctx.fillStyle=hGreen?'#2ecc71':'#e74c3c';
+        if(hasL)ctx.fillRect(x-RW/2-8,y-4,7,8);
+        if(hasR)ctx.fillRect(x+RW/2+1,y-4,7,8);
+        ctx.fillStyle=hGreen?'#e74c3c':'#2ecc71';
+        if(hasU)ctx.fillRect(x-4,y-RW/2-8,8,7);
+        if(hasD)ctx.fillRect(x-4,y+RW/2+1,8,7);
+    }else{
+        ctx.strokeStyle=inter.auctionWinner===0?'#3498db':'#f39c12';
+        ctx.lineWidth=2;ctx.strokeRect(x-15,y-15,30,30);ctx.lineWidth=1;
+    }
+}
+
+/* ── ГОЛОВНА ФУНКЦІЯ РЕНДЕРИНГУ ── */
+function render(ctx,cars,mode){
+    ctx.clearRect(0,0,550,400);
+    drawRoads(ctx);
+    intersections.forEach(inter=>drawLights(ctx,inter,mode));
+    cars.forEach(c=>drawCar(ctx,c));
+}
+
+/* ── UPDATE + LOOP ── */
+function update(){
+    const dt=settings.simSpeed;
+    updateIntersections(dt);
+    simulateWorld(carsL,'lights',dt);
+    simulateWorld(carsA,'ai',dt);
+
+    const lA=liveAvg('lights',carsL),aA=liveAvg('ai',carsA);
+    document.getElementById('stat-lights').innerText=lA.toFixed(1)+'s';
+    document.getElementById('stat-ai').innerText=aA.toFixed(1)+'s';
+    if(lA>0)document.getElementById('stat-gain').innerText=((1-aA/lA)*100).toFixed(0)+'%';
+
+    // Час зупинок по кожній симуляції окремо
+    const stL=liveTotalStop('lights',carsL);
+    const stA=liveTotalStop('ai',carsA);
+    document.getElementById('stat-stops-L').innerText=`⏸ Зупинки: ${stL.toFixed(0)}s`;
+    document.getElementById('stat-stops-A').innerText=`⏸ Зупинки: ${stA.toFixed(0)}s`;
+
+    // Співвідношення зупинок у картці ефективності
+    if(stL>0){
+        const ratio=(stA/stL*100).toFixed(0);
+        document.getElementById('stat-stop-ratio').innerText=`⏸ Зупинки ШІ: ${ratio}% від світлофорів`;
+    }
+}
+
+/* ── РЕДАКТОР ── */
+let editing=null;
+const editor=document.getElementById('road-editor');
+function openEditor(e){
+    const rect=e.target.getBoundingClientRect();
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    let found=false;
+    laneY.forEach((ly,i)=>{if(Math.abs(y-ly)<25){editing={type:'h',idx:i};found=true;}});
+    if(!found)laneX.forEach((lx,i)=>{if(Math.abs(x-lx)<25){editing={type:'v',idx:i};found=true;}});
+    if(found){
+        editor.style.display='block';editor.style.left=e.pageX+'px';editor.style.top=e.pageY+'px';
+        const d=editing.type==='h'?hDens[editing.idx]:vDens[editing.idx];
+        document.getElementById('flow-a').value=d.a*100;document.getElementById('flow-b').value=d.b*100;
+    }
+}
+document.getElementById('flow-a').oninput=e=>{
+    const v=e.target.value/100;if(editing.type==='h')hDens[editing.idx].a=v;else vDens[editing.idx].a=v;
+};
+document.getElementById('flow-b').oninput=e=>{
+    const v=e.target.value/100;if(editing.type==='h')hDens[editing.idx].b=v;else vDens[editing.idx].b=v;
+};
+function closeEditor(){editor.style.display='none';}
+function resetStats(){
+    stats={
+        lights:{completedSum:0,completedCount:0,stopTimeSum:0},
+        ai:{completedSum:0,completedCount:0,stopTimeSum:0}
+    };
+    carsL=[];carsA=[];
+}
+document.getElementById('simSpeed').oninput=e=>{
+    settings.simSpeed=parseFloat(e.target.value);document.getElementById('v-sim').innerText=e.target.value;
+};
+document.getElementById('densSlider').oninput=e=>{
+    const v=e.target.value/100;document.getElementById('v-dens').innerText=e.target.value;
+    hDens=laneY.map(()=>({a:v,b:v}));vDens=laneX.map(()=>({a:v,b:v}));
+};
+cL.onclick=openEditor;cA.onclick=openEditor;
+setInterval(spawn,500);
+function spawn(){ENTRIES.forEach(ep=>{if(Math.random()<ep.dens())tryCreate(ep);});}
+function tryCreate(ep){
+    if(carsL.some(c=>Math.hypot(c.x-ep.x,c.y-ep.y)<SOFT_STOP*1.5))return;
+    const id=Math.random().toString(36).substr(2,5);
+    const color=`hsl(${Math.floor(Math.random()*360)},75%,60%)`;
+    const destId=pickExit(ep.noX);
+    carsL.push(new Car(id,ep.x,ep.y,ep.vxS,ep.vyS,'lights',color,destId));
+    carsA.push(new Car(id,ep.x,ep.y,ep.vxS,ep.vyS,'ai',color,destId));
+}
+function loop(){update();render(ctxL,carsL,'lights');render(ctxA,carsA,'ai');requestAnimationFrame(loop);}
+loop();
+</script>
+</body>
+</html>
