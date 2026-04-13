@@ -323,7 +323,7 @@
 
 
 <script>
-const ROWS=3,COLS=4,ROAD_W=50,CAR_LEN=16,CAR_W=9;
+const ROWS=3,COLS=4,ROAD_W=36,CAR_LEN=16,CAR_W=9;
 const HARD_STOP=CAR_LEN+4,SOFT_STOP=CAR_LEN*2.5,INTER_HALF=ROAD_W/2;
 const BRAKE_FAR=65,TURN_R=14,CYCLE=100;
 const CORNER_R=7;
@@ -528,13 +528,13 @@ function qw(inter,axis,cars){
 }
 
 /* ── КЛАС АВТОМОБІЛЯ ── */
-const SLOT_HOLD=32; // кадрів, протягом яких перехрестя «зайняте» одним авто 22
+const SLOT_HOLD=22; // кадрів, протягом яких перехрестя «зайняте» одним авто 22
 // Тривалість слоту залежить від маневру:
 // правий поворот = 1 смуга → короткий слот
 // прямо          = 2 смуги → стандартний
 // лівий поворот  = 3 смуги (послідовно) → довгий + блокує зустрічну
 const SLOT_RIGHT=Math.round(SLOT_HOLD*0.55); // ~12
-const SLOT_LEFT =Math.round(SLOT_HOLD*1.85); // ~41
+const SLOT_LEFT =Math.round(SLOT_HOLD*1.85); // ~41 1.85
 
 class Car{
     constructor(id,x,y,vxS,vyS,world,color,destId){
@@ -781,19 +781,27 @@ function simulateWorld(list,mode,dt){
                 Math.abs(o.y-nextInter.y)<INTER_HALF+CAR_LEN/2);
         }
         // «Не блокуй перехрестя»: зупинитись перед входом якщо:
-        //  а) всередині перехрестя стоїть машина в нашій смузі, АБО
-        //  б) вихід з перехрестя в нашому напрямку заблокований зупиненою машиною
-        if(!stopSig&&!inInter&&nextInter&&nextD<INTER_HALF+CAR_LEN){
+        //  а) всередині перехрестя є машина в нашій смузі (навіть повільна), АБО
+        //  б) вихід з перехрестя в нашому напрямку заблокований
+        // ВИПРАВЛЕННЯ: зона спрацювання розширена до BRAKE_FAR (було INTER_HALF+CAR_LEN — занадто мало,
+        //   машина не встигала загальмувати). Зона виходу збільшена до BRAKE_FAR (черга може бути довгою).
+        //   Поріг «рухається» різний: всередині перехрестя — 60% швидкості, поза ним — 0.5px/кадр.
+        if(!stopSig&&!inInter&&nextInter&&nextD<BRAKE_FAR){
             const laneT=CAR_W+3; // допуск смуги ≈ 13px
-            const exitD=INTER_HALF+SOFT_STOP; // зона виходу ~55px за центром
+            const exitD=INTER_HALF+BRAKE_FAR; // зона виходу ~90px за центром (раніше ~55px)
             stopSig=list.some(o=>{
-                if(o.id===c.id||o.currentV>0.5)return false; // рухається — не заважає
+                if(o.id===c.id)return false;
                 const ox=o.x,oy=o.y,nx=nextInter.x,ny=nextInter.y;
-                // а) стоїть ВСЕРЕДИНІ перехрестя в нашій смузі
-                if(Math.abs(ox-nx)<INTER_HALF&&Math.abs(oy-ny)<INTER_HALF){
+                const insideInter=Math.abs(ox-nx)<INTER_HALF&&Math.abs(oy-ny)<INTER_HALF;
+                // ВИПРАВЛЕННЯ: всередині перехрестя зупиняємо навіть при currentV до 60% базової
+                //   (раніше поріг 0.5 пропускав повільні машини, що потім зупинялись всередині)
+                const movingThresh=insideInter?settings.baseSpeed*0.6:0.5;
+                if(o.currentV>movingThresh)return false;
+                // а) машина ВСЕРЕДИНІ перехрестя в нашій смузі
+                if(insideInter){
                     return c.vx!==0?Math.abs(oy-c.y)<laneT:Math.abs(ox-c.x)<laneT;
                 }
-                // б) стоїть ОДРАЗУ ЗА перехрестям (вихід заблоковано)
+                // б) машина ОДРАЗУ ЗА перехрестям (вихід заблоковано)
                 if(c.vx>0) return ox>nx+INTER_HALF&&ox<nx+exitD&&Math.abs(oy-c.y)<laneT;
                 if(c.vx<0) return ox<nx-INTER_HALF&&ox>nx-exitD&&Math.abs(oy-c.y)<laneT;
                 if(c.vy>0) return oy>ny+INTER_HALF&&oy<ny+exitD&&Math.abs(ox-c.x)<laneT;
@@ -808,6 +816,27 @@ function simulateWorld(list,mode,dt){
         if(mode==='ai' && boosts.aim && !inInter && nextInter && nextD<BRAKE_FAR){
             // ── AIM: резервування слоту ──
             const nid=`I${nextInter.r}${nextInter.c}`;
+
+            // ВИПРАВЛЕННЯ: AIM-слот гарантує лише часову непересічність у перехресті,
+            // але НЕ перевіряє чи фізично вільний вихід після нього. Якщо вихід заблокований —
+            // анулюємо слот і чекаємо (машина не в'їжджає та не блокує перехрестя).
+            const aimExitD=INTER_HALF+BRAKE_FAR;
+            const aimLaneT=CAR_W+3;
+            const aimExitBlocked=list.some(o=>{
+                if(o.id===c.id||o.currentV>settings.baseSpeed*0.6)return false;
+                const nx=nextInter.x,ny=nextInter.y;
+                if(c.vx>0) return o.x>nx+INTER_HALF&&o.x<nx+aimExitD&&Math.abs(o.y-c.y)<aimLaneT;
+                if(c.vx<0) return o.x<nx-INTER_HALF&&o.x>nx-aimExitD&&Math.abs(o.y-c.y)<aimLaneT;
+                if(c.vy>0) return o.y>ny+INTER_HALF&&o.y<ny+aimExitD&&Math.abs(o.x-c.x)<aimLaneT;
+                if(c.vy<0) return o.y<ny-INTER_HALF&&o.y>ny-aimExitD&&Math.abs(o.x-c.x)<aimLaneT;
+                return false;
+            });
+            if(aimExitBlocked){
+                // Скидаємо слот — він буде перезапрошений коли вихід очиститься
+                c.aimSlot=null;
+                targetV=Math.max(0, nextD/BRAKE_FAR * settings.baseSpeed * 0.3);
+            } else {
+
             if(!c.aimSlot||c.aimSlot.interId!==nid){
                 const t=aimRequestSlot(nextInter,c,nextD);
                 c.aimSlot=t!==null?{interId:nid,targetTime:t}:null;
@@ -824,6 +853,7 @@ function simulateWorld(list,mode,dt){
                 // Слот не знайдено — плавне гальмування
                 targetV=Math.max(0, nextD/BRAKE_FAR * settings.baseSpeed * 0.4);
             }
+            } // end !aimExitBlocked
 
         }else if(mode==='ai' && boosts.speedAdvisory && !inInter && nextInter && nextD<BRAKE_FAR && stopSig){
             // ── Speed Advisory: плавне пропорційне гальмування ──
