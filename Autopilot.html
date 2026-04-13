@@ -323,12 +323,12 @@
 
 
 <script>
-const ROWS=3,COLS=4,ROAD_W=40,CAR_LEN=16,CAR_W=10;
+const ROWS=3,COLS=4,ROAD_W=50,CAR_LEN=16,CAR_W=9;
 const HARD_STOP=CAR_LEN+4,SOFT_STOP=CAR_LEN*2.5,INTER_HALF=ROAD_W/2;
 const BRAKE_FAR=65,TURN_R=14,CYCLE=100;
 const CORNER_R=7;
 
-let settings={simSpeed:2,baseSpeed:2.2};
+let settings={simSpeed:2,baseSpeed:2.0};
 // ── Буст-прапорці (лише AI-симуляція) ──
 const boosts={speedAdvisory:false,aim:false};
 let simTime=0; // глобальний лічильник кадрів симуляції
@@ -528,7 +528,7 @@ function qw(inter,axis,cars){
 }
 
 /* ── КЛАС АВТОМОБІЛЯ ── */
-const SLOT_HOLD=22; // кадрів, протягом яких перехрестя «зайняте» одним авто
+const SLOT_HOLD=32; // кадрів, протягом яких перехрестя «зайняте» одним авто 22
 // Тривалість слоту залежить від маневру:
 // правий поворот = 1 смуга → короткий слот
 // прямо          = 2 смуги → стандартний
@@ -669,6 +669,16 @@ function simulateWorld(list,mode,dt){
                             ap.turnType=getTurnType(fromDir,nextDir);
                             ap.exitVx=(nextDir==='right'?1:nextDir==='left'?-1:0)*settings.baseSpeed;
                             ap.exitVy=(nextDir==='down'?1:nextDir==='up'?-1:0)*settings.baseSpeed;
+                            // Лівий поворот: дуги перпендикулярних машин перетинаються в центрі.
+                            // Якщо інша машина вже на дузі в цьому перехресті — поступаємось:
+                            // відступаємо на крок і НЕ встановлюємо turning → наступний кадр спробує знову.
+                            if(ap.turnType==='left'&&list.some(o=>o.id!==c.id&&o.arc&&
+                                Math.abs(o.x-curInter.x)<INTER_HALF+CAR_LEN&&
+                                Math.abs(o.y-curInter.y)<INTER_HALF+CAR_LEN)){
+                                c.x-=(c.vx/settings.baseSpeed)*dt;
+                                c.y-=(c.vy/settings.baseSpeed)*dt;
+                                continue; // c.turning лишається false
+                            }
                             // Прив'язуємо машину до точки входу дуги
                             c.x=ap.cx+ap.r*Math.cos(ap.startA);
                             c.y=ap.cy+ap.r*Math.sin(ap.startA);
@@ -695,6 +705,21 @@ function simulateWorld(list,mode,dt){
         // ── АНІМАЦІЯ ДУГИ ПОВОРОТУ ──
         if(c.arc){
             const ap=c.arc;
+            // ── ПЕРЕВІРКА ЗІТКНЕННЯ ПІД ЧАС ПОВОРОТУ ──
+            // Машина — не точка: порівнюємо центри через мінімальну безпечну відстань
+            const MIN_CLEAR=CAR_LEN+2; // ~18px між центрами = жодного накладання
+            const arcBlocked=list.some(o=>{
+                if(o.id===c.id)return false;
+                if(Math.hypot(o.x-c.x,o.y-c.y)>=MIN_CLEAR)return false;
+                // Якщо обидві на дузі — поступається та, що менше просунулась
+                if(o.arc)return o.arc.progress>=ap.progress;
+                return true; // пряма машина → дуга поступається
+            });
+            if(arcBlocked){
+                c.currentV=0;c.stopTime+=FRAME_MS*dt/1000;
+                if(c.x<-50||c.x>600||c.y<-50||c.y>450)done(list,i,c);
+                continue;
+            }
             const arcLen=ap.r*Math.PI/2; // завжди чверть кола
             // Швидкість під час повороту: лівий — повільніше (довша дуга)
             const turnSpd=settings.baseSpeed*(ap.turnType==='left'?0.62:0.80);
@@ -746,6 +771,35 @@ function simulateWorld(list,mode,dt){
                 if(c.vy!==0&&nextInter.auctionWinner===0)red=true;
             }
             stopSig=red;
+        }
+        // Зупинка якщо інша машина на дузі вже займає наступне перехрестя
+        // (тільки без AIM — там слоти вже гарантують відсутність конфлікту)
+        if(!stopSig&&!inInter&&nextInter&&nextD<BRAKE_FAR&&
+           !(mode==='ai'&&boosts.aim&&c.aimSlot)){
+            stopSig=list.some(o=>o.id!==c.id&&o.arc&&
+                Math.abs(o.x-nextInter.x)<INTER_HALF+CAR_LEN/2&&
+                Math.abs(o.y-nextInter.y)<INTER_HALF+CAR_LEN/2);
+        }
+        // «Не блокуй перехрестя»: зупинитись перед входом якщо:
+        //  а) всередині перехрестя стоїть машина в нашій смузі, АБО
+        //  б) вихід з перехрестя в нашому напрямку заблокований зупиненою машиною
+        if(!stopSig&&!inInter&&nextInter&&nextD<INTER_HALF+CAR_LEN){
+            const laneT=CAR_W+3; // допуск смуги ≈ 13px
+            const exitD=INTER_HALF+SOFT_STOP; // зона виходу ~55px за центром
+            stopSig=list.some(o=>{
+                if(o.id===c.id||o.currentV>0.5)return false; // рухається — не заважає
+                const ox=o.x,oy=o.y,nx=nextInter.x,ny=nextInter.y;
+                // а) стоїть ВСЕРЕДИНІ перехрестя в нашій смузі
+                if(Math.abs(ox-nx)<INTER_HALF&&Math.abs(oy-ny)<INTER_HALF){
+                    return c.vx!==0?Math.abs(oy-c.y)<laneT:Math.abs(ox-c.x)<laneT;
+                }
+                // б) стоїть ОДРАЗУ ЗА перехрестям (вихід заблоковано)
+                if(c.vx>0) return ox>nx+INTER_HALF&&ox<nx+exitD&&Math.abs(oy-c.y)<laneT;
+                if(c.vx<0) return ox<nx-INTER_HALF&&ox>nx-exitD&&Math.abs(oy-c.y)<laneT;
+                if(c.vy>0) return oy>ny+INTER_HALF&&oy<ny+exitD&&Math.abs(ox-c.x)<laneT;
+                if(c.vy<0) return oy<ny-INTER_HALF&&oy>ny-exitD&&Math.abs(ox-c.x)<laneT;
+                return false;
+            });
         }
 
         // ── Вибір цільової швидкості ──
