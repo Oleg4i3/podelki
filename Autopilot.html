@@ -197,8 +197,8 @@
 </div>
 <div class="controls">
     <div class="control-group">
-        <label>Швидкість симуляції: <span id="v-sim">1.0</span>x</label>
-        <input type="range" id="simSpeed" min="0.1" max="3" step="0.1" value="1">
+        <label>Швидкість симуляції: <span id="v-sim">2.0</span>x</label>
+        <input type="range" id="simSpeed" min="0.1" max="3" step="0.1" value="2">
     </div>
     <div class="control-group">
         <label>Щільність трафіку: <span id="v-dens">45</span></label>
@@ -283,6 +283,7 @@
             <p>Кожен ШІ-автомобіль самостійно прокладає маршрут від точки входу до точки виходу. Але як? Місто — це граф: вузли — перехрестки, ребра — вулиці між ними. Задача — знайти найдешевший шлях від А до Б, де «ціна» ребра — це реальна відстань плюс штраф за завантаженість ділянки.</p>
             <p style="margin-top:10px"><strong>Алгоритм A*</strong> вирішує цю задачу елегантно. На кожному кроці він оцінює кожен можливий наступний вузол двома числами: скільки ми вже проїхали від старту, і скільки ще, найменше, залишилось до мети. Для оцінки «залишку» використовується пряма відстань по повітрю — це й є евристика. Навіть якщо насправді доведеться об'їжджати, пряма відстань — найменше можливе значення, тому алгоритм ніколи не помиляється у виборі. A* щоразу розширює вузол з найменшою сумарною оцінкою — тобто не «обходить» весь граф наосліп, а цілеспрямовано рухається до мети, ігноруючи вузли, які явно гірші.</p>
             <p style="margin-top:10px"><strong>Адаптація до трафіку:</strong> маршрут перераховується заново щоразу, коли автомобіль підʼїжджає до чергового перехрестя. Якщо попереду утворився затор — ціна того вузла зростає, і A* автоматично знайде обхідний шлях. Завдяки цьому ШІ-автомобілі самоорганізуються: вони рівномірно розподіляються по доступних маршрутах, не накопичуючись в одному місці.</p>
+            <p style="margin-top:10px"><strong>Вартість повороту:</strong> правий поворот перетинає лише одну смугу → найдешевший (1 слот AIM, невеликий бонус у A*). Рух прямо перетинає обидві смуги перехрестя → 2 слоти. Лівий поворот займає ліву смугу перехрестя, потім праву та зустрічну одночасно → 3 слоти, і час проїзду вдвічі більший. A* штрафує лівий поворот: якщо маршрут через 3 правих повороти виявляється дешевшим для всієї системи — машина обере саме його.</p>
         </div>
 
         <!-- Рядок 5: повна ширина -->
@@ -327,7 +328,7 @@ const HARD_STOP=CAR_LEN+4,SOFT_STOP=CAR_LEN*2.5,INTER_HALF=ROAD_W/2;
 const BRAKE_FAR=65,TURN_R=14,CYCLE=100;
 const CORNER_R=7;
 
-let settings={simSpeed:1,baseSpeed:2.2};
+let settings={simSpeed:2,baseSpeed:2.2};
 // ── Буст-прапорці (лише AI-симуляція) ──
 const boosts={speedAdvisory:false,aim:false};
 let simTime=0; // глобальний лічильник кадрів симуляції
@@ -345,6 +346,41 @@ let vDens=laneX.map(()=>({a:.15,b:.15}));
 const cL=document.getElementById('canvasL'),ctxL=cL.getContext('2d');
 const cA=document.getElementById('canvasA'),ctxA=cA.getContext('2d');
 let carsL=[],carsA=[];
+
+/* ── УТИЛІТИ ДЛЯ ПОВОРОТІВ ── */
+// Тип повороту: right (1 слот), straight (2), left (3)
+function getTurnType(from,to){
+    if(from===to)return'straight';
+    const r={right:'down',down:'left',left:'up',up:'right'};
+    return r[from]===to?'right':'left';
+}
+
+// Параметри дуги для плавного повороту.
+// Центр дуги = відповідний кут перехрестя.
+// Правий поворот: мала дуга (r≈10), лівий: велика (r≈30).
+function computeArcParams(inter,fromDir,toDir){
+    const IH=INTER_HALF; // 20
+    // Позиція машини на вхідній/вихідній смузі (відносно центру перехрестя)
+    const entryOff={right:[-IH,10], left:[IH,-10], down:[-10,-IH], up:[10,IH]};
+    const exitOff ={right:[IH,10],  left:[-IH,-10],down:[-10,IH],  up:[10,-IH]};
+    const [ex,ey]=entryOff[fromDir];
+    const [xx,xy]=exitOff[toDir];
+    // Центр кола: перпендикулярна точка перетину від обох точок дотику
+    const isH=fromDir==='right'||fromDir==='left';
+    const acx=inter.x+(isH?ex:xx);
+    const acy=inter.y+(isH?xy:ey);
+    const r=Math.hypot(inter.x+ex-acx,inter.y+ey-acy);
+    const startA=Math.atan2(inter.y+ey-acy,inter.x+ex-acx);
+    const rightOf={right:'down',down:'left',left:'up',up:'right'};
+    // Правий поворот = за годинниковою стрілкою (ccw=false)
+    // Лівий поворот  = проти (ccw=true) — більший радіус
+    return{
+        cx:acx,cy:acy,r,startA,
+        ccw:rightOf[fromDir]!==toDir,
+        exitX:inter.x+xx,exitY:inter.y+xy,
+        progress:0
+    };
+}
 
 /* ── ГРАФ ── */
 const OPP={right:'left',left:'right',up:'down',down:'up'};
@@ -393,6 +429,11 @@ function tpen(nid,cars){
     let k=0;for(const c of cars)if(Math.hypot(c.x-n.x,c.y-n.y)<80)k++;
     return k*18;
 }
+// Штраф за тип повороту: лівий = дорого (3 слоти + блокує зустрічну)
+function turnPen(from,to){
+    const t=getTurnType(from,to);
+    return t==='right'?-8:t==='left'?45:0;
+}
 function aStar(fromId,fromDir,toId,cars){
     const open=[{nid:fromId,dir:fromDir,g:0,f:heur(fromId,toId),path:[fromId]}];
     const vis=new Set();
@@ -405,7 +446,7 @@ function aStar(fromId,fromDir,toId,cars){
         for(const e of(G.adj[cur.nid]||[])){
             if(e.dir===OPP[cur.dir])continue;
             if(vis.has(e.to+'|'+e.dir))continue;
-            const g=cur.g+e.d+tpen(e.to,cars);
+            const g=cur.g+e.d+tpen(e.to,cars)+turnPen(cur.dir,e.dir);
             open.push({nid:e.to,dir:e.dir,g,f:g+heur(e.to,toId),path:[...cur.path,e.to]});
         }
     }
@@ -488,6 +529,12 @@ function qw(inter,axis,cars){
 
 /* ── КЛАС АВТОМОБІЛЯ ── */
 const SLOT_HOLD=22; // кадрів, протягом яких перехрестя «зайняте» одним авто
+// Тривалість слоту залежить від маневру:
+// правий поворот = 1 смуга → короткий слот
+// прямо          = 2 смуги → стандартний
+// лівий поворот  = 3 смуги (послідовно) → довгий + блокує зустрічну
+const SLOT_RIGHT=Math.round(SLOT_HOLD*0.55); // ~12
+const SLOT_LEFT =Math.round(SLOT_HOLD*1.85); // ~41
 
 class Car{
     constructor(id,x,y,vxS,vyS,world,color,destId){
@@ -500,6 +547,7 @@ class Car{
         this.angle=Math.atan2(vyS,vxS);
         this.stopTime=0;
         this.aimSlot=null; // {interId, targetTime} — для AIM-режиму
+        this.arc=null;     // параметри дуги повороту (якщо виконується поворот)
     }
     get travelDir(){
         if(this.vx>.1)return'right';if(this.vx<-.1)return'left';
@@ -507,31 +555,65 @@ class Car{
     }
 }
 
-/* ── AIM: запит слоту на перехресті ── */
+/* ── AIM: запит слоту на перехресті (з урахуванням типу маневру) ── */
+function _getNextDir(car,interNid){
+    if(!car.route||car.route.length<2)return null;
+    const idx=car.route.indexOf(interNid);
+    if(idx<0||idx>=car.route.length-1)return null;
+    const cur=G.nodes[interNid],nxt=G.nodes[car.route[idx+1]];
+    if(!cur||!nxt)return null;
+    const dx=nxt.x-cur.x,dy=nxt.y-cur.y;
+    return Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up');
+}
+
 function aimRequestSlot(inter,car,dist){
     const axis=car.vx!==0?'H':'V';
+    // Визначаємо тип маневру на цьому перехресті
+    const nid=`I${inter.r}${inter.c}`;
+    const nextDir=_getNextDir(car,nid);
+    const turnType=nextDir?getTurnType(car.travelDir,nextDir):'straight';
+
+    // Тривалість слоту: правий < прямо < лівий
+    const slotDur=turnType==='right'?SLOT_RIGHT:turnType==='left'?SLOT_LEFT:SLOT_HOLD;
+
     const spd=Math.max(car.currentV||settings.baseSpeed,0.4);
     const minArrival=simTime+dist/spd;
 
     // Прибираємо старі (вже минулі) слоти
     inter.aimSlots=inter.aimSlots.filter(s=>s.to>simTime);
 
-    // Шукаємо перший вільний момент для нашої осі
     let t=Math.ceil(minArrival);
-    for(let attempt=0;attempt<40;attempt++){
-        // Конфлікт тільки з протилежною віссю
-        const conflict=inter.aimSlots.some(s=>
-            s.axis!==axis && !(t+SLOT_HOLD<=s.from || t>=s.to)
-        );
+    for(let attempt=0;attempt<50;attempt++){
+        const conflict=inter.aimSlots.some(s=>{
+            if(!(t<s.to && t+slotDur>s.from))return false; // немає часового перекриття
+            if(turnType==='right'){
+                // Правий поворот: перетинаємо лише ближню смугу перпендикулярної дороги
+                // → конфлікт лише з прямо/лівими на перпендикулярній осі
+                return s.axis!==axis&&(s.turnType==='straight'||s.turnType==='left');
+            }else if(turnType==='left'){
+                // Лівий поворот: перетинаємо всі смуги + займаємо зустрічну
+                // → конфлікт з будь-яким рухом на перпендикулярній І зустрічній осі
+                return s.axis!==axis||(s.axis===axis&&s.dir===OPP[car.travelDir]);
+            }else{
+                // Прямо: конфлікт лише з перпендикулярною віссю
+                return s.axis!==axis;
+            }
+        });
         if(!conflict){
-            inter.aimSlots.push({carId:car.id,axis,from:t,to:t+SLOT_HOLD});
+            inter.aimSlots.push({
+                carId:car.id,axis,turnType,dir:car.travelDir,
+                from:t,to:t+slotDur
+            });
             return t;
         }
         // Стрибаємо за перший блокуючий слот
-        const blocker=inter.aimSlots.find(s=>
-            s.axis!==axis && !(t+SLOT_HOLD<=s.from || t>=s.to)
-        );
-        t=blocker.to+1;
+        const blocker=inter.aimSlots.find(s=>{
+            if(!(t<s.to && t+slotDur>s.from))return false;
+            if(turnType==='right')return s.axis!==axis&&(s.turnType==='straight'||s.turnType==='left');
+            if(turnType==='left')return s.axis!==axis||(s.axis===axis&&s.dir===OPP[car.travelDir]);
+            return s.axis!==axis;
+        });
+        if(blocker)t=blocker.to+1;else break;
     }
     return null; // слот не знайдено — чекаємо
 }
@@ -562,29 +644,81 @@ function simulateWorld(list,mode,dt){
             if(c.rfi!==nid){c.rfi=nid;c.route=aStar(nid,c.travelDir,c.destId,list);}
         }
 
-        // Поворот у центрі перехрестя
-        if(atInter&&!c.turning){
-            c.aimSlot=null; // скидаємо зарезервований слот після проїзду
-            const nid=`I${atInter.r}${atInter.c}`;
-            if(!c.route||c.rfi!==nid){c.rfi=nid;c.route=aStar(nid,c.travelDir,c.destId,list);}
-            if(c.route&&c.route.length>1){
-                const nn=G.nodes[c.route[1]];
-                if(nn){
-                    const ddx=nn.x-atInter.x,ddy=nn.y-atInter.y;
-                    if(Math.abs(ddx)>Math.abs(ddy)){
-                        const nvx=ddx>0?settings.baseSpeed:-settings.baseSpeed;
-                        if(c.vy!==0)c.y=atInter.y+(nvx>0?10:-10);
-                        c.vx=nvx;c.vy=0;
-                    }else{
-                        const nvy=ddy>0?settings.baseSpeed:-settings.baseSpeed;
-                        if(c.vx!==0)c.x=atInter.x+(nvy>0?-10:10);
-                        c.vy=nvy;c.vx=0;
+        // ── ВХІД У ПЕРЕХРЕСТЯ: ініціюємо дугу повороту ──
+        // Спрацьовує один раз при перетині границі перехрестя (inInter)
+        if(inInter&&!c.turning&&!c.arc){
+            // Знаходимо поточне перехрестя
+            let curInter=null;
+            for(const inter of intersections){
+                if(Math.abs(c.x-inter.x)<INTER_HALF&&Math.abs(c.y-inter.y)<INTER_HALF){curInter=inter;break;}
+            }
+            if(curInter){
+                c.aimSlot=null; // слот вже використано
+                const nid=`I${curInter.r}${curInter.c}`;
+                if(!c.route||c.rfi!==nid){c.rfi=nid;c.route=aStar(nid,c.travelDir,c.destId,list);}
+                const fromDir=c.travelDir;
+                if(c.route&&c.route.length>1){
+                    const nn=G.nodes[c.route[1]];
+                    if(nn){
+                        const ddx=nn.x-curInter.x,ddy=nn.y-curInter.y;
+                        const nextDir=Math.abs(ddx)>Math.abs(ddy)?(ddx>0?'right':'left'):(ddy>0?'down':'up');
+                        if(fromDir!==nextDir){
+                            // ── ПОВОРОТ: рухаємося по дузі ──
+                            const ap=computeArcParams(curInter,fromDir,nextDir);
+                            ap.progress=0;
+                            ap.turnType=getTurnType(fromDir,nextDir);
+                            ap.exitVx=(nextDir==='right'?1:nextDir==='left'?-1:0)*settings.baseSpeed;
+                            ap.exitVy=(nextDir==='down'?1:nextDir==='up'?-1:0)*settings.baseSpeed;
+                            // Прив'язуємо машину до точки входу дуги
+                            c.x=ap.cx+ap.r*Math.cos(ap.startA);
+                            c.y=ap.cy+ap.r*Math.sin(ap.startA);
+                            c.arc=ap;
+                        }else{
+                            // ── ПРЯМО: мінімальна корекція смуги ──
+                            if(Math.abs(ddx)>Math.abs(ddy)){
+                                const nvx=ddx>0?settings.baseSpeed:-settings.baseSpeed;
+                                if(c.vy!==0)c.y=curInter.y+(nvx>0?10:-10);
+                                c.vx=nvx;c.vy=0;
+                            }else{
+                                const nvy=ddy>0?settings.baseSpeed:-settings.baseSpeed;
+                                if(c.vx!==0)c.x=curInter.x+(nvy>0?-10:10);
+                                c.vy=nvy;c.vx=0;
+                            }
+                        }
                     }
                 }
+                c.turning=true;c.rfi=null;
             }
-            c.turning=true;c.rfi=null;
         }
-        if(!atInter)c.turning=false;
+        if(!inInter&&!c.arc)c.turning=false;
+
+        // ── АНІМАЦІЯ ДУГИ ПОВОРОТУ ──
+        if(c.arc){
+            const ap=c.arc;
+            const arcLen=ap.r*Math.PI/2; // завжди чверть кола
+            // Швидкість під час повороту: лівий — повільніше (довша дуга)
+            const turnSpd=settings.baseSpeed*(ap.turnType==='left'?0.62:0.80);
+            c.currentV=turnSpd;
+            ap.progress+=turnSpd*dt/arcLen;
+            if(ap.progress>=1){
+                // Кінець дуги: встановлюємо фінальну позицію та напрямок
+                c.x=ap.exitX;c.y=ap.exitY;
+                c.vx=ap.exitVx;c.vy=ap.exitVy;
+                c.angle=Math.atan2(ap.exitVy,ap.exitVx);
+                c.arc=null;c.turning=false;
+            }else{
+                const span=Math.PI/2;
+                const curA=ap.ccw?ap.startA-ap.progress*span:ap.startA+ap.progress*span;
+                c.x=ap.cx+ap.r*Math.cos(curA);
+                c.y=ap.cy+ap.r*Math.sin(curA);
+                // Вектор швидкості = дотична до кола
+                c.vx=(ap.ccw?-Math.sin(curA): Math.sin(curA))*settings.baseSpeed;
+                c.vy=(ap.ccw? Math.cos(curA):-Math.cos(curA))*settings.baseSpeed;
+                c.angle=Math.atan2(c.vy,c.vx);
+            }
+            if(c.x<-50||c.x>600||c.y<-50||c.y>450)done(list,i,c);
+            continue; // пропускаємо звичайну фізику під час дуги
+        }
 
         // Відстань попереду
         const da=distAhead(c,list);
