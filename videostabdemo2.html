@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Симулятор цифровой стабилизации видео</title>
+    <title>EIS Симулятор: Мертвая хватка + Дрейф</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -31,19 +31,28 @@
         canvas {
             background: #000;
             display: block;
-            width: 100%; /* Адаптивность для мобилок */
+            width: 100%;
             height: auto;
             border: 1px solid #444;
+            border-radius: 4px;
         }
         .controls {
-            margin: 20px;
+            margin: 20px auto;
             background: #2a2a2a;
-            padding: 15px;
+            padding: 15px 25px;
             border-radius: 8px;
             display: inline-block;
+            text-align: left;
         }
         .control-group {
-            margin: 10px 0;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .control-group label {
+            min-width: 150px;
         }
         button {
             padding: 10px 20px;
@@ -54,45 +63,59 @@
             border: none;
             border-radius: 4px;
             transition: 0.2s;
-            margin: 5px;
+            width: 100%;
         }
         button:hover { background: #0056b3; }
         button:disabled { background: #555; cursor: not-allowed; }
+        button.btn-danger { background: #dc3545; }
+        button.btn-danger:hover { background: #c82333; }
         input[type="range"] {
             width: 200px;
-            vertical-align: middle;
+        }
+        .val-badge {
+            background: #444;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
         }
         #loading {
             color: #ffcc00;
             font-weight: bold;
+            margin: 20px;
         }
         video { display: none; } 
     </style>
 </head>
 <body>
 
-    <h1>Цифровая стабилизация (EIS Demo)</h1>
+    <h1>Цифровая стабилизация (EIS)</h1>
     <div id="loading">Загрузка OpenCV.js... Пожалуйста, подождите.</div>
     
     <div class="controls">
         <div class="control-group">
-            <button id="startBtn" disabled>Запустить камеру</button>
-            <button id="resetBtn" disabled>Сбросить якорь</button>
+            <button id="startBtn" disabled>Включить камеру</button>
+            <button id="resetBtn" class="btn-danger" disabled>Принудительный сброс якоря</button>
+        </div>
+        <hr style="border-color: #444;">
+        <div class="control-group">
+            <label>Скорость дрейфа: <br><small style="color:#aaa;">(Плавный возврат)</small></label>
+            <input type="range" id="driftSlider" min="0" max="0.1" step="0.001" value="0.03">
+            <span class="val-badge" id="driftVal">0.03</span>
         </div>
         <div class="control-group">
-            <label for="zoomSlider">Цифровой зум: <span id="zoomVal">1.5x</span></label>
-            <br>
+            <label>Цифровой зум: <br><small style="color:#aaa;">(Усиливает эффект)</small></label>
             <input type="range" id="zoomSlider" min="1.0" max="4.0" step="0.1" value="1.5">
+            <span class="val-badge" id="zoomVal">1.5x</span>
         </div>
     </div>
 
     <div class="container">
         <div class="video-box">
-            <h3>Исходник (Тряска + Зум)</h3>
+            <h3>Исходник (Тряска)</h3>
             <canvas id="canvasInput" width="480" height="360"></canvas>
         </div>
         <div class="video-box">
-            <h3>Стабилизация (Мертвая хватка)</h3>
+            <h3>Стабилизация</h3>
             <canvas id="canvasOutput" width="480" height="360"></canvas>
         </div>
     </div>
@@ -107,28 +130,44 @@
         const canvasOutput = document.getElementById('canvasOutput');
         const startBtn = document.getElementById('startBtn');
         const resetBtn = document.getElementById('resetBtn');
+        
         const zoomSlider = document.getElementById('zoomSlider');
         const zoomValText = document.getElementById('zoomVal');
+        const driftSlider = document.getElementById('driftSlider');
+        const driftValText = document.getElementById('driftVal');
         const loadingMsg = document.getElementById('loading');
 
         let isStreaming = false;
         let referenceFrame = null;
         let template = null;
         
-        // Разрешение захвата камеры
         const WIDTH = 640;
         const HEIGHT = 480;
         
-        // Размеры шаблона (якоря) для поиска
+        // Размеры якоря (шаблона)
         const TMPL_W = 150;
         const TMPL_H = 150;
 
-        let currentZoom = 1.5;
+        // Идеальные координаты (ровно по центру кадра)
+        const IDEAL_X = (WIDTH - TMPL_W) / 2;
+        const IDEAL_Y = (HEIGHT - TMPL_H) / 2;
 
-        // Обновление значения зума
+        // "Виртуальные" координаты якоря для плавной доводки (дрейфа)
+        let virtualX = IDEAL_X;
+        let virtualY = IDEAL_Y;
+
+        let currentZoom = 1.5;
+        let currentDriftSpeed = 0.03;
+
+        // Обновление UI
         zoomSlider.addEventListener('input', (e) => {
             currentZoom = parseFloat(e.target.value);
             zoomValText.innerText = currentZoom.toFixed(1) + 'x';
+        });
+
+        driftSlider.addEventListener('input', (e) => {
+            currentDriftSpeed = parseFloat(e.target.value);
+            driftValText.innerText = currentDriftSpeed.toFixed(3);
         });
 
         function onOpenCvReady() {
@@ -140,17 +179,21 @@
             if (!isStreaming) startCamera();
         });
 
-        resetBtn.addEventListener('click', () => {
+        function resetAnchor() {
             if (referenceFrame) {
                 referenceFrame.delete();
                 template.delete();
                 referenceFrame = null;
                 template = null;
+                // Сбрасываем виртуальные координаты обратно в центр
+                virtualX = IDEAL_X;
+                virtualY = IDEAL_Y;
             }
-        });
+        }
+
+        resetBtn.addEventListener('click', resetAnchor);
 
         function startCamera() {
-            // Настройки: запрашиваем основную камеру (environment)
             const constraints = {
                 video: { 
                     width: { ideal: WIDTH }, 
@@ -198,43 +241,60 @@
                     cap.read(src);
                     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                    // Захват якоря
+                    // 1. Захват нового якоря, если его нет
                     if (!referenceFrame) {
                         referenceFrame = gray.clone();
-                        let rect = new cv.Rect((WIDTH - TMPL_W) / 2, (HEIGHT - TMPL_H) / 2, TMPL_W, TMPL_H);
+                        let rect = new cv.Rect(IDEAL_X, IDEAL_Y, TMPL_W, TMPL_H);
                         template = referenceFrame.roi(rect).clone();
                     }
 
-                    // Поиск смещения
+                    // 2. Ищем шаблон в текущем кадре
                     cv.matchTemplate(gray, template, result, cv.TM_CCOEFF_NORMED, mask);
                     let minMax = cv.minMaxLoc(result, mask);
-                    let matchLoc = minMax.maxLoc;
+                    
+                    // Если совпадение слишком плохое (якорь ушел за край матрицы или перекрыт рукой) - автосброс
+                    if (minMax.maxVal < 0.4) {
+                        resetAnchor();
+                        setTimeout(processFrame, 0); // Переходим к следующему кадру для захвата
+                        return;
+                    }
 
-                    let dx = matchLoc.x - (WIDTH - TMPL_W) / 2;
-                    let dy = matchLoc.y - (HEIGHT - TMPL_H) / 2;
+                    let matchX = minMax.maxLoc.x;
+                    let matchY = minMax.maxLoc.y;
 
-                    // Стабилизация (сдвиг в обратную сторону)
+                    // 3. Вычисляем смещение от "виртуального", а не абсолютного центра
+                    let dx = matchX - virtualX;
+                    let dy = matchY - virtualY;
+
+                    // 4. МАТЕМАТИКА ДРЕЙФА:
+                    // Виртуальный центр плавно ползет к реальному положению якоря на матрице.
+                    // Чем больше разница (matchX - virtualX), тем больше шаг прибавления (скорость).
+                    virtualX += (matchX - virtualX) * currentDriftSpeed;
+                    virtualY += (matchY - virtualY) * currentDriftSpeed;
+
+                    // Отрисовка красной рамки якоря (для наглядности работы алгоритма)
+                    let p1 = new cv.Point(matchX, matchY);
+                    let p2 = new cv.Point(matchX + TMPL_W, matchY + TMPL_H);
+                    cv.rectangle(src, p1, p2, new cv.Scalar(255, 0, 0, 255), 3);
+
+                    // 5. Стабилизация: сдвигаем картинку так, чтобы якорь оказался в virtualX, virtualY
                     let M = cv.matFromArray(2, 3, cv.CV_64FC1, [1, 0, -dx, 0, 1, -dy]);
                     let stabilizedSrc = new cv.Mat();
                     let dsize = new cv.Size(WIDTH, HEIGHT);
                     cv.warpAffine(src, stabilizedSrc, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 255));
 
-                    // --- Логика цифрового зума ---
-                    // Вычисляем размер области кропа в зависимости от зума
+                    // 6. Логика цифрового зума и кропа
                     let cropRatio = 1.0 / currentZoom;
                     let cropW = Math.floor(WIDTH * cropRatio);
                     let cropH = Math.floor(HEIGHT * cropRatio);
                     
-                    // Убеждаемся, что кроп не выходит за границы кадра
                     let startX = Math.max(0, Math.floor((WIDTH - cropW) / 2));
                     let startY = Math.max(0, Math.floor((HEIGHT - cropH) / 2));
-                    
                     let cropRect = new cv.Rect(startX, startY, cropW, cropH);
 
                     let inputCropped = src.roi(cropRect);
                     let outputCropped = stabilizedSrc.roi(cropRect);
 
-                    // Растягиваем обрезанные участки до размеров Canvas (создаем эффект зума)
                     let outSize = new cv.Size(canvasInput.width, canvasInput.height);
                     let inputResized = new cv.Mat();
                     let outputResized = new cv.Mat();
@@ -242,11 +302,9 @@
                     cv.resize(inputCropped, inputResized, outSize, 0, 0, cv.INTER_LINEAR);
                     cv.resize(outputCropped, outputResized, outSize, 0, 0, cv.INTER_LINEAR);
 
-                    // Отрисовка
                     cv.imshow('canvasInput', inputResized);
                     cv.imshow('canvasOutput', outputResized);
 
-                    // Очистка памяти
                     M.delete();
                     stabilizedSrc.delete();
                     inputCropped.delete();
@@ -258,7 +316,7 @@
                     setTimeout(processFrame, delay > 0 ? delay : 0);
 
                 } catch (err) {
-                    console.error(err);
+                    console.error("Ошибка обработки кадра: ", err);
                 }
             }
 
