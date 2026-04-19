@@ -157,6 +157,44 @@
             transition: opacity 0.3s;
             z-index: 100;
         }
+        /* HELP MODAL */
+        #help-modal {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #help-modal .modal-box {
+            background: #fff;
+            border-radius: 12px;
+            padding: 28px 32px;
+            max-width: 560px;
+            width: 90vw;
+            max-height: 82vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+            position: relative;
+            font-size: 0.9em;
+            line-height: 1.6;
+            color: #2c3e50;
+        }
+        #help-modal h2 { margin-top: 0; font-size: 1.1em; color: #1565C0; }
+        #help-modal h4 { margin: 14px 0 4px; font-size: 0.92em; text-transform: uppercase;
+                         letter-spacing: 0.5px; color: #7f8c8d; border-bottom: 1px solid #eee; padding-bottom: 3px; }
+        #help-modal table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        #help-modal td { padding: 4px 6px; vertical-align: top; }
+        #help-modal td:first-child { width: 38%; font-weight: 600; color: #1976D2; white-space: nowrap; }
+        #help-modal tr:nth-child(even) td { background: #f4f7f6; border-radius: 3px; }
+        .modal-close {
+            position: absolute; top: 14px; right: 16px;
+            background: none; border: none; font-size: 20px;
+            cursor: pointer; color: #aaa; line-height: 1;
+        }
+        .modal-close:hover { color: #333; }
+        .kbd { display:inline-block; background:#eee; border:1px solid #ccc; border-radius:3px;
+               padding:1px 5px; font-family:monospace; font-size:0.88em; }
     </style>
 </head>
 <body>
@@ -198,8 +236,11 @@
             <button class="component-btn" onclick="app.spawnMolecule('benzene')">Бензол C₆H₆</button>
         </div>
 
-        <h3>🧩 Функціональні групи</h3>
-        <p style="font-size:0.75em; color:#7f8c8d; margin-top:0;">Клікніть на червоний зв'язок, щоб додати. Клікніть на порожнє місце, щоб створити фрагмент (одноразово).</p>
+        <h3 style="display:flex;align-items:center;justify-content:space-between;">
+            🧩 Функціональні групи
+            <button onclick="document.getElementById('help-modal').style.display='flex'"
+                style="background:#2196F3;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;line-height:22px;text-align:center;padding:0;flex-shrink:0;" title="Довідка">?</button>
+        </h3>
         
         <div class="drawer-grid">
             <button class="component-btn group-selector" data-group="OH" onclick="app.selectGroup('OH', this)">-OH<br><small>Гідроксил</small></button>
@@ -242,8 +283,61 @@
         <div style="margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px;">
             <div class="value" id="info-name" style="font-size: 1.1em; color: var(--accent-color);"></div>
             <span class="english" id="info-name-en"></span>
+            <div id="info-gformula" style="margin-top:6px; font-family:monospace; font-size:1.05em; color:#555; text-align:right; letter-spacing:0.5px;"></div>
         </div>
     </div>
+
+<!-- HELP MODAL -->
+<div id="help-modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('help-modal').style.display='none'">✕</button>
+    <h2>📖 Довідка — Organic Builder</h2>
+
+    <h4>🖱️ Основні дії на канві</h4>
+    <table>
+      <tr><td>Клік на атом H</td><td>Видалити атом водню (звільняє радикал)</td></tr>
+      <tr><td>Клік на атом C/O/N/…</td><td>Видалити групу/атом (з підтвердженням)</td></tr>
+      <tr><td>Подвійний клік на 🔴 штрих</td><td>Додати атом H до радикала</td></tr>
+      <tr><td>Перетягнути атом</td><td>Перемістити атом вручну</td></tr>
+      <tr><td>Перетягнути порожнє місце</td><td>Панорамувати сцену</td></tr>
+      <tr><td>Колесо миші</td><td>Масштабування</td></tr>
+    </table>
+
+    <h4>🧩 Функціональні групи</h4>
+    <table>
+      <tr><td>Вибір групи → клік на 🔴 штрих</td><td>Приєднати групу до вільного зв'язку атома</td></tr>
+      <tr><td>Вибір групи → клік на порожнє місце</td><td>Створити окремий фрагмент (одноразово — потім вибір скидається)</td></tr>
+    </table>
+
+    <h4>🔗 З'єднання фрагментів</h4>
+    <table>
+      <tr><td>2 фрагменти з радикалами</td><td>Режим "З'єднати" вмикається <strong>автоматично</strong></td></tr>
+      <tr><td>Клік 1-й радикал → 2-й</td><td>З'єднати фрагменти простим зв'язком</td></tr>
+      <tr><td>Клік атом → той самий атом з'єднаний</td><td>Перетворити на кратний зв'язок (подвійний, потрійний)</td></tr>
+    </table>
+
+    <h4>↩️ Скасування дій</h4>
+    <table>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>Скасувати останню дію (до 60 кроків)</td></tr>
+      <tr><td>Кнопка "↩ Відмінити"</td><td>Те саме — у верхньому куті</td></tr>
+    </table>
+
+    <h4>📚 Бібліотека пресетів</h4>
+    <table>
+      <tr><td>Вуглеводні</td><td>Метан, Пропан, Бензол, Толуен</td></tr>
+      <tr><td>Спирти / Феноли</td><td>Етанол, Гліцерол, Фенол</td></tr>
+      <tr><td>Кислоти / Аміни</td><td>Оцтова, Піровиноградна, Аланін</td></tr>
+      <tr><td>Вуглеводи</td><td>Глюкопіраноза, Фруктофураноза, Рибофураноза</td></tr>
+    </table>
+
+    <h4>🔍 Розпізнавання структур</h4>
+    <table>
+      <tr><td>Пресети з бібліотеки</td><td>Назва відома одразу — аналіз не потрібен</td></tr>
+      <tr><td>Побудовані структури</td><td>Автоматичний аналіз: клас, формула, назва</td></tr>
+      <tr><td>Неорганічні (H₂O, NH₃…)</td><td>Розпізнаються окремо як неорганічні</td></tr>
+    </table>
+  </div>
+</div>
 
 <script>
 /**
@@ -265,86 +359,102 @@ const BOND_WIDTH = 5;
  */
 const KNOWLEDGE_BASE = {
     // --- АЛКАНИ ---
-    "C1": { ua: "Метан", en: "Methane", class: "Алкани" },
-    "C2": { ua: "Етан", en: "Ethane", class: "Алкани" },
-    "C3": { ua: "Пропан", en: "Propane", class: "Алкани" },
-    "C4_linear": { ua: "н-Бутан", en: "n-Butane", class: "Алкани" },
-    "C4_branched": { ua: "Ізобутан", en: "Isobutane", class: "Алкани" },
-    "C5_linear": { ua: "н-Пентан", en: "n-Pentane", class: "Алкани" },
+    "C1": { ua: "Метан", en: "Methane", class: "Алкани", gf: "CH₄" },
+    "C2": { ua: "Етан", en: "Ethane", class: "Алкани", gf: "CₙH₂ₙ₊₂" },
+    "C3": { ua: "Пропан", en: "Propane", class: "Алкани", gf: "CₙH₂ₙ₊₂" },
+    "C4_linear": { ua: "н-Бутан", en: "n-Butane", class: "Алкани", gf: "CₙH₂ₙ₊₂" },
+    "C4_branched": { ua: "Ізобутан", en: "Isobutane", class: "Алкани", gf: "CₙH₂ₙ₊₂" },
+    "C5_linear": { ua: "н-Пентан", en: "n-Pentane", class: "Алкани", gf: "CₙH₂ₙ₊₂" },
 
-    // --- АРЕНИ ТА ПОХІДНІ (Strict) ---
-    "Benzene_Pure": { ua: "Бензол", en: "Benzene", class: "Арени" },
-    "Benzene_Methyl": { ua: "Толуен (Метилбензол)", en: "Toluene", class: "Арени" },
-    "Benzene_Cl": { ua: "Хлорбензол", en: "Chlorobenzene", class: "Галогенарени" },
-    "Benzene_CHO": { ua: "Бензальдегід", en: "Benzaldehyde", class: "Ароматичні альдегіди" },
-    "Benzene_OH": { ua: "Фенол", en: "Phenol", class: "Феноли" },
-    "Benzene_NH2": { ua: "Анілін", en: "Aniline", class: "Ароматичні аміни" },
-    "Benzene_COOH": { ua: "Бензойна кислота", en: "Benzoic acid", class: "Карбонові кислоти" },
+    // --- АРЕНИ ТА ПОХІДНІ ---
+    "Benzene_Pure": { ua: "Бензол", en: "Benzene", class: "Арени", gf: "C₆H₅–R / C₆H₆" },
+    "Benzene_Methyl": { ua: "Толуен (Метилбензол)", en: "Toluene", class: "Арени", gf: "C₆H₅–CH₃" },
+    "Benzene_Cl": { ua: "Хлорбензол", en: "Chlorobenzene", class: "Галогенарени", gf: "C₆H₅–Cl" },
+    "Benzene_CHO": { ua: "Бензальдегід", en: "Benzaldehyde", class: "Ароматичні альдегіди", gf: "C₆H₅–CHO" },
+    "Benzene_OH": { ua: "Фенол", en: "Phenol", class: "Феноли", gf: "C₆H₅–OH" },
+    "Benzene_NH2": { ua: "Анілін", en: "Aniline", class: "Ароматичні аміни", gf: "C₆H₅–NH₂" },
+    "Benzene_COOH": { ua: "Бензойна кислота", en: "Benzoic acid", class: "Карбонові кислоти", gf: "C₆H₅–COOH" },
 
     // --- АЛКЕНИ ---
-    "C2_d1": { ua: "Етен", en: "Ethene", class: "Алкени" },
-    "C3_d1": { ua: "Пропен", en: "Propene", class: "Алкени" },
+    "C2_d1": { ua: "Етен", en: "Ethene", class: "Алкени", gf: "CₙH₂ₙ" },
+    "C3_d1": { ua: "Пропен", en: "Propene", class: "Алкени", gf: "CₙH₂ₙ" },
 
     // --- СПИРТИ ТА ПОЛІОЛИ ---
-    "C1_OH1": { ua: "Метанол", en: "Methanol", class: "Спирти" },
-    "C2_OH1": { ua: "Етанол", en: "Ethanol", class: "Спирти" },
-    "C3_OH1_pos1": { ua: "Пропан-1-ол", en: "Propan-1-ol", class: "Спирти" },
-    "C3_OH1_pos2": { ua: "Пропан-2-ол", en: "Propan-2-ol", class: "Спирти" },
-    "C3_OH3": { ua: "Гліцерол (Гліцерин)", en: "Glycerol", class: "Багатоатомні спирти" },
+    "C1_OH1": { ua: "Метанол", en: "Methanol", class: "Спирти", gf: "R–OH" },
+    "C2_OH1": { ua: "Етанол", en: "Ethanol", class: "Спирти", gf: "R–OH" },
+    "C3_OH1_pos1": { ua: "Пропан-1-ол", en: "Propan-1-ol", class: "Спирти", gf: "R–OH" },
+    "C3_OH1_pos2": { ua: "Пропан-2-ол", en: "Propan-2-ol", class: "Спирти", gf: "R–OH" },
+    "C3_OH3": { ua: "Гліцерол (Гліцерин)", en: "Glycerol", class: "Багатоатомні спирти", gf: "C₃H₅(OH)₃" },
 
     // --- ЕТЕРИ ---
-    "Ether_C1_C1": { ua: "Диметиловий етер", en: "Dimethyl ether", class: "Етери" },
-    "Ether_C1_C2": { ua: "Метилетиловий етер", en: "Methoxyethane", class: "Етери" },
-    "Ether_C2_C2": { ua: "Діетиловий етер", en: "Diethyl ether", class: "Етери" },
+    "Ether_C1_C1": { ua: "Диметиловий етер", en: "Dimethyl ether", class: "Етери", gf: "R–O–R'" },
+    "Ether_C1_C2": { ua: "Метилетиловий етер", en: "Methoxyethane", class: "Етери", gf: "R–O–R'" },
+    "Ether_C2_C2": { ua: "Діетиловий етер", en: "Diethyl ether", class: "Етери", gf: "R–O–R'" },
 
     // --- АЛЬДЕГІДИ ---
-    "C1_CHO": { ua: "Метаналь", en: "Methanal", class: "Альдегіди" },
-    "C2_CHO": { ua: "Етаналь", en: "Ethanal", class: "Альдегіди" },
-    "C3_CHO": { ua: "Пропаналь", en: "Propanal", class: "Альдегіди" },
+    "C1_CHO": { ua: "Метаналь", en: "Methanal", class: "Альдегіди", gf: "R–CHO" },
+    "C2_CHO": { ua: "Етаналь", en: "Ethanal", class: "Альдегіди", gf: "R–CHO" },
+    "C3_CHO": { ua: "Пропаналь", en: "Propanal", class: "Альдегіди", gf: "R–CHO" },
 
     // --- КЕТОНИ ---
-    "C3_CO": { ua: "Пропанон (Ацетон)", en: "Propanone", class: "Кетони" },
-    "C4_CO": { ua: "Бутанон", en: "Butanone", class: "Кетони" },
+    "C3_CO": { ua: "Пропанон (Ацетон)", en: "Propanone", class: "Кетони", gf: "R–CO–R'" },
+    "C4_CO": { ua: "Бутанон", en: "Butanone", class: "Кетони", gf: "R–CO–R'" },
 
     // --- КИСЛОТИ ---
-    "Acid_C2_CHO": { ua: "Гліоксалева кислота", en: "Glyoxylic acid", class: "Альдегідокислоти" },
-    "Acid_C3_CO": { ua: "Піровиноградна кислота", en: "Pyruvic acid", class: "Кетокислоти" },
-    "Acid_C1": { ua: "Метанова к-та", en: "Methanoic acid", class: "Карбонові кислоти" },
-    "Acid_C2": { ua: "Етанова к-та", en: "Ethanoic acid", class: "Карбонові кислоти" },
-    "Acid_C3": { ua: "Пропанова к-та", en: "Propanoic acid", class: "Карбонові кислоти" },
-    "Acid_C4": { ua: "Бутанова к-та", en: "Butanoic acid", class: "Карбонові кислоти" },
+    "Acid_C2_CHO": { ua: "Гліоксалева кислота", en: "Glyoxylic acid", class: "Альдегідокислоти", gf: "OHC–COOH" },
+    "Acid_C3_CO": { ua: "Піровиноградна кислота", en: "Pyruvic acid", class: "Кетокислоти", gf: "CH₃–CO–COOH" },
+    "Acid_C1": { ua: "Метанова к-та", en: "Methanoic acid", class: "Карбонові кислоти", gf: "R–COOH" },
+    "Acid_C2": { ua: "Етанова к-та", en: "Ethanoic acid", class: "Карбонові кислоти", gf: "R–COOH" },
+    "Acid_C3": { ua: "Пропанова к-та", en: "Propanoic acid", class: "Карбонові кислоти", gf: "R–COOH" },
+    "Acid_C4": { ua: "Бутанова к-та", en: "Butanoic acid", class: "Карбонові кислоти", gf: "R–COOH" },
 
     // --- АМІНИ ТА АМІНОКИСЛОТИ ---
-    "C1_NH2": { ua: "Метиламін", en: "Methylamine", class: "Аміни" },
-    "C2_NH2": { ua: "Етиламін", en: "Ethylamine", class: "Аміни" },
-    "AA_Glycine": { ua: "Гліцин", en: "Glycine", class: "Амінокислоти" },
-    "AA_Alanine": { ua: "Аланін", en: "Alanine", class: "Амінокислоти" },
-    "AA_Serine": { ua: "Серин", en: "Serine", class: "Амінокислоти" },
-    "AA_Phenylalanine": { ua: "Фенілаланін", en: "Phenylalanine", class: "Амінокислоти" },
+    "C1_NH2": { ua: "Метиламін", en: "Methylamine", class: "Аміни", gf: "R–NH₂" },
+    "C2_NH2": { ua: "Етиламін", en: "Ethylamine", class: "Аміни", gf: "R–NH₂" },
+    "AA_Glycine": { ua: "Гліцин", en: "Glycine", class: "Амінокислоти", gf: "NH₂–CH₂–COOH" },
+    "AA_Alanine": { ua: "Аланін", en: "Alanine", class: "Амінокислоти", gf: "R–CH(NH₂)–COOH" },
+    "AA_Serine": { ua: "Серин", en: "Serine", class: "Амінокислоти", gf: "R–CH(NH₂)–COOH" },
+    "AA_Phenylalanine": { ua: "Фенілаланін", en: "Phenylalanine", class: "Амінокислоти", gf: "R–CH(NH₂)–COOH" },
+
+    // --- ЦИКЛОАЛКАНИ ---
+    "Cyclopropane":  { ua: "Циклопропан",  en: "Cyclopropane",  class: "Циклоалкани", gf: "cyclo-C₃H₆"  },
+    "Cyclobutane":   { ua: "Циклобутан",   en: "Cyclobutane",   class: "Циклоалкани", gf: "cyclo-C₄H₈"  },
+    "Cyclopentane":  { ua: "Циклопентан",  en: "Cyclopentane",  class: "Циклоалкани", gf: "cyclo-C₅H₁₀" },
+    "Cyclohexane":   { ua: "Циклогексан",  en: "Cyclohexane",   class: "Циклоалкани", gf: "cyclo-C₆H₁₂" },
+    "Cycloheptane":  { ua: "Циклогептан",  en: "Cycloheptane",  class: "Циклоалкани", gf: "cyclo-CₙH₂ₙ" },
 
     // --- ГАЛОГЕНИ ---
-    "C1_Cl1": { ua: "Хлорметан", en: "Chloromethane", class: "Галогенопохідні" },
-    "C1_Cl3": { ua: "Хлороформ", en: "Chloroform", class: "Галогенопохідні" }
+    "C1_Cl1": { ua: "Хлорметан", en: "Chloromethane", class: "Галогенопохідні", gf: "R–Cl" },
+    "C1_Cl3": { ua: "Хлороформ", en: "Chloroform", class: "Галогенопохідні", gf: "CHCl₃" },
+
+    // --- СПЕЦІАЛЬНІ ---
+    "Carbonic_acid": { ua: "Вугільна кислота", en: "Carbonic acid", class: "Неорганічні кислоти", gf: "H₂CO₃" },
+
+    // --- НЕОРГАНІЧНІ ---
+    "H2O":  { ua: "Вода",             en: "Water",             class: "Неорганічні / Оксиди",    gf: "H₂O" },
+    "H2O2": { ua: "Пероксид водню",   en: "Hydrogen peroxide", class: "Неорганічні / Пероксиди", gf: "H–O–O–H" },
+    "NH3":  { ua: "Амоніак",          en: "Ammonia",           class: "Неорганічні / Основи",    gf: "NH₃" },
+    "HCl":  { ua: "Хлоридна кислота", en: "Hydrochloric acid", class: "Неорганічні / Кислоти",   gf: "HCl" }
 };
 
 /**
  * [4] ВІДОМІ ПРЕСЕТИ — назва вже відома, аналіз не потрібен
  */
 const PRESET_KNOWN_INFO = {
-    'methane':      { ua: "Метан",                          en: "Methane",                          class: "Алкани" },
-    'ethane':       { ua: "Етан",                           en: "Ethane",                           class: "Алкани" },
-    'propane':      { ua: "Пропан",                         en: "Propane",                          class: "Алкани" },
-    'benzene':      { ua: "Бензол",                         en: "Benzene",                          class: "Арени" },
-    'toluene':      { ua: "Толуен (Метилбензол)",           en: "Toluene",                          class: "Арени" },
-    'ethanol':      { ua: "Етанол",                         en: "Ethanol",                          class: "Спирти" },
-    'glycerol':     { ua: "Гліцерол (Гліцерин)",            en: "Glycerol",                         class: "Багатоатомні спирти" },
-    'phenol':       { ua: "Фенол",                          en: "Phenol",                           class: "Феноли" },
-    'acetic_acid':  { ua: "Оцтова кислота (Етанова)",       en: "Acetic acid (Ethanoic)",           class: "Карбонові кислоти" },
-    'pyruvic_acid': { ua: "Піровиноградна кислота",         en: "Pyruvic acid",                     class: "Кетокислоти" },
-    'alanine':      { ua: "Аланін",                         en: "Alanine",                          class: "Амінокислоти" },
-    'glucose':      { ua: "Глюкопіраноза (α-D-Глюкоза)",   en: "Glucopyranose (α-D-Glucose)",      class: "Вуглеводи / Моносахариди" },
-    'fructose':     { ua: "Фруктофураноза (β-D-Фруктоза)", en: "Fructofuranose (β-D-Fructose)",    class: "Вуглеводи / Моносахариди" },
-    'ribose':       { ua: "Рибофураноза (β-D-Рибоза)",     en: "Ribofuranose (β-D-Ribose)",        class: "Вуглеводи / Моносахариди" },
+    'methane':      { ua: "Метан",                          en: "Methane",                          class: "Алкани",                    gf: "CH₄" },
+    'ethane':       { ua: "Етан",                           en: "Ethane",                           class: "Алкани",                    gf: "CₙH₂ₙ₊₂" },
+    'propane':      { ua: "Пропан",                         en: "Propane",                          class: "Алкани",                    gf: "CₙH₂ₙ₊₂" },
+    'benzene':      { ua: "Бензол",                         en: "Benzene",                          class: "Арени",                     gf: "C₆H₅–R / C₆H₆" },
+    'toluene':      { ua: "Толуен (Метилбензол)",           en: "Toluene",                          class: "Арени",                     gf: "C₆H₅–CH₃" },
+    'ethanol':      { ua: "Етанол",                         en: "Ethanol",                          class: "Спирти",                    gf: "R–OH" },
+    'glycerol':     { ua: "Гліцерол (Гліцерин)",            en: "Glycerol",                         class: "Багатоатомні спирти",        gf: "C₃H₅(OH)₃" },
+    'phenol':       { ua: "Фенол",                          en: "Phenol",                           class: "Феноли",                    gf: "C₆H₅–OH" },
+    'acetic_acid':  { ua: "Оцтова кислота (Етанова)",       en: "Acetic acid (Ethanoic)",           class: "Карбонові кислоти",         gf: "R–COOH" },
+    'pyruvic_acid': { ua: "Піровиноградна кислота",         en: "Pyruvic acid",                     class: "Кетокислоти",               gf: "CH₃–CO–COOH" },
+    'alanine':      { ua: "Аланін",                         en: "Alanine",                          class: "Амінокислоти",              gf: "R–CH(NH₂)–COOH" },
+    'glucose':      { ua: "Глюкопіраноза (α-D-Глюкоза)",   en: "Glucopyranose (α-D-Glucose)",      class: "Вуглеводи / Моносахариди",  gf: "C₆H₁₂O₆" },
+    'fructose':     { ua: "Фруктофураноза (β-D-Фруктоза)", en: "Fructofuranose (β-D-Fructose)",    class: "Вуглеводи / Моносахариди",  gf: "C₆H₁₂O₆" },
+    'ribose':       { ua: "Рибофураноза (β-D-Рибоза)",     en: "Ribofuranose (β-D-Ribose)",        class: "Вуглеводи / Моносахариди",  gf: "C₅H₁₀O₅" },
 };
 
 class Atom {
@@ -759,12 +869,28 @@ class App {
         ['C','H','N','O','Cl'].forEach(el => { if(counts[el]) formula += el + (counts[el]>1?counts[el]:''); });
         document.getElementById('info-formula').innerText = formula || '-';
 
+        // --- НЕОРГАНІЧНІ (без вуглецю) ---
+        if (counts.C === 0) {
+            let iKey = null;
+            if (counts.O === 1 && counts.H === 2 && counts.N === 0 && counts.Cl === 0) iKey = "H2O";
+            else if (counts.O === 2 && counts.H === 2 && counts.N === 0 && counts.Cl === 0) iKey = "H2O2";
+            else if (counts.N === 1 && counts.H === 3 && counts.O === 0 && counts.Cl === 0) iKey = "NH3";
+            else if (counts.Cl === 1 && counts.H === 1 && counts.O === 0 && counts.N === 0) iKey = "HCl";
+            const iData = iKey ? KNOWLEDGE_BASE[iKey] : null;
+            document.getElementById('info-name').innerText    = iData ? iData.ua : formula;
+            document.getElementById('info-name-en').innerText = iData ? iData.en : "Unknown / Inorganic";
+            document.getElementById('info-class').innerText   = iData ? iData.class : "Неорганічна сполука";
+            this._checkAutoConnect();
+            return;
+        }
+
         // [4] If a known preset is loaded, use its name directly — no guessing needed
         if (this.knownPreset && PRESET_KNOWN_INFO[this.knownPreset]) {
             const info = PRESET_KNOWN_INFO[this.knownPreset];
             document.getElementById('info-name').innerText = info.ua;
             document.getElementById('info-name-en').innerText = info.en;
             document.getElementById('info-class').innerText = info.class;
+            document.getElementById('info-gformula').innerText = info.gf || '';
             // [3] Still check auto-connect after preset load
             this._checkAutoConnect();
             return;
@@ -777,8 +903,13 @@ class App {
             if(a.type === 'C') {
                 const oxs = a.bonds.map(id=>this.getAtom(id)).filter(n => n.type==='O');
                 const dblO = oxs.find(o => this.getBond(a.id, o.id).type === 2);
-                const sglO = oxs.find(o => this.getBond(a.id, o.id).type === 1);
-                if(dblO && sglO && sglO.bonds.some(id => this.getAtom(id).type === 'H')) f.COOH++;
+                const sglOs = oxs.filter(o => this.getBond(a.id, o.id).type === 1);
+                const sglO = sglOs.find(o => o.bonds.some(id => this.getAtom(id).type === 'H'));
+                
+                if(dblO && sglOs.filter(o => o.bonds.some(id => this.getAtom(id).type === 'H')).length >= 2) {
+                    // Two -OH + one =O on same C → carbonic acid pattern
+                    f.COOH += 2;
+                } else if(dblO && sglO && sglO.bonds.some(id => this.getAtom(id).type === 'H')) f.COOH++;
                 else if(dblO && a.bonds.some(id => this.getAtom(id).type === 'H') && !sglO) f.CHO++;
                 else if(dblO && !sglO) {
                      const cNeighbors = a.bonds.filter(id => this.getAtom(id).type === 'C').length;
@@ -805,7 +936,15 @@ class App {
 
         let key = null;
 
-        if (f.Arom) {
+        // --- НЕОРГАНІЧНІ (без вуглецю) ---
+        if (counts.C === 0) {
+            if      (counts.O===1 && counts.H===2 && !counts.N && !counts.Cl) key = "H2O";
+            else if (counts.O===2 && counts.H===2 && !counts.N && !counts.Cl) key = "H2O2";
+            else if (counts.N===1 && counts.H===3 && !counts.O && !counts.Cl) key = "NH3";
+            else if (counts.Cl===1 && counts.H===1 && !counts.O && !counts.N) key = "HCl";
+        }
+
+        if (!key && f.Arom) {
             if (f.COOH && f.NH2 && counts.C >= 9) key = "AA_Phenylalanine";
             else if (f.COOH) key = "Benzene_COOH";
             else if (f.CHO) key = "Benzene_CHO";
@@ -815,13 +954,14 @@ class App {
             else if (counts.C === 7 && counts.O === 0 && counts.N === 0) key = "Benzene_Methyl";
             else if (counts.C === 6 && counts.O === 0 && counts.N === 0) key = "Benzene_Pure";
         }
-        else if(f.COOH && f.NH2) {
+        else if(!key && f.COOH && f.NH2) {
             if(f.OH) key = "AA_Serine"; else if(counts.C === 2) key = "AA_Glycine"; else if(counts.C === 3) key = "AA_Alanine";
         }
-        else if (f.COOH && f.CO) key = `Acid_C${counts.C}_CO`;
-        else if (f.COOH && f.CHO) key = `Acid_C${counts.C}_CHO`;
-        else if(f.COOH) key = `Acid_C${counts.C}`;
-        else if(f.Ether) {
+        else if (!key && f.COOH && f.CO) key = `Acid_C${counts.C}_CO`;
+        else if (!key && f.COOH && f.CHO) key = `Acid_C${counts.C}_CHO`;
+        else if(!key && f.COOH >= 2 && counts.C === 1) key = "Carbonic_acid";
+        else if(!key && f.COOH) key = `Acid_C${counts.C}`;
+        else if(!key && f.Ether) {
             const etherO = this.atoms.find(a => a.type === 'O' && a.bonds.filter(bid => this.getAtom(bid).type === 'C').length === 2);
             if(etherO) {
                 const branches = etherO.bonds.map(startCId => {
@@ -833,9 +973,9 @@ class App {
                 branches.sort((a,b)=>a-b); key = `Ether_C${branches[0]}_C${branches[1]}`;
             }
         }
-        else if(f.CHO) key = `C${counts.C}_CHO`;
-        else if(f.CO) key = `C${counts.C}_CO`;
-        else if(f.OH) {
+        else if(!key && f.CHO) key = `C${counts.C}_CHO`;
+        else if(!key && f.CO) key = `C${counts.C}_CO`;
+        else if(!key && f.OH) {
             if(counts.C === 3 && f.OH === 3) key = "C3_OH3";
             else {
                 key = `C${counts.C}_OH${f.OH}`;
@@ -845,42 +985,56 @@ class App {
                 }
             }
         }
-        else if(f.NH2) key = `C${counts.C}_NH2`;
-        else if(f.Cl) key = `C${counts.C}_Cl${f.Cl}`;
-        else if (counts.O === 0 && counts.N === 0 && counts.Cl === 0) {
-             key = `C${counts.C}`;
-             if(counts.C === 4 || counts.C === 5) {
-                 const maxD = Math.max(...this.atoms.filter(a=>a.type==='C').map(c=>c.bonds.filter(id=>this.getAtom(id).type==='C').length));
-                 key += (maxD > 2) ? "_branched" : "_linear";
+        else if(!key && f.NH2) key = `C${counts.C}_NH2`;
+        else if(!key && f.Cl) key = `C${counts.C}_Cl${f.Cl}`;
+        else if (!key && counts.O === 0 && counts.N === 0 && counts.Cl === 0 && counts.C > 0) {
+             // Count C-C bonds to detect ring: in cycloalkane, #C-C bonds == #C atoms
+             const ccBonds = this.bonds.filter(b =>
+                 this.getAtom(b.a1).type === 'C' && this.getAtom(b.a2).type === 'C' && b.type === 1
+             ).length;
+             const nC = counts.C;
+             const cycloNames = { 3:"Cyclopropane", 4:"Cyclobutane", 5:"Cyclopentane", 6:"Cyclohexane", 7:"Cycloheptane" };
+             if (ccBonds === nC && cycloNames[nC]) {
+                 key = cycloNames[nC];
+             } else {
+                 key = `C${nC}`;
+                 if(nC === 4 || nC === 5) {
+                     const maxD = Math.max(...this.atoms.filter(a=>a.type==='C').map(c=>c.bonds.filter(id=>this.getAtom(id).type==='C').length));
+                     key += (maxD > 2) ? "_branched" : "_linear";
+                 }
              }
         }
 
         const data = KNOWLEDGE_BASE[key];
         
+        const gfEl = document.getElementById('info-gformula');
         if(data) {
             document.getElementById('info-name').innerText = data.ua;
             document.getElementById('info-name-en').innerText = data.en;
             document.getElementById('info-class').innerText = data.class;
+            gfEl.innerText = data.gf || '';
         } else {
-            let detectedClass = "Невідома органічна сполука";
-            if(f.COOH && f.NH2) detectedClass = "Амінокислота (інша)";
-            else if(f.COOH && f.CO) detectedClass = "Кетокислота";
-            else if(f.COOH) detectedClass = "Карбонова кислота";
-            else if(f.Ether && f.OH) detectedClass = "Циклічний етер / Напівацеталь";
-            else if(f.Ether) detectedClass = "Етер";
-            else if(f.CHO) detectedClass = "Альдегід";
-            else if(f.CO) detectedClass = "Кетон";
-            else if(f.OH > 1) detectedClass = "Багатоатомний спирт";
-            else if(f.OH) detectedClass = (f.Arom ? "Фенол (похідна)" : "Спирт");
-            else if(f.NH2) detectedClass = "Амін";
-            else if(f.Arom) detectedClass = "Ароматична сполука";
-            else if(f.Dbl) detectedClass = "Алкен";
-            else if(f.Cl) detectedClass = "Галогенопохідна";
-            else if(counts.C > 0 && !counts.O && !counts.N) detectedClass = "Алкан (ізомер)";
+            let detectedClass = counts.C === 0 ? "Невідома неорганічна сполука" : "Невідома органічна сполука";
+            let detectedGf = '';
+            if(f.COOH && f.NH2) { detectedClass = "Амінокислота (інша)";          detectedGf = "R–CH(NH₂)–COOH"; }
+            else if(f.COOH && f.CO) { detectedClass = "Кетокислота";              detectedGf = "R–CO–COOH"; }
+            else if(f.COOH) { detectedClass = "Карбонова кислота";                detectedGf = "R–COOH"; }
+            else if(f.Ether && f.OH) { detectedClass = "Циклічний етер / Напівацеталь"; detectedGf = ""; }
+            else if(f.Ether) { detectedClass = "Етер";                            detectedGf = "R–O–R'"; }
+            else if(f.CHO) { detectedClass = "Альдегід";                          detectedGf = "R–CHO"; }
+            else if(f.CO)  { detectedClass = "Кетон";                             detectedGf = "R–CO–R'"; }
+            else if(f.OH > 1) { detectedClass = "Багатоатомний спирт";            detectedGf = "R(OH)ₙ"; }
+            else if(f.OH) { detectedClass = f.Arom ? "Фенол (похідна)" : "Спирт"; detectedGf = "R–OH"; }
+            else if(f.NH2) { detectedClass = "Амін";                              detectedGf = "R–NH₂"; }
+            else if(f.Arom) { detectedClass = "Ароматична сполука";               detectedGf = "Ar–R"; }
+            else if(f.Dbl) { detectedClass = "Алкен";                             detectedGf = "CₙH₂ₙ"; }
+            else if(f.Cl)  { detectedClass = "Галогенопохідна";                   detectedGf = "R–Cl"; }
+            else if(counts.C > 0 && !counts.O && !counts.N) { detectedClass = "Алкан (ізомер)"; detectedGf = "CₙH₂ₙ₊₂"; }
 
-            document.getElementById('info-name').innerText = formula; 
+            document.getElementById('info-name').innerText = formula;
             document.getElementById('info-name-en').innerText = "Unknown Structure";
             document.getElementById('info-class').innerText = detectedClass;
+            gfEl.innerText = detectedGf;
         }
 
         // [3] Auto-activate connect mode when 2+ free radicals exist
@@ -916,12 +1070,48 @@ class App {
 
     resetView() { this.scale=1; this.offsetX=0; this.offsetY=0; }
 
+    // Add hydrogen to a radical atom at the stub tip closest to (wx, wy)
+    addHToRadical(atom) {
+        if (atom.radicals <= 0) return;
+        const baseAngle = (parseInt(atom.id, 36) % 100);
+        // Pick angle for the last radical slot
+        const ang = baseAngle + (atom.radicals - 1) * (Math.PI / 2);
+        const hx = atom.x + Math.cos(ang) * BOND_LEN;
+        const hy = atom.y + Math.sin(ang) * BOND_LEN;
+        this.saveSnapshot();
+        const hId = this.addAtom('H', hx, hy);
+        this.addBond(atom.id, hId);
+        atom.radicals--;
+        this.knownPreset = null;
+        this.analyze();
+        this.saveSnapshot();
+        this.showMessage("Додано атом H");
+    }
+
+    // Find atom whose radical stub tip is closest to world point (wx, wy), within radius
+    _radicalAtomAt(wx, wy, radius = 22) {
+        for (const atom of this.atoms) {
+            if (atom.radicals <= 0) continue;
+            const baseAngle = (parseInt(atom.id, 36) % 100);
+            for (let r = 0; r < atom.radicals; r++) {
+                const ang = baseAngle + r * (Math.PI / 2);
+                const rx = atom.x + Math.cos(ang) * 24;
+                const ry = atom.y + Math.sin(ang) * 24;
+                if (Math.hypot(rx - wx, ry - wy) < radius) return atom;
+            }
+        }
+        return null;
+    }
+
     /** DRAG & DROP + INPUT **/
     initInput() {
         this.draggedAtom = null;
         this.isCameraPan = false;
         this.clickStartX = 0;
         this.clickStartY = 0;
+        this._lastClickTime = 0;
+        this._lastClickPos  = { x: 0, y: 0 };
+        this._singleClickTimer = null;
 
         this.canvas.addEventListener('mousedown', e => {
             const mouseWorld = this.toWorld(e.offsetX, e.offsetY);
@@ -957,7 +1147,31 @@ class App {
             const dist = Math.hypot(e.offsetX - this.clickStartX, e.offsetY - this.clickStartY);
             if (dist < 5) {
                 const worldPos = this.toWorld(e.offsetX, e.offsetY);
-                this.handleCanvasClick(worldPos.x, worldPos.y);
+                const now = Date.now();
+                const dxLast = e.offsetX - this._lastClickPos.x;
+                const dyLast = e.offsetY - this._lastClickPos.y;
+                const sameSpot = Math.hypot(dxLast, dyLast) < 12;
+
+                if (now - this._lastClickTime < 300 && sameSpot) {
+                    // Double-click detected
+                    clearTimeout(this._singleClickTimer);
+                    this._lastClickTime = 0;
+                    // Check if near a radical stub tip
+                    const radAtom = this._radicalAtomAt(worldPos.x, worldPos.y);
+                    if (radAtom) {
+                        this.addHToRadical(radAtom);
+                    }
+                    // else: double-click on empty / atom — ignore (don't re-fire single click)
+                } else {
+                    // Potential single click — delay to allow double-click to cancel it
+                    this._lastClickTime = now;
+                    this._lastClickPos  = { x: e.offsetX, y: e.offsetY };
+                    const capturedPos = worldPos;
+                    clearTimeout(this._singleClickTimer);
+                    this._singleClickTimer = setTimeout(() => {
+                        this.handleCanvasClick(capturedPos.x, capturedPos.y);
+                    }, 220);
+                }
             }
             this.draggedAtom = null; this.isCameraPan = false;
             this.canvas.style.cursor = 'default';
