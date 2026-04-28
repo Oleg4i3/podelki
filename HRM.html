@@ -3,42 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>HR Monitor Pro - Scrollable Graph & CSV Export</title>
+    <title>HR Monitor - Sticky Y-Axis & Scrollable Graph</title>
     <style>
         * {
             box-sizing: border-box;
-            user-select: none; /* slightly cleaner UX, text selection disabled on buttons */
         }
 
         body {
             margin: 0;
-            font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
             background: #0a0c0e;
+            font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
             color: #ccffcc;
             text-align: center;
-            padding-bottom: 20px;
+            padding-bottom: 24px;
         }
 
         #hr {
             font-size: 196px;
             font-weight: 800;
-            letter-spacing: 4px;
-            margin: 12px 0 8px 0;
-            text-shadow: 0 0 6px #0f0;
+            font-family: monospace;
+            margin: 12px 0 6px;
             background: #000000aa;
             display: inline-block;
-            padding: 0 24px;
-            border-radius: 48px;
-            font-family: monospace;
+            padding: 0 28px;
+            border-radius: 60px;
+            text-shadow: 0 0 6px #0f0;
+            letter-spacing: 4px;
         }
 
         .control-panel {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 12px;
+            gap: 14px;
             margin: 16px 10px;
-            align-items: center;
         }
 
         button, .csv-btn {
@@ -51,8 +49,8 @@
             font-size: 1rem;
             cursor: pointer;
             transition: 0.2s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             font-family: inherit;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
         }
 
         button:hover, .csv-btn:hover {
@@ -63,27 +61,23 @@
         .recording {
             background: #c0392b;
             color: white;
-            box-shadow: 0 0 8px #ff4444;
+            box-shadow: 0 0 8px #ff5555;
         }
 
         .range-wrap {
             background: #11181c;
-            padding: 12px 16px;
-            border-radius: 28px;
-            margin: 12px auto;
+            padding: 8px 20px;
+            border-radius: 40px;
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin: 8px auto;
             width: fit-content;
-            max-width: 94%;
-        }
-
-        .range-wrap label {
-            font-weight: 500;
-            margin-right: 12px;
         }
 
         input[type="range"] {
             width: 140px;
-            margin: 0 6px;
-            vertical-align: middle;
             cursor: pointer;
         }
 
@@ -91,77 +85,97 @@
             background: #000000aa;
             padding: 4px 12px;
             border-radius: 32px;
-            font-weight: bold;
-            display: inline-block;
-            margin-left: 12px;
             font-family: monospace;
+            font-weight: bold;
         }
 
         .interval-box {
             background: #11181c;
-            padding: 6px 14px;
-            border-radius: 40px;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            padding: 6px 18px;
+            border-radius: 40px;
         }
 
         .interval-box input {
-            width: 65px;
+            width: 70px;
             background: #2c3e3e;
             border: 1px solid #2e8b57;
             color: #0f0;
-            font-weight: bold;
-            border-radius: 20px;
+            border-radius: 24px;
             padding: 6px;
             text-align: center;
+            font-weight: bold;
         }
 
-        /* GRAPH CONTAINER with horizontal scroll */
-        .graph-scroll-wrapper {
+        /* ---------- GRAPH WITH STICKY Y-AXIS ---------- */
+        .graph-container {
             width: 96%;
             max-width: 1400px;
-            margin: 20px auto 10px auto;
-            background: #0a0f12;
+            margin: 20px auto 5px auto;
+            background: #0b0e10;
             border-radius: 20px;
             border: 1px solid #2a4a3a;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        }
+
+        .graph-row {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            background: #0b0e10;
+        }
+
+        /* Sticky left panel: BPM labels + horizontal grid */
+        .y-axis-panel {
+            flex-shrink: 0;
+            width: 60px;
+            background: #0b0e10;
+            position: relative;
+            border-right: 1px solid #2c5a3a;
+            z-index: 15;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+        }
+
+        .y-axis-canvas {
+            display: block;
+            width: 60px;
+            height: 100%;
+            background: #0b0e10;
+        }
+
+        /* Scrollable area for the main graph */
+        .scroll-area {
+            flex: 1;
             overflow-x: auto;
             overflow-y: hidden;
             position: relative;
-            box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+            background: #0b0e10;
         }
 
-        canvas {
+        .main-canvas {
             display: block;
             background: #0b0e10;
-            width: auto;
-            height: 220px;
             cursor: grab;
         }
 
         .graph-caption {
             font-size: 12px;
             color: #8fbc8f;
-            margin-top: 6px;
             text-align: right;
-            padding-right: 24px;
+            padding: 6px 20px 8px 0;
         }
 
         .toolbar {
             display: flex;
-            flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
-            margin: 16px;
+            margin: 12px;
         }
 
         .csv-btn {
             background: #2c5e3f;
-            color: white;
-        }
-
-        .csv-btn:hover {
-            background: #3e7861;
         }
     </style>
 </head>
@@ -188,12 +202,20 @@
     <div id="zoneLabel">120 - 140</div>
 </div>
 
-<!-- Graph area with horizontal scroll -->
-<div class="graph-scroll-wrapper" id="graphScrollWrapper">
-    <canvas id="hrCanvas"></canvas>
+<!-- Graph with fixed Y axis and scrollable data canvas -->
+<div class="graph-container">
+    <div class="graph-row" id="graphRow">
+        <!-- Sticky left panel (BPM scale & horizontal grid) -->
+        <div class="y-axis-panel" id="yAxisPanel">
+            <canvas id="yAxisCanvas" class="y-axis-canvas" width="60" height="220"></canvas>
+        </div>
+        <!-- Scrollable main canvas -->
+        <div class="scroll-area" id="scrollArea">
+            <canvas id="mainCanvas" class="main-canvas"></canvas>
+        </div>
+    </div>
 </div>
-<div class="graph-caption">↔️ Scroll horizontally • seconds scale • green = in zone</div>
-
+<div class="graph-caption">↔️ Scroll horizontally • Y‑axis stays fixed • green = in zone</div>
 <div class="toolbar">
     <button id="exportCsvBtn" class="csv-btn">📎 Export CSV</button>
 </div>
@@ -207,331 +229,266 @@
     const maxSlider = document.getElementById("maxZone");
     const zoneLabel = document.getElementById("zoneLabel");
     const intervalInput = document.getElementById("interval");
-    const canvas = document.getElementById("hrCanvas");
-    const wrapper = document.getElementById("graphScrollWrapper");
+    const mainCanvas = document.getElementById("mainCanvas");
+    const yAxisCanvas = document.getElementById("yAxisCanvas");
+    const scrollArea = document.getElementById("scrollArea");
 
     // ---------- Global state ----------
     let device = null;
     let hrCharacteristic = null;
-    let currentHR = 0;            // latest BPM value
+    let currentHR = 0;
     let recording = false;
-    let recordingStartTime = null; // timestamp (ms) when recording started
-    let hrData = [];               // array of { t: secondsFromStart, hr: bpm }
+    let recordingStartTime = null;        // ms
+    let hrData = [];                      // { t: seconds, hr: bpm }
 
-    // Graph layout constants
-    const PX_PER_SECOND = 22;      // 22px per second → good resolution, scrollable
-    const LEFT_MARGIN = 52;        // space for Y axis labels (BPM)
-    const RIGHT_MARGIN = 28;       // right padding for readability
-    const GRAPH_HEIGHT = 220;       // canvas height fixed
-    const MIN_BPM = 40;            // display range lower bound
-    const MAX_BPM = 190;           // display range upper bound (covers most zones)
+    // Graph constants
+    const PX_PER_SECOND = 22;
+    const LEFT_MARGIN = 12;               // small inner margin inside main canvas (starts after Y-panel)
+    const RIGHT_MARGIN = 24;
+    const GRAPH_HEIGHT = 220;             // px
+    const MIN_BPM = 40;
+    const MAX_BPM = 190;
 
-    let resizeObserver = null;
+    // helper: zone range
+    let currentMinZone = 120, currentMaxZone = 140;
 
-    // ---------- Helper: update zone label ----------
-    function updateZoneLabel() {
-        zoneLabel.innerText = `${minSlider.value} - ${maxSlider.value}`;
-        drawGraph();   // redraw segment colors immediately when zone changes
-    }
-    minSlider.addEventListener("input", updateZoneLabel);
-    maxSlider.addEventListener("input", updateZoneLabel);
-    updateZoneLabel();
-
-    // ---------- Map BPM to Y coordinate (pixel) ----------
-    function bpmToY(bpm) {
-        const percent = (bpm - MIN_BPM) / (MAX_BPM - MIN_BPM);
-        const clamped = Math.min(1, Math.max(0, percent));
-        // Y = bottom margin (20px) + inverted range: 0% = bottom, 100% = top
-        const topMargin = 18;
-        const bottomMargin = 22;
-        const drawingHeight = GRAPH_HEIGHT - topMargin - bottomMargin;
-        return topMargin + drawingHeight * (1 - clamped);
-    }
-
-    // ---------- Draw grid, axes, seconds labels, HR curve ----------
-    function drawGraph() {
-        if (!canvas) return;
-
-        // 1) compute total duration (seconds) based on recorded data
-        let totalDuration = 0;
-        if (hrData.length > 0) {
-            totalDuration = Math.max(...hrData.map(p => p.t));
-        }
-        
-        // 2) calculate needed canvas width
-        let neededWidth = LEFT_MARGIN + (totalDuration * PX_PER_SECOND) + RIGHT_MARGIN;
-        const minWidth = wrapper.clientWidth > 100 ? wrapper.clientWidth : 600;
-        const finalWidth = Math.max(minWidth, neededWidth);
-        
-        // update canvas dimensions (preserve context, will be cleared)
-        canvas.width = finalWidth;
-        canvas.height = GRAPH_HEIGHT;
-        
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // background
+    // ---------- Y-axis drawing (fixed panel) ----------
+    function drawYAxis() {
+        const ctx = yAxisCanvas.getContext("2d");
+        yAxisCanvas.width = 60;
+        yAxisCanvas.height = GRAPH_HEIGHT;
+        ctx.clearRect(0, 0, 60, GRAPH_HEIGHT);
         ctx.fillStyle = "#0b0e10";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, 60, GRAPH_HEIGHT);
         
-        // ---------- draw horizontal grid (BPM lines) ----------
-        ctx.save();
-        ctx.font = "11px 'JetBrains Mono', monospace";
-        ctx.fillStyle = "#6f9e7a";
-        ctx.strokeStyle = "#2c4a3a";
+        // draw horizontal grid lines + BPM labels
+        ctx.font = "bold 11px 'JetBrains Mono', monospace";
+        ctx.fillStyle = "#999999";
+        ctx.strokeStyle = "#999999";
         ctx.lineWidth = 0.8;
         
-        // horizontal lines every 10 BPM
-        for (let bpm = MIN_BPM; bpm <= MAX_BPM; bpm += 10) {
-            const y = bpmToY(bpm);
-            if (y < 0 || y > GRAPH_HEIGHT) continue;
-            ctx.beginPath();
-            ctx.moveTo(LEFT_MARGIN - 6, y);
-            ctx.lineTo(canvas.width - 8, y);
-            ctx.stroke();
-            ctx.fillStyle = "#88cc88";
-            ctx.fillText(`${bpm}`, 6, y - 2);
-        }
+   for (let bpm = MIN_BPM; bpm <= MAX_BPM; bpm += 10) {
+    const y = bpmToY(bpm, GRAPH_HEIGHT);
+    if (y < 5 || y > GRAPH_HEIGHT - 5) continue;
+    ctx.fillStyle = "#c2f0c2";
+    ctx.fillText(`${bpm}`, 8, y - 3);
+}
         
-        // extra zone markers visual (light background shading)
-        const minZone = parseInt(minSlider.value, 10);
-        const maxZone = parseInt(maxSlider.value, 10);
-        if (minZone < maxZone) {
-            const yTopZone = bpmToY(maxZone);
-            const yBottomZone = bpmToY(minZone);
+        // additionally show zone highlight on axis? optional subtle
+        const minZ = currentMinZone, maxZ = currentMaxZone;
+        if (minZ < maxZ) {
+            const yTop = bpmToY(maxZ, GRAPH_HEIGHT);
+            const yBottom = bpmToY(minZ, GRAPH_HEIGHT);
             ctx.globalAlpha = 0.2;
             ctx.fillStyle = "#2aff6e";
-            ctx.fillRect(LEFT_MARGIN, yTopZone, canvas.width - LEFT_MARGIN - 8, yBottomZone - yTopZone);
+            ctx.fillRect(0, yTop, 60, yBottom - yTop);
             ctx.globalAlpha = 1;
         }
+    }
+
+    // Y conversion function (reusable)
+    function bpmToY(bpm, canvasHeight = GRAPH_HEIGHT) {
+        const percent = (bpm - MIN_BPM) / (MAX_BPM - MIN_BPM);
+        const clamped = Math.min(1, Math.max(0, percent));
+        const topMargin = 18;
+        const bottomMargin = 18;
+        const drawHeight = canvasHeight - topMargin - bottomMargin;
+        return topMargin + drawHeight * (1 - clamped);
+    }
+
+    // ---------- Main graph drawing (only data curve + vertical time grid) ----------
+    function drawMainGraph() {
+        if (!mainCanvas) return;
         
-        // ---------- draw vertical grid + seconds labels (horizontal axis) ----------
+        let totalDuration = 0;
+        if (hrData.length > 0) totalDuration = Math.max(...hrData.map(p => p.t));
+        
+        const neededWidth = LEFT_MARGIN + (totalDuration * PX_PER_SECOND) + RIGHT_MARGIN;
+        const containerWidth = scrollArea.clientWidth;
+        const finalWidth = Math.max(containerWidth, neededWidth);
+        
+        mainCanvas.width = finalWidth;
+        mainCanvas.height = GRAPH_HEIGHT;
+        const ctx = mainCanvas.getContext("2d");
+        ctx.clearRect(0, 0, finalWidth, GRAPH_HEIGHT);
+        ctx.fillStyle = "#0b0e10";
+        ctx.fillRect(0, 0, finalWidth, GRAPH_HEIGHT);
+        ctx.save();
+ctx.strokeStyle = "#999999";
+ctx.lineWidth = 0.8;
+for (let bpm = MIN_BPM; bpm <= MAX_BPM; bpm += 10) {
+    const y = bpmToY(bpm, GRAPH_HEIGHT);
+    if (y < 5 || y > GRAPH_HEIGHT - 5) continue;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(finalWidth, y);
+    ctx.stroke();
+}
+ctx.restore();
+
+        // draw vertical time grid (seconds) - moves with scroll, that's intended
+        ctx.save();
+        ctx.font = "10px monospace";
+        ctx.fillStyle = "#999999";
+        ctx.strokeStyle = "#999999";
+        ctx.lineWidth = 0.6;
+        
         if (totalDuration > 0.2) {
-            // dynamic grid step: aim for 5 to 15 seconds intervals depending on total duration
             let stepSeconds = 5;
             if (totalDuration > 180) stepSeconds = 15;
             else if (totalDuration > 80) stepSeconds = 10;
             else if (totalDuration > 30) stepSeconds = 8;
             else stepSeconds = 5;
             
-            ctx.fillStyle = "#9bc48f";
-            ctx.font = "10px monospace";
-            ctx.textAlign = "center";
-            ctx.strokeStyle = "#3a6b4e";
-            ctx.lineWidth = 0.6;
-            
             for (let t = 0; t <= totalDuration + 0.5; t += stepSeconds) {
                 const x = LEFT_MARGIN + t * PX_PER_SECOND;
-                if (x < LEFT_MARGIN - 5 || x > canvas.width - RIGHT_MARGIN + 15) continue;
+                if (x < 0 || x > finalWidth - 10) continue;
                 ctx.beginPath();
                 ctx.moveTo(x, 12);
                 ctx.lineTo(x, GRAPH_HEIGHT - 12);
                 ctx.stroke();
-                // draw seconds label
                 ctx.fillStyle = "#bed9b3";
-                ctx.fillText(`${t}s`, x, GRAPH_HEIGHT - 5);
-            }
-            
-            // extra major grid every 30 seconds optional
-            if (totalDuration > 40) {
-                ctx.strokeStyle = "#5d8c6b";
-                ctx.lineWidth = 0.8;
-                for (let t = 0; t <= totalDuration; t += 30) {
-                    const x = LEFT_MARGIN + t * PX_PER_SECOND;
-                    if (x > LEFT_MARGIN && x < canvas.width - 20) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, 8);
-                        ctx.lineTo(x, GRAPH_HEIGHT - 8);
-                        ctx.stroke();
-                    }
-                }
+                ctx.fillText(`${t}s`, x - 10, GRAPH_HEIGHT - 6);
             }
         } else {
-            // placeholder no data grid
             ctx.fillStyle = "#7f8c8d";
             ctx.font = "italic 12px monospace";
-            ctx.fillText("⏺ Start recording → data appears", canvas.width/2 - 130, GRAPH_HEIGHT/2);
+            ctx.fillText("⏺ Start recording → data appears", finalWidth/2 - 140, GRAPH_HEIGHT/2);
         }
         
-        // ---------- draw the HR curve (color-coded by zone per segment) ----------
-        if (hrData.length < 2) {
-            ctx.restore();
-            return;
-        }
-        
-        const zoneMin = parseInt(minSlider.value, 10);
-        const zoneMax = parseInt(maxSlider.value, 10);
-        
-        // sort by time (safety, data already chronological)
-        const points = [...hrData].sort((a,b) => a.t - b.t);
-        
-        ctx.lineWidth = 2.8;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        
-        for (let i = 1; i < points.length; i++) {
-            const p1 = points[i-1];
-            const p2 = points[i];
+        // draw HR curve (colored by zone)
+        if (hrData.length >= 2) {
+            const points = [...hrData].sort((a,b) => a.t - b.t);
+            ctx.lineWidth = 2.6;
+            ctx.lineJoin = "round";
+            const zoneMin = currentMinZone, zoneMax = currentMaxZone;
             
-            const x1 = LEFT_MARGIN + p1.t * PX_PER_SECOND;
-            const x2 = LEFT_MARGIN + p2.t * PX_PER_SECOND;
-            
-            // clip points that fall outside visible area (performance & looks)
-            if ((x1 < -100 && x2 < -100) || (x1 > canvas.width + 100 && x2 > canvas.width + 100)) continue;
-            
-            const y1 = bpmToY(p1.hr);
-            const y2 = bpmToY(p2.hr);
-            
-            // segment color: based on SECOND point's zone (classic style)
-            const inZone = (p2.hr >= zoneMin && p2.hr <= zoneMax);
-            ctx.strokeStyle = inZone ? "#2ecc71" : "#e67e22";
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-        }
-        
-        // optional: highlight data points as small circles (subtle)
-        ctx.fillStyle = "#ffffffaa";
-        for (let i = 0; i < points.length; i++) {
-            const p = points[i];
-            const x = LEFT_MARGIN + p.t * PX_PER_SECOND;
-            if (x > LEFT_MARGIN - 8 && x < canvas.width + 12) {
-                const y = bpmToY(p.hr);
+            for (let i = 1; i < points.length; i++) {
+                const p1 = points[i-1];
+                const p2 = points[i];
+                const x1 = LEFT_MARGIN + p1.t * PX_PER_SECOND;
+                const x2 = LEFT_MARGIN + p2.t * PX_PER_SECOND;
+                const y1 = bpmToY(p1.hr, GRAPH_HEIGHT);
+                const y2 = bpmToY(p2.hr, GRAPH_HEIGHT);
+                
+                if ((x1 < -50 && x2 < -50) || (x1 > finalWidth + 50 && x2 > finalWidth + 50)) continue;
+                const inZone = (p2.hr >= zoneMin && p2.hr <= zoneMax);
+                ctx.strokeStyle = inZone ? "#2ecc71" : "#e67e22";
                 ctx.beginPath();
-                ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = "#c0ffc0";
-                ctx.fill();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // tiny markers
+            ctx.fillStyle = "#ffffffcc";
+            for (const p of points) {
+                const x = LEFT_MARGIN + p.t * PX_PER_SECOND;
+                if (x > -5 && x < finalWidth + 10) {
+                    const y = bpmToY(p.hr, GRAPH_HEIGHT);
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1, 0, Math.PI*2);
+                    ctx.fillStyle = "#c0ffc0";
+                    ctx.fill();
+                }
             }
         }
-        
         ctx.restore();
         
-        // add extra border decoration
+        // optional border
         ctx.strokeStyle = "#3e6a4a";
-        ctx.lineWidth = 1.2;
-        ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-        
-        // Autoscroll logic: if recording active and user is near rightmost edge -> follow new data
-        if (recording && wrapper && hrData.length > 5) {
-            const scrollLeft = wrapper.scrollLeft;
-            const maxScroll = wrapper.scrollWidth - wrapper.clientWidth;
-            const atRightEdge = (maxScroll - scrollLeft) <= 35;  // threshold
-            if (atRightEdge || maxScroll <= 0) {
-                // auto-scroll to the end to show latest beat
-                wrapper.scrollLeft = wrapper.scrollWidth;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(2, 2, mainCanvas.width - 4, mainCanvas.height - 4);
+    }
+    
+    // combined redraw: Y-axis + main graph
+    function redrawAll() {
+        drawYAxis();
+        drawMainGraph();
+        // auto-scroll behavior: if recording and user is near right edge -> follow
+        if (recording && scrollArea && hrData.length > 3) {
+            const maxScroll = scrollArea.scrollWidth - scrollArea.clientWidth;
+            const atRight = (maxScroll - scrollArea.scrollLeft) <= 40;
+            if (atRight || maxScroll <= 0) {
+                scrollArea.scrollLeft = scrollArea.scrollWidth;
             }
         }
     }
-
-    // ---------- Add HR data point (with timestamp relative to recording start) ----------
-    function addHrDataPoint(bpmValue) {
+    
+    // ---------- Data recording ----------
+    function addHrDataPoint(bpm) {
         if (!recording || recordingStartTime === null) return;
-        const nowMs = Date.now();
-        const elapsedSec = (nowMs - recordingStartTime) / 1000;
-        if (elapsedSec < 0) return;
-        
-        hrData.push({
-            t: elapsedSec,
-            hr: bpmValue
-        });
-        
-        // keep data size sane (max ~2 hours of 1Hz data = 7200 points) acceptable
-        if (hrData.length > 9000) {
-            hrData = hrData.slice(-7000);
-        }
-        
-        drawGraph();    // redraw with new point
+        const elapsed = (Date.now() - recordingStartTime) / 1000;
+        hrData.push({ t: elapsed, hr: bpm });
+        if (hrData.length > 8000) hrData = hrData.slice(-7000);
+        redrawAll();
     }
     
-    // ---------- Clear recording data and reset timeline ----------
-    function resetRecordingSession() {
+    function resetSession() {
         hrData = [];
         recordingStartTime = null;
-        drawGraph();    // clear canvas
+        redrawAll();
     }
     
-    // ---------- Start new recording (clear old data, set start time) ----------
-    function startNewRecording() {
-        resetRecordingSession();
+    function startRecording() {
+        resetSession();
         recordingStartTime = Date.now();
         recording = true;
         recordBtn.textContent = "🔴 REC ON";
         recordBtn.classList.add("recording");
-        // potential first HR will come later
-        drawGraph();
+        redrawAll();
     }
     
     function stopRecording() {
         recording = false;
         recordBtn.textContent = "⏺ REC OFF";
         recordBtn.classList.remove("recording");
-        // do NOT clear data; keep the graph for reference
-        drawGraph();   // ensure final view is updated
+        redrawAll();
     }
     
-    // ---------- BLE Heart Rate Handler ----------
+    // ---------- Heart Rate BLE handler ----------
     function handleHeartRate(event) {
-        const value = event.target.value;
-        if (!value || value.byteLength < 2) return;
-        
-        // Heart Rate Measurement characteristic: first byte flags, then HR value (UINT8 or UINT16)
+        const val = event.target.value;
+        if (!val || val.byteLength < 2) return;
         let hrValue = 0;
-        const flags = value.getUint8(0);
-        const is16bit = flags & 0x01;
-        if (is16bit) {
-            hrValue = value.getUint16(1, true);
-        } else {
-            hrValue = value.getUint8(1);
-        }
+        const flags = val.getUint8(0);
+        if (flags & 0x01) hrValue = val.getUint16(1, true);
+        else hrValue = val.getUint8(1);
         
         if (hrValue > 20 && hrValue < 250) {
             currentHR = hrValue;
             hrDisplay.textContent = currentHR;
+            const inZone = (currentHR >= currentMinZone && currentHR <= currentMaxZone);
+            hrDisplay.style.color = inZone ? "#9bff9b" : "#ff8c5a";
             
-            // Zone coloring for big number display
-            const minZ = parseInt(minSlider.value, 10);
-            const maxZ = parseInt(maxSlider.value, 10);
-            hrDisplay.style.color = (currentHR >= minZ && currentHR <= maxZ) ? "#9bff9b" : "#ff8c5a";
-            
-            // If recording is active, store with timestamp
             if (recording && recordingStartTime !== null) {
                 addHrDataPoint(currentHR);
             } else if (recording && recordingStartTime === null) {
-                // edge: if recording true but start time null (should not happen)
-                if (recording) {
-                    recordingStartTime = Date.now();
-                    addHrDataPoint(currentHR);
-                }
+                recordingStartTime = Date.now();
+                addHrDataPoint(currentHR);
             }
-            
-            // Voice announcement based on interval
-            voiceAnnounceIfNeeded(currentHR);
+            voiceAnnounce(currentHR);
         }
     }
     
-    // ----- Voice announcement with interval throttle -----
-    let lastVoiceTime = 0;
-    function voiceAnnounceIfNeeded(hrValue) {
-        if (hrValue <= 0) return;
+    let lastVoice = 0;
+    function voiceAnnounce(bpm) {
         const intervalSec = parseFloat(intervalInput.value);
         if (isNaN(intervalSec) || intervalSec < 2) return;
         const now = Date.now();
-        if (now - lastVoiceTime >= intervalSec * 1000) {
-            // cancel ongoing speech to avoid overlap
+        if (now - lastVoice >= intervalSec * 1000) {
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(hrValue.toString());
+            const utterance = new SpeechSynthesisUtterance(bpm.toString());
             utterance.rate = 0.9;
-            utterance.pitch = 1.0;
             window.speechSynthesis.speak(utterance);
-            lastVoiceTime = now;
+            lastVoice = now;
         }
     }
     
-    // ----- Connect to Bluetooth HR device -----
-    async function connectHRDevice() {
+    // ---------- Bluetooth connection ----------
+    async function connectHR() {
         if (!navigator.bluetooth) {
-            alert("Web Bluetooth not supported. Use Chrome/Edge on HTTPS.");
+            alert("Web Bluetooth is not supported. Use Chrome / Edge.");
             return;
         }
         try {
@@ -546,113 +503,70 @@
             hrCharacteristic.addEventListener('characteristicvaluechanged', handleHeartRate);
             connectBtn.textContent = "✅ Connected";
             connectBtn.style.background = "#2c6e3e";
-            connectBtn.disabled = false;
-            // voice confirmation
             const msg = new SpeechSynthesisUtterance("Heart rate connected");
             window.speechSynthesis.speak(msg);
         } catch (err) {
-            console.error(err);
-            alert("Connection failed: " + err.message);
+            alert("Connection error: " + err.message);
             connectBtn.textContent = "⚠️ Connect";
-            connectBtn.style.background = "#1e2a2a";
         }
     }
     
-    // ---------- Export data as CSV (seconds, BPM) ----------
-    function exportToCSV() {
+    // ---------- CSV export ----------
+    function exportCSV() {
         if (hrData.length === 0) {
-            alert("No recorded data. Start recording (REC ON) and receive HR values first.");
+            alert("No recorded data. Turn REC ON and get heart rate values.");
             return;
         }
-        
-        // sort by timestamp just in case
-        const sortedData = [...hrData].sort((a,b) => a.t - b.t);
-        // header
-        let csvRows = [["Time (seconds)", "Heart Rate (BPM)"]];
-        for (const point of sortedData) {
-            csvRows.push([point.t.toFixed(2), point.hr]);
-        }
-        
-        const csvContent = csvRows.map(row => row.join(",")).join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const sorted = [...hrData].sort((a,b) => a.t - b.t);
+        const rows = [["Time (seconds)", "Heart Rate (BPM)"]];
+        for (const p of sorted) rows.push([p.t.toFixed(2), p.hr]);
+        const csv = rows.map(r => r.join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         const date = new Date();
-        const timestamp = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}`;
+        const ts = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}`;
         link.href = url;
-        link.setAttribute("download", `hr_record_${timestamp}.csv`);
+        link.download = `hr_log_${ts}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        
-        // small visual feedback
-        const exportBtn = document.getElementById("exportCsvBtn");
-        const originalText = exportBtn.innerText;
-        exportBtn.innerText = "✅ Exported!";
-        setTimeout(() => { exportBtn.innerText = originalText; }, 1500);
+        const btn = document.getElementById("exportCsvBtn");
+        const orig = btn.innerText;
+        btn.innerText = "✅ Exported!";
+        setTimeout(() => btn.innerText = orig, 1500);
     }
     
-    // ---------- Recording button toggle logic ----------
-    function onRecordToggle() {
-        if (!recording) {
-            // start new recording: clear previous data, set fresh timeline
-            resetRecordingSession();
-            recordingStartTime = Date.now();
-            recording = true;
-            recordBtn.textContent = "🔴 REC ON";
-            recordBtn.classList.add("recording");
-            drawGraph();
-        } else {
-            // stop recording, keep data as is
-            recording = false;
-            recordBtn.textContent = "⏺ REC OFF";
-            recordBtn.classList.remove("recording");
-            drawGraph(); // final refresh
-        }
+    // ---------- Event binding & zone change ----------
+    function updateZone() {
+        currentMinZone = parseInt(minSlider.value, 10);
+        currentMaxZone = parseInt(maxSlider.value, 10);
+        zoneLabel.innerText = `${currentMinZone} - ${currentMaxZone}`;
+        redrawAll();
     }
     
-    // ---------- Window resize handling: re-draw graph ----------
-    function handleResize() {
-        drawGraph();
-        // keep scroll position stable, but reflow
-        if (recording && hrData.length > 0 && wrapper) {
-            // optional auto-scroll to latest if user near right edge
-            const maxScroll = wrapper.scrollWidth - wrapper.clientWidth;
-            if (wrapper.scrollLeft + wrapper.clientWidth >= maxScroll - 20) {
-                wrapper.scrollLeft = wrapper.scrollWidth;
-            }
-        }
-    }
+    minSlider.addEventListener("input", updateZone);
+    maxSlider.addEventListener("input", updateZone);
+    updateZone();
     
-    // ---------- INITIALIZE event listeners & observer ----------
-    connectBtn.addEventListener("click", connectHRDevice);
-    recordBtn.addEventListener("click", onRecordToggle);
-    document.getElementById("exportCsvBtn").addEventListener("click", exportToCSV);
+    connectBtn.addEventListener("click", connectHR);
+    recordBtn.addEventListener("click", () => {
+        if (!recording) startRecording();
+        else stopRecording();
+    });
+    document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
     
+    // resize & scroll sync (keep Y-axis always sharp)
     window.addEventListener("resize", () => {
-        setTimeout(handleResize, 60);
+        setTimeout(() => {
+            redrawAll();
+            if (recording && scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
+        }, 30);
     });
     
-    // observer for wrapper size changes (when scroll appears/disappears)
-    if (window.ResizeObserver) {
-        resizeObserver = new ResizeObserver(() => drawGraph());
-        if (wrapper) resizeObserver.observe(wrapper);
-    }
-    
-    // initial draw (empty canvas)
-    drawGraph();
-    
-    // Additionally: when sliders move, we already call drawGraph via updateZoneLabel -> drawGraph.
-    // Ensure voice interval respects user changes.
-    
-    // Clear any stale speech on page unload
-    window.addEventListener("beforeunload", () => {
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
-    });
-    
-    // extra tooltip: on start recording without connect, show info
-    console.log("Ready: connect heart rate monitor, then press REC ON to log timeline");
+    // manual call after load
+    redrawAll();
 </script>
 </body>
 </html>
