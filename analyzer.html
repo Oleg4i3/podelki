@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Spectrum Analyzer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; height: 100dvh;
+  background: #dedad4;
+  color: #1a1714;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  user-select: none; -webkit-user-select: none;
+  display: flex; flex-direction: column;
+  overflow: hidden; padding: 8px; gap: 7px;
+}
+h2 { font-size: 10px; letter-spacing: 5px; color: #999; text-transform: uppercase; flex-shrink: 0; }
+.panel {
+  background: #f5f2ed;
+  border: 1.5px solid #c0bbb4;
+  padding: 9px 12px;
+  display: flex; flex-wrap: wrap;
+  gap: 9px; align-items: center;
+  flex-shrink: 0;
+}
+button {
+  padding: 9px 18px;
+  background: #fff; border: 1.5px solid #aaa;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  font-size: 13px; letter-spacing: 1px;
+  cursor: pointer; outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.08s, border-color 0.08s;
+}
+button:active { background: #eee; }
+button.active { background: #1a1714; color: #f5f2ed; border-color: #1a1714; }
+button.start { border-color: #116611; color: #116611; font-size: 14px; font-weight: bold; }
+button.start:active { background: #efe; }
+button.start.active { background: #116611; color: #fff; }
+button.reset { border-color: #aa2200; color: #aa2200; }
+button.reset:active { background: #fee; }
+button.tog { font-size: 11px; padding: 5px 11px; border-color: #ccc; color: #999; }
+button.tog.active { border-color: #888; color: #444; background: #eee; }
+#status { font-size: 11px; color: #999; }
+
+.legend { display: flex; gap: 16px; font-size: 10px; color: #888; flex-shrink: 0; padding: 0 2px; }
+.leg-line { display: inline-block; width: 24px; height: 2px; vertical-align: middle; margin-right: 4px; border-radius: 1px; }
+
+.canvas-wrap {
+  flex: 1; position: relative; min-height: 0;
+  border: 1.5px solid #c0bbb4; background: #fff;
+}
+canvas {
+  display: block; width: 100%; height: 100%;
+  position: absolute; top: 0; left: 0;
+  touch-action: none; cursor: crosshair;
+}
+#tooltip {
+  position: fixed; pointer-events: none;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #bbb; color: #222;
+  font-family: 'Courier New', monospace;
+  font-size: 11px; padding: 3px 9px;
+  opacity: 0; transition: opacity 0.1s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1); z-index: 10;
+}
+.sep { width: 1px; height: 28px; background: #d0ccc6; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h2>Cumulative Spectrum Analyzer</h2>
+
+<div class="panel">
+  <button class="start" id="btnMic" onclick="toggleMic()">⏺ START MIC</button>
+  <button class="reset" onclick="resetHold()">↺ RESET</button>
+  <div class="sep"></div>
+  <button class="tog active" id="btnHold"  onclick="toggle('showHold','btnHold')">hold</button>
+  <button class="tog active" id="btnCur"   onclick="toggle('showCur','btnCur')">current</button>
+  <button class="tog active" id="btnGhost" onclick="toggle('showGhost','btnGhost')">ghost</button>
+  <div class="sep"></div>
+  <button id="scaleBtn" onclick="toggleScale(this)">LOG Hz</button>
+  <span id="status">нажми START MIC</span>
+</div>
+
+<div class="legend">
+  <span><span class="leg-line" style="background:#bb1100;"></span>peak hold</span>
+  <span><span class="leg-line" style="background:#aaa;"></span>current frame</span>
+  <span><span class="leg-line" style="background:#cc8830; opacity:0.7;"></span>ghost (пред. сессия)</span>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="cv"></canvas>
+</div>
+<div id="tooltip"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let audioCtx, analyser, micStream;
+let running = false;
+let animId;
+let maxHold  = null;  // Float32Array, per canvas pixel
+let ghostHold= null;  // saved from previous session on reset
+let curFrame = null;  // current frame per pixel
+let frameCount = 0;
+let logScale = true;
+let showHold  = true;
+let showCur   = true;
+let showGhost = true;
+
+const canvas = document.getElementById('cv');
+const ctx    = canvas.getContext('2d');
+let W = 0, H = 0;
+
+// ─── Toggle helpers ───────────────────────────────────────────────────────────
+const flags = { showHold: true, showCur: true, showGhost: true };
+function toggle(flag, btnId) {
+  flags[flag] = !flags[flag];
+  document.getElementById(btnId).classList.toggle('active', flags[flag]);
+}
+
+function toggleScale(btn) {
+  logScale = !logScale;
+  btn.textContent = logScale ? 'LOG Hz' : 'LIN Hz';
+  btn.classList.toggle('active', !logScale);
+  // pixel arrays are scale-dependent — reset them
+  maxHold = ghostHold = curFrame = null;
+  frameCount = 0;
+  if (!running) drawIdle();
+}
+
+function resetHold() {
+  // save current peak as ghost, then clear
+  if (maxHold) ghostHold = Float32Array.from(maxHold);
+  if (maxHold) maxHold.fill(-140);
+  curFrame = null;
+  frameCount = 0;
+  document.getElementById('status').textContent = 'сброс · ghost сохранён';
+  if (!running) drawIdle();
+}
+
+// ─── Mic ──────────────────────────────────────────────────────────────────────
+async function toggleMic() { running ? stopMic() : await startMic(); }
+
+async function startMic() {
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
+      video: false
+    });
+  } catch(e) {
+    document.getElementById('status').textContent = '✗ нет доступа к микрофону';
+    return;
+  }
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 8192;
+  analyser.smoothingTimeConstant = 0.0; // no smoothing — we do our own max-hold
+  const src = audioCtx.createMediaStreamSource(micStream);
+  src.connect(analyser);
+  // NOT connected to destination → no mic monitoring through speaker
+
+  running = true; frameCount = 0;
+  const btn = document.getElementById('btnMic');
+  btn.textContent = '■ STOP MIC'; btn.classList.add('active');
+  document.getElementById('status').textContent = 'запись...';
+  drawLoop();
+}
+
+function stopMic() {
+  running = false;
+  cancelAnimationFrame(animId);
+  micStream&&micStream.getTracks().forEach(t=>t.stop());
+  try{audioCtx&&audioCtx.close();}catch(e){}
+  const btn = document.getElementById('btnMic');
+  btn.textContent = '⏺ START MIC'; btn.classList.remove('active');
+  document.getElementById('status').textContent = `остановлено · ${frameCount} кадров`;
+  drawIdle();
+}
+
+// ─── Canvas ────────────────────────────────────────────────────────────────────
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio||1;
+  const r = canvas.parentElement.getBoundingClientRect();
+  const nW = Math.round(r.width *dpr);
+  const nH = Math.round(r.height*dpr);
+  if(nW===W&&nH===H) return;
+  W=canvas.width=nW; H=canvas.height=nH;
+  // pixel-indexed arrays become invalid after resize
+  maxHold=ghostHold=curFrame=null;
+}
+
+function freqToX(f) {
+  if(logScale) return Math.log10(f/20)/Math.log10(1000)*W;
+  return (f-20)/(20000-20)*W;
+}
+function xToFreq(px) {
+  if(logScale) return 20*Math.pow(1000,px/W);
+  return 20+(px/W)*(20000-20);
+}
+function dbToY(db) { return H*(1-(Math.max(-140,Math.min(0,db))+140)/140); }
+
+const FREQS_LOG = [30,50,100,200,500,1000,2000,5000,10000,20000];
+const FREQS_LIN = [500,1000,2000,3000,5000,7000,10000,14000,18000,20000];
+const DBS_MAJOR = [-20,-40,-60,-80,-100,-120];
+const DBS_MINOR = [-10,-30,-50,-70,-90,-110,-130];
+
+function drawGrid() {
+  const dpr = window.devicePixelRatio||1;
+  ctx.font = `${Math.round(9*dpr)}px Courier New`;
+  ctx.lineWidth = 1;
+
+  // 0 dB
+  ctx.strokeStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.moveTo(0,dbToY(0)); ctx.lineTo(W,dbToY(0)); ctx.stroke();
+  ctx.fillStyle='#bbb'; ctx.fillText('0dB',3*dpr,dbToY(0)+10*dpr);
+
+  DBS_MAJOR.forEach(db=>{
+    const y=dbToY(db);
+    ctx.strokeStyle='rgba(0,0,0,0.14)';
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    ctx.fillStyle='#bbb'; ctx.fillText(db+'dB',3*dpr,y-2*dpr);
+  });
+  DBS_MINOR.forEach(db=>{
+    const y=dbToY(db);
+    ctx.strokeStyle='rgba(0,0,0,0.06)';
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  });
+
+  const freqs=logScale?FREQS_LOG:FREQS_LIN;
+  freqs.forEach(f=>{
+    const x=freqToX(f);
+    if(x<2||x>W-2) return;
+    ctx.strokeStyle='rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.fillStyle='#bbb';
+    ctx.fillText(f>=1000?(f/1000)+'k':''+f, x+2*dpr, H-3*dpr);
+  });
+}
+
+function drawTrace(arr, color, width, alpha) {
+  if(!arr||arr.length!==W) return;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  let first=true;
+  for(let px=0;px<W;px++) {
+    if(arr[px]<-138){first=true;continue;}
+    const y=dbToY(arr[px]);
+    first?ctx.moveTo(px,y):ctx.lineTo(px,y);
+    first=false;
+  }
+  ctx.stroke();
+  ctx.globalAlpha=1;
+}
+
+// ─── RAF draw loop ─────────────────────────────────────────────────────────────
+function drawLoop() {
+  if(!running) return;
+  animId = requestAnimationFrame(drawLoop);
+  resizeCanvas();
+
+  const sr=audioCtx.sampleRate;
+  const bufLen=analyser.frequencyBinCount;
+  const data=new Float32Array(bufLen);
+  analyser.getFloatFrequencyData(data);
+
+  // init or reinit maxHold
+  if(!maxHold||maxHold.length!==W) maxHold=new Float32Array(W).fill(-140);
+  if(!curFrame||curFrame.length!==W) curFrame=new Float32Array(W).fill(-140);
+
+  // map FFT → per-pixel max hold and current frame
+  for(let px=0;px<W;px++) {
+    const f=xToFreq(px);
+    if(f<18||f>sr/2){curFrame[px]=-140;continue;}
+    const bin=Math.min(Math.round(f/(sr/2)*bufLen),bufLen-1);
+    const db=data[bin];
+    curFrame[px]=db;
+    if(db>maxHold[px]) maxHold[px]=db;
+  }
+
+  frameCount++;
+  if(frameCount%30===0)
+    document.getElementById('status').textContent=`кадров: ${frameCount}`;
+
+  // ── Render ──
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  drawGrid();
+
+  if(flags.showGhost && ghostHold) drawTrace(ghostHold,'#cc8830',1.2,0.40);
+  if(flags.showCur   && curFrame)  drawTrace(curFrame, '#999999',1.0,0.60);
+  if(flags.showHold  && maxHold)   drawTrace(maxHold,  '#bb1100',1.8,1.00);
+}
+
+function drawIdle() {
+  resizeCanvas();
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  drawGrid();
+  if(flags.showGhost&&ghostHold) drawTrace(ghostHold,'#cc8830',1.2,0.40);
+  if(flags.showHold &&maxHold)   drawTrace(maxHold,  '#bb1100',1.6,0.75);
+}
+
+// ─── Tooltip: frequency + dB under cursor ────────────────────────────────────
+const tooltip=document.getElementById('tooltip');
+
+function showTip(cx,cy,normX) {
+  const px=Math.max(0,Math.min(W-1,Math.round(normX*W)));
+  const f=xToFreq(px);
+  const flbl=f>=1000?(f/1000).toFixed(2)+' kHz':Math.round(f)+' Hz';
+  let dblbl='';
+  if(maxHold&&maxHold[px]>-138) dblbl='  '+maxHold[px].toFixed(1)+' dB';
+  tooltip.textContent=flbl+dblbl;
+  tooltip.style.left=(cx+14)+'px'; tooltip.style.top=(cy-22)+'px';
+  tooltip.style.opacity='1';
+}
+
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  showTip(e.clientX,e.clientY,(e.clientX-r.left)/r.width);
+});
+canvas.addEventListener('mouseleave',()=>tooltip.style.opacity='0');
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  const r=canvas.getBoundingClientRect();
+  showTip(t.clientX,t.clientY,(t.clientX-r.left)/r.width);
+},{passive:false});
+canvas.addEventListener('touchend',()=>tooltip.style.opacity='0');
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{resizeCanvas();if(!running)drawIdle();});
+requestAnimationFrame(()=>{resizeCanvas();drawIdle();});
+</script>
+</body>
+</html>

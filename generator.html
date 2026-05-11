@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Generator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #dedad4;
+  color: #1a1714;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  padding: 10px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+h2 { font-size: 10px; letter-spacing: 5px; color: #999; text-transform: uppercase; }
+.panel {
+  background: #f5f2ed;
+  border: 1.5px solid #c0bbb4;
+  padding: 9px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+button {
+  padding: 9px 20px;
+  background: #fff;
+  border: 1.5px solid #aaa;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.08s, border-color 0.08s;
+}
+button:hover { border-color: #555; }
+button.active { background: #1a1714; color: #f5f2ed; border-color: #1a1714; }
+button.play { border-color: #114db5; color: #114db5; font-weight: bold; font-size: 14px; }
+button.play:hover { background: #eef1fb; }
+button.play.active { background: #114db5; color: #fff; }
+label.field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
+input[type=range] { accent-color: #114db5; }
+input[type=number] {
+  width: 72px; padding: 5px 7px;
+  border: 1.5px solid #bbb;
+  background: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #222;
+  -moz-appearance: textfield;
+}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { display: none; }
+input[type=checkbox] { accent-color: #114db5; width: 15px; height: 15px; }
+#volSlider { width: 120px; }
+#sinePanel { display: none; }
+#manualPanel { display: none; }
+#manualSlider { flex: 1; height: 32px; accent-color: #114db5; cursor: pointer; min-width: 200px; }
+#curFreq { font-size: 17px; font-weight: bold; min-width: 110px; text-align: right; color: #114db5; }
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 200px;
+  border: 1.5px solid #c0bbb4;
+  background: #fff;
+}
+canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; cursor: crosshair; }
+#tooltip {
+  position: fixed; pointer-events: none;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #bbb;
+  color: #222;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  padding: 3px 9px;
+  opacity: 0;
+  transition: opacity 0.1s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.sep { width: 1px; height: 28px; background: #d0ccc6; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h2>▶ Signal Generator</h2>
+
+<div class="panel">
+  <button id="bw" class="active" onclick="setType('white',this)">WHITE</button>
+  <button id="bp" onclick="setType('pink',this)">PINK</button>
+  <button id="bs" onclick="setType('sine',this)">SINE ∿</button>
+  <div class="sep"></div>
+  <label class="field">VOL
+    <input type="range" id="volSlider" min="0" max="1" step="0.01" value="0.25"
+           oninput="setGain(this.value)">
+    <span id="volPct">25 %</span>
+  </label>
+  <div class="sep"></div>
+  <button id="scaleBtn" onclick="toggleScale(this)">LOG Hz</button>
+  <button class="play" id="btnPlay" onclick="togglePlay()">▶ PLAY</button>
+</div>
+
+<div class="panel" id="sinePanel">
+  <label class="field">F1 <input type="number" id="f1" value="100" min="20" max="20000"> Hz</label>
+  <label class="field">F2 <input type="number" id="f2" value="8000" min="20" max="20000"> Hz</label>
+  <label class="field">скорость <input type="number" id="sweepSpd" value="0.5" min="0.01" max="20" step="0.05"> окт/с</label>
+  <label class="field"><input type="checkbox" id="chkLoop" checked> loop</label>
+  <span id="curFreq">—</span>
+</div>
+
+<div class="panel" id="manualPanel" style="flex-direction:column; align-items:stretch; gap:5px;">
+  <span style="font-size:11px; color:#888; letter-spacing:1px;">MANUAL FREQ &nbsp;&nbsp; 20 Hz ─────────────────────────────── 20 kHz</span>
+  <input type="range" id="manualSlider" min="0" max="10000" value="0">
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="cv"></canvas>
+</div>
+<div id="tooltip"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let audioCtx, gainNode, analyser, scriptNode, oscNode;
+let playing = false;
+let noiseType = 'white';
+let animId;
+let logScale = true;
+let draggingManual = false;
+
+// Pink noise (Paul Kellett)
+let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+
+// Sine sweep state (log2 domain)
+let sweepLogFreq = Math.log2(100);
+let sweepDir = 1;
+let lastT = 0;
+
+const canvas = document.getElementById('cv');
+const ctx2 = canvas.getContext('2d');
+let W = 0, H = 0;
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+function setType(t, btn) {
+  noiseType = t;
+  ['bw','bp','bs'].forEach(id => document.getElementById(id).classList.remove('active'));
+  btn.classList.add('active');
+  const isSine = t === 'sine';
+  document.getElementById('sinePanel').style.display  = isSine ? 'flex' : 'none';
+  document.getElementById('manualPanel').style.display = isSine ? 'flex' : 'none';
+  if (playing) { stopAudio(); startAudio(); }
+}
+
+function setGain(v) {
+  document.getElementById('volPct').textContent = Math.round(v*100) + ' %';
+  if (gainNode) gainNode.gain.setTargetAtTime(+v, audioCtx.currentTime, 0.01);
+}
+
+function toggleScale(btn) {
+  logScale = !logScale;
+  btn.textContent = logScale ? 'LOG Hz' : 'LIN Hz';
+  btn.classList.toggle('active', !logScale);
+  if (!playing) drawIdle();
+}
+
+// ─── Manual slider: log-mapped 20..20000 Hz ───────────────────────────────────
+const manualSlider = document.getElementById('manualSlider');
+
+function sliderToLogFreq(v) { return Math.log2(20) + (v/10000)*(Math.log2(20000)-Math.log2(20)); }
+function logFreqToSlider(lf) { return (lf-Math.log2(20))/(Math.log2(20000)-Math.log2(20))*10000; }
+
+manualSlider.addEventListener('mousedown',  () => draggingManual = true);
+manualSlider.addEventListener('touchstart', () => draggingManual = true, {passive:true});
+window.addEventListener('mouseup',  () => draggingManual = false);
+window.addEventListener('touchend', () => draggingManual = false);
+
+manualSlider.addEventListener('input', () => {
+  sweepLogFreq = sliderToLogFreq(+manualSlider.value);
+  const f = Math.pow(2, sweepLogFreq);
+  if (oscNode) oscNode.frequency.setValueAtTime(f, audioCtx.currentTime);
+  updateFreqDisplay(f);
+});
+
+function updateFreqDisplay(f) {
+  const lbl = f >= 1000 ? (f/1000).toFixed(2)+' kHz' : Math.round(f)+' Hz';
+  document.getElementById('curFreq').textContent = lbl;
+}
+
+// ─── Audio start/stop ─────────────────────────────────────────────────────────
+function togglePlay() { playing ? stopAudio() : startAudio(); }
+
+async function startAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.75;
+
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = +document.getElementById('volSlider').value;
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  if (noiseType === 'sine') startSineSource();
+  else startNoiseSource();
+
+  playing = true; // ← must be set BEFORE drawLoop to avoid sweep bug
+  lastT = performance.now();
+
+  const btn = document.getElementById('btnPlay');
+  btn.textContent = '■ STOP';
+  btn.classList.add('active');
+  drawLoop();
+}
+
+function startNoiseSource() {
+  b0=b1=b2=b3=b4=b5=b6=0;
+  scriptNode = audioCtx.createScriptProcessor(4096, 0, 1);
+  scriptNode.onaudioprocess = e => {
+    const out = e.outputBuffer.getChannelData(0);
+    if (noiseType === 'white') {
+      for (let i=0;i<out.length;i++) out[i] = (Math.random()*2-1)*0.7;
+    } else {
+      for (let i=0;i<out.length;i++) {
+        const w = Math.random()*2-1;
+        b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+        b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+        b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+        out[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.105;
+        b6=w*0.115926;
+      }
+    }
+  };
+  scriptNode.connect(gainNode);
+}
+
+function startSineSource() {
+  const f1 = Math.max(20, +document.getElementById('f1').value || 100);
+  sweepLogFreq = Math.log2(f1);
+  sweepDir = 1;
+  oscNode = audioCtx.createOscillator();
+  oscNode.type = 'sine';
+  oscNode.frequency.value = f1;
+  oscNode.connect(gainNode);
+  oscNode.start();
+  updateFreqDisplay(f1);
+  manualSlider.value = logFreqToSlider(sweepLogFreq);
+}
+
+function stopAudio() {
+  playing = false;
+  cancelAnimationFrame(animId);
+  if (scriptNode) { try{scriptNode.disconnect();}catch(e){} scriptNode=null; }
+  if (oscNode) { try{oscNode.stop();oscNode.disconnect();}catch(e){} oscNode=null; }
+  try{gainNode&&gainNode.disconnect();}catch(e){}
+  try{analyser&&analyser.disconnect();}catch(e){}
+  try{audioCtx&&audioCtx.close();}catch(e){}
+  const btn = document.getElementById('btnPlay');
+  btn.textContent = '▶ PLAY';
+  btn.classList.remove('active');
+  document.getElementById('curFreq').textContent = '—';
+  drawIdle();
+}
+
+// ─── Canvas coords ────────────────────────────────────────────────────────────
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio||1;
+  const r = canvas.parentElement.getBoundingClientRect();
+  W = canvas.width  = Math.round(r.width *dpr);
+  H = canvas.height = Math.round(r.height*dpr);
+}
+
+function freqToX(f) {
+  if (logScale) return Math.log10(f/20)/Math.log10(1000)*W;
+  return (f-20)/(20000-20)*W;
+}
+function xToFreq(px) {
+  if (logScale) return 20*Math.pow(1000, px/W);
+  return 20+(px/W)*(20000-20);
+}
+function dbToY(db) { return H*(1-(Math.max(-120,Math.min(0,db))+120)/120); }
+
+// ISO octave-band center frequencies — equal visual spacing on log scale (~10% W each)
+const FREQS_LOG = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const FREQS_LIN = [500, 1000, 2000, 3000, 5000, 7000, 10000, 14000, 18000, 20000];
+const DBS_MAJOR = [-20,-40,-60,-80,-100];
+const DBS_MINOR = [-10,-30,-50,-70,-90,-110];
+
+function freqLabel(f) {
+  if (f >= 1000) return (f/1000 % 1 === 0 ? f/1000 : (f/1000).toFixed(1)) + 'k';
+  return '' + (f % 1 === 0 ? f : f.toFixed(1));
+}
+
+function drawGrid() {
+  const dpr = window.devicePixelRatio||1;
+  ctx2.font = `${Math.round(9.5*dpr)}px Courier New`;
+  ctx2.lineWidth = 1;
+
+  // 0 dB
+  const y0 = dbToY(0);
+  ctx2.strokeStyle='rgba(0,0,0,0.40)';
+  ctx2.beginPath(); ctx2.moveTo(0,y0); ctx2.lineTo(W,y0); ctx2.stroke();
+  ctx2.fillStyle='#555'; ctx2.fillText('0 dB',3*dpr,y0+10*dpr);
+
+  DBS_MAJOR.forEach(db=>{
+    const y=dbToY(db);
+    ctx2.strokeStyle='rgba(0,0,0,0.30)';
+    ctx2.beginPath(); ctx2.moveTo(0,y); ctx2.lineTo(W,y); ctx2.stroke();
+    ctx2.fillStyle='#555'; ctx2.fillText(db+'dB',3*dpr,y-2*dpr);
+  });
+  DBS_MINOR.forEach(db=>{
+    const y=dbToY(db);
+    ctx2.strokeStyle='rgba(0,0,0,0.12)';
+    ctx2.beginPath(); ctx2.moveTo(0,y); ctx2.lineTo(W,y); ctx2.stroke();
+  });
+
+  const freqs = logScale ? FREQS_LOG : FREQS_LIN;
+  freqs.forEach(f=>{
+    const x=freqToX(f);
+    if(x<2||x>W-2) return;
+    ctx2.strokeStyle='rgba(0,0,0,0.28)';
+    ctx2.beginPath(); ctx2.moveTo(x,0); ctx2.lineTo(x,H); ctx2.stroke();
+    ctx2.fillStyle='#555';
+    ctx2.fillText(freqLabel(f), x+2*dpr, H-3*dpr);
+  });
+}
+
+function drawSpectrum(data, sr) {
+  const bufLen=data.length;
+  const pts=[];
+  for (let px=0;px<=W;px++) {
+    const f=xToFreq(px);
+    if(f<18||f>sr/2) continue;
+    const bin=Math.min(Math.round(f/(sr/2)*bufLen),bufLen-1);
+    pts.push([px, dbToY(data[bin])]);
+  }
+  if(pts.length<2) return;
+
+  // fill under curve
+  ctx2.beginPath();
+  ctx2.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx2.lineTo(pts[i][0],pts[i][1]);
+  ctx2.lineTo(pts[pts.length-1][0],H); ctx2.lineTo(pts[0][0],H);
+  ctx2.closePath();
+  ctx2.fillStyle='rgba(17,77,181,0.07)'; ctx2.fill();
+
+  // line
+  ctx2.beginPath();
+  ctx2.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx2.lineTo(pts[i][0],pts[i][1]);
+  ctx2.strokeStyle='#114db5'; ctx2.lineWidth=1.8; ctx2.stroke();
+
+  // current freq marker (sine)
+  if(noiseType==='sine'&&oscNode) {
+    const f=Math.pow(2,sweepLogFreq);
+    const x=freqToX(f);
+    if(x>=0&&x<=W){
+      ctx2.strokeStyle='rgba(200,60,0,0.55)'; ctx2.lineWidth=1;
+      ctx2.setLineDash([4,4]);
+      ctx2.beginPath(); ctx2.moveTo(x,0); ctx2.lineTo(x,H); ctx2.stroke();
+      ctx2.setLineDash([]);
+    }
+  }
+}
+
+// ─── RAF loop ─────────────────────────────────────────────────────────────────
+function drawLoop() {
+  if(!playing) return;
+  animId = requestAnimationFrame(drawLoop);
+
+  const now = performance.now();
+  const dt  = Math.min((now-lastT)/1000, 0.1);
+  lastT = now;
+
+  // Glissando sweep (logarithmic: operates in log2 space = octaves)
+  if(noiseType==='sine'&&oscNode&&!draggingManual) {
+    const f1  = Math.max(20,  +document.getElementById('f1').value||100);
+    const f2  = Math.min(20000,+document.getElementById('f2').value||8000);
+    const spd = Math.max(0.01,+document.getElementById('sweepSpd').value||0.5);
+    const loop= document.getElementById('chkLoop').checked;
+    const lf1 = Math.log2(f1);
+    const lf2 = Math.log2(Math.max(f2, f1+0.1));
+
+    sweepLogFreq += sweepDir * spd * dt; // octaves per second in log2 domain
+
+    if(sweepDir>0&&sweepLogFreq>=lf2) {
+      sweepLogFreq=lf2;
+      if(loop) sweepDir=-1; else { sweepLogFreq=lf1; sweepDir=1; }
+    } else if(sweepDir<0&&sweepLogFreq<=lf1) {
+      sweepLogFreq=lf1; sweepDir=1;
+    }
+
+    oscNode.frequency.setValueAtTime(Math.pow(2,sweepLogFreq), audioCtx.currentTime);
+    updateFreqDisplay(Math.pow(2,sweepLogFreq));
+    manualSlider.value = logFreqToSlider(sweepLogFreq);
+  }
+
+  const data=new Float32Array(analyser.frequencyBinCount);
+  analyser.getFloatFrequencyData(data);
+
+  ctx2.fillStyle='#fff'; ctx2.fillRect(0,0,W,H);
+  drawGrid();
+  drawSpectrum(data, audioCtx.sampleRate);
+}
+
+function drawIdle() {
+  resizeCanvas();
+  ctx2.fillStyle='#fff'; ctx2.fillRect(0,0,W,H);
+  drawGrid();
+}
+
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+const tooltip=document.getElementById('tooltip');
+canvas.addEventListener('mousemove', e=>{
+  const r=canvas.getBoundingClientRect();
+  const f=xToFreq((e.clientX-r.left)/r.width*W);
+  if(f<18||f>22000){tooltip.style.opacity='0';return;}
+  tooltip.textContent=(f>=1000?(f/1000).toFixed(2)+' kHz':Math.round(f)+' Hz');
+  tooltip.style.left=(e.clientX+12)+'px'; tooltip.style.top=(e.clientY-22)+'px';
+  tooltip.style.opacity='1';
+});
+canvas.addEventListener('mouseleave',()=>tooltip.style.opacity='0');
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{resizeCanvas();if(!playing) drawIdle();});
+requestAnimationFrame(()=>{resizeCanvas();drawIdle();});
+</script>
+</body>
+</html>
