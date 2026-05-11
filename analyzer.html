@@ -69,6 +69,16 @@ canvas {
   box-shadow: 0 1px 4px rgba(0,0,0,0.1); z-index: 10;
 }
 .sep { width: 1px; height: 28px; background: #d0ccc6; flex-shrink: 0; }
+select#micSelect {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #333; background: #fff;
+  border: 1.5px solid #aaa;
+  padding: 6px 8px;
+  outline: none;
+  max-width: 220px;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -85,6 +95,12 @@ canvas {
   <div class="sep"></div>
   <button id="scaleBtn" onclick="toggleScale(this)">LOG Hz</button>
   <span id="status">нажми START MIC</span>
+</div>
+
+<div class="panel" style="gap:8px; align-items:center;">
+  <span style="font-size:11px;color:#888;letter-spacing:1px;white-space:nowrap;">МИК:</span>
+  <select id="micSelect"><option value="">— нажми START для сканирования —</option></select>
+  <span id="micHint" style="font-size:10px;color:#aaa;"></span>
 </div>
 
 <div class="legend">
@@ -143,18 +159,55 @@ function resetHold() {
   if (!running) drawIdle();
 }
 
+// ─── Device enumeration ───────────────────────────────────────────────────────
+async function populateMicList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    const sel = document.getElementById('micSelect');
+    sel.innerHTML = '';
+    mics.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Microphone ${i+1}`;
+      sel.appendChild(opt);
+    });
+    document.getElementById('micHint').textContent =
+      mics.length > 1 ? `${mics.length} устройств найдено` : '';
+  } catch(e) {}
+}
+
 // ─── Mic ──────────────────────────────────────────────────────────────────────
 async function toggleMic() { running ? stopMic() : await startMic(); }
 
 async function startMic() {
+  const deviceId = document.getElementById('micSelect').value;
+  const audioConstraints = {
+    echoCancellation:    false,
+    noiseSuppression:    false,
+    autoGainControl:     false,
+    googEchoCancellation:  false,
+    googNoiseSuppression:  false,
+    googAutoGainControl:   false,
+    googHighpassFilter:    false,
+  };
+  if (deviceId) audioConstraints.deviceId = { exact: deviceId };
+
   try {
     micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
-      video: false
+      audio: audioConstraints, video: false
     });
   } catch(e) {
     document.getElementById('status').textContent = '✗ нет доступа к микрофону';
     return;
+  }
+  // after permission granted, labels become available — repopulate
+  await populateMicList();
+  // re-select the device we just opened
+  const track = micStream.getAudioTracks()[0];
+  if (track) {
+    const settings = track.getSettings();
+    if (settings.deviceId) document.getElementById('micSelect').value = settings.deviceId;
   }
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   if(audioCtx.state==='suspended') await audioCtx.resume();
@@ -205,30 +258,36 @@ function xToFreq(px) {
 }
 function dbToY(db) { return H*(1-(Math.max(-140,Math.min(0,db))+140)/140); }
 
-const FREQS_LOG = [30,50,100,200,500,1000,2000,5000,10000,20000];
-const FREQS_LIN = [500,1000,2000,3000,5000,7000,10000,14000,18000,20000];
+// ISO octave-band center frequencies — equal visual spacing on log scale (~10% W each)
+const FREQS_LOG = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const FREQS_LIN = [500, 1000, 2000, 3000, 5000, 7000, 10000, 14000, 18000, 20000];
 const DBS_MAJOR = [-20,-40,-60,-80,-100,-120];
 const DBS_MINOR = [-10,-30,-50,-70,-90,-110,-130];
 
+function freqLabel(f) {
+  if (f >= 1000) return (f/1000 % 1 === 0 ? f/1000 : (f/1000).toFixed(1)) + 'k';
+  return '' + (f % 1 === 0 ? f : f.toFixed(1));
+}
+
 function drawGrid() {
   const dpr = window.devicePixelRatio||1;
-  ctx.font = `${Math.round(9*dpr)}px Courier New`;
+  ctx.font = `${Math.round(9.5*dpr)}px Courier New`;
   ctx.lineWidth = 1;
 
   // 0 dB
-  ctx.strokeStyle='rgba(0,0,0,0.22)';
+  ctx.strokeStyle='rgba(0,0,0,0.40)';
   ctx.beginPath(); ctx.moveTo(0,dbToY(0)); ctx.lineTo(W,dbToY(0)); ctx.stroke();
-  ctx.fillStyle='#bbb'; ctx.fillText('0dB',3*dpr,dbToY(0)+10*dpr);
+  ctx.fillStyle='#444'; ctx.fillText('0dB',3*dpr,dbToY(0)+10*dpr);
 
   DBS_MAJOR.forEach(db=>{
     const y=dbToY(db);
-    ctx.strokeStyle='rgba(0,0,0,0.14)';
+    ctx.strokeStyle='rgba(0,0,0,0.30)';
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-    ctx.fillStyle='#bbb'; ctx.fillText(db+'dB',3*dpr,y-2*dpr);
+    ctx.fillStyle='#444'; ctx.fillText(db+'dB',3*dpr,y-2*dpr);
   });
   DBS_MINOR.forEach(db=>{
     const y=dbToY(db);
-    ctx.strokeStyle='rgba(0,0,0,0.06)';
+    ctx.strokeStyle='rgba(0,0,0,0.12)';
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
   });
 
@@ -236,11 +295,21 @@ function drawGrid() {
   freqs.forEach(f=>{
     const x=freqToX(f);
     if(x<2||x>W-2) return;
-    ctx.strokeStyle='rgba(0,0,0,0.12)';
+    ctx.strokeStyle='rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
-    ctx.fillStyle='#bbb';
-    ctx.fillText(f>=1000?(f/1000)+'k':''+f, x+2*dpr, H-3*dpr);
+    ctx.fillStyle='#444';
+    ctx.fillText(freqLabel(f), x+2*dpr, H-3*dpr);
   });
+}
+
+// ±2 bin max — eliminates picket-fence artifact for narrow peaks
+function binMax(data, bin, bufLen) {
+  let v = -200;
+  for (let d=-2; d<=2; d++) {
+    const b = bin+d;
+    if (b>=0&&b<bufLen&&data[b]>v) v=data[b];
+  }
+  return v;
 }
 
 function drawTrace(arr, color, width, alpha) {
@@ -279,7 +348,7 @@ function drawLoop() {
     const f=xToFreq(px);
     if(f<18||f>sr/2){curFrame[px]=-140;continue;}
     const bin=Math.min(Math.round(f/(sr/2)*bufLen),bufLen-1);
-    const db=data[bin];
+    const db=binMax(data,bin,bufLen);
     curFrame[px]=db;
     if(db>maxHold[px]) maxHold[px]=db;
   }

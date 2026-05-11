@@ -332,6 +332,15 @@ function drawGrid() {
   });
 }
 
+function binMax(data, bin, bufLen) {
+  let v = -200;
+  for (let d=-2; d<=2; d++) {
+    const b = bin+d;
+    if (b>=0&&b<bufLen&&data[b]>v) v=data[b];
+  }
+  return v;
+}
+
 function drawSpectrum(data, sr) {
   const bufLen=data.length;
   const pts=[];
@@ -339,7 +348,7 @@ function drawSpectrum(data, sr) {
     const f=xToFreq(px);
     if(f<18||f>sr/2) continue;
     const bin=Math.min(Math.round(f/(sr/2)*bufLen),bufLen-1);
-    pts.push([px, dbToY(data[bin])]);
+    pts.push([px, dbToY(binMax(data,bin,bufLen))]);
   }
   if(pts.length<2) return;
 
