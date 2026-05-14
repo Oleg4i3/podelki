@@ -243,21 +243,88 @@ function drawKeyboard(pm) {
   const top = wfH;
   ctx.fillStyle = '#e8eaf0'; ctx.fillRect(0, top, CANVAS_W, KB_H);
   ctx.fillStyle = '#222'; ctx.fillRect(0, top, CANVAS_W, 2);
+
+  // 1. Отрисовка белых клавиш (с расширением под черные)
   for (let k = 0; k < N_KEYS; k++) {
     if (isBlack(k)) continue;
-    const x = k * COL_W, lit = pm[k], g = ctx.createLinearGradient(0, top+2, 0, top+KB_H);
-    if (lit) { g.addColorStop(0, `hsl(${NOTE_HUE[(MIDI_A0+k)%12]},90%,72%)`); g.addColorStop(1, `hsl(${NOTE_HUE[(MIDI_A0+k)%12]},90%,58%)`); }
-    else { g.addColorStop(0, '#f8f9fc'); g.addColorStop(1, '#d4d8e5'); }
-    ctx.fillStyle = g; ctx.fillRect(x+1, top+2, COL_W-1, KB_H-3);
-    ctx.fillStyle = lit ? `hsl(${NOTE_HUE[(MIDI_A0+k)%12]},60%,50%)` : '#aab0c0'; ctx.fillRect(x + COL_W - 1, top+2, 1, KB_H-3);
+    
+    let x = k * COL_W;
+    let w = COL_W;
+    
+    // Расширяем влево на половину колонки, если слева черная клавиша
+    if (k > 0 && isBlack(k - 1)) {
+      x -= COL_W / 2;
+      w += COL_W / 2;
+    }
+    // Расширяем вправо на половину колонки, если справа черная клавиша
+    if (k < N_KEYS - 1 && isBlack(k + 1)) {
+      w += COL_W / 2;
+    }
+
+    const lit = pm[k];
+    const pc = (MIDI_A0 + k) % 12;
+    const hue = NOTE_HUE[pc];
+    
+    const g = ctx.createLinearGradient(0, top + 2, 0, top + KB_H);
+    if (lit) { 
+      g.addColorStop(0, `hsl(${hue},90%,72%)`); 
+      g.addColorStop(1, `hsl(${hue},90%,58%)`); 
+    } else { 
+      g.addColorStop(0, '#ffffff'); 
+      g.addColorStop(1, '#d4d8e5'); 
+    }
+    
+    ctx.fillStyle = g; 
+    ctx.fillRect(x + 1, top + 2, w - 1, KB_H - 3);
+    
+    // Темная разделительная полоса между соседними белыми клавишами (E-F, B-C)
+    ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0'; 
+    ctx.fillRect(x + w - 1, top + 2, 1, KB_H - 3);
+
+    // Подписи нот 'C' (До) центрируем по новой ширине белой клавиши
+    if (pc === 0) { 
+      ctx.fillStyle = lit ? '#fff' : '#778899';
+      ctx.textAlign = 'center'; 
+      ctx.textBaseline = 'bottom'; 
+      ctx.font = 'bold 9px sans-serif'; 
+      ctx.fillText(midi2name(MIDI_A0 + k), x + w / 2, top + KB_H - 4);
+    }
   }
-  const BK_H = Math.round(KB_H * 0.6), BK_W = Math.round(COL_W * 0.65), BK_OX = Math.floor((COL_W - BK_W) / 2);
+
+  // 2. Отрисовка черных клавиш (поверх сплошных белых)
+  const BK_H = Math.round(KB_H * 0.65);  // Черные клавиши занимают 65% высоты
+  const BK_W = Math.round(COL_W * 0.75); // Чуть шире для красоты перекрытия
+  const BK_OX = Math.floor((COL_W - BK_W) / 2); // Центрирование по сетке
+
   for (let k = 0; k < N_KEYS; k++) {
     if (!isBlack(k)) continue;
-    const x = k * COL_W + BK_OX, y = top + 2, lit = pm[k], g = ctx.createLinearGradient(0, y, 0, y+BK_H);
-    if (lit) { g.addColorStop(0, `hsl(${NOTE_HUE[(MIDI_A0+k)%12]},100%,40%)`); g.addColorStop(1, `hsl(${NOTE_HUE[(MIDI_A0+k)%12]},100%,38%)`); }
-    else { g.addColorStop(0, '#3a3c4c'); g.addColorStop(1, '#12131c'); }
-    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, BK_W, BK_H, [0,0,3,3]); ctx.fill();
+    
+    const x = k * COL_W + BK_OX;
+    const y = top + 2;
+    const lit = pm[k];
+    const pc = (MIDI_A0 + k) % 12;
+    const hue = NOTE_HUE[pc];
+    
+    const g = ctx.createLinearGradient(0, y, 0, y + BK_H);
+    if (lit) { 
+      g.addColorStop(0, `hsl(${hue},100%,45%)`); 
+      g.addColorStop(1, `hsl(${hue},100%,25%)`); 
+    } else { 
+      g.addColorStop(0, '#3a3c4c'); 
+      g.addColorStop(1, '#050505'); 
+    }
+    
+    ctx.fillStyle = g; 
+    ctx.beginPath(); 
+    // Скругляем только нижние углы черной клавиши
+    ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 4, 4]); 
+    ctx.fill();
+    
+    // Добавляем красивый блик для объема не нажатой черной клавише
+    if (!lit) {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85);
+    }
   }
 }
 
