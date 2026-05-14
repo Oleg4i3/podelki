@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piano Spectrum Analyzer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #04040b;
+    color: #00bbdd;
+    font-family: 'Courier New', Courier, monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Header bar ── */
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 7px 16px;
+    background: #06060f;
+    border-bottom: 1px solid #00224466;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  #header h1 {
+    font-size: 11px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #008baa;
+    white-space: nowrap;
+  }
+
+  .ctrl {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #005566;
+    white-space: nowrap;
+  }
+
+  .ctrl span { color: #007799; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 72px;
+    height: 3px;
+    background: #002233;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 14px;
+    background: #00bbdd;
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 10px; height: 14px;
+    background: #00bbdd;
+    border: none;
+    cursor: pointer;
+  }
+
+  #startBtn {
+    border: 1px solid #00bbdd44;
+    background: transparent;
+    color: #009bbb;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 3px;
+    padding: 4px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  #startBtn:hover { background: #00bbdd18; border-color: #00bbdd99; color: #00ccee; }
+  #startBtn.running {
+    color: #00ee88;
+    border-color: #00ee8866;
+    background: #00ee8811;
+  }
+
+  /* ── Peaks bar ── */
+  #peaks-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 14px;
+    background: #030308;
+    border-bottom: 1px solid #00111a;
+    flex-shrink: 0;
+    min-height: 26px;
+  }
+
+  .peak-tag {
+    background: #cc5500;
+    color: #ffe8c0;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 1px 8px 2px;
+    letter-spacing: 1px;
+    position: relative;
+  }
+  .peak-tag::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, #ff880033, transparent);
+    pointer-events: none;
+  }
+
+  .peak-hz {
+    font-weight: normal;
+    font-size: 9px;
+    opacity: 0.6;
+    letter-spacing: 0;
+  }
+
+  #no-signal {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: #002233;
+    text-transform: uppercase;
+  }
+
+  /* ── Canvas area ── */
+  #canvas-wrap {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: relative;
+    scrollbar-color: #002233 #04040b;
+    scrollbar-width: thin;
+  }
+
+  #mainCanvas {
+    display: block;
+    cursor: crosshair;
+  }
+
+  /* ── Tooltip ── */
+  #tooltip {
+    position: fixed;
+    background: #000c18ee;
+    border: 1px solid #00bbdd44;
+    color: #00ccee;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    pointer-events: none;
+    display: none;
+    z-index: 99;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>◼ PIANO SPECTRUM</h1>
+  <button id="startBtn">▶ START</button>
+
+  <div class="ctrl">
+    SENS&nbsp;<span id="gainVal">2.5×</span>
+    <input type="range" id="gainCtrl" min="0.5" max="10" step="0.5" value="2.5">
+  </div>
+
+  <div class="ctrl">
+    RATE&nbsp;<span id="rateVal">25/s</span>
+    <input type="range" id="rateCtrl" min="3" max="80" step="1" value="25">
+  </div>
+
+  <div class="ctrl">
+    SMOOTH&nbsp;<span id="smVal">0.75</span>
+    <input type="range" id="smCtrl" min="0" max="0.95" step="0.05" value="0.75">
+  </div>
+
+  <div class="ctrl">
+    PEAKS&nbsp;
+    <span id="peakThreshVal">8%</span>
+    <input type="range" id="peakThreshCtrl" min="2" max="40" step="1" value="8">
+  </div>
+</div>
+
+<div id="peaks-bar">
+  <span id="no-signal">NO SIGNAL</span>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="mainCanvas"></canvas>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════
+
+const MIDI_A0   = 21;   // lowest piano key
+const NUM_KEYS  = 88;   // A0 … C8
+const COL_W     = 10;   // px per semitone column
+const KB_H      = 82;   // keyboard section height
+const CANVAS_W  = NUM_KEYS * COL_W;   // 880px
+const FFT_SIZE  = 16384;
+const MAX_PEAKS = 5;
+
+// Note names starting from C (standard MIDI convention)
+const NOTE_C = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Black key flags, indexed mod 12 from A (A=0)
+// A  A# B  C  C# D  D# E  F  F# G  G#
+// 0  1  2  3  4  5  6  7  8  9  10 11
+const BLACK_MOD = new Set([1, 4, 6, 9, 11]);
+const isBlack   = k => BLACK_MOD.has(k % 12);
+
+function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+function midiToName(midi) {
+  return NOTE_C[midi % 12] + (Math.floor(midi / 12) - 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+
+let audioCtx, analyser, semMap;
+let isRunning  = false;
+
+let gain        = 2.5;
+let rowMs       = 1000 / 25;
+let smoothing   = 0.75;
+let peakThresh  = 0.08;
+
+// ═══════════════════════════════════════════════════════════════════
+//  CANVAS
+// ═══════════════════════════════════════════════════════════════════
+
+const canvas  = document.getElementById('mainCanvas');
+const ctx     = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
+let wfHeight  = 0;
+let wfData    = null;  // ImageData for waterfall section
+
+function initCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const h    = wrap.clientHeight;
+
+  canvas.width  = CANVAS_W;
+  canvas.height = h;
+  wfHeight      = Math.max(60, h - KB_H);
+
+  // Allocate waterfall image data — fill opaque deep-blue-black
+  wfData = new ImageData(CANVAS_W, wfHeight);
+  const d = wfData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]=2; d[i+1]=4; d[i+2]=14; d[i+3]=255;
+  }
+
+  // Draw static keyboard to fill the lower portion
+  drawKeyboard(new Uint8Array(NUM_KEYS));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FFT → SEMITONE MAP
+// ═══════════════════════════════════════════════════════════════════
+
+function buildSemMap(sampleRate) {
+  const map    = Array.from({length: NUM_KEYS}, () => []);
+  const binHz  = sampleRate / FFT_SIZE;
+
+  for (let i = 1; i < FFT_SIZE / 2; i++) {
+    const freq = i * binHz;
+    const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+    const k    = midi - MIDI_A0;
+    if (k >= 0 && k < NUM_KEYS) map[k].push(i);
+  }
+
+  // For any empty slot (can happen at very low octaves), use nearest bin
+  for (let k = 0; k < NUM_KEYS; k++) {
+    if (map[k].length === 0) {
+      const nearestBin = Math.max(1, Math.min(
+        FFT_SIZE / 2 - 1,
+        Math.round(midiToFreq(MIDI_A0 + k) / binHz)
+      ));
+      map[k].push(nearestBin);
+    }
+  }
+
+  return map;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  COLOR MAPPING
+// ═══════════════════════════════════════════════════════════════════
+
+// Precompute two LUTs: normal (cyan) and peak (orange)
+const LUT_N = new Uint8Array(256 * 3);   // normal
+const LUT_P = new Uint8Array(256 * 3);   // peak
+
+(function buildLUTs() {
+  for (let i = 0; i < 256; i++) {
+    const t  = i / 255;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const g  = Math.pow(t, 0.55);
+
+    // Normal: very-dark-navy → deep-teal → cyan → white
+    LUT_N[i*3+0] = Math.min(255, Math.round(t2 * t * 200));
+    LUT_N[i*3+1] = Math.min(255, Math.round(g * 210));
+    LUT_N[i*3+2] = Math.min(255, Math.round(g * 255));
+
+    // Peak: dark-red → orange → amber-yellow
+    LUT_P[i*3+0] = Math.min(255, Math.round(80 + g * 175));
+    LUT_P[i*3+1] = Math.min(255, Math.round(t2 * 230));
+    LUT_P[i*3+2] = Math.min(255, Math.round(t3 * 80));
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+//  PEAK DETECTION
+// ═══════════════════════════════════════════════════════════════════
+
+function detectPeaks(sv) {
+  const N    = NUM_KEYS;
+  const cands = [];
+
+  for (let k = 1; k < N - 1; k++) {
+    if (sv[k] > peakThresh &&
+        sv[k] >= sv[k-1]  &&
+        sv[k] >= sv[k+1]) {
+      cands.push(k);
+    }
+  }
+  // Edge cases
+  if (sv[0] > peakThresh && sv[0] >= sv[1])     cands.push(0);
+  if (sv[N-1] > peakThresh && sv[N-1] >= sv[N-2]) cands.push(N-1);
+
+  // Sort by amplitude, keep top MAX_PEAKS
+  cands.sort((a, b) => sv[b] - sv[a]);
+  return cands.slice(0, MAX_PEAKS);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAW KEYBOARD
+// ═══════════════════════════════════════════════════════════════════
+
+function drawKeyboard(peakMask) {
+  const top = wfHeight;
+
+  // Background
+  ctx.fillStyle = '#090a14';
+  ctx.fillRect(0, top, CANVAS_W, KB_H);
+
+  // Separator
+  ctx.fillStyle = '#00bbdd22';
+  ctx.fillRect(0, top, CANVAS_W, 1);
+
+  for (let k = 0; k < NUM_KEYS; k++) {
+    const x     = k * COL_W;
+    const black = isBlack(k);
+    const peak  = peakMask[k];
+
+    const keyTop = top + (black ? 2 : 6);
+    const keyH   = black ? Math.round(KB_H * 0.57) : KB_H - 10;
+
+    if (peak) {
+      ctx.fillStyle = black ? '#ff7700' : '#ffbb33';
+    } else if (black) {
+      ctx.fillStyle = '#0d0e1e';
+    } else {
+      ctx.fillStyle = '#c2c8d8';
+    }
+
+    ctx.fillRect(x + 1, keyTop, COL_W - 2, keyH);
+
+    // Left border on white keys (divider)
+    if (!black) {
+      ctx.fillStyle = peak ? '#ff990033' : '#00aabb44';
+      ctx.fillRect(x, keyTop, 1, keyH);
+    }
+  }
+
+  // C-note labels at bottom of keyboard
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.font         = '8px monospace';
+
+  for (let k = 0; k < NUM_KEYS; k++) {
+    const midi = MIDI_A0 + k;
+    if (midi % 12 === 0) {  // every C note
+      const lbl = midiToName(midi);
+      ctx.fillStyle = '#005577';
+      ctx.fillText(lbl, k * COL_W + COL_W / 2, top + KB_H - 1);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAW OVERLAYS (grid, peak glow)
+// ═══════════════════════════════════════════════════════════════════
+
+function drawOverlays(peakKeys) {
+  // Subtle vertical octave grid lines at C notes
+  ctx.fillStyle = '#002b4455';
+  for (let k = 0; k < NUM_KEYS; k++) {
+    if ((MIDI_A0 + k) % 12 === 0) {
+      ctx.fillRect(k * COL_W, 0, 1, wfHeight);
+    }
+  }
+
+  // Peak glow: gradient strip rising from keyboard bottom
+  const glowH = Math.round(wfHeight * 0.25);
+  for (const k of peakKeys) {
+    const x    = k * COL_W;
+    const grad = ctx.createLinearGradient(0, wfHeight - glowH, 0, wfHeight);
+    grad.addColorStop(0,   'rgba(255,100,0,0)');
+    grad.addColorStop(0.6, 'rgba(255,100,0,0.07)');
+    grad.addColorStop(1,   'rgba(255,150,0,0.35)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, wfHeight - glowH, COL_W, glowH);
+
+    // Thin bright line at very bottom of waterfall
+    ctx.fillStyle = '#ff880099';
+    ctx.fillRect(x, wfHeight - 2, COL_W, 2);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  UPDATE PEAKS BAR
+// ═══════════════════════════════════════════════════════════════════
+
+function updatePeaksBar(peaks, sv) {
+  const bar = document.getElementById('peaks-bar');
+
+  if (peaks.length === 0) {
+    bar.innerHTML = '<span id="no-signal">NO SIGNAL</span>';
+    return;
+  }
+
+  const sorted = [...peaks].sort((a, b) => a - b);
+  bar.innerHTML = sorted.map(k => {
+    const midi = MIDI_A0 + k;
+    const name = midiToName(midi);
+    const hz   = midiToFreq(midi).toFixed(1);
+    const pct  = Math.round(sv[k] * 100);
+    return `<span class="peak-tag">${name}&nbsp;<span class="peak-hz">${hz}Hz&nbsp;${pct}%</span></span>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MAIN RENDER LOOP
+// ═══════════════════════════════════════════════════════════════════
+
+const fftBuf  = new Uint8Array(FFT_SIZE / 2);
+const semVals = new Float32Array(NUM_KEYS);
+let lastRowTs = 0;
+
+function loop(ts) {
+  if (!isRunning) return;
+  requestAnimationFrame(loop);
+
+  // ── Read FFT ──
+  analyser.getByteFrequencyData(fftBuf);
+
+  // ── Aggregate bins → semitone values ──
+  for (let k = 0; k < NUM_KEYS; k++) {
+    const bins = semMap[k];
+    let maxV   = 0;
+    for (const b of bins) if (fftBuf[b] > maxV) maxV = fftBuf[b];
+    semVals[k] = Math.min(1, (maxV / 255) * gain);
+  }
+
+  // ── Detect peaks ──
+  const peaks    = detectPeaks(semVals);
+  const peakMask = new Uint8Array(NUM_KEYS);
+  for (const k of peaks) peakMask[k] = 1;
+
+  updatePeaksBar(peaks, semVals);
+
+  // ── Waterfall row ──
+  if (ts - lastRowTs >= rowMs) {
+    lastRowTs = ts;
+
+    const d    = wfData.data;
+    const rowB = CANVAS_W * 4;
+
+    // Shift entire buffer up by one row (last row will be overwritten)
+    d.copyWithin(0, rowB);
+
+    // Write new bottom row from semitone values
+    const base = (wfHeight - 1) * rowB;
+    for (let k = 0; k < NUM_KEYS; k++) {
+      const v   = Math.round(semVals[k] * 255);
+      const lut = peakMask[k] ? LUT_P : LUT_N;
+      const lr  = lut[v*3];
+      const lg  = lut[v*3+1];
+      const lb  = lut[v*3+2];
+      const x   = k * COL_W;
+      for (let px = 0; px < COL_W; px++) {
+        const i = base + (x + px) * 4;
+        d[i]=lr; d[i+1]=lg; d[i+2]=lb; d[i+3]=255;
+      }
+    }
+
+    // Commit waterfall, then draw overlays on top
+    ctx.putImageData(wfData, 0, 0);
+    drawOverlays(peaks);
+  }
+
+  // Keyboard redraws every frame (reflects current peaks)
+  drawKeyboard(peakMask);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUDIO INIT
+// ═══════════════════════════════════════════════════════════════════
+
+async function startAudio() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation:  false,
+        noiseSuppression:  false,
+        autoGainControl:   false,
+        channelCount:      1
+      }
+    });
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize              = FFT_SIZE;
+    analyser.smoothingTimeConstant = smoothing;
+
+    const src = audioCtx.createMediaStreamSource(stream);
+    src.connect(analyser);
+
+    semMap     = buildSemMap(audioCtx.sampleRate);
+    isRunning  = true;
+
+    const btn = document.getElementById('startBtn');
+    btn.textContent = '■ RUNNING';
+    btn.classList.add('running');
+
+    requestAnimationFrame(loop);
+  } catch (e) {
+    alert('Microphone error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  if (!isRunning) startAudio();
+});
+
+document.getElementById('gainCtrl').addEventListener('input', e => {
+  gain = parseFloat(e.target.value);
+  document.getElementById('gainVal').textContent = gain.toFixed(1) + '×';
+});
+
+document.getElementById('rateCtrl').addEventListener('input', e => {
+  const rps = parseInt(e.target.value);
+  rowMs = 1000 / rps;
+  document.getElementById('rateVal').textContent = rps + '/s';
+});
+
+document.getElementById('smCtrl').addEventListener('input', e => {
+  smoothing = parseFloat(e.target.value);
+  document.getElementById('smVal').textContent = smoothing.toFixed(2);
+  if (analyser) analyser.smoothingTimeConstant = smoothing;
+});
+
+document.getElementById('peakThreshCtrl').addEventListener('input', e => {
+  peakThresh = parseInt(e.target.value) / 100;
+  document.getElementById('peakThreshVal').textContent = e.target.value + '%';
+});
+
+// ── Mouse tooltip ──
+const tooltip = document.getElementById('tooltip');
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const x = (e.clientX - rect.left) * scaleX;
+  const k = Math.floor(x / COL_W);
+
+  if (k >= 0 && k < NUM_KEYS) {
+    const midi = MIDI_A0 + k;
+    const name = midiToName(midi);
+    const hz   = midiToFreq(midi).toFixed(2);
+    tooltip.style.display = 'block';
+    tooltip.style.left    = (e.clientX + 14) + 'px';
+    tooltip.style.top     = (e.clientY - 6) + 'px';
+    tooltip.textContent   = `${name}  ${hz} Hz`;
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  tooltip.style.display = 'none';
+});
+
+// ── Resize ──
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(initCanvas, 150);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+
+initCanvas();
+</script>
+</body>
+</html>
