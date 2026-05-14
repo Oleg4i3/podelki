@@ -83,6 +83,10 @@ select { padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; font-size
     <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
     <input type="range" id="sTh" min="1" max="40" step="1" value="4">
   </div>
+  <div class="ctrl" style="min-width: 80px;">
+    <div class="ctrl-label">Скорость <span class="ctrl-val" id="vSpd">30/с</span></div>
+    <input type="range" id="sSpd" min="10" max="120" step="1" value="30">
+  </div>
 
   <div style="border-right: 1px solid #ccc; height: 38px; margin: 0 4px;"></div>
 
@@ -545,6 +549,7 @@ bCtrl('sHarm', v => { harmSupression = v / 100; document.getElementById('vHarm')
 bCtrl('sPreG', v => { if(preGainNode) preGainNode.gain.value = v; document.getElementById('vPreG').innerText = v + '×'; });
 bCtrl('sG',    v => { visGain = v; document.getElementById('vG').innerText = v + '×'; });
 bCtrl('sTh',   v => { thresh = v / 100; document.getElementById('vTh').innerText = v + '%'; });
+bCtrl('sSpd', v => { rowMs = 1000 / v; document.getElementById('vSpd').innerText = v + '/с'; });
 
 const tip = document.getElementById('tip');
 canvas.addEventListener('mousemove', e => {
