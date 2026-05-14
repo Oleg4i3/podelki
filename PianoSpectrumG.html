@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piano Roll Spectrum (FFT / CQT)</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #02020c;
+}
+
+/* ─── CONTROL PANEL (light) ──────────────────────────────────────── */
+#panel {
+  flex-shrink: 0;
+  background: #f0f2f5;
+  border-bottom: 1px solid #c8cdd6;
+  padding: 10px 16px 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 8px #0002;
+}
+
+#startBtn {
+  align-self: center;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px #2563eb44;
+}
+#startBtn:hover  { background: #1d4fd8; }
+#startBtn.on     { background: #16a34a; box-shadow: 0 2px 6px #16a34a44; }
+
+/* each slider block */
+.ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
+
+.ctrl-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #374151;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ctrl-desc {
+  font-size: 10px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.ctrl-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 42px;
+  text-align: right;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #d1d5db;
+  cursor: pointer;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 1px 4px #2563eb55;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+select {
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+/* ─── ROLL AREA ──────────────────────────────────────────────────── */
+#wrap {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #223 #02020c;
+}
+canvas { display: block; cursor: crosshair; }
+
+/* ─── TOOLTIP ────────────────────────────────────────────────────── */
+#tip {
+  position: fixed;
+  background: #ffffffee;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
+  z-index: 99;
+  box-shadow: 0 2px 8px #0002;
+}
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <button id="startBtn">▶&nbsp;&nbsp;Start</button>
+
+  <div class="ctrl" style="min-width:140px">
+    <div class="ctrl-label">Режим анализа <span class="ctrl-val" id="vM">CQT</span></div>
+    <div class="ctrl-desc">Алгоритм фильтрации</div>
+    <select id="sMode">
+      <option value="fft">FFT (Max Bin)</option>
+      <option value="cqt" selected>CQT (Gaussian Kernel)</option>
+    </select>
+  </div>
+
+  <div class="ctrl" style="min-width:130px">
+    <div class="ctrl-label">Усиление <span class="ctrl-val" id="vG">2.0×</span></div>
+    <div class="ctrl-desc">Чувствительность</div>
+    <input type="range" id="sG" min="0.5" max="14" step="0.5" value="2">
+  </div>
+
+  <div class="ctrl" style="min-width:130px">
+    <div class="ctrl-label">Скорость <span class="ctrl-val" id="vR">20/с</span></div>
+    <div class="ctrl-desc">Строк в секунду</div>
+    <input type="range" id="sR" min="2" max="60" step="1" value="20">
+  </div>
+
+  <div class="ctrl" style="min-width:130px">
+    <div class="ctrl-label">Сглаживание <span class="ctrl-val" id="vSm">0.80</span></div>
+    <div class="ctrl-desc">Инерция спектра</div>
+    <input type="range" id="sSm" min="0" max="0.95" step="0.05" value="0.80">
+  </div>
+
+  <div class="ctrl" style="min-width:130px">
+    <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">6%</span></div>
+    <div class="ctrl-desc">Мин. сигнал для ноты</div>
+    <input type="range" id="sTh" min="1" max="40" step="1" value="6">
+  </div>
+</div>
+
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="tip"></div>
+
+<script>
+'use strict';
+
+// ─── Конфигурация ────────────────────────────────────────────────
+const MIDI_A0  = 21;
+const N_KEYS   = 88;
+const COL_W    = 12;
+const KB_H     = 96;
+const FFT_SIZE = 16384; 
+const MAX_PK   = 5;
+
+const BLK_PC  = new Set([1, 3, 6, 8, 10]);
+const isBlack = k => BLK_PC.has((MIDI_A0 + k) % 12);
+const midi2freq = m => 440 * 2 ** ((m - 69) / 12);
+const midi2name = m =>
+  ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12]
+  + (Math.floor(m / 12) - 1);
+
+const NOTE_HUE = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+function hsl2rgb(h, s, l) {
+  const c = (1 - Math.abs(2*l - 1)) * s;
+  const x = c * (1 - Math.abs(((h/60) % 2) - 1));
+  const m = l - c/2;
+  let r,g,b;
+  if      (h<60)  {r=c;g=x;b=0}
+  else if (h<120) {r=x;g=c;b=0}
+  else if (h<180) {r=0;g=c;b=x}
+  else if (h<240) {r=0;g=x;b=c}
+  else if (h<300) {r=x;g=0;b=c}
+  else            {r=c;g=0;b=x}
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+}
+
+const PC_LUT = Array.from({length:12}, (_, pc) => {
+  const lut = new Uint8Array(256 * 3);
+  const hue = NOTE_HUE[pc];
+  for (let i = 0; i < 256; i++) {
+    const v = i / 255;
+    const [r,g,b] = hsl2rgb(hue, 1.0, 0.06 + v * 0.56);
+    lut[i*3]=r; lut[i*3+1]=g; lut[i*3+2]=b;
+  }
+  return lut;
+});
+
+// ─── Состояние ───────────────────────────────────────────────────
+let audioCtx, analyser, semMap, cqtKernels;
+let running = false;
+let gain    = 2.0;
+let rowMs   = 1000 / 20;
+let smooth  = 0.80;
+let thresh  = 0.06;
+let mode    = 'cqt'; // 'fft' или 'cqt'
+
+// ─── Canvas ──────────────────────────────────────────────────────
+const canvas = document.getElementById('cv');
+const ctx    = canvas.getContext('2d', {alpha:false});
+let wfH = 0, wfBuf = null;
+
+const CANVAS_W = N_KEYS * COL_W;
+
+function initCanvas() {
+  const h = document.getElementById('wrap').clientHeight;
+  canvas.width  = CANVAS_W;
+  canvas.height = h;
+  wfH = Math.max(20, h - KB_H);
+
+  wfBuf = new ImageData(CANVAS_W, wfH);
+  const d = wfBuf.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]=2; d[i+1]=2; d[i+2]=10; d[i+3]=255;
+  }
+  drawKeyboard(new Uint8Array(N_KEYS));
+}
+
+// ─── Маппинг (FFT Бин-Группы и CQT Ядра) ────────────────────────
+function buildMaps(sr) {
+  const map = Array.from({length:N_KEYS}, ()=>[]);
+  const kernels = Array.from({length:N_KEYS}, ()=>[]);
+  
+  const binHz = sr / FFT_SIZE;
+  const Q = 17.31; // Добротность для полутонов (1/12 октавы)
+
+  // 1. Стандартный маппинг бинов (для режима FFT)
+  for (let i = 1; i < FFT_SIZE/2; i++) {
+    const m = Math.round(69 + 12 * Math.log2(i * binHz / 440));
+    const k = m - MIDI_A0;
+    if (k >= 0 && k < N_KEYS) map[k].push(i);
+  }
+  for (let k = 0; k < N_KEYS; k++) {
+    if (!map[k].length) map[k].push(Math.max(1, Math.round(midi2freq(MIDI_A0+k) / binHz)));
+  }
+
+  // 2. Расчет спектральных ядер Гаусса (для режима CQT)
+  for (let k = 0; k < N_KEYS; k++) {
+    const freq = midi2freq(MIDI_A0 + k);
+    const mu = freq / binHz;         // Центр в бинах
+    const sigma = mu / Q;            // Ширина колокола
+    
+    // Окно ±3 сигмы (99.7% площади колокола)
+    const minBin = Math.max(1, Math.floor(mu - 3 * sigma));
+    const maxBin = Math.min(FFT_SIZE/2 - 1, Math.ceil(mu + 3 * sigma));
+    
+    let weightSum = 0;
+    let tempKernel = [];
+    
+    for (let i = minBin; i <= maxBin; i++) {
+      const w = Math.exp(-Math.pow(i - mu, 2) / (2 * Math.pow(sigma, 2)));
+      tempKernel.push({ bin: i, weight: w });
+      weightSum += w;
+    }
+    
+    // Нормализуем веса, чтобы общая энергия не зависела от ширины окна
+    if (weightSum > 0) {
+      for (let j = 0; j < tempKernel.length; j++) {
+        tempKernel[j].weight /= weightSum;
+      }
+    } else {
+      // Фолбек для экстремально низких частот
+      tempKernel.push({ bin: Math.round(mu), weight: 1.0 });
+    }
+    
+    kernels[k] = tempKernel;
+  }
+
+  return { map, kernels };
+}
+
+// ─── Детекция пиков ──────────────────────────────────────────────
+function detectPeaks(sv, out) {
+  out.fill(0);
+  const c = [];
+  for (let k = 1; k < N_KEYS-1; k++)
+    if (sv[k] > thresh && sv[k] >= sv[k-1] && sv[k] >= sv[k+1]) c.push(k);
+  if (sv[0] > thresh && sv[0] >= sv[1])                 c.push(0);
+  if (sv[N_KEYS-1] > thresh && sv[N_KEYS-1] >= sv[N_KEYS-2]) c.push(N_KEYS-1);
+  c.sort((a,b)=>sv[b]-sv[a]);
+  for (const k of c.slice(0, MAX_PK)) out[k] = 1;
+}
+
+// ─── Рисование ───────────────────────────────────────────────────
+const BK_H = Math.round(KB_H * 0.60), BK_W = Math.round(COL_W * 0.65), BK_OX = Math.floor((COL_W - BK_W) / 2);
+
+function drawKeyboard(pm) {
+  const top = wfH;
+  ctx.fillStyle = '#e8eaf0'; ctx.fillRect(0, top, CANVAS_W, KB_H);
+  ctx.fillStyle = '#222'; ctx.fillRect(0, top, CANVAS_W, 2);
+
+  for (let k = 0; k < N_KEYS; k++) {
+    if (isBlack(k)) continue;
+    const x = k * COL_W, pc = (MIDI_A0 + k) % 12, hue = NOTE_HUE[pc], lit = pm[k];
+    const g = ctx.createLinearGradient(0, top+2, 0, top+KB_H);
+    if (lit) {
+      g.addColorStop(0, `hsl(${hue},90%,72%)`); g.addColorStop(1, `hsl(${hue},90%,58%)`);
+    } else {
+      g.addColorStop(0, '#f8f9fc'); g.addColorStop(0.8, '#e4e7f0'); g.addColorStop(1, '#d4d8e5');
+    }
+    ctx.fillStyle = g; ctx.fillRect(x+1, top+2, COL_W-1, KB_H-3);
+    ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
+    ctx.fillRect(x + COL_W - 1, top+2, 1, KB_H-3);
+  }
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = '7px sans-serif';
+  for (let k = 0; k < N_KEYS; k++) {
+    if ((MIDI_A0 + k) % 12 === 0) {
+      ctx.fillStyle = pm[k] ? '#fff' : '#778899';
+      ctx.fillText(midi2name(MIDI_A0 + k), k*COL_W + COL_W/2, top+KB_H-2);
+    }
+  }
+
+  for (let k = 0; k < N_KEYS; k++) {
+    if (!isBlack(k)) continue;
+    const x = k * COL_W + BK_OX, y = top + 2, pc = (MIDI_A0 + k) % 12, hue = NOTE_HUE[pc], lit = pm[k];
+    const g = ctx.createLinearGradient(0, y, 0, y+BK_H);
+    if (lit) {
+      g.addColorStop(0, `hsl(${hue},100%,40%)`); g.addColorStop(0.6, `hsl(${hue},100%,50%)`); g.addColorStop(1.0, `hsl(${hue},100%,38%)`);
+    } else {
+      ctx.createLinearGradient(x, y, x+BK_W, y); // reuse var if needed
+      g.addColorStop(0, '#3a3c4c'); g.addColorStop(0.25,'#20222e'); g.addColorStop(1, '#12131c');
+    }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, BK_W, BK_H, [0,0,3,3]); ctx.fill();
+    if (!lit) { ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(x+1, y+2, 3, BK_H*0.45); }
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x, y+BK_H-3, BK_W, 3);
+  }
+}
+
+function addRow(sv, pm) {
+  const d = wfBuf.data, rowB = CANVAS_W * 4, base = (wfH-1) * rowB;
+  d.copyWithin(0, rowB);
+  for (let k = 0; k < N_KEYS; k++) {
+    let r=2, g=2, b=10;
+    if (pm[k]) {
+      const v = Math.round(Math.min(1, sv[k]) * 255), lut = PC_LUT[(MIDI_A0+k) % 12];
+      r=lut[v*3]; g=lut[v*3+1]; b=lut[v*3+2];
+    }
+    for (let px = 0; px < COL_W; px++) {
+      const i = base + (k * COL_W + px)*4;
+      d[i]=r; d[i+1]=g; d[i+2]=b;
+    }
+  }
+}
+
+function drawGrid() {
+  for (let k = 0; k < N_KEYS; k++) {
+    if ((MIDI_A0+k) % 12 === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(k*COL_W, 0, 1, wfH);
+    }
+  }
+}
+
+// ─── Анимационный цикл ───────────────────────────────────────────
+const fftBuf   = new Uint8Array(FFT_SIZE/2);
+const semVals  = new Float32Array(N_KEYS);
+const peakMask = new Uint8Array(N_KEYS);
+let lastRowTs  = 0;
+
+function frame(ts) {
+  if (!running) return;
+  requestAnimationFrame(frame);
+
+  analyser.getByteFrequencyData(fftBuf);
+
+  for (let k = 0; k < N_KEYS; k++) {
+    if (mode === 'fft') {
+      // Старый подход: просто берем максимальное значение из группы бинов
+      let mx = 0;
+      for (const b of semMap[k]) if (fftBuf[b] > mx) mx = fftBuf[b];
+      semVals[k] = Math.min(1, (mx/255) * gain);
+    } else {
+      // CQT подход: взвешенная сумма бинов (свертка с Гауссианом)
+      let sum = 0;
+      const kernel = cqtKernels[k];
+      for (let j = 0; j < kernel.length; j++) {
+        sum += fftBuf[kernel[j].bin] * kernel[j].weight;
+      }
+      // Умножаем на 1.3 для компенсации визуальной потери яркости при усреднении
+      semVals[k] = Math.min(1, (sum/255) * gain * 1.3);
+    }
+  }
+  
+  detectPeaks(semVals, peakMask);
+
+  if (ts - lastRowTs >= rowMs) {
+    lastRowTs = ts;
+    addRow(semVals, peakMask);
+    ctx.putImageData(wfBuf, 0, 0);
+    drawGrid();
+  }
+  drawKeyboard(peakMask);
+}
+
+// ─── Микрофон ────────────────────────────────────────────────────
+async function startAudio() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false}
+    });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize               = FFT_SIZE;
+    analyser.smoothingTimeConstant = smooth;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    
+    const maps = buildMaps(audioCtx.sampleRate);
+    semMap = maps.map;
+    cqtKernels = maps.kernels;
+    
+    running = true;
+    const btn = document.getElementById('startBtn');
+    btn.textContent = '■  Остановить';
+    btn.classList.add('on');
+    requestAnimationFrame(frame);
+  } catch(e) { alert('Ошибка микрофона: ' + e.message); }
+}
+
+// ─── Управление ──────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+  if (!running) startAudio();
+});
+
+document.getElementById('sMode').addEventListener('change', e => {
+  mode = e.target.value;
+  document.getElementById('vM').textContent = mode === 'cqt' ? 'CQT' : 'FFT';
+});
+
+const ctrl = (id, valId, fn) =>
+  document.getElementById(id).addEventListener('input', e => {
+    fn(+e.target.value);
+    document.getElementById(valId).textContent =
+      id === 'sG'  ? (+e.target.value).toFixed(1) + '×' :
+      id === 'sR'  ? e.target.value + '/с' :
+      id === 'sSm' ? (+e.target.value).toFixed(2) :
+                     e.target.value + '%';
+  });
+
+ctrl('sG',   'vG',  v => { gain = v; });
+ctrl('sR',   'vR',  v => { rowMs = 1000 / v; });
+ctrl('sSm',  'vSm', v => { smooth = v; if (analyser) analyser.smoothingTimeConstant = v; });
+ctrl('sTh',  'vTh', v => { thresh = v / 100; });
+
+// ─── Тултип ──────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  const k = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
+  if (k >= 0 && k < N_KEYS) {
+    const midi = MIDI_A0 + k;
+    tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
+    tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
+  }
+});
+canvas.addEventListener('mouseleave', () => { tip.style.display='none'; });
+
+// ─── Resize ──────────────────────────────────────────────────────
+let rsT;
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(initCanvas, 120); });
+
+initCanvas();
+</script>
+</body>
+</html>
