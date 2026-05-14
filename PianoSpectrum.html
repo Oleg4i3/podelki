@@ -3,627 +3,506 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Piano Spectrum Analyzer</title>
+<title>Piano Roll Spectrum</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
 
-  body {
-    background: #04040b;
-    color: #00bbdd;
-    font-family: 'Courier New', Courier, monospace;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    user-select: none;
-  }
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #02020c;
+}
 
-  /* ── Header bar ── */
-  #header {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-    padding: 7px 16px;
-    background: #06060f;
-    border-bottom: 1px solid #00224466;
-    flex-shrink: 0;
-    flex-wrap: wrap;
-  }
+/* ─── CONTROL PANEL (light) ──────────────────────────────────────── */
+#panel {
+  flex-shrink: 0;
+  background: #f0f2f5;
+  border-bottom: 1px solid #c8cdd6;
+  padding: 10px 16px 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 8px #0002;
+}
 
-  #header h1 {
-    font-size: 11px;
-    letter-spacing: 6px;
-    text-transform: uppercase;
-    color: #008baa;
-    white-space: nowrap;
-  }
+#startBtn {
+  align-self: center;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px #2563eb44;
+}
+#startBtn:hover  { background: #1d4fd8; }
+#startBtn.on     { background: #16a34a; box-shadow: 0 2px 6px #16a34a44; }
 
-  .ctrl {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: #005566;
-    white-space: nowrap;
-  }
+/* each slider block */
+.ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
 
-  .ctrl span { color: #007799; }
+.ctrl-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #374151;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
 
-  input[type=range] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 72px;
-    height: 3px;
-    background: #002233;
-    outline: none;
-    cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 10px; height: 14px;
-    background: #00bbdd;
-    cursor: pointer;
-  }
-  input[type=range]::-moz-range-thumb {
-    width: 10px; height: 14px;
-    background: #00bbdd;
-    border: none;
-    cursor: pointer;
-  }
+.ctrl-desc {
+  font-size: 10px;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-left: 6px;
+}
 
-  #startBtn {
-    border: 1px solid #00bbdd44;
-    background: transparent;
-    color: #009bbb;
-    font-family: inherit;
-    font-size: 10px;
-    letter-spacing: 3px;
-    padding: 4px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  #startBtn:hover { background: #00bbdd18; border-color: #00bbdd99; color: #00ccee; }
-  #startBtn.running {
-    color: #00ee88;
-    border-color: #00ee8866;
-    background: #00ee8811;
-  }
+.ctrl-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 42px;
+  text-align: right;
+}
 
-  /* ── Peaks bar ── */
-  #peaks-bar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 4px 14px;
-    background: #030308;
-    border-bottom: 1px solid #00111a;
-    flex-shrink: 0;
-    min-height: 26px;
-  }
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #d1d5db;
+  cursor: pointer;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 1px 4px #2563eb55;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type=range]::-moz-range-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: none;
+  cursor: pointer;
+}
+input[type=range]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #d1d5db;
+}
 
-  .peak-tag {
-    background: #cc5500;
-    color: #ffe8c0;
-    font-size: 11px;
-    font-weight: bold;
-    padding: 1px 8px 2px;
-    letter-spacing: 1px;
-    position: relative;
-  }
-  .peak-tag::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, #ff880033, transparent);
-    pointer-events: none;
-  }
+/* ─── ROLL AREA ──────────────────────────────────────────────────── */
+#wrap {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #223 #02020c;
+}
+canvas { display: block; cursor: crosshair; }
 
-  .peak-hz {
-    font-weight: normal;
-    font-size: 9px;
-    opacity: 0.6;
-    letter-spacing: 0;
-  }
-
-  #no-signal {
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: #002233;
-    text-transform: uppercase;
-  }
-
-  /* ── Canvas area ── */
-  #canvas-wrap {
-    flex: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
-    position: relative;
-    scrollbar-color: #002233 #04040b;
-    scrollbar-width: thin;
-  }
-
-  #mainCanvas {
-    display: block;
-    cursor: crosshair;
-  }
-
-  /* ── Tooltip ── */
-  #tooltip {
-    position: fixed;
-    background: #000c18ee;
-    border: 1px solid #00bbdd44;
-    color: #00ccee;
-    font-size: 10px;
-    letter-spacing: 2px;
-    padding: 3px 8px;
-    pointer-events: none;
-    display: none;
-    z-index: 99;
-  }
+/* ─── TOOLTIP ────────────────────────────────────────────────────── */
+#tip {
+  position: fixed;
+  background: #ffffffee;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
+  z-index: 99;
+  box-shadow: 0 2px 8px #0002;
+}
 </style>
 </head>
 <body>
 
-<div id="header">
-  <h1>◼ PIANO SPECTRUM</h1>
-  <button id="startBtn">▶ START</button>
+<div id="panel">
+  <button id="startBtn">▶&nbsp;&nbsp;Start</button>
 
-  <div class="ctrl">
-    SENS&nbsp;<span id="gainVal">2.5×</span>
-    <input type="range" id="gainCtrl" min="0.5" max="10" step="0.5" value="2.5">
+  <div class="ctrl" style="min-width:150px">
+    <div class="ctrl-label">
+      Усиление сигнала
+      <span class="ctrl-val" id="vG">2.0×</span>
+    </div>
+    <div class="ctrl-desc">Чувствительность микрофона</div>
+    <input type="range" id="sG" min="0.5" max="14" step="0.5" value="2">
   </div>
 
-  <div class="ctrl">
-    RATE&nbsp;<span id="rateVal">25/s</span>
-    <input type="range" id="rateCtrl" min="3" max="80" step="1" value="25">
+  <div class="ctrl" style="min-width:150px">
+    <div class="ctrl-label">
+      Скорость прокрутки
+      <span class="ctrl-val" id="vR">20/с</span>
+    </div>
+    <div class="ctrl-desc">Строк водопада в секунду</div>
+    <input type="range" id="sR" min="2" max="60" step="1" value="20">
   </div>
 
-  <div class="ctrl">
-    SMOOTH&nbsp;<span id="smVal">0.75</span>
-    <input type="range" id="smCtrl" min="0" max="0.95" step="0.05" value="0.75">
+  <div class="ctrl" style="min-width:150px">
+    <div class="ctrl-label">
+      Сглаживание
+      <span class="ctrl-val" id="vSm">0.80</span>
+    </div>
+    <div class="ctrl-desc">Инерция спектра (0 = мгновенно)</div>
+    <input type="range" id="sSm" min="0" max="0.95" step="0.05" value="0.80">
   </div>
 
-  <div class="ctrl">
-    PEAKS&nbsp;
-    <span id="peakThreshVal">8%</span>
-    <input type="range" id="peakThreshCtrl" min="2" max="40" step="1" value="8">
+  <div class="ctrl" style="min-width:150px">
+    <div class="ctrl-label">
+      Порог нот
+      <span class="ctrl-val" id="vTh">6%</span>
+    </div>
+    <div class="ctrl-desc">Минимум для определения ноты</div>
+    <input type="range" id="sTh" min="1" max="40" step="1" value="6">
   </div>
 </div>
 
-<div id="peaks-bar">
-  <span id="no-signal">NO SIGNAL</span>
-</div>
-
-<div id="canvas-wrap">
-  <canvas id="mainCanvas"></canvas>
-</div>
-
-<div id="tooltip"></div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="tip"></div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONSTANTS
-// ═══════════════════════════════════════════════════════════════════
+// ─── Конфигурация ────────────────────────────────────────────────
+const MIDI_A0  = 21;
+const N_KEYS   = 88;
+const COL_W    = 12;      // px на полутон
+const KB_H     = 96;      // высота клавиатуры
+const FFT_SIZE = 16384;
+const MAX_PK   = 5;
 
-const MIDI_A0   = 21;   // lowest piano key
-const NUM_KEYS  = 88;   // A0 … C8
-const COL_W     = 10;   // px per semitone column
-const KB_H      = 82;   // keyboard section height
-const CANVAS_W  = NUM_KEYS * COL_W;   // 880px
-const FFT_SIZE  = 16384;
-const MAX_PEAKS = 5;
+// pitch class 0=C…11=B; чёрные: C# D# F# G# A#
+const BLK_PC  = new Set([1, 3, 6, 8, 10]);
+const isBlack = k => BLK_PC.has((MIDI_A0 + k) % 12);
+const midi2freq = m => 440 * 2 ** ((m - 69) / 12);
+const midi2name = m =>
+  ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12]
+  + (Math.floor(m / 12) - 1);
 
-// Note names starting from C (standard MIDI convention)
-const NOTE_C = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+// Цвет ноты: C=0° (красный) → по радуге
+const NOTE_HUE = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 
-// Black key flags, indexed mod 12 from A (A=0)
-// A  A# B  C  C# D  D# E  F  F# G  G#
-// 0  1  2  3  4  5  6  7  8  9  10 11
-const BLACK_MOD = new Set([1, 4, 6, 9, 11]);
-const isBlack   = k => BLACK_MOD.has(k % 12);
-
-function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
-function midiToName(midi) {
-  return NOTE_C[midi % 12] + (Math.floor(midi / 12) - 1);
+function hsl2rgb(h, s, l) {
+  const c = (1 - Math.abs(2*l - 1)) * s;
+  const x = c * (1 - Math.abs(((h/60) % 2) - 1));
+  const m = l - c/2;
+  let r,g,b;
+  if      (h<60)  {r=c;g=x;b=0}
+  else if (h<120) {r=x;g=c;b=0}
+  else if (h<180) {r=0;g=c;b=x}
+  else if (h<240) {r=0;g=x;b=c}
+  else if (h<300) {r=x;g=0;b=c}
+  else            {r=c;g=0;b=x}
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════════════════
+// LUT на каждый pitch class: индекс = амплитуда 0-255 → RGB
+const PC_LUT = Array.from({length:12}, (_, pc) => {
+  const lut = new Uint8Array(256 * 3);
+  const hue = NOTE_HUE[pc];
+  for (let i = 0; i < 256; i++) {
+    const v = i / 255;
+    // lightness от 0.06 (почти чёрный) до 0.62 (яркий)
+    const [r,g,b] = hsl2rgb(hue, 1.0, 0.06 + v * 0.56);
+    lut[i*3]=r; lut[i*3+1]=g; lut[i*3+2]=b;
+  }
+  return lut;
+});
 
+// ─── Состояние ───────────────────────────────────────────────────
 let audioCtx, analyser, semMap;
-let isRunning  = false;
+let running = false;
+let gain    = 2.0;
+let rowMs   = 1000 / 20;
+let smooth  = 0.80;
+let thresh  = 0.06;
 
-let gain        = 2.5;
-let rowMs       = 1000 / 25;
-let smoothing   = 0.75;
-let peakThresh  = 0.08;
+// ─── Canvas ──────────────────────────────────────────────────────
+const canvas = document.getElementById('cv');
+const ctx    = canvas.getContext('2d', {alpha:false});
+let wfH = 0, wfBuf = null;
 
-// ═══════════════════════════════════════════════════════════════════
-//  CANVAS
-// ═══════════════════════════════════════════════════════════════════
-
-const canvas  = document.getElementById('mainCanvas');
-const ctx     = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-
-let wfHeight  = 0;
-let wfData    = null;  // ImageData for waterfall section
+const CANVAS_W = N_KEYS * COL_W;
 
 function initCanvas() {
-  const wrap = document.getElementById('canvas-wrap');
-  const h    = wrap.clientHeight;
-
+  const h = document.getElementById('wrap').clientHeight;
   canvas.width  = CANVAS_W;
   canvas.height = h;
-  wfHeight      = Math.max(60, h - KB_H);
+  wfH = Math.max(20, h - KB_H);
 
-  // Allocate waterfall image data — fill opaque deep-blue-black
-  wfData = new ImageData(CANVAS_W, wfHeight);
-  const d = wfData.data;
+  wfBuf = new ImageData(CANVAS_W, wfH);
+  const d = wfBuf.data;
   for (let i = 0; i < d.length; i += 4) {
-    d[i]=2; d[i+1]=4; d[i+2]=14; d[i+3]=255;
+    d[i]=2; d[i+1]=2; d[i+2]=10; d[i+3]=255;
   }
-
-  // Draw static keyboard to fill the lower portion
-  drawKeyboard(new Uint8Array(NUM_KEYS));
+  drawKeyboard(new Uint8Array(N_KEYS));
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  FFT → SEMITONE MAP
-// ═══════════════════════════════════════════════════════════════════
-
-function buildSemMap(sampleRate) {
-  const map    = Array.from({length: NUM_KEYS}, () => []);
-  const binHz  = sampleRate / FFT_SIZE;
-
-  for (let i = 1; i < FFT_SIZE / 2; i++) {
-    const freq = i * binHz;
-    const midi = Math.round(69 + 12 * Math.log2(freq / 440));
-    const k    = midi - MIDI_A0;
-    if (k >= 0 && k < NUM_KEYS) map[k].push(i);
+// ─── Маппинг FFT-бинов по полутонам ─────────────────────────────
+function buildSemMap(sr) {
+  const map   = Array.from({length:N_KEYS}, ()=>[]);
+  const binHz = sr / FFT_SIZE;
+  for (let i = 1; i < FFT_SIZE/2; i++) {
+    const m = Math.round(69 + 12 * Math.log2(i * binHz / 440));
+    const k = m - MIDI_A0;
+    if (k >= 0 && k < N_KEYS) map[k].push(i);
   }
-
-  // For any empty slot (can happen at very low octaves), use nearest bin
-  for (let k = 0; k < NUM_KEYS; k++) {
-    if (map[k].length === 0) {
-      const nearestBin = Math.max(1, Math.min(
-        FFT_SIZE / 2 - 1,
-        Math.round(midiToFreq(MIDI_A0 + k) / binHz)
-      ));
-      map[k].push(nearestBin);
+  for (let k = 0; k < N_KEYS; k++) {
+    if (!map[k].length) {
+      map[k].push(Math.max(1, Math.round(midi2freq(MIDI_A0+k) / binHz)));
     }
   }
-
   return map;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  COLOR MAPPING
-// ═══════════════════════════════════════════════════════════════════
-
-// Precompute two LUTs: normal (cyan) and peak (orange)
-const LUT_N = new Uint8Array(256 * 3);   // normal
-const LUT_P = new Uint8Array(256 * 3);   // peak
-
-(function buildLUTs() {
-  for (let i = 0; i < 256; i++) {
-    const t  = i / 255;
-    const t2 = t * t;
-    const t3 = t2 * t;
-    const g  = Math.pow(t, 0.55);
-
-    // Normal: very-dark-navy → deep-teal → cyan → white
-    LUT_N[i*3+0] = Math.min(255, Math.round(t2 * t * 200));
-    LUT_N[i*3+1] = Math.min(255, Math.round(g * 210));
-    LUT_N[i*3+2] = Math.min(255, Math.round(g * 255));
-
-    // Peak: dark-red → orange → amber-yellow
-    LUT_P[i*3+0] = Math.min(255, Math.round(80 + g * 175));
-    LUT_P[i*3+1] = Math.min(255, Math.round(t2 * 230));
-    LUT_P[i*3+2] = Math.min(255, Math.round(t3 * 80));
-  }
-})();
-
-// ═══════════════════════════════════════════════════════════════════
-//  PEAK DETECTION
-// ═══════════════════════════════════════════════════════════════════
-
-function detectPeaks(sv) {
-  const N    = NUM_KEYS;
-  const cands = [];
-
-  for (let k = 1; k < N - 1; k++) {
-    if (sv[k] > peakThresh &&
-        sv[k] >= sv[k-1]  &&
-        sv[k] >= sv[k+1]) {
-      cands.push(k);
-    }
-  }
-  // Edge cases
-  if (sv[0] > peakThresh && sv[0] >= sv[1])     cands.push(0);
-  if (sv[N-1] > peakThresh && sv[N-1] >= sv[N-2]) cands.push(N-1);
-
-  // Sort by amplitude, keep top MAX_PEAKS
-  cands.sort((a, b) => sv[b] - sv[a]);
-  return cands.slice(0, MAX_PEAKS);
+// ─── Детекция пиков ──────────────────────────────────────────────
+function detectPeaks(sv, out) {
+  out.fill(0);
+  const c = [];
+  for (let k = 1; k < N_KEYS-1; k++)
+    if (sv[k] > thresh && sv[k] >= sv[k-1] && sv[k] >= sv[k+1]) c.push(k);
+  if (sv[0] > thresh && sv[0] >= sv[1])                 c.push(0);
+  if (sv[N_KEYS-1] > thresh && sv[N_KEYS-1] >= sv[N_KEYS-2]) c.push(N_KEYS-1);
+  c.sort((a,b)=>sv[b]-sv[a]);
+  for (const k of c.slice(0, MAX_PK)) out[k] = 1;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  DRAW KEYBOARD
-// ═══════════════════════════════════════════════════════════════════
+// ─── Рисование клавиатуры ────────────────────────────────────────
+const BK_H  = Math.round(KB_H * 0.60);   // высота чёрной клавиши
+const BK_W  = Math.round(COL_W * 0.65);  // ширина чёрной клавиши
+const BK_OX = Math.floor((COL_W - BK_W) / 2);  // центровка
 
-function drawKeyboard(peakMask) {
-  const top = wfHeight;
+function drawKeyboard(pm) {
+  const top = wfH;
 
-  // Background
-  ctx.fillStyle = '#090a14';
+  // Фон под клавиатурой
+  ctx.fillStyle = '#e8eaf0';
   ctx.fillRect(0, top, CANVAS_W, KB_H);
 
-  // Separator
-  ctx.fillStyle = '#00bbdd22';
-  ctx.fillRect(0, top, CANVAS_W, 1);
+  // Разделитель waterfall / клавиатура
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, top, CANVAS_W, 2);
 
-  for (let k = 0; k < NUM_KEYS; k++) {
-    const x     = k * COL_W;
-    const black = isBlack(k);
-    const peak  = peakMask[k];
+  // ── Белые клавиши ──
+  for (let k = 0; k < N_KEYS; k++) {
+    if (isBlack(k)) continue;
+    const x   = k * COL_W;
+    const pc  = (MIDI_A0 + k) % 12;
+    const hue = NOTE_HUE[pc];
+    const lit = pm[k];
 
-    const keyTop = top + (black ? 2 : 6);
-    const keyH   = black ? Math.round(KB_H * 0.57) : KB_H - 10;
-
-    if (peak) {
-      ctx.fillStyle = black ? '#ff7700' : '#ffbb33';
-    } else if (black) {
-      ctx.fillStyle = '#0d0e1e';
+    // Заливка
+    if (lit) {
+      const g = ctx.createLinearGradient(0, top+2, 0, top+KB_H);
+      g.addColorStop(0, `hsl(${hue},90%,72%)`);
+      g.addColorStop(1, `hsl(${hue},90%,58%)`);
+      ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = '#c2c8d8';
+      const g = ctx.createLinearGradient(0, top+2, 0, top+KB_H);
+      g.addColorStop(0,   '#f8f9fc');
+      g.addColorStop(0.8, '#e4e7f0');
+      g.addColorStop(1,   '#d4d8e5');
+      ctx.fillStyle = g;
     }
+    ctx.fillRect(x+1, top+2, COL_W-1, KB_H-3);
 
-    ctx.fillRect(x + 1, keyTop, COL_W - 2, keyH);
-
-    // Left border on white keys (divider)
-    if (!black) {
-      ctx.fillStyle = peak ? '#ff990033' : '#00aabb44';
-      ctx.fillRect(x, keyTop, 1, keyH);
-    }
+    // Правая граница
+    ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
+    ctx.fillRect(x + COL_W - 1, top+2, 1, KB_H-3);
   }
 
-  // C-note labels at bottom of keyboard
-  ctx.textAlign    = 'center';
+  // ── C-метки ──
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.font         = '8px monospace';
-
-  for (let k = 0; k < NUM_KEYS; k++) {
+  ctx.font = '7px sans-serif';
+  for (let k = 0; k < N_KEYS; k++) {
     const midi = MIDI_A0 + k;
-    if (midi % 12 === 0) {  // every C note
-      const lbl = midiToName(midi);
-      ctx.fillStyle = '#005577';
-      ctx.fillText(lbl, k * COL_W + COL_W / 2, top + KB_H - 1);
+    if (midi % 12 === 0) {
+      ctx.fillStyle = pm[k] ? '#fff' : '#778899';
+      ctx.fillText(midi2name(midi), k*COL_W + COL_W/2, top+KB_H-2);
+    }
+  }
+
+  // ── Чёрные клавиши (рисуем поверх белых) ──
+  for (let k = 0; k < N_KEYS; k++) {
+    if (!isBlack(k)) continue;
+    const x   = k * COL_W + BK_OX;
+    const y   = top + 2;
+    const pc  = (MIDI_A0 + k) % 12;
+    const hue = NOTE_HUE[pc];
+    const lit = pm[k];
+
+    if (lit) {
+      const g = ctx.createLinearGradient(0, y, 0, y+BK_H);
+      g.addColorStop(0,   `hsl(${hue},100%,40%)`);
+      g.addColorStop(0.6, `hsl(${hue},100%,50%)`);
+      g.addColorStop(1.0, `hsl(${hue},100%,38%)`);
+      ctx.fillStyle = g;
+    } else {
+      const g = ctx.createLinearGradient(x, y, x+BK_W, y);
+      g.addColorStop(0,   '#3a3c4c');
+      g.addColorStop(0.25,'#20222e');
+      g.addColorStop(1,   '#12131c');
+      ctx.fillStyle = g;
+    }
+    // Тело
+    ctx.beginPath();
+    ctx.roundRect(x, y, BK_W, BK_H, [0,0,3,3]);
+    ctx.fill();
+
+    // Блик (только у ненажатых)
+    if (!lit) {
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(x+1, y+2, 3, BK_H*0.45);
+    }
+    // Нижняя тень
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x, y+BK_H-3, BK_W, 3);
+  }
+}
+
+// ─── Водопад ─────────────────────────────────────────────────────
+function addRow(sv, pm) {
+  const d    = wfBuf.data;
+  const rowB = CANVAS_W * 4;
+  d.copyWithin(0, rowB);           // сдвиг вверх
+
+  const base = (wfH-1) * rowB;
+  for (let k = 0; k < N_KEYS; k++) {
+    let r=2, g=2, b=10;
+    if (pm[k]) {
+      const v   = Math.round(Math.min(1, sv[k]) * 255);
+      const lut = PC_LUT[(MIDI_A0+k) % 12];
+      r=lut[v*3]; g=lut[v*3+1]; b=lut[v*3+2];
+    }
+    const x = k * COL_W;
+    for (let px = 0; px < COL_W; px++) {
+      const i = base + (x+px)*4;
+      d[i]=r; d[i+1]=g; d[i+2]=b;
     }
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  DRAW OVERLAYS (grid, peak glow)
-// ═══════════════════════════════════════════════════════════════════
-
-function drawOverlays(peakKeys) {
-  // Subtle vertical octave grid lines at C notes
-  ctx.fillStyle = '#002b4455';
-  for (let k = 0; k < NUM_KEYS; k++) {
-    if ((MIDI_A0 + k) % 12 === 0) {
-      ctx.fillRect(k * COL_W, 0, 1, wfHeight);
+function drawGrid() {
+  for (let k = 0; k < N_KEYS; k++) {
+    if ((MIDI_A0+k) % 12 === 0) {
+      // C — видимая линия
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(k*COL_W, 0, 1, wfH);
     }
   }
-
-  // Peak glow: gradient strip rising from keyboard bottom
-  const glowH = Math.round(wfHeight * 0.25);
-  for (const k of peakKeys) {
-    const x    = k * COL_W;
-    const grad = ctx.createLinearGradient(0, wfHeight - glowH, 0, wfHeight);
-    grad.addColorStop(0,   'rgba(255,100,0,0)');
-    grad.addColorStop(0.6, 'rgba(255,100,0,0.07)');
-    grad.addColorStop(1,   'rgba(255,150,0,0.35)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(x, wfHeight - glowH, COL_W, glowH);
-
-    // Thin bright line at very bottom of waterfall
-    ctx.fillStyle = '#ff880099';
-    ctx.fillRect(x, wfHeight - 2, COL_W, 2);
-  }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  UPDATE PEAKS BAR
-// ═══════════════════════════════════════════════════════════════════
+// ─── Анимационный цикл ───────────────────────────────────────────
+const fftBuf   = new Uint8Array(FFT_SIZE/2);
+const semVals  = new Float32Array(N_KEYS);
+const peakMask = new Uint8Array(N_KEYS);
+let lastRowTs  = 0;
 
-function updatePeaksBar(peaks, sv) {
-  const bar = document.getElementById('peaks-bar');
+function frame(ts) {
+  if (!running) return;
+  requestAnimationFrame(frame);
 
-  if (peaks.length === 0) {
-    bar.innerHTML = '<span id="no-signal">NO SIGNAL</span>';
-    return;
-  }
-
-  const sorted = [...peaks].sort((a, b) => a - b);
-  bar.innerHTML = sorted.map(k => {
-    const midi = MIDI_A0 + k;
-    const name = midiToName(midi);
-    const hz   = midiToFreq(midi).toFixed(1);
-    const pct  = Math.round(sv[k] * 100);
-    return `<span class="peak-tag">${name}&nbsp;<span class="peak-hz">${hz}Hz&nbsp;${pct}%</span></span>`;
-  }).join('');
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  MAIN RENDER LOOP
-// ═══════════════════════════════════════════════════════════════════
-
-const fftBuf  = new Uint8Array(FFT_SIZE / 2);
-const semVals = new Float32Array(NUM_KEYS);
-let lastRowTs = 0;
-
-function loop(ts) {
-  if (!isRunning) return;
-  requestAnimationFrame(loop);
-
-  // ── Read FFT ──
   analyser.getByteFrequencyData(fftBuf);
 
-  // ── Aggregate bins → semitone values ──
-  for (let k = 0; k < NUM_KEYS; k++) {
-    const bins = semMap[k];
-    let maxV   = 0;
-    for (const b of bins) if (fftBuf[b] > maxV) maxV = fftBuf[b];
-    semVals[k] = Math.min(1, (maxV / 255) * gain);
+  for (let k = 0; k < N_KEYS; k++) {
+    let mx = 0;
+    for (const b of semMap[k]) if (fftBuf[b] > mx) mx = fftBuf[b];
+    semVals[k] = Math.min(1, (mx/255) * gain);
   }
+  detectPeaks(semVals, peakMask);
 
-  // ── Detect peaks ──
-  const peaks    = detectPeaks(semVals);
-  const peakMask = new Uint8Array(NUM_KEYS);
-  for (const k of peaks) peakMask[k] = 1;
-
-  updatePeaksBar(peaks, semVals);
-
-  // ── Waterfall row ──
   if (ts - lastRowTs >= rowMs) {
     lastRowTs = ts;
-
-    const d    = wfData.data;
-    const rowB = CANVAS_W * 4;
-
-    // Shift entire buffer up by one row (last row will be overwritten)
-    d.copyWithin(0, rowB);
-
-    // Write new bottom row from semitone values
-    const base = (wfHeight - 1) * rowB;
-    for (let k = 0; k < NUM_KEYS; k++) {
-      const v   = Math.round(semVals[k] * 255);
-      const lut = peakMask[k] ? LUT_P : LUT_N;
-      const lr  = lut[v*3];
-      const lg  = lut[v*3+1];
-      const lb  = lut[v*3+2];
-      const x   = k * COL_W;
-      for (let px = 0; px < COL_W; px++) {
-        const i = base + (x + px) * 4;
-        d[i]=lr; d[i+1]=lg; d[i+2]=lb; d[i+3]=255;
-      }
-    }
-
-    // Commit waterfall, then draw overlays on top
-    ctx.putImageData(wfData, 0, 0);
-    drawOverlays(peaks);
+    addRow(semVals, peakMask);
+    ctx.putImageData(wfBuf, 0, 0);
+    drawGrid();
   }
-
-  // Keyboard redraws every frame (reflects current peaks)
   drawKeyboard(peakMask);
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  AUDIO INIT
-// ═══════════════════════════════════════════════════════════════════
-
+// ─── Микрофон ────────────────────────────────────────────────────
 async function startAudio() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation:  false,
-        noiseSuppression:  false,
-        autoGainControl:   false,
-        channelCount:      1
-      }
+      audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false}
     });
-
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize              = FFT_SIZE;
-    analyser.smoothingTimeConstant = smoothing;
-
-    const src = audioCtx.createMediaStreamSource(stream);
-    src.connect(analyser);
-
-    semMap     = buildSemMap(audioCtx.sampleRate);
-    isRunning  = true;
-
+    analyser.fftSize               = FFT_SIZE;
+    analyser.smoothingTimeConstant = smooth;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    semMap  = buildSemMap(audioCtx.sampleRate);
+    running = true;
     const btn = document.getElementById('startBtn');
-    btn.textContent = '■ RUNNING';
-    btn.classList.add('running');
-
-    requestAnimationFrame(loop);
-  } catch (e) {
-    alert('Microphone error: ' + e.message);
-  }
+    btn.textContent = '■  Остановить';
+    btn.classList.add('on');
+    requestAnimationFrame(frame);
+  } catch(e) { alert('Ошибка микрофона: ' + e.message); }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  CONTROLS
-// ═══════════════════════════════════════════════════════════════════
-
+// ─── Управление ──────────────────────────────────────────────────
 document.getElementById('startBtn').addEventListener('click', () => {
-  if (!isRunning) startAudio();
+  if (!running) startAudio();
 });
 
-document.getElementById('gainCtrl').addEventListener('input', e => {
-  gain = parseFloat(e.target.value);
-  document.getElementById('gainVal').textContent = gain.toFixed(1) + '×';
-});
+const ctrl = (id, valId, fn) =>
+  document.getElementById(id).addEventListener('input', e => {
+    fn(+e.target.value);
+    document.getElementById(valId).textContent =
+      id === 'sG'  ? (+e.target.value).toFixed(1) + '×' :
+      id === 'sR'  ? e.target.value + '/с' :
+      id === 'sSm' ? (+e.target.value).toFixed(2) :
+                     e.target.value + '%';
+  });
 
-document.getElementById('rateCtrl').addEventListener('input', e => {
-  const rps = parseInt(e.target.value);
-  rowMs = 1000 / rps;
-  document.getElementById('rateVal').textContent = rps + '/s';
-});
+ctrl('sG',   'vG',  v => { gain = v; });
+ctrl('sR',   'vR',  v => { rowMs = 1000 / v; });
+ctrl('sSm',  'vSm', v => { smooth = v; if (analyser) analyser.smoothingTimeConstant = v; });
+ctrl('sTh',  'vTh', v => { thresh = v / 100; });
 
-document.getElementById('smCtrl').addEventListener('input', e => {
-  smoothing = parseFloat(e.target.value);
-  document.getElementById('smVal').textContent = smoothing.toFixed(2);
-  if (analyser) analyser.smoothingTimeConstant = smoothing;
-});
-
-document.getElementById('peakThreshCtrl').addEventListener('input', e => {
-  peakThresh = parseInt(e.target.value) / 100;
-  document.getElementById('peakThreshVal').textContent = e.target.value + '%';
-});
-
-// ── Mouse tooltip ──
-const tooltip = document.getElementById('tooltip');
-
+// ─── Тултип ──────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
 canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const x = (e.clientX - rect.left) * scaleX;
-  const k = Math.floor(x / COL_W);
-
-  if (k >= 0 && k < NUM_KEYS) {
+  const r = canvas.getBoundingClientRect();
+  const k = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
+  if (k >= 0 && k < N_KEYS) {
     const midi = MIDI_A0 + k;
-    const name = midiToName(midi);
-    const hz   = midiToFreq(midi).toFixed(2);
-    tooltip.style.display = 'block';
-    tooltip.style.left    = (e.clientX + 14) + 'px';
-    tooltip.style.top     = (e.clientY - 6) + 'px';
-    tooltip.textContent   = `${name}  ${hz} Hz`;
+    tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
+    tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
   }
 });
+canvas.addEventListener('mouseleave', () => { tip.style.display='none'; });
 
-canvas.addEventListener('mouseleave', () => {
-  tooltip.style.display = 'none';
-});
-
-// ── Resize ──
-let resizeTimer;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(initCanvas, 150);
-});
-
-// ═══════════════════════════════════════════════════════════════════
-//  BOOT
-// ═══════════════════════════════════════════════════════════════════
+// ─── Resize ──────────────────────────────────────────────────────
+let rsT;
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(initCanvas, 120); });
 
 initCanvas();
 </script>
