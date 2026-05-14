@@ -137,6 +137,10 @@ select { padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; font-size
 
 <script>
 'use strict';
+const fMin = 20, fMax = 15000;
+const sliderToFreq = v => Math.round(fMin * Math.pow(fMax / fMin, v));
+const freqToSlider = f => Math.log(f / fMin) / Math.log(fMax / fMin);
+
 
 // ─── Constants & Utils ───────────────────────────────────────────
 const MIDI_A0 = 21, N_KEYS = 88, COL_W = 12, KB_H = 96, MAX_PK = 5;
@@ -393,7 +397,11 @@ function renderEQUI() {
       <div class="eq-band">
         <div class="eq-band-header"><span>${tName}</span><button class="eq-del" onclick="removeEqBand(${i})">Удалить</button></div>
         <div class="eq-sliders">
-          <div class="eq-slider-col">Freq: <span id="eqFv${i}">${band.freq}Hz</span><input type="range" min="20" max="15000" step="10" value="${band.freq}" oninput="eqBands[${i}].freq=this.value; document.getElementById('eqFv${i}').innerText=this.value+'Hz'; updateEQNode(${i});"></div>
+	
+<div class="eq-slider-col">Freq: <span id="eqFv${i}">${band.freq}Hz</span>
+  <input type="range" min="0" max="1" step="0.001" value="${freqToSlider(band.freq)}" 
+    oninput="let f=sliderToFreq(this.value); eqBands[${i}].freq=f; document.getElementById('eqFv${i}').innerText=f+'Hz'; updateEQNode(${i});">
+</div>
           <div class="eq-slider-col">Q: <span id="eqQv${i}">${band.q}</span><input type="range" min="0.1" max="20" step="0.1" value="${band.q}" oninput="eqBands[${i}].q=this.value; document.getElementById('eqQv${i}').innerText=this.value; updateEQNode(${i});"></div>
           <div class="eq-slider-col">Gain: <span id="eqGv${i}">${band.gain}dB</span><input type="range" min="-12" max="12" step="0.5" value="${band.gain}" oninput="eqBands[${i}].gain=this.value; document.getElementById('eqGv${i}').innerText=this.value+'dB'; updateEQNode(${i});"></div>
         </div>
