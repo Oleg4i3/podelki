@@ -1,196 +1,210 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Piano Roll</title>
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; }
-body { display: flex; flex-direction: column; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pro CQT Piano Roll – Full</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; }
+        body { display: flex; flex-direction: column; }
 
-/* ─── CONTROL PANEL ────────────────────────────────────────────── */
-#panel {
-  flex-shrink: 0; background: #f0f2f5; border-bottom: 1px solid #c8cdd6;
-  padding: 7px 14px 6px; display: flex; flex-direction: column; gap: 5px; z-index: 10;
-}
-.btn-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        /* ─── CONTROL PANEL ────────────────────────────────────────── */
+        #panel {
+            flex-shrink: 0; background: #f0f2f5; border-bottom: 1px solid #c8cdd6;
+            padding: 10px 16px 12px; display: flex; align-items: flex-end; gap: 10px;
+            flex-wrap: wrap; z-index: 10;
+        }
+        .btn {
+            height: 38px; padding: 0 14px; border-radius: 6px; border: none;
+            background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: 0.15s; white-space: nowrap;
+        }
+        .btn:hover { background: #1d4fd8; }
+        .btn.on { background: #16a34a; }
+        .btn.rec { background: #dc2626; }
+        .btn.rec:hover { background: #b91c1c; }
+        .btn.modal-trigger { background: #4b5563; }
+        .btn.modal-trigger:hover { background: #374151; }
+        .btn.small { height: 30px; padding: 0 10px; font-size: 11px; }
 
-.btn {
-  height: 34px; padding: 0 11px; border-radius: 6px; border: none;
-  background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: 0.15s; white-space: nowrap;
-}
-.btn:hover { background: #1d4fd8; }
-.btn.on { background: #16a34a; }
-.btn.danger { background: #ef4444; }
-.btn.danger.on { background: #dc2626; animation: pulse 1.5s infinite; }
-.btn.util { background: #4b5563; }
-.btn.util:hover { background: #374151; }
-.btn.util.on { background: #0e7490; }
-@keyframes pulse { 0%{opacity:1}50%{opacity:0.5}100%{opacity:1} }
+        .ctrl-row {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+            margin-left: 10px;
+        }
+        .ctrl {
+            display: flex; flex-direction: column; gap: 2px; min-width: 100px;
+        }
+        .ctrl-label {
+            font-size: 10px; font-weight: 600; color: #374151;
+            display: flex; justify-content: space-between;
+        }
+        .ctrl-val { color: #2563eb; }
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; height: 5px;
+            border-radius: 3px; background: #d1d5db; cursor: pointer; outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px;
+            border-radius: 50%; background: #2563eb; transition: 0.1s;
+        }
+        .toggle-wrap { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; }
+        .toggle-wrap input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
 
-.sep { width:1px; height:30px; background:#ccc; margin:0 2px; flex-shrink:0; align-self:center; }
+        /* ─── CANVAS AREA ──────────────────────────────────────────── */
+        #wrap { flex: 1; overflow-x: auto; overflow-y: hidden; }
+        canvas { display: block; cursor: crosshair; }
+        #tip {
+            position: fixed; background: #ffffffee; border:1px solid #ccc;
+            font-size: 11px; font-weight: 600; padding: 3px 8px;
+            border-radius: 4px; pointer-events: none; display: none; z-index: 99;
+        }
 
-.cb-label {
-  display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600;
-  color:#374151; cursor:pointer; white-space:nowrap; align-self:center;
-}
-.cb-label input[type=checkbox] { width:15px; height:15px; cursor:pointer; }
+        /* ─── MODALS ───────────────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal {
+            background: #fff; padding: 18px; border-radius: 8px;
+            width: 420px; max-width: 95vw; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 14px; font-weight: bold; font-size: 16px;
+        }
+        .close-btn {
+            background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;
+        }
+        .modal-row { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        select {
+            padding: 4px 8px; border-radius: 4px; border:1px solid #ccc; font-size:13px; outline:none;
+        }
 
-/* ─── SPOILER ────────────────────────────────────────────────── */
-details.spoiler { width:100%; }
-details.spoiler > summary {
-  cursor:pointer; list-style:none; user-select:none;
-  font-size:11px; font-weight:700; color:#4b5563;
-  padding:3px 9px; background:#e5e7eb; border-radius:4px;
-  display:inline-flex; align-items:center; gap:5px;
-}
-details.spoiler > summary::-webkit-details-marker { display:none; }
-details.spoiler > summary::before { content:'▶'; font-size:8px; transition:transform 0.2s; display:inline-block; }
-details[open].spoiler > summary::before { transform:rotate(90deg); }
+        /* EQ specific */
+        .eq-band {
+            border:1px solid #e5e7eb; padding:10px; border-radius:6px;
+            margin-bottom:10px; background:#f9fafb;
+        }
+        .eq-band-header { font-size:12px; font-weight:bold; margin-bottom:6px; display:flex; justify-content:space-between; }
+        .eq-del { background:#ef4444; color:#fff; border:none; border-radius:3px; cursor:pointer; padding:2px 6px; font-size:10px; }
+        .eq-sliders { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+        .eq-slider-col { display:flex; flex-direction:column; font-size:10px; text-align:center; }
+        .eq-slider-col input { margin-top:4px; width:100%; }
 
-.sliders-row { display:flex; gap:10px; flex-wrap:wrap; padding-top:7px; padding-bottom:2px; }
-.ctrl { display:flex; flex-direction:column; gap:3px; min-width:105px; }
-.ctrl-label { font-size:11px; font-weight:600; color:#374151; display:flex; justify-content:space-between; }
-.ctrl-val { color:#2563eb; }
-input[type=range] { -webkit-appearance:none; width:100%; height:5px; border-radius:3px; background:#d1d5db; cursor:pointer; outline:none; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#2563eb; transition:0.1s; }
-
-/* ─── CANVAS AREA ──────────────────────────────────────────────── */
-#wrap { flex:1; overflow-x:auto; overflow-y:hidden; position:relative; }
-canvas { display:block; cursor:crosshair; }
-#tip { position:fixed; background:#ffffffee; border:1px solid #ccc; font-size:11px; font-weight:600; padding:3px 8px; border-radius:4px; pointer-events:none; display:none; z-index:99; }
-
-/* ─── MODALS ───────────────────────────────────────────────────── */
-.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index:100; }
-.modal { background:#fff; padding:20px; border-radius:8px; width:400px; max-width:90vw; box-shadow:0 10px 25px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto; }
-.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; font-weight:bold; font-size:16px; }
-.close-btn { background:none; border:none; font-size:20px; cursor:pointer; color:#6b7280; }
-.modal-row { margin-bottom:12px; display:flex; align-items:center; gap:10px; }
-select { padding:4px 8px; border-radius:4px; border:1px solid #ccc; font-size:13px; outline:none; }
-.eq-band { border:1px solid #e5e7eb; padding:10px; border-radius:6px; margin-bottom:10px; background:#f9fafb; }
-.eq-band-header { font-size:12px; font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; }
-.eq-del { background:#ef4444; color:#fff; border:none; border-radius:3px; cursor:pointer; padding:2px 6px; font-size:10px; }
-.eq-sliders { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-.eq-slider-col { display:flex; flex-direction:column; font-size:10px; text-align:center; }
-.eq-slider-col input { margin-top:4px; }
-.modal-ctrl { display:flex; flex-direction:column; gap:4px; margin-bottom:14px; }
-</style>
+        /* hidden sliders */
+        #slidersContainer { transition: all 0.2s; }
+        .hidden-sliders { display: none !important; }
+    </style>
 </head>
 <body>
 
 <div id="panel">
-  <!-- ── Основная строка кнопок ── -->
-  <div class="btn-row">
-    <button id="startBtn" class="btn">▶ Старт</button>
+    <button id="startBtn" class="btn">▶ Start</button>
+    <button id="metroToggle" class="btn on" style="background:#6b7280;">🔊 Метроном</button>
 
-    <div class="sep"></div>
+    <button class="btn modal-trigger" onclick="document.getElementById('eqModal').style.display='flex'">Эквалайзер</button>
+    <button class="btn modal-trigger" onclick="document.getElementById('metronomeModal').style.display='flex'">Размер</button>
 
-    <button class="btn util" onclick="document.getElementById('eqModal').style.display='flex'">Эквалайзер</button>
-    <button class="btn util" id="btnEqCurve" onclick="toggleEqCurve()">АЧХ: Выкл</button>
-    <button id="metroSoundBtn" class="btn util on" onclick="toggleMetroSound()">🥁 Звук: Вкл</button>
-    <button class="btn util" onclick="document.getElementById('metronomeModal').style.display='flex'">⚙ Метроном</button>
+    <button id="toggleSlidersBtn" class="btn small" style="background:#9ca3af;">Скрыть слайдеры</button>
 
-    <div class="sep"></div>
+    <span class="toggle-wrap">
+        <input type="checkbox" id="rainbowChk" checked> Rainbow
+    </span>
 
-    <label class="cb-label" title="Разноцветные полосы нот">
-      <input type="checkbox" id="cbRainbow" checked onchange="rainbowMode=this.checked"> 🌈 Rainbow
+    <!-- record / play / save block -->
+    <button id="recBtn" class="btn rec">⏺ Record</button>
+    <button id="playBtn" class="btn">▶ Play</button>
+    <button id="stopRecBtn" class="btn" style="background:#6b7280;">⏹ Stop</button>
+    <button id="saveBtn" class="btn small" style="background:#475569;">💾 Save</button>
+
+    <!-- config load/save -->
+    <button id="saveConfigBtn" class="btn small" style="background:#475569;">📁 Save cfg</button>
+    <label class="btn small" style="background:#475569; cursor:pointer; display:inline-flex; align-items:center;">
+        📂 Load cfg
+        <input type="file" id="loadConfigInput" style="display:none;" accept=".json">
     </label>
 
-    <div class="sep"></div>
-
-    <button class="btn util" onclick="saveConfig()">💾 Сохранить</button>
-    <button class="btn util" onclick="document.getElementById('fileInput').click()">📂 Загрузить</button>
-    <input type="file" id="fileInput" style="display:none" accept=".json" onchange="loadConfig(event)">
-
-    <div class="sep"></div>
-
-    <button id="recBtn" class="btn danger" onclick="toggleRecord()">⏺ Запись</button>
-    <button id="playRecBtn"  class="btn util" style="display:none;" onclick="togglePlayback()">▶ Play</button>
-    <button id="stopRecBtn"  class="btn util" style="display:none;" onclick="stopPlayback()">⏹</button>
-    <a     id="saveRecBtn"  class="btn util" style="display:none; text-decoration:none; line-height:34px;" download="piano-recording.webm">↓ Audio</a>
-  </div>
-
-  <!-- ── Слайдеры под спойлером ── -->
-  <details class="spoiler">
-    <summary>⚙ Параметры</summary>
-    <div class="sliders-row">
-      <div class="ctrl">
-        <div class="ctrl-label">Гармоники (Гасить) <span class="ctrl-val" id="vHarm">70%</span></div>
-        <input type="range" id="sHarm" min="0" max="100" step="5" value="70">
-      </div>
-      <div class="ctrl" style="min-width:80px;">
-        <div class="ctrl-label">Mic Gain <span class="ctrl-val" id="vPreG">1×</span></div>
-        <input type="range" id="sPreG" min="1" max="20" step="1" value="1">
-      </div>
-      <div class="ctrl" style="min-width:80px;">
-        <div class="ctrl-label">Vis Gain <span class="ctrl-val" id="vG">50×</span></div>
-        <input type="range" id="sG" min="1" max="150" step="1" value="50">
-      </div>
-      <div class="ctrl" style="min-width:80px;">
-        <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
-        <input type="range" id="sTh" min="1" max="40" step="1" value="4">
-      </div>
-      <div class="ctrl" style="min-width:95px;">
-        <div class="ctrl-label">Гистерезис <span class="ctrl-val" id="vHyst">50%</span></div>
-        <input type="range" id="sHyst" min="0" max="90" step="5" value="50">
-      </div>
-      <div class="ctrl" style="min-width:80px;">
-        <div class="ctrl-label">Скорость <span class="ctrl-val" id="vSpd">30/с</span></div>
-        <input type="range" id="sSpd" min="10" max="120" step="1" value="30">
-      </div>
+    <div id="slidersContainer" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-left:10px;">
+        <div class="ctrl">
+            <div class="ctrl-label">Mic Gain <span class="ctrl-val" id="vPreG">1.0×</span></div>
+            <input type="range" id="sPreG" min="1" max="20" step="0.1" value="1">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Vis Gain <span class="ctrl-val" id="vG">50×</span></div>
+            <input type="range" id="sG" min="1" max="150" step="1" value="50">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Скорость <span class="ctrl-val" id="vR">30/с</span></div>
+            <input type="range" id="sR" min="10" max="60" step="1" value="30">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
+            <input type="range" id="sTh" min="1" max="40" step="1" value="4">
+        </div>
     </div>
-  </details>
 </div>
 
 <div id="wrap"><canvas id="cv"></canvas></div>
 <div id="tip"></div>
 
-<!-- ─── EQ Modal ──────────────────────────────────────────────────── -->
+<!-- EQ MODAL -->
 <div id="eqModal" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-header"><span>Параметрический EQ</span><button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button></div>
-    <div class="modal-row">
-      <select id="eqType"><option value="peaking">Полосовой (Peaking)</option><option value="lowshelf">Low Shelf</option><option value="highshelf">High Shelf</option></select>
-      <button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="addEqBand()">+ Добавить</button>
+    <div class="modal">
+        <div class="modal-header">
+            <span>Параметрический EQ</span>
+            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
+        </div>
+        <div class="modal-row" style="justify-content: space-between;">
+            <span class="toggle-wrap">
+                <input type="checkbox" id="eqShowCurveChk"> Показать АЧХ
+            </span>
+            <select id="eqType">
+                <option value="peaking">Полосовой (Peaking)</option>
+                <option value="lowshelf">Low Shelf</option>
+                <option value="highshelf">High Shelf</option>
+            </select>
+            <button class="btn small" onclick="addEqBand()">+ Добавить</button>
+        </div>
+        <div id="eqList"></div>
     </div>
-    <div id="eqList"></div>
-  </div>
 </div>
 
-<!-- ─── Metronome Modal ───────────────────────────────────────────── -->
+<!-- METRONOME MODAL -->
 <div id="metronomeModal" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-header"><span>Метроном (Маракас)</span><button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button></div>
-    <div class="modal-row">
-      <label style="font-weight:600; font-size:13px;">Размер:</label>
-      <select id="mSig" onchange="beatsPerBar=parseInt(this.value); currentBeat=0;">
-        <option value="2">2/4</option><option value="3">3/4</option>
-        <option value="4" selected>4/4</option><option value="5">5/4</option>
-        <option value="6">6/8</option><option value="7">7/8</option>
-      </select>
+    <div class="modal">
+        <div class="modal-header">
+            <span>Метроном</span>
+            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
+        </div>
+        <div class="modal-row" style="justify-content: space-between;">
+            <span>Размер:</span>
+            <select id="mSig">
+                <option value="2">2/4</option><option value="3">3/4</option>
+                <option value="4" selected>4/4</option>
+                <option value="5">5/4</option><option value="6">6/8</option><option value="7">7/8</option>
+            </select>
+        </div>
+        <div class="ctrl" style="margin-bottom: 12px;">
+            <div class="ctrl-label">Темп (BPM) <span class="ctrl-val" id="vBpm">120</span></div>
+            <input type="range" id="sBpm" min="40" max="240" step="1" value="120">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Громкость <span class="ctrl-val" id="vMVol">50%</span></div>
+            <input type="range" id="sMVol" min="0" max="100" step="1" value="50">
+        </div>
     </div>
-    <div class="modal-ctrl">
-      <div class="ctrl-label">Темп (BPM) <span class="ctrl-val" id="vBpm">120</span></div>
-      <input type="range" id="sBpm" min="40" max="240" step="1" value="120"
-             oninput="bpm=parseInt(this.value); document.getElementById('vBpm').innerText=this.value;">
-    </div>
-    <div class="modal-ctrl">
-      <div class="ctrl-label">Громкость <span class="ctrl-val" id="vMVol">50%</span></div>
-      <input type="range" id="sMVol" min="0" max="100" step="1" value="50"
-             oninput="metroVol=this.value/100; document.getElementById('vMVol').innerText=this.value+'%';">
-    </div>
-  </div>
 </div>
+
+<!-- hidden audio element for playback -->
+<audio id="audioPlayback" style="display:none;"></audio>
 
 <script>
 'use strict';
-const fMin = 20, fMax = 15000;
-const sliderToFreq = v => Math.round(fMin * Math.pow(fMax / fMin, v));
-const freqToSlider = f => Math.log(f / fMin) / Math.log(fMax / fMin);
 
-// ─── Constants & Utils ───────────────────────────────────────────
+// ─── Constants & Utilities ───────────────────────────────────────
 const MIDI_A0 = 21, N_KEYS = 88, COL_W = 12, KB_H = 96, MAX_PK = 5;
 const BLK_PC = new Set([1, 3, 6, 8, 10]);
 const isBlack = k => BLK_PC.has((MIDI_A0 + k) % 12);
@@ -198,558 +212,707 @@ const midi2freq = m => 440 * 2 ** ((m - 69) / 12);
 const midi2name = m => ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12] + (Math.floor(m / 12) - 1);
 const NOTE_HUE = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 
-function hsl2rgb(h, s, l) {
-  const c = (1 - Math.abs(2*l - 1)) * s;
-  const x = c * (1 - Math.abs(((h/60) % 2) - 1));
-  const m = l - c/2;
-  let r=0, g=0, b=0;
-  if(h<60){r=c;g=x;b=0}else if(h<120){r=x;g=c;b=0}else if(h<180){r=0;g=c;b=x}
-  else if(h<240){r=0;g=x;b=c}else if(h<300){r=x;g=0;b=c}else{r=c;g=0;b=x}
-  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
-}
-
-// Rainbow LUT (per pitch-class)
-const PC_LUT = Array.from({length:12}, (_, pc) => {
-  const lut = new Uint8Array(256 * 3);
-  for (let i = 0; i < 256; i++) {
-    const [r,g,b] = hsl2rgb(NOTE_HUE[pc], 1.0, 0.06 + (i/255) * 0.56);
-    lut[i*3]=r; lut[i*3+1]=g; lut[i*3+2]=b;
-  }
-  return lut;
-});
-
-// Mono LUT (blue hue=210)
-const MONO_HUE = 210;
-const MONO_LUT = (() => {
-  const lut = new Uint8Array(256 * 3);
-  for (let i = 0; i < 256; i++) {
-    const [r,g,b] = hsl2rgb(MONO_HUE, 1.0, 0.06 + (i/255) * 0.56);
-    lut[i*3]=r; lut[i*3+1]=g; lut[i*3+2]=b;
-  }
-  return lut;
-})();
-
-// ─── State ───────────────────────────────────────────────────────
-let audioCtx, micSource, cqtNode, preGainNode;
-let recDestNode, mediaRecorder, recChunks = [], recBlobUrl = null;
-let recAudio = null;
-
-let running = false;
-let visGain = 50.0, rowMs = 1000 / 30, thresh = 0.04, harmSupression = 0.7;
-let hystRatio = 0.5;   // hysteresis: release threshold = thresh * (1 - hystRatio)
-let rainbowMode = true;
-
-const targetVals  = new Float32Array(N_KEYS);
-const semVals     = new Float32Array(N_KEYS);
-const peakMask    = new Uint8Array(N_KEYS);
-const noteActive  = new Uint8Array(N_KEYS);  // stateful note-on/off for hysteresis
-
-let eqBands = [], eqNodes = [], drawEQ = false;
-let bpm = 120, metroVol = 0.5, beatsPerBar = 4, metroOn = true;
-let nextNoteTime = 0, currentBeat = 0, visualBeatQueue = [];
-let noiseBuffer = null;
-
-// ─── Canvas Init ─────────────────────────────────────────────────
-const canvas = document.getElementById('cv');
-const ctx = canvas.getContext('2d', {alpha: false});
-let wfH = 0, wfBuf = null;
-const CANVAS_W = N_KEYS * COL_W;
-
-// Grid base colours (brighter than before)
-const GR_BLK = [8, 8, 12];    // black-key column
-const GR_WHT = [40, 40, 46];  // white-key column
-
-function initCanvas() {
-  const h = document.getElementById('wrap').clientHeight;
-  canvas.width = CANVAS_W; canvas.height = h;
-  wfH = Math.max(20, h - KB_H);
-  wfBuf = new ImageData(CANVAS_W, wfH);
-  const d = wfBuf.data;
-  for (let y = 0; y < wfH; y++) {
-    for (let k = 0; k < N_KEYS; k++) {
-      const [cr,cg,cb] = isBlack(k) ? GR_BLK : GR_WHT;
-      for (let px = 0; px < COL_W; px++) {
-        const i = (y * CANVAS_W + k * COL_W + px) * 4;
-        // Subtle teal marker at left edge of each C-note (octave boundary)
-        if (px === 0 && (MIDI_A0 + k) % 12 === 0) {
-          d[i]=Math.min(255,cr+20); d[i+1]=Math.min(255,cg+45); d[i+2]=Math.min(255,cb+30);
-        } else {
-          d[i]=cr; d[i+1]=cg; d[i+2]=cb;
-        }
-        d[i+3]=255;
-      }
+// ─── Precomputed Color LUTs ──────────────────────────────────────
+function makeLUT(hue, sat, litRange) {
+    const lut = new Uint8Array(256 * 3);
+    const [l0, l1] = litRange;
+    for (let i = 0; i < 256; i++) {
+        const l = l0 + (i / 255) * (l1 - l0);
+        const [r, g, b] = hsl2rgb(hue, sat, l);
+        lut[i * 3] = r;
+        lut[i * 3 + 1] = g;
+        lut[i * 3 + 2] = b;
     }
-  }
-  drawKeyboard(new Uint8Array(N_KEYS));
+    return lut;
 }
 
-// ─── Metronome ────────────────────────────────────────────────────
-function createNoiseBuffer() {
-  const bSize = audioCtx.sampleRate * 0.2;
-  noiseBuffer = audioCtx.createBuffer(1, bSize, audioCtx.sampleRate);
-  const data = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < bSize; i++) data[i] = Math.random() * 2 - 1;
+function hsl2rgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    return [
+        Math.round((r + m) * 255),
+        Math.round((g + m) * 255),
+        Math.round((b + m) * 255)
+    ];
 }
 
-// beatKind: 0=normal, 1=strong, 2=semi-strong
-function playShaker(time, beatKind) {
-  if (!metroOn || metroVol <= 0.01) return;
-  if (!noiseBuffer) createNoiseBuffer();
-  const noise = audioCtx.createBufferSource();
-  noise.buffer = noiseBuffer;
-  const bp = audioCtx.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = beatKind === 1 ? 7000 : (beatKind === 2 ? 6200 : 5000);
-  bp.Q.value = 1.5;
-  const vol = beatKind === 1 ? metroVol : (beatKind === 2 ? metroVol * 0.72 : metroVol * 0.45);
-  const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(vol, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-  noise.connect(bp).connect(gain).connect(audioCtx.destination);
-  noise.start(time); noise.stop(time + 0.1);
+const PC_LUT_COLOR = Array.from({ length: 12 }, (_, pc) =>
+    makeLUT(NOTE_HUE[pc], 1.0, [0.06, 0.62])
+);
+const MONO_LUT = makeLUT(0, 0, [0.1, 0.55]); // grayscale
+
+let rainbow = true; // toggled by checkbox
+
+// ─── Global State ────────────────────────────────────────────────
+let audioCtx = null, micSource = null, cqtNode = null, preGainNode = null;
+let running = false;
+let visGain = 50.0;
+let rowMs = 1000 / 30;
+let thresh = 0.04;
+const targetVals = new Float32Array(N_KEYS), semVals = new Float32Array(N_KEYS), peakMask = new Uint8Array(N_KEYS);
+
+// EQ
+let eqBands = [];
+let eqNodes = [];
+let showEQCurve = false;
+
+// Metronome
+let bpm = 120, metroVol = 0.5, beatsPerBar = 4, metroActive = true;
+let nextNoteTime = 0, currentBeat = 0, visualBeatQueue = [];
+let beatPattern = []; // will be computed
+let noiseClickBuffer = null; // AudioBuffer for metronome click
+
+// Recording / Playback
+let mediaRecorder = null, recordedBlob = null;
+const audioEl = document.getElementById('audioPlayback');
+
+// ─── Canvas Setup ────────────────────────────────────────────────
+const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d', { alpha: false });
+let wfH = 0, wfBuf = null, CANVAS_W = N_KEYS * COL_W;
+let EQ_H = 100; // height of EQ curve area when visible
+
+function resizeCanvas() {
+    const h = document.getElementById('wrap').clientHeight;
+    canvas.width = CANVAS_W;
+    canvas.height = h;
+    const usedForEQ = showEQCurve ? EQ_H : 0;
+    wfH = Math.max(20, h - KB_H - usedForEQ);
+    wfBuf = new ImageData(CANVAS_W, wfH);
+    // fill with dark background
+    const d = wfBuf.data;
+    for (let y = 0; y < wfH; y++) {
+        for (let k = 0; k < N_KEYS; k++) {
+            const c = isBlack(k) ? 0 : 25;
+            for (let px = 0; px < COL_W; px++) {
+                const i = (y * CANVAS_W + k * COL_W + px) * 4;
+                d[i] = c; d[i + 1] = c; d[i + 2] = c; d[i + 3] = 255;
+            }
+        }
+    }
+    drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
 }
 
-function beatKindFor(beat, total) {
-  if (beat === 0) return 1; // always strong
-  // Semi-strong: beat 3 in 4/4, beat 4 in 6/8
-  if (total === 4 && beat === 2) return 2;
-  if (total === 6 && beat === 3) return 2;
-  return 0; // regular
+// ─── Keyboard Drawing (proper piano layout) ──────────────────────
+function drawKeyboard(pm) {
+    const top = wfH + (showEQCurve ? EQ_H : 0);
+    // Background
+    ctx.fillStyle = '#e8eaf0';
+    ctx.fillRect(0, top, CANVAS_W, KB_H);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, top, CANVAS_W, 2);
+
+    // White keys (full contiguous columns)
+    for (let k = 0; k < N_KEYS; k++) {
+        if (isBlack(k)) continue;
+        const x = k * COL_W;
+        const lit = pm[k];
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210; // blue-grey if mono
+        const g = ctx.createLinearGradient(0, top + 2, 0, top + KB_H);
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},90%,72%)`);
+            g.addColorStop(1, `hsl(${hue},90%,58%)`);
+        } else {
+            g.addColorStop(0, '#f8f9fc');
+            g.addColorStop(1, '#d4d8e5');
+        }
+        ctx.fillStyle = g;
+        ctx.fillRect(x + 1, top + 2, COL_W - 1, KB_H - 3);
+        // side line
+        ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
+        ctx.fillRect(x + COL_W - 1, top + 2, 1, KB_H - 3);
+        // note name on C
+        if ((MIDI_A0 + k) % 12 === 0) {
+            ctx.fillStyle = lit ? '#fff' : '#778899';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.font = 'bold 8px sans-serif';
+            ctx.fillText(midi2name(MIDI_A0 + k), x + COL_W / 2, top + KB_H - 4);
+        }
+    }
+
+    // Black keys (overlay)
+    const BK_H = Math.round(KB_H * 0.6);
+    const BK_W = Math.round(COL_W * 0.65);
+    const BK_OX = Math.floor((COL_W - BK_W) / 2);
+    for (let k = 0; k < N_KEYS; k++) {
+        if (!isBlack(k)) continue;
+        const x = k * COL_W + BK_OX, y = top + 2;
+        const lit = pm[k];
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
+        const g = ctx.createLinearGradient(0, y, 0, y + BK_H);
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},100%,40%)`);
+            g.addColorStop(1, `hsl(${hue},100%,38%)`);
+        } else {
+            g.addColorStop(0, '#3a3c4c');
+            g.addColorStop(1, '#12131c');
+        }
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 3, 3]);
+        ctx.fill();
+        if (!lit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85);
+        }
+    }
+}
+
+// ─── EQ Curve Drawing ────────────────────────────────────────────
+function drawEQCurve() {
+    if (!showEQCurve) return;
+    if (!audioCtx || eqNodes.length === 0) return;
+
+    const top = wfH;
+    const h = EQ_H;
+    const freqs = new Float32Array(N_KEYS);
+    for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
+
+    const magLinear = new Float32Array(N_KEYS);
+    const phase = new Float32Array(N_KEYS);
+    // start with 1 (0 dB)
+    for (let k = 0; k < N_KEYS; k++) magLinear[k] = 1;
+
+    eqNodes.forEach(node => {
+        const singleMag = new Float32Array(N_KEYS);
+        node.getFrequencyResponse(freqs, singleMag, phase);
+        for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
+    });
+
+    // draw background
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = top + h / 2 - (db / 12) * (h * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+    }
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
+    const y0 = top + h / 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
+
+    // frequency labels (on bottom of EQ area)
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    for (let k = 0; k < N_KEYS; k++) {
+        if ((MIDI_A0 + k) % 12 === 0) { // C notes
+            const x = k * COL_W + COL_W / 2;
+            const freq = midi2freq(MIDI_A0 + k);
+            ctx.fillText(freq.toFixed(0) + ' Hz', x, top + h - 4);
+        }
+    }
+
+    // draw curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    let first = true;
+    for (let k = 0; k < N_KEYS; k++) {
+        const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
+        const y = y0 - (db / 12) * (h * 0.8);
+        const x = k * COL_W + COL_W / 2;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+// ─── Waterfall Row ───────────────────────────────────────────────
+function addRow(sv, pm, beatLineType) {
+    const d = wfBuf.data;
+    const rowB = CANVAS_W * 4;
+    const base = (wfH - 1) * rowB;
+    d.copyWithin(0, rowB); // scroll up
+
+    for (let k = 0; k < N_KEYS; k++) {
+        const isBlk = isBlack(k);
+        let r = isBlk ? 0 : 25;
+        let g = isBlk ? 0 : 25;
+        let b = isBlk ? 0 : 25;
+
+        // metronome line brightness
+        if (beatLineType === 1) { r += 60; g += 60; b += 60; }
+        else if (beatLineType === 2) { r += 30; g += 30; b += 30; }
+
+        if (pm[k]) {
+            const v = Math.round(Math.min(1, Math.max(0, sv[k])) * 255);
+            const lut = rainbow ? PC_LUT_COLOR[(MIDI_A0 + k) % 12] : MONO_LUT;
+            r = Math.max(r, lut[v * 3]);
+            g = Math.max(g, lut[v * 3 + 1]);
+            b = Math.max(b, lut[v * 3 + 2]);
+        }
+        for (let px = 0; px < COL_W; px++) {
+            const i = base + (k * COL_W + px) * 4;
+            d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        }
+    }
+}
+
+// ─── Animation Loop ──────────────────────────────────────────────
+let lastRowTs = 0;
+function frame(ts) {
+    if (!running) return;
+    requestAnimationFrame(frame);
+
+    for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
+
+    peakMask.fill(0);
+    const c = [];
+    for (let k = 1; k < N_KEYS - 1; k++)
+        if (semVals[k] > thresh && semVals[k] >= semVals[k - 1] && semVals[k] >= semVals[k + 1]) c.push(k);
+    c.sort((a, b) => semVals[b] - semVals[a]);
+    for (const k of c.slice(0, MAX_PK)) peakMask[k] = 1;
+
+    if (ts - lastRowTs >= rowMs) {
+        lastRowTs = ts;
+        let bType = 0;
+        if (visualBeatQueue.length > 0 && audioCtx.currentTime >= visualBeatQueue[0].time) {
+            bType = visualBeatQueue.shift().type;
+        }
+        addRow(semVals, peakMask, bType);
+        ctx.putImageData(wfBuf, 0, 0);
+    }
+    drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
+}
+
+// ─── Metronome Logic ─────────────────────────────────────────────
+function generateNoiseClickBuffer() {
+    const len = audioCtx.sampleRate * 0.03; // 30ms
+    const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.2));
+    return buffer;
+}
+
+function playClick(time, gainLevel) {
+    if (!metroActive || metroVol <= 0.01 || !noiseClickBuffer) return;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseClickBuffer;
+    const gainNode = audioCtx.createGain();
+    src.connect(gainNode).connect(audioCtx.destination);
+    gainNode.gain.setValueAtTime(gainLevel * metroVol, time);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+    src.start(time);
+    src.stop(time + 0.03);
+}
+
+function updateBeatPattern() {
+    beatPattern = [];
+    if (beatsPerBar === 4) beatPattern = [1, 0, 2, 0]; // strong, weak, half, weak
+    else if (beatsPerBar === 6) beatPattern = [1, 0, 0, 2, 0, 0];
+    else {
+        beatPattern = new Array(beatsPerBar).fill(0);
+        beatPattern[0] = 1; // strong on first
+    }
 }
 
 function scheduleMetronome() {
-  if (!running) return;
-  while (nextNoteTime < audioCtx.currentTime + 0.1) {
-    const kind = beatKindFor(currentBeat, beatsPerBar);
-    playShaker(nextNoteTime, kind);
-    visualBeatQueue.push({ time: nextNoteTime, kind });
-    currentBeat = (currentBeat + 1) % beatsPerBar;
-    nextNoteTime += 60.0 / bpm;
-  }
-  setTimeout(scheduleMetronome, 25);
-}
-
-// ─── Draw Logic ──────────────────────────────────────────────────
-function drawKeyboard(pm) {
-  const top = wfH;
-  ctx.fillStyle = '#e8eaf0'; ctx.fillRect(0, top, CANVAS_W, KB_H);
-  ctx.fillStyle = '#222';    ctx.fillRect(0, top, CANVAS_W, 2);
-
-  // White keys
-  for (let k = 0; k < N_KEYS; k++) {
-    if (isBlack(k)) continue;
-    let x = k * COL_W, w = COL_W;
-    if (k > 0 && isBlack(k-1))       { x -= COL_W/2; w += COL_W/2; }
-    if (k < N_KEYS-1 && isBlack(k+1)) { w += COL_W/2; }
-    const lit = pm[k];
-    const pc  = (MIDI_A0 + k) % 12;
-    const hue = rainbowMode ? NOTE_HUE[pc] : MONO_HUE;
-    const g = ctx.createLinearGradient(0, top+2, 0, top+KB_H);
-    if (lit) { g.addColorStop(0,`hsl(${hue},90%,72%)`); g.addColorStop(1,`hsl(${hue},90%,58%)`); }
-    else     { g.addColorStop(0,'#ffffff');               g.addColorStop(1,'#d4d8e5'); }
-    ctx.fillStyle = g;
-    ctx.fillRect(x+1, top+2, w-1, KB_H-3);
-    ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
-    ctx.fillRect(x+w-1, top+2, 1, KB_H-3);
-    if (pc === 0) {
-      ctx.fillStyle = lit ? '#fff' : '#778899';
-      ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.font='bold 9px sans-serif';
-      ctx.fillText(midi2name(MIDI_A0+k), x+w/2, top+KB_H-4);
+    if (!running || !metroActive) return;
+    while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        const type = beatPattern[currentBeat];
+        let gain = 0;
+        if (type === 1) gain = 1.0;
+        else if (type === 2) gain = 0.65;
+        else gain = 0.35;
+        playClick(nextNoteTime, gain);
+        visualBeatQueue.push({ time: nextNoteTime, type: type });
+        currentBeat = (currentBeat + 1) % beatsPerBar;
+        nextNoteTime += 60.0 / bpm;
     }
-  }
-
-  // Black keys
-  const BK_H = Math.round(KB_H * 0.65);
-  const BK_W = Math.round(COL_W * 0.75);
-  const BK_OX = Math.floor((COL_W - BK_W) / 2);
-  for (let k = 0; k < N_KEYS; k++) {
-    if (!isBlack(k)) continue;
-    const x = k * COL_W + BK_OX, y = top + 2;
-    const lit = pm[k];
-    const pc  = (MIDI_A0 + k) % 12;
-    const hue = rainbowMode ? NOTE_HUE[pc] : MONO_HUE;
-    const g = ctx.createLinearGradient(0, y, 0, y+BK_H);
-    if (lit) { g.addColorStop(0,`hsl(${hue},100%,45%)`); g.addColorStop(1,`hsl(${hue},100%,25%)`); }
-    else     { g.addColorStop(0,'#3a3c4c');               g.addColorStop(1,'#050505'); }
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.roundRect(x, y, BK_W, BK_H, [0,0,4,4]); ctx.fill();
-    if (!lit) { ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(x+1, y, BK_W-2, BK_H*0.85); }
-  }
+    setTimeout(scheduleMetronome, 25);
 }
 
-// beatLineKind: 0=none, 1=strong, 2=semi-strong, 3=regular
-function addRow(sv, pm, beatLineKind) {
-  const d = wfBuf.data, rowB = CANVAS_W * 4, base = (wfH-1) * rowB;
-  d.copyWithin(0, rowB);
-
-  for (let k = 0; k < N_KEYS; k++) {
-    let [r, g, b] = isBlack(k) ? GR_BLK : GR_WHT;
-
-    // Horizontal beat lines (much more visible)
-    if      (beatLineKind === 1) { r=Math.min(255,r+210); g=Math.min(255,g+185); b=Math.min(255,b+145); } // warm white
-    else if (beatLineKind === 2) { r=Math.min(255,r+100); g=Math.min(255,g+105); b=Math.min(255,b+175); } // cool blue
-    else if (beatLineKind === 3) { r=Math.min(255,r+60);  g=Math.min(255,g+60);  b=Math.min(255,b+60);  } // subtle grey
-
-    // Note colour
-    if (pm[k]) {
-      const v = Math.round(Math.min(1, Math.max(0, sv[k])) * 255);
-      const lut = rainbowMode ? PC_LUT[(MIDI_A0+k) % 12] : MONO_LUT;
-      r = Math.max(r, lut[v*3]); g = Math.max(g, lut[v*3+1]); b = Math.max(b, lut[v*3+2]);
-    }
-
-    // Write pixels (with octave-boundary tint on C-note left edge)
-    for (let px = 0; px < COL_W; px++) {
-      const i = base + (k * COL_W + px) * 4;
-      if (px === 0 && (MIDI_A0 + k) % 12 === 0) {
-        d[i]=Math.min(255,r+20); d[i+1]=Math.min(255,g+45); d[i+2]=Math.min(255,b+30);
-      } else {
-        d[i]=r; d[i+1]=g; d[i+2]=b;
-      }
-    }
-  }
-}
-
-function drawEQCurveOverlay() {
-  if (!drawEQ || eqNodes.length === 0) return;
-  const freqs = new Float32Array(N_KEYS), magRes = new Float32Array(N_KEYS), phRes = new Float32Array(N_KEYS);
-  const totalMag = new Float32Array(N_KEYS).fill(1);
-  for(let i=0; i<N_KEYS; i++) freqs[i] = midi2freq(MIDI_A0+i);
-  eqNodes.forEach(node => {
-    node.getFrequencyResponse(freqs, magRes, phRes);
-    for(let i=0; i<N_KEYS; i++) totalMag[i] *= magRes[i];
-  });
-  ctx.save();
-  const baseY = wfH - 30;
-  ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.moveTo(0,baseY); ctx.lineTo(CANVAS_W,baseY); ctx.stroke();
-  ctx.beginPath(); ctx.strokeStyle='#eab308'; ctx.lineWidth=2;
-  for(let i=0; i<N_KEYS; i++) {
-    const db = 20*Math.log10(totalMag[i]||0.0001);
-    const y = baseY - (db*1.5), x = i*COL_W + COL_W/2;
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  }
-  ctx.stroke(); ctx.restore();
-}
-
-// ─── Main Render Loop ─────────────────────────────────────────────
-let lastRowTs = 0;
-function frame(ts) {
-  if (!running) return;
-  requestAnimationFrame(frame);
-
-  // Smooth target values
-  for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
-
-  // Harmonic suppression
-  let cleanVals = new Float32Array(semVals);
-  if (harmSupression > 0.01) {
-    for (let k = 0; k < N_KEYS; k++) {
-      const e = cleanVals[k];
-      if (e > thresh) {
-        if(k+12<N_KEYS) cleanVals[k+12] -= e * harmSupression;
-        if(k+19<N_KEYS) cleanVals[k+19] -= e * harmSupression * 0.7;
-        if(k+24<N_KEYS) cleanVals[k+24] -= e * harmSupression * 0.5;
-        if(k+28<N_KEYS) cleanVals[k+28] -= e * harmSupression * 0.3;
-      }
-    }
-    for (let k = 0; k < N_KEYS; k++) cleanVals[k] = Math.max(0, cleanVals[k]);
-  }
-
-  // ── HYSTERESIS PEAK DETECTION ─────────────────────────────────
-  // Onset:   val > thresh  AND  local maximum
-  // Release: val < thresh * (1 - hystRatio)
-  const relThresh = thresh * (1.0 - hystRatio);
-  for (let k = 1; k < N_KEYS-1; k++) {
-    const v = cleanVals[k];
-    if (noteActive[k]) {
-      if (v < relThresh) noteActive[k] = 0;
-    } else {
-      const isLocalMax = v >= cleanVals[k-1] && v >= cleanVals[k+1];
-      if (v > thresh && isLocalMax) noteActive[k] = 1;
-    }
-  }
-  peakMask.fill(0);
-  const c = [];
-  for (let k = 1; k < N_KEYS-1; k++) if (noteActive[k]) c.push(k);
-  c.sort((a,b) => cleanVals[b] - cleanVals[a]);
-  for (const k of c.slice(0, MAX_PK)) peakMask[k] = 1;
-
-  if (ts - lastRowTs >= rowMs) {
-    lastRowTs = ts;
-    let bKind = 0;
-    if (visualBeatQueue.length > 0 && audioCtx.currentTime >= visualBeatQueue[0].time)
-      bKind = visualBeatQueue.shift().kind;
-    addRow(cleanVals, peakMask, bKind);
-    ctx.putImageData(wfBuf, 0, 0);
-    drawEQCurveOverlay();
-  }
-  drawKeyboard(peakMask);
-}
-
-// ─── EQ & Graph ──────────────────────────────────────────────────
-function toggleEqCurve() {
-  drawEQ = !drawEQ;
-  const btn = document.getElementById('btnEqCurve');
-  btn.textContent = drawEQ ? 'АЧХ: Вкл' : 'АЧХ: Выкл';
-  btn.classList.toggle('on', drawEQ);
-}
-
+// ─── EQ Management ───────────────────────────────────────────────
 function rebuildAudioGraph() {
-  if (!micSource || !cqtNode) return;
-  micSource.disconnect(); preGainNode.disconnect(); eqNodes.forEach(n => n.disconnect());
-  let prev = micSource;
-  prev.connect(preGainNode); prev = preGainNode;
-  eqNodes.forEach(n => { prev.connect(n); prev = n; });
-  prev.connect(cqtNode);
-  if (recDestNode) prev.connect(recDestNode);
+    if (!micSource || !cqtNode) return;
+    micSource.disconnect();
+    preGainNode.disconnect();
+    eqNodes.forEach(n => n.disconnect());
+    let prev = micSource;
+    prev.connect(preGainNode);
+    prev = preGainNode;
+    eqNodes.forEach(n => { prev.connect(n); prev = n; });
+    prev.connect(cqtNode);
 }
 
 function updateEQNode(idx) {
-  if (!eqNodes[idx]) return;
-  const d = eqBands[idx];
-  eqNodes[idx].type=d.type; eqNodes[idx].frequency.value=d.freq; eqNodes[idx].Q.value=d.q; eqNodes[idx].gain.value=d.gain;
+    if (!eqNodes[idx]) return;
+    const d = eqBands[idx];
+    eqNodes[idx].type = d.type;
+    eqNodes[idx].frequency.value = d.freq;
+    eqNodes[idx].Q.value = d.q;
+    eqNodes[idx].gain.value = d.gain;
+    if (showEQCurve && running) drawEQCurve();
 }
 
-window.addEqBand = function(bandConfig) {
-  const type = document.getElementById('eqType').value;
-  const band = bandConfig || { id: Date.now(), type, freq: 1000, q: 1, gain: 0 };
-  eqBands.push(band);
-  if (audioCtx) {
-    const filter = audioCtx.createBiquadFilter(); eqNodes.push(filter);
-    updateEQNode(eqBands.length-1); rebuildAudioGraph();
-  }
-  renderEQUI();
+window.addEqBand = function () {
+    const type = document.getElementById('eqType').value;
+    eqBands.push({ id: Date.now(), type, freq: 1000, q: 1, gain: 0 });
+    if (audioCtx) {
+        const filter = audioCtx.createBiquadFilter();
+        eqNodes.push(filter);
+        updateEQNode(eqBands.length - 1);
+        rebuildAudioGraph();
+    }
+    renderEQUI();
 };
 
-window.removeEqBand = function(idx) {
-  eqBands.splice(idx,1);
-  if (audioCtx) { eqNodes[idx].disconnect(); eqNodes.splice(idx,1); rebuildAudioGraph(); }
-  renderEQUI();
+window.removeEqBand = function (idx) {
+    eqBands.splice(idx, 1);
+    if (audioCtx && eqNodes[idx]) {
+        eqNodes[idx].disconnect();
+        eqNodes.splice(idx, 1);
+        rebuildAudioGraph();
+    }
+    renderEQUI();
+    if (showEQCurve) drawEQCurve();
 };
+
+const LOG_MIN = Math.log10(20), LOG_MAX = Math.log10(15000);
+function freqToSlider(freq) {
+    return ((Math.log10(freq) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
+}
+function sliderToFreq(val) {
+    return Math.pow(10, LOG_MIN + (LOG_MAX - LOG_MIN) * (val / 100));
+}
 
 function renderEQUI() {
-  const list = document.getElementById('eqList'); list.innerHTML='';
-  eqBands.forEach((band,i) => {
-    const tName = band.type==='peaking' ? 'Полосовой' : (band.type==='lowshelf' ? 'Low Shelf' : 'High Shelf');
-    list.insertAdjacentHTML('beforeend', `
-      <div class="eq-band">
-        <div class="eq-band-header"><span>${tName}</span><button class="eq-del" onclick="removeEqBand(${i})">Удалить</button></div>
-        <div class="eq-sliders">
-          <div class="eq-slider-col">Freq: <span id="eqFv${i}">${band.freq}Hz</span>
-            <input type="range" min="0" max="1" step="0.001" value="${freqToSlider(band.freq)}"
-              oninput="let f=sliderToFreq(this.value); eqBands[${i}].freq=f; document.getElementById('eqFv${i}').innerText=f+'Hz'; updateEQNode(${i});">
-          </div>
-          <div class="eq-slider-col">Q: <span id="eqQv${i}">${band.q}</span><input type="range" min="0.1" max="20" step="0.1" value="${band.q}" oninput="eqBands[${i}].q=this.value; document.getElementById('eqQv${i}').innerText=this.value; updateEQNode(${i});"></div>
-          <div class="eq-slider-col">Gain: <span id="eqGv${i}">${band.gain}dB</span><input type="range" min="-12" max="12" step="0.5" value="${band.gain}" oninput="eqBands[${i}].gain=this.value; document.getElementById('eqGv${i}').innerText=this.value+'dB'; updateEQNode(${i});"></div>
-        </div>
-      </div>`);
-  });
+    const list = document.getElementById('eqList');
+    list.innerHTML = '';
+    eqBands.forEach((band, i) => {
+        const tName = band.type === 'peaking' ? 'Полосовой' : (band.type === 'lowshelf' ? 'Low Shelf' : 'High Shelf');
+        const sliderVal = freqToSlider(band.freq).toFixed(1);
+        const html = `
+        <div class="eq-band">
+            <div class="eq-band-header">
+                <span>${tName}</span>
+                <button class="eq-del" onclick="removeEqBand(${i})">Удалить</button>
+            </div>
+            <div class="eq-sliders">
+                <div class="eq-slider-col">
+                    Freq: <span id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
+                    <input type="range" min="0" max="100" step="0.1" value="${sliderVal}"
+                        oninput="let freq=sliderToFreq(parseFloat(this.value)); eqBands[${i}].freq=freq; document.getElementById('eqFv${i}').innerText=freq.toFixed(0)+'Hz'; updateEQNode(${i});">
+                </div>
+                <div class="eq-slider-col">
+                    Q: <span id="eqQv${i}">${band.q}</span>
+                    <input type="range" min="0.1" max="20" step="0.1" value="${band.q}"
+                        oninput="eqBands[${i}].q=parseFloat(this.value); document.getElementById('eqQv${i}').innerText=this.value; updateEQNode(${i});">
+                </div>
+                <div class="eq-slider-col">
+                    Gain: <span id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
+                    <input type="range" min="-12" max="12" step="0.1" value="${band.gain}"
+                        oninput="eqBands[${i}].gain=parseFloat(this.value); document.getElementById('eqGv${i}').innerText=parseFloat(this.value).toFixed(1)+'dB'; updateEQNode(${i});">
+                </div>
+            </div>
+        </div>`;
+        list.insertAdjacentHTML('beforeend', html);
+    });
 }
 
-// ─── Recording ───────────────────────────────────────────────────
-function toggleRecord() {
-  const btn = document.getElementById('recBtn');
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-    btn.classList.remove('on'); btn.textContent = '⏺ Запись';
-  } else {
-    if (!audioCtx) return alert('Сначала нажмите Старт!');
-    recChunks = [];
-    recDestNode = audioCtx.createMediaStreamDestination();
-    rebuildAudioGraph();
-    mediaRecorder = new MediaRecorder(recDestNode.stream, { mimeType: 'audio/webm' });
-    mediaRecorder.ondataavailable = e => { if(e.data.size>0) recChunks.push(e.data); };
+// ─── Recording / Playback / Save ─────────────────────────────────
+async function startRecording() {
+    if (!micSource) return;
+    const stream = micSource.mediaStream;
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    const chunks = [];
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
     mediaRecorder.onstop = () => {
-      const blob = new Blob(recChunks, { type: 'audio/webm' });
-      if (recBlobUrl) URL.revokeObjectURL(recBlobUrl);
-      recBlobUrl = URL.createObjectURL(blob);
-      recAudio = null;
-      document.getElementById('playRecBtn').style.display='inline-block';
-      document.getElementById('playRecBtn').textContent='▶ Play';
-      document.getElementById('stopRecBtn').style.display='inline-block';
-      const a = document.getElementById('saveRecBtn'); a.href=recBlobUrl; a.style.display='inline-block';
+        recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+        audioEl.src = URL.createObjectURL(recordedBlob);
+        document.getElementById('playBtn').disabled = false;
+        document.getElementById('saveBtn').disabled = false;
     };
     mediaRecorder.start();
-    btn.classList.add('on'); btn.textContent = '⏹ Стоп Запись';
-    document.getElementById('playRecBtn').style.display='none';
-    document.getElementById('stopRecBtn').style.display='none';
-    document.getElementById('saveRecBtn').style.display='none';
-  }
 }
 
-function togglePlayback() {
-  if (!recBlobUrl) return;
-  if (!recAudio) {
-    recAudio = new Audio(recBlobUrl);
-    recAudio.onended = () => updatePlayBtn();
-  }
-  if (recAudio.paused) recAudio.play(); else recAudio.pause();
-  updatePlayBtn();
-}
-function stopPlayback() {
-  if (recAudio) { recAudio.pause(); recAudio.currentTime=0; updatePlayBtn(); }
-}
-function updatePlayBtn() {
-  const btn = document.getElementById('playRecBtn');
-  btn.textContent = (recAudio && !recAudio.paused) ? '⏸ Пауза' : '▶ Play';
-}
-
-// ─── Metronome Toggle ────────────────────────────────────────────
-function toggleMetroSound() {
-  metroOn = !metroOn;
-  const btn = document.getElementById('metroSoundBtn');
-  btn.textContent = metroOn ? '🥁 Звук: Вкл' : '🥁 Звук: Выкл';
-  btn.classList.toggle('on', metroOn);
-}
-
-// ─── Start / Stop Audio ───────────────────────────────────────────
-function updateStartBtn() {
-  const btn = document.getElementById('startBtn');
-  btn.textContent = running ? '■ Стоп' : '▶ Старт';
-  btn.classList.toggle('on', running);
-}
-
+// ─── Start / Stop Audio ──────────────────────────────────────────
 async function startAudio() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-    });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    await audioCtx.audioWorklet.addModule(
-      URL.createObjectURL(new Blob([cqtWorkletCode], { type: 'application/javascript' }))
-    );
-    micSource = audioCtx.createMediaStreamSource(stream);
-    preGainNode = audioCtx.createGain();
-    preGainNode.gain.value = document.getElementById('sPreG').value;
-    eqNodes = eqBands.map(b => {
-      const f = audioCtx.createBiquadFilter();
-      f.type=b.type; f.frequency.value=b.freq; f.Q.value=b.q; f.gain.value=b.gain; return f;
-    });
-    cqtNode = new AudioWorkletNode(audioCtx, 'cqt-filterbank');
-    cqtNode.port.onmessage = e => {
-      for (let k=0; k<N_KEYS; k++) targetVals[k] = Math.sqrt(e.data[k]) * visGain;
-    };
-    rebuildAudioGraph();
-    running = true; nextNoteTime = audioCtx.currentTime + 0.1; currentBeat = 0;
-    scheduleMetronome();
-    updateStartBtn();
-    requestAnimationFrame(frame);
-  } catch(e) { alert('Ошибка микрофона: ' + e.message); }
-}
-
-function toggleStart() {
-  if (!audioCtx) { startAudio(); return; }
-  if (running) {
-    running = false;
-    noteActive.fill(0);
-    updateStartBtn();
-  } else {
-    running = true;
-    nextNoteTime = audioCtx.currentTime + 0.1;
-    currentBeat = 0;
-    scheduleMetronome();
-    requestAnimationFrame(frame);
-    updateStartBtn();
-  }
-}
-
-document.getElementById('startBtn').addEventListener('click', toggleStart);
-
-// ─── Config Save / Load ───────────────────────────────────────────
-window.saveConfig = function() {
-  const config = {
-    eqBands, bpm, metroVol, beatsPerBar, metroOn,
-    harmSupression, preGain: document.getElementById('sPreG').value,
-    visGain, thresh, hystRatio, rainbowMode
-  };
-  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='piano-config.json'; a.click();
-};
-
-window.loadConfig = function(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
     try {
-      const c = JSON.parse(ev.target.result);
-      if (c.eqBands) { eqBands=[]; if(audioCtx){eqNodes.forEach(n=>n.disconnect()); eqNodes=[];} c.eqBands.forEach(b=>window.addEqBand(b)); }
-      if (c.bpm)        { bpm=c.bpm; document.getElementById('sBpm').value=bpm; document.getElementById('vBpm').innerText=bpm; }
-      if (c.metroVol!==undefined) { metroVol=c.metroVol; document.getElementById('sMVol').value=metroVol*100; document.getElementById('vMVol').innerText=(metroVol*100)+'%'; }
-      if (c.beatsPerBar){ beatsPerBar=c.beatsPerBar; document.getElementById('mSig').value=beatsPerBar; }
-      if (c.metroOn!==undefined) { metroOn=c.metroOn; const btn=document.getElementById('metroSoundBtn'); btn.textContent=metroOn?'🥁 Звук: Вкл':'🥁 Звук: Выкл'; btn.classList.toggle('on',metroOn); }
-      if (c.harmSupression!==undefined) { harmSupression=c.harmSupression; document.getElementById('sHarm').value=harmSupression*100; document.getElementById('vHarm').innerText=(harmSupression*100)+'%'; }
-      if (c.preGain) { document.getElementById('sPreG').value=c.preGain; if(preGainNode) preGainNode.gain.value=c.preGain; document.getElementById('vPreG').innerText=c.preGain+'×'; }
-      if (c.visGain) { visGain=c.visGain; document.getElementById('sG').value=visGain; document.getElementById('vG').innerText=visGain+'×'; }
-      if (c.thresh)  { thresh=c.thresh; document.getElementById('sTh').value=thresh*100; document.getElementById('vTh').innerText=(thresh*100)+'%'; }
-      if (c.hystRatio!==undefined) { hystRatio=c.hystRatio; document.getElementById('sHyst').value=hystRatio*100; document.getElementById('vHyst').innerText=Math.round(hystRatio*100)+'%'; }
-      if (c.rainbowMode!==undefined) { rainbowMode=c.rainbowMode; document.getElementById('cbRainbow').checked=rainbowMode; }
-      alert('Настройки загружены!');
-    } catch(err) { alert('Ошибка файла!'); }
-  };
-  reader.readAsText(file); e.target.value='';
-};
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([`
+            class CQTFilterbank extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.N = 88; this.fs = sampleRate; this.Q = 17.31;
+                    this.b0=new Float32Array(this.N); this.b1=new Float32Array(this.N); this.b2=new Float32Array(this.N);
+                    this.a1=new Float32Array(this.N); this.a2=new Float32Array(this.N);
+                    this.x1=new Float32Array(this.N); this.x2=new Float32Array(this.N);
+                    this.y1=new Float32Array(this.N); this.y2=new Float32Array(this.N);
+                    this.env=new Float32Array(this.N); this.envAlpha=new Float32Array(this.N);
+                    for(let k=0;k<this.N;k++){
+                        let freq=440*Math.pow(2,(21+k-69)/12), w0=2*Math.PI*freq/this.fs;
+                        let alpha=Math.sin(w0)/(2*this.Q), a0=1+alpha;
+                        this.b0[k]=alpha/a0; this.b1[k]=0; this.b2[k]=-alpha/a0;
+                        this.a1[k]=(-2*Math.cos(w0))/a0; this.a2[k]=(1-alpha)/a0;
+                        this.envAlpha[k]=Math.exp(-1.0/(this.fs*Math.max(1.0/freq*4,0.01)));
+                    }
+                    this.samplesCount=0;
+                }
+                process(inputs){
+                    const input=inputs[0][0]; if(!input) return true;
+                    for(let i=0;i<input.length;i++){
+                        let x=input[i];
+                        for(let k=0;k<this.N;k++){
+                            let y=this.b0[k]*x+this.b1[k]*this.x1[k]+this.b2[k]*this.x2[k]-this.a1[k]*this.y1[k]-this.a2[k]*this.y2[k];
+                            this.x2[k]=this.x1[k]; this.x1[k]=x; this.y2[k]=this.y1[k]; this.y1[k]=y;
+                            this.env[k]=this.env[k]*this.envAlpha[k]+(y*y)*(1-this.envAlpha[k]);
+                        }
+                    }
+                    this.samplesCount+=input.length;
+                    if(this.samplesCount>=this.fs/60){ this.port.postMessage(new Float32Array(this.env)); this.samplesCount=0; }
+                    return true;
+                }
+            }
+            registerProcessor('cqt-filterbank', CQTFilterbank);
+        `], { type: 'application/javascript' })));
 
-// ─── Slider bindings ─────────────────────────────────────────────
-const bCtrl = (id, fn) => document.getElementById(id).addEventListener('input', e => fn(e.target.value));
-bCtrl('sHarm', v => { harmSupression=v/100; document.getElementById('vHarm').innerText=v+'%'; });
-bCtrl('sPreG', v => { if(preGainNode) preGainNode.gain.value=v; document.getElementById('vPreG').innerText=v+'×'; });
-bCtrl('sG',    v => { visGain=v; document.getElementById('vG').innerText=v+'×'; });
-bCtrl('sTh',   v => { thresh=v/100; document.getElementById('vTh').innerText=v+'%'; });
-bCtrl('sHyst', v => { hystRatio=v/100; document.getElementById('vHyst').innerText=v+'%'; });
-bCtrl('sSpd',  v => { rowMs=1000/v; document.getElementById('vSpd').innerText=v+'/с'; });
+        micSource = audioCtx.createMediaStreamSource(stream);
+        preGainNode = audioCtx.createGain();
+        preGainNode.gain.value = parseFloat(document.getElementById('sPreG').value);
 
-// ─── Tooltip ────────────────────────────────────────────────────
+        // restore EQ nodes
+        eqNodes = eqBands.map(b => {
+            const f = audioCtx.createBiquadFilter();
+            f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
+            return f;
+        });
+        cqtNode = new AudioWorkletNode(audioCtx, 'cqt-filterbank');
+        cqtNode.port.onmessage = e => {
+            const energies = e.data;
+            for (let k = 0; k < N_KEYS; k++) targetVals[k] = Math.sqrt(energies[k]) * visGain;
+        };
+        rebuildAudioGraph();
+
+        // metronome noise buffer
+        noiseClickBuffer = generateNoiseClickBuffer();
+        updateBeatPattern();
+        nextNoteTime = audioCtx.currentTime + 0.1;
+        currentBeat = 0;
+
+        running = true;
+        const btn = document.getElementById('startBtn');
+        btn.textContent = '■ Stop'; btn.classList.add('on');
+        scheduleMetronome();
+        requestAnimationFrame(frame);
+    } catch (e) { alert('Ошибка микрофона: ' + e.message); }
+}
+
+function stopAudio() {
+    if (!running) return;
+    running = false;
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    micSource = null; cqtNode = null; preGainNode = null;
+    eqNodes = [];
+    visualBeatQueue.length = 0;
+    const btn = document.getElementById('startBtn');
+    btn.textContent = '▶ Start'; btn.classList.remove('on');
+}
+
+// ─── UI Event Bindings ───────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+    if (!running) startAudio(); else stopAudio();
+});
+
+// Metronome toggle
+document.getElementById('metroToggle').addEventListener('click', function () {
+    metroActive = !metroActive;
+    this.classList.toggle('on', metroActive);
+    this.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
+    if (metroActive && running) {
+        nextNoteTime = audioCtx.currentTime + 0.05;
+        scheduleMetronome();
+    }
+});
+
+// Sliders spoiler
+document.getElementById('toggleSlidersBtn').addEventListener('click', function () {
+    const container = document.getElementById('slidersContainer');
+    container.classList.toggle('hidden-sliders');
+    this.textContent = container.classList.contains('hidden-sliders') ? 'Показать слайдеры' : 'Скрыть слайдеры';
+});
+
+// Rainbow checkbox
+document.getElementById('rainbowChk').addEventListener('change', e => {
+    rainbow = e.target.checked;
+});
+
+// EQ curve checkbox
+document.getElementById('eqShowCurveChk').addEventListener('change', e => {
+    showEQCurve = e.target.checked;
+    resizeCanvas();
+});
+
+// Metronome settings
+document.getElementById('sBpm').addEventListener('input', e => {
+    bpm = parseInt(e.target.value);
+    document.getElementById('vBpm').innerText = e.target.value;
+});
+document.getElementById('sMVol').addEventListener('input', e => {
+    metroVol = parseFloat(e.target.value) / 100;
+    document.getElementById('vMVol').innerText = e.target.value + '%';
+});
+document.getElementById('mSig').addEventListener('change', e => {
+    beatsPerBar = parseInt(e.target.value);
+    currentBeat = 0;
+    updateBeatPattern();
+});
+
+// Slider bindings
+function bindSlider(id, updateFn) {
+    document.getElementById(id).addEventListener('input', e => updateFn(e.target.value));
+}
+bindSlider('sPreG', v => {
+    if (preGainNode) preGainNode.gain.value = parseFloat(v);
+    document.getElementById('vPreG').innerText = parseFloat(v).toFixed(1) + '×';
+});
+bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v + '×'; });
+bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v + '/с'; });
+bindSlider('sTh', v => { thresh = parseFloat(v) / 100; document.getElementById('vTh').innerText = v + '%'; });
+
+// Record / Play / Stop / Save
+document.getElementById('recBtn').addEventListener('click', () => {
+    if (!running) return;
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        document.getElementById('recBtn').classList.remove('on');
+        document.getElementById('recBtn').textContent = '⏺ Record';
+    } else {
+        startRecording();
+        document.getElementById('recBtn').classList.add('on');
+        document.getElementById('recBtn').textContent = '⏺ Recording...';
+    }
+});
+document.getElementById('stopRecBtn').addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        document.getElementById('recBtn').classList.remove('on');
+        document.getElementById('recBtn').textContent = '⏺ Record';
+    }
+});
+document.getElementById('playBtn').addEventListener('click', () => {
+    if (!audioEl.src) return;
+    if (audioEl.paused) audioEl.play();
+    else audioEl.pause();
+});
+document.getElementById('saveBtn').addEventListener('click', () => {
+    if (!recordedBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(recordedBlob);
+    a.download = 'recording.webm';
+    a.click();
+});
+
+// Config save / load
+function gatherConfig() {
+    return {
+        preGain: parseFloat(document.getElementById('sPreG').value),
+        visGain: parseFloat(document.getElementById('sG').value),
+        speed: parseFloat(document.getElementById('sR').value),
+        thresh: parseFloat(document.getElementById('sTh').value),
+        bpm: bpm,
+        metroVol: metroVol,
+        beatsPerBar: beatsPerBar,
+        metroActive: metroActive,
+        rainbow: rainbow,
+        eqBands: eqBands.map(b => ({ type: b.type, freq: b.freq, q: b.q, gain: b.gain }))
+    };
+}
+function applyConfig(cfg) {
+    document.getElementById('sPreG').value = cfg.preGain;
+    document.getElementById('sPreG').dispatchEvent(new Event('input'));
+    document.getElementById('sG').value = cfg.visGain;
+    document.getElementById('sG').dispatchEvent(new Event('input'));
+    document.getElementById('sR').value = cfg.speed;
+    document.getElementById('sR').dispatchEvent(new Event('input'));
+    document.getElementById('sTh').value = cfg.thresh;
+    document.getElementById('sTh').dispatchEvent(new Event('input'));
+    bpm = cfg.bpm; document.getElementById('sBpm').value = cfg.bpm; document.getElementById('vBpm').innerText = cfg.bpm;
+    metroVol = cfg.metroVol; document.getElementById('sMVol').value = cfg.metroVol * 100; document.getElementById('vMVol').innerText = (cfg.metroVol*100).toFixed(0)+'%';
+    beatsPerBar = cfg.beatsPerBar; document.getElementById('mSig').value = cfg.beatsPerBar;
+    metroActive = cfg.metroActive;
+    const metroBtn = document.getElementById('metroToggle');
+    metroBtn.classList.toggle('on', metroActive);
+    metroBtn.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
+    rainbow = cfg.rainbow; document.getElementById('rainbowChk').checked = rainbow;
+    // EQ bands
+    eqBands = [];
+    if (audioCtx) { eqNodes.forEach(n => n.disconnect()); eqNodes = []; }
+    cfg.eqBands.forEach(b => {
+        eqBands.push({ id: Date.now()+Math.random(), type: b.type, freq: b.freq, q: b.q, gain: b.gain });
+        if (audioCtx) {
+            const f = audioCtx.createBiquadFilter();
+            f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
+            eqNodes.push(f);
+        }
+    });
+    if (audioCtx) rebuildAudioGraph();
+    renderEQUI();
+    updateBeatPattern();
+}
+document.getElementById('saveConfigBtn').addEventListener('click', () => {
+    const cfg = gatherConfig();
+    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cqt_config.json';
+    a.click();
+});
+document.getElementById('loadConfigInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const cfg = JSON.parse(reader.result);
+            applyConfig(cfg);
+        } catch (err) { alert('Ошибка чтения конфига: ' + err); }
+    };
+    reader.readAsText(file);
+});
+
+// Tooltip
 const tip = document.getElementById('tip');
 canvas.addEventListener('mousemove', e => {
-  const r = canvas.getBoundingClientRect();
-  const k = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
-  if (k >= 0 && k < N_KEYS) {
-    tip.style.cssText=`display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
-    tip.textContent=`${midi2name(MIDI_A0+k)}  ${midi2freq(MIDI_A0+k).toFixed(1)} Hz`;
-  }
+    const r = canvas.getBoundingClientRect();
+    const k = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
+    if (k >= 0 && k < N_KEYS) {
+        const midi = MIDI_A0 + k;
+        tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
+        tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
+    }
 });
-canvas.addEventListener('mouseleave', () => { tip.style.display='none'; });
+canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
 
+// Resize handler
 let rsT;
-window.addEventListener('resize', () => { clearTimeout(rsT); rsT=setTimeout(initCanvas, 120); });
-initCanvas();
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(resizeCanvas, 120); });
 
-// ─── AUDIO WORKLET (CQT) ─────────────────────────────────────────
-const cqtWorkletCode = `
-class CQTFilterbank extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.N=88; this.fs=sampleRate; this.Q=17.31;
-    this.b0=new Float32Array(this.N); this.b1=new Float32Array(this.N); this.b2=new Float32Array(this.N);
-    this.a1=new Float32Array(this.N); this.a2=new Float32Array(this.N);
-    this.x1=new Float32Array(this.N); this.x2=new Float32Array(this.N);
-    this.y1=new Float32Array(this.N); this.y2=new Float32Array(this.N);
-    this.env=new Float32Array(this.N); this.envAlpha=new Float32Array(this.N);
-    for (let k=0; k<this.N; k++) {
-      let freq=440*Math.pow(2,(21+k-69)/12), w0=2*Math.PI*freq/this.fs;
-      let alpha=Math.sin(w0)/(2*this.Q), a0=1+alpha;
-      this.b0[k]=alpha/a0; this.b1[k]=0; this.b2[k]=-alpha/a0;
-      this.a1[k]=(-2*Math.cos(w0))/a0; this.a2[k]=(1-alpha)/a0;
-      this.envAlpha[k]=Math.exp(-1.0/(this.fs*Math.max(1.0/freq*4, 0.01)));
-    }
-    this.samplesCount=0;
-  }
-  process(inputs) {
-    const input=inputs[0][0]; if(!input) return true;
-    for (let i=0; i<input.length; i++) {
-      const x=input[i];
-      for (let k=0; k<this.N; k++) {
-        let y=this.b0[k]*x+this.b1[k]*this.x1[k]+this.b2[k]*this.x2[k]-this.a1[k]*this.y1[k]-this.a2[k]*this.y2[k];
-        this.x2[k]=this.x1[k]; this.x1[k]=x; this.y2[k]=this.y1[k]; this.y1[k]=y;
-        this.env[k]=this.env[k]*this.envAlpha[k]+(y*y)*(1-this.envAlpha[k]);
-      }
-    }
-    this.samplesCount+=input.length;
-    if (this.samplesCount>=this.fs/60) { this.port.postMessage(new Float32Array(this.env)); this.samplesCount=0; }
-    return true;
-  }
-}
-registerProcessor('cqt-filterbank', CQTFilterbank);`;
+// Initial canvas
+resizeCanvas();
+renderEQUI();
+updateBeatPattern();
 </script>
 </body>
 </html>
