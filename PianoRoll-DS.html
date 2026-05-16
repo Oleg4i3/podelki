@@ -144,6 +144,16 @@
             <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
             <input type="range" id="sTh" min="1" max="40" step="1" value="4">
         </div>
+        <div class="ctrl" style="min-width:110px;">
+            <div class="ctrl-label">Г.Порог <span class="ctrl-val" id="vHarm">35%</span></div>
+            <input type="range" id="sHarm" min="5" max="90" step="5" value="35">
+        </div>
+        <span class="toggle-wrap" style="padding-bottom:4px;">
+            <input type="checkbox" id="harmSuppChk" checked> Подавл.гарм.
+        </span>
+        <span class="toggle-wrap" style="padding-bottom:4px;">
+            <input type="checkbox" id="hpsChk" checked> HPS буст
+        </span>
     </div>
 </div>
 
@@ -258,6 +268,16 @@ let visGain = 50.0;
 let rowMs = 1000 / 30;
 let thresh = 0.04;
 const targetVals = new Float32Array(N_KEYS), semVals = new Float32Array(N_KEYS), peakMask = new Uint8Array(N_KEYS);
+
+// ─── Harmonic Analysis ───────────────────────────────────────────
+// Semitone offsets for harmonics 2–5 relative to fundamental
+const HARM_OFFSETS = [12, 19, 24, 28]; // octave, 5th+oct, 2oct, 2oct+3rd
+// Weights for HPS boost: how much each harmonic contributes to fundamental detection
+const HPS_WEIGHTS  = [0.50, 0.35, 0.25, 0.18];
+const detVals = new Float32Array(N_KEYS); // HPS-enhanced detection values
+let hpsBoost    = true;   // boost weak fundamentals using harmonic energy
+let harmSuppress = true;  // suppress harmonic false-positives
+let harmRatio   = 0.35;   // fundamental must be ≥ this fraction of harmonic to suppress it
 
 // EQ
 let eqBands = [];
@@ -474,11 +494,40 @@ function frame(ts) {
     for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
 
     peakMask.fill(0);
+
+    // ── HPS boost: add weighted harmonic energy to help detect weak fundamentals ──
+    for (let k = 0; k < N_KEYS; k++) {
+        detVals[k] = semVals[k];
+        if (hpsBoost) {
+            for (let h = 0; h < HARM_OFFSETS.length; h++) {
+                const hk = k + HARM_OFFSETS[h];
+                if (hk < N_KEYS) detVals[k] += HPS_WEIGHTS[h] * semVals[hk];
+            }
+        }
+    }
+
+    // ── Find local peaks using HPS-boosted values ──
     const c = [];
     for (let k = 1; k < N_KEYS - 1; k++)
-        if (semVals[k] > thresh && semVals[k] >= semVals[k - 1] && semVals[k] >= semVals[k + 1]) c.push(k);
-    c.sort((a, b) => semVals[b] - semVals[a]);
-    for (const k of c.slice(0, MAX_PK)) peakMask[k] = 1;
+        if (detVals[k] > thresh && detVals[k] >= detVals[k - 1] && detVals[k] >= detVals[k + 1]) c.push(k);
+    c.sort((a, b) => detVals[b] - detVals[a]);
+
+    // ── Harmonic suppression: remove peaks that are harmonics of a stronger fundamental ──
+    const confirmed = [];
+    for (const k of c) {
+        if (harmSuppress) {
+            let isHarm = false;
+            for (const off of HARM_OFFSETS) {
+                const fk = k - off;
+                // Suppress if a potential fundamental has energy ≥ harmRatio × this peak's energy
+                if (fk >= 0 && semVals[fk] >= semVals[k] * harmRatio) { isHarm = true; break; }
+            }
+            if (isHarm) continue;
+        }
+        confirmed.push(k);
+        if (confirmed.length >= MAX_PK) break;
+    }
+    for (const k of confirmed) peakMask[k] = 1;
 
     if (ts - lastRowTs >= rowMs) {
         lastRowTs = ts;
@@ -790,6 +839,10 @@ bindSlider('sPreG', v => {
 bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v + '×'; });
 bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v + '/с'; });
 bindSlider('sTh', v => { thresh = parseFloat(v) / 100; document.getElementById('vTh').innerText = v + '%'; });
+bindSlider('sHarm', v => { harmRatio = parseFloat(v) / 100; document.getElementById('vHarm').innerText = v + '%'; });
+
+document.getElementById('harmSuppChk').addEventListener('change', e => { harmSuppress = e.target.checked; });
+document.getElementById('hpsChk').addEventListener('change', e => { hpsBoost = e.target.checked; });
 
 // Record / Play / Stop / Save
 document.getElementById('recBtn').addEventListener('click', () => {
@@ -836,6 +889,9 @@ function gatherConfig() {
         beatsPerBar: beatsPerBar,
         metroActive: metroActive,
         rainbow: rainbow,
+        harmSuppress: harmSuppress,
+        harmRatio: harmRatio,
+        hpsBoost: hpsBoost,
         eqBands: eqBands.map(b => ({ type: b.type, freq: b.freq, q: b.q, gain: b.gain }))
     };
 }
@@ -856,6 +912,20 @@ function applyConfig(cfg) {
     metroBtn.classList.toggle('on', metroActive);
     metroBtn.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
     rainbow = cfg.rainbow; document.getElementById('rainbowChk').checked = rainbow;
+    if (cfg.harmSuppress !== undefined) {
+        harmSuppress = cfg.harmSuppress;
+        document.getElementById('harmSuppChk').checked = harmSuppress;
+    }
+    if (cfg.harmRatio !== undefined) {
+        harmRatio = cfg.harmRatio;
+        const hv = Math.round(cfg.harmRatio * 100);
+        document.getElementById('sHarm').value = hv;
+        document.getElementById('vHarm').innerText = hv + '%';
+    }
+    if (cfg.hpsBoost !== undefined) {
+        hpsBoost = cfg.hpsBoost;
+        document.getElementById('hpsChk').checked = hpsBoost;
+    }
     // EQ bands
     eqBands = [];
     if (audioCtx) { eqNodes.forEach(n => n.disconnect()); eqNodes = []; }
