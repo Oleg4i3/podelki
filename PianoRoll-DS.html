@@ -9,6 +9,7 @@
         html, body { height:100%; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; }
         body { display: flex; flex-direction: column; }
 
+        /* ─── CONTROL PANEL ────────────────────────────────────────── */
         #panel {
             flex-shrink: 0; background: #f0f2f5; border-bottom: 1px solid #c8cdd6;
             padding: 10px 16px 12px; display: flex; align-items: flex-end; gap: 10px;
@@ -27,6 +28,10 @@
         .btn.modal-trigger:hover { background: #374151; }
         .btn.small { height: 30px; padding: 0 10px; font-size: 11px; }
 
+        .ctrl-row {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+            margin-left: 10px;
+        }
         .ctrl {
             display: flex; flex-direction: column; gap: 2px; min-width: 100px;
         }
@@ -46,6 +51,7 @@
         .toggle-wrap { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; }
         .toggle-wrap input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
 
+        /* ─── CANVAS AREA ──────────────────────────────────────────── */
         #wrap { flex: 1; overflow-x: auto; overflow-y: hidden; }
         canvas { display: block; cursor: crosshair; }
         #tip {
@@ -54,6 +60,7 @@
             border-radius: 4px; pointer-events: none; display: none; z-index: 99;
         }
 
+        /* ─── MODALS ───────────────────────────────────────────────── */
         .modal-overlay {
             position: fixed; top:0; left:0; right:0; bottom:0;
             background: rgba(0,0,0,0.5); display: none;
@@ -76,6 +83,7 @@
             padding: 4px 8px; border-radius: 4px; border:1px solid #ccc; font-size:13px; outline:none;
         }
 
+        /* EQ specific */
         .eq-band {
             border:1px solid #e5e7eb; padding:10px; border-radius:6px;
             margin-bottom:10px; background:#f9fafb;
@@ -86,6 +94,7 @@
         .eq-slider-col { display:flex; flex-direction:column; font-size:10px; text-align:center; }
         .eq-slider-col input { margin-top:4px; width:100%; }
 
+        /* hidden sliders */
         #slidersContainer { transition: all 0.2s; }
         .hidden-sliders { display: none !important; }
     </style>
@@ -105,11 +114,13 @@
         <input type="checkbox" id="rainbowChk" checked> Rainbow
     </span>
 
+    <!-- record / play / save block -->
     <button id="recBtn" class="btn rec">⏺ Record</button>
     <button id="playBtn" class="btn">▶ Play</button>
     <button id="stopRecBtn" class="btn" style="background:#6b7280;">⏹ Stop</button>
     <button id="saveBtn" class="btn small" style="background:#475569;">💾 Save</button>
 
+    <!-- config load/save -->
     <button id="saveConfigBtn" class="btn small" style="background:#475569;">📁 Save cfg</button>
     <label class="btn small" style="background:#475569; cursor:pointer; display:inline-flex; align-items:center;">
         📂 Load cfg
@@ -133,23 +144,13 @@
             <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
             <input type="range" id="sTh" min="1" max="40" step="1" value="4">
         </div>
-        <div class="ctrl">
-            <div class="ctrl-label">Гистерезис <span class="ctrl-val" id="vHyst">20%</span></div>
-            <input type="range" id="sHyst" min="0" max="50" step="1" value="20">
-        </div>
-        <span class="toggle-wrap" style="align-self:center;">
-            <input type="checkbox" id="harmChk"> Гармоники
-        </span>
-        <div class="ctrl" id="harmThrCtrl" style="display:none;">
-            <div class="ctrl-label">Порог гарм. <span class="ctrl-val" id="vHarmTh">30%</span></div>
-            <input type="range" id="sHarmTh" min="0" max="100" step="1" value="30">
-        </div>
     </div>
 </div>
 
 <div id="wrap"><canvas id="cv"></canvas></div>
 <div id="tip"></div>
 
+<!-- EQ MODAL -->
 <div id="eqModal" class="modal-overlay">
     <div class="modal">
         <div class="modal-header">
@@ -171,6 +172,7 @@
     </div>
 </div>
 
+<!-- METRONOME MODAL -->
 <div id="metronomeModal" class="modal-overlay">
     <div class="modal">
         <div class="modal-header">
@@ -181,7 +183,8 @@
             <span>Размер:</span>
             <select id="mSig">
                 <option value="2">2/4</option><option value="3">3/4</option>
-                <option value="4" selected>4/4</option><option value="5">5/4</option><option value="6">6/8</option><option value="7">7/8</option>
+                <option value="4" selected>4/4</option>
+                <option value="5">5/4</option><option value="6">6/8</option><option value="7">7/8</option>
             </select>
         </div>
         <div class="ctrl" style="margin-bottom: 12px;">
@@ -195,6 +198,7 @@
     </div>
 </div>
 
+<!-- hidden audio element for playback -->
 <audio id="audioPlayback" style="display:none;"></audio>
 
 <script>
@@ -208,15 +212,16 @@ const midi2freq = m => 440 * 2 ** ((m - 69) / 12);
 const midi2name = m => ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12] + (Math.floor(m / 12) - 1);
 const NOTE_HUE = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 
-const HARM_INTERVALS = new Set([12, 19, 24, 28]);
-
+// ─── Precomputed Color LUTs ──────────────────────────────────────
 function makeLUT(hue, sat, litRange) {
     const lut = new Uint8Array(256 * 3);
     const [l0, l1] = litRange;
     for (let i = 0; i < 256; i++) {
         const l = l0 + (i / 255) * (l1 - l0);
         const [r, g, b] = hsl2rgb(hue, sat, l);
-        lut[i * 3] = r; lut[i * 3 + 1] = g; lut[i * 3 + 2] = b;
+        lut[i * 3] = r;
+        lut[i * 3 + 1] = g;
+        lut[i * 3 + 2] = b;
     }
     return lut;
 }
@@ -232,38 +237,47 @@ function hsl2rgb(h, s, l) {
     else if (h < 240) { r = 0; g = x; b = c; }
     else if (h < 300) { r = x; g = 0; b = c; }
     else { r = c; g = 0; b = x; }
-    return [ Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255) ];
+    return [
+        Math.round((r + m) * 255),
+        Math.round((g + m) * 255),
+        Math.round((b + m) * 255)
+    ];
 }
 
-const PC_LUT_COLOR = Array.from({ length: 12 }, (_, pc) => makeLUT(NOTE_HUE[pc], 1.0, [0.06, 0.62]));
-const MONO_LUT = makeLUT(0, 0, [0.1, 0.55]);
+const PC_LUT_COLOR = Array.from({ length: 12 }, (_, pc) =>
+    makeLUT(NOTE_HUE[pc], 1.0, [0.06, 0.62])
+);
+const MONO_LUT = makeLUT(0, 0, [0.1, 0.55]); // grayscale
 
-let rainbow = true;
+let rainbow = true; // toggled by checkbox
 
 // ─── Global State ────────────────────────────────────────────────
 let audioCtx = null, micSource = null, cqtNode = null, preGainNode = null;
 let running = false;
-let visGain = 50.0, rowMs = 1000 / 30, thresh = 0.04, hysteresis = 0.2;
-const activeKeys = new Uint8Array(N_KEYS);
+let visGain = 50.0;
+let rowMs = 1000 / 30;
+let thresh = 0.04;
 const targetVals = new Float32Array(N_KEYS), semVals = new Float32Array(N_KEYS), peakMask = new Uint8Array(N_KEYS);
 
-let useHarmonics = false, harmRelThresh = 0.3;
-
-let eqBands = [], eqNodes = [];
+// EQ
+let eqBands = [];
+let eqNodes = [];
 let showEQCurve = false;
 
+// Metronome
 let bpm = 120, metroVol = 0.5, beatsPerBar = 4, metroActive = true;
 let nextNoteTime = 0, currentBeat = 0, visualBeatQueue = [];
-let beatPattern = [];
-let noiseClickBuffer = null;
+let beatPattern = []; // will be computed
+let noiseClickBuffer = null; // AudioBuffer for metronome click
 
+// Recording / Playback
 let mediaRecorder = null, recordedBlob = null;
 const audioEl = document.getElementById('audioPlayback');
 
-// ─── Canvas ──────────────────────────────────────────────────────
+// ─── Canvas Setup ────────────────────────────────────────────────
 const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d', { alpha: false });
 let wfH = 0, wfBuf = null, CANVAS_W = N_KEYS * COL_W;
-let EQ_H = 100;
+let EQ_H = 100; // height of EQ curve area when visible
 
 function resizeCanvas() {
     const h = document.getElementById('wrap').clientHeight;
@@ -272,6 +286,7 @@ function resizeCanvas() {
     const usedForEQ = showEQCurve ? EQ_H : 0;
     wfH = Math.max(20, h - KB_H - usedForEQ);
     wfBuf = new ImageData(CANVAS_W, wfH);
+    // fill with dark background
     const d = wfBuf.data;
     for (let y = 0; y < wfH; y++) {
         for (let k = 0; k < N_KEYS; k++) {
@@ -286,74 +301,128 @@ function resizeCanvas() {
     if (showEQCurve) drawEQCurve();
 }
 
+// ─── Keyboard Drawing (proper piano layout) ──────────────────────
 function drawKeyboard(pm) {
     const top = wfH + (showEQCurve ? EQ_H : 0);
-    ctx.fillStyle = '#e8eaf0'; ctx.fillRect(0, top, CANVAS_W, KB_H);
-    ctx.fillStyle = '#222'; ctx.fillRect(0, top, CANVAS_W, 2);
+    // Background
+    ctx.fillStyle = '#e8eaf0';
+    ctx.fillRect(0, top, CANVAS_W, KB_H);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, top, CANVAS_W, 2);
 
+    // White keys (full contiguous columns)
     for (let k = 0; k < N_KEYS; k++) {
         if (isBlack(k)) continue;
-        const x = k * COL_W, lit = pm[k];
-        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
+        const x = k * COL_W;
+        const lit = pm[k];
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210; // blue-grey if mono
         const g = ctx.createLinearGradient(0, top + 2, 0, top + KB_H);
-        if (lit) { g.addColorStop(0, `hsl(${hue},90%,72%)`); g.addColorStop(1, `hsl(${hue},90%,58%)`); }
-        else { g.addColorStop(0, '#f8f9fc'); g.addColorStop(1, '#d4d8e5'); }
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},90%,72%)`);
+            g.addColorStop(1, `hsl(${hue},90%,58%)`);
+        } else {
+            g.addColorStop(0, '#f8f9fc');
+            g.addColorStop(1, '#d4d8e5');
+        }
         ctx.fillStyle = g;
         ctx.fillRect(x + 1, top + 2, COL_W - 1, KB_H - 3);
+        // side line
         ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
         ctx.fillRect(x + COL_W - 1, top + 2, 1, KB_H - 3);
+        // note name on C
         if ((MIDI_A0 + k) % 12 === 0) {
             ctx.fillStyle = lit ? '#fff' : '#778899';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = 'bold 8px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.font = 'bold 8px sans-serif';
             ctx.fillText(midi2name(MIDI_A0 + k), x + COL_W / 2, top + KB_H - 4);
         }
     }
 
-    const BK_H = Math.round(KB_H * 0.6), BK_W = Math.round(COL_W * 0.65), BK_OX = Math.floor((COL_W - BK_W) / 2);
+    // Black keys (overlay)
+    const BK_H = Math.round(KB_H * 0.6);
+    const BK_W = Math.round(COL_W * 0.65);
+    const BK_OX = Math.floor((COL_W - BK_W) / 2);
     for (let k = 0; k < N_KEYS; k++) {
         if (!isBlack(k)) continue;
-        const x = k * COL_W + BK_OX, y = top + 2, lit = pm[k];
+        const x = k * COL_W + BK_OX, y = top + 2;
+        const lit = pm[k];
         const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
         const g = ctx.createLinearGradient(0, y, 0, y + BK_H);
-        if (lit) { g.addColorStop(0, `hsl(${hue},100%,40%)`); g.addColorStop(1, `hsl(${hue},100%,38%)`); }
-        else { g.addColorStop(0, '#3a3c4c'); g.addColorStop(1, '#12131c'); }
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},100%,40%)`);
+            g.addColorStop(1, `hsl(${hue},100%,38%)`);
+        } else {
+            g.addColorStop(0, '#3a3c4c');
+            g.addColorStop(1, '#12131c');
+        }
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 3, 3]); ctx.fill();
-        if (!lit) { ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85); }
+        ctx.beginPath();
+        ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 3, 3]);
+        ctx.fill();
+        if (!lit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85);
+        }
     }
 }
 
+// ─── EQ Curve Drawing ────────────────────────────────────────────
 function drawEQCurve() {
-    if (!showEQCurve || !audioCtx || eqNodes.length === 0) return;
-    const top = wfH, h = EQ_H;
+    if (!showEQCurve) return;
+    if (!audioCtx || eqNodes.length === 0) return;
+
+    const top = wfH;
+    const h = EQ_H;
     const freqs = new Float32Array(N_KEYS);
     for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
+
     const magLinear = new Float32Array(N_KEYS);
     const phase = new Float32Array(N_KEYS);
+    // start with 1 (0 dB)
     for (let k = 0; k < N_KEYS; k++) magLinear[k] = 1;
+
     eqNodes.forEach(node => {
         const singleMag = new Float32Array(N_KEYS);
         node.getFrequencyResponse(freqs, singleMag, phase);
         for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
     });
-    ctx.fillStyle = '#1e1e2f'; ctx.fillRect(0, top, CANVAS_W, h);
-    ctx.strokeStyle = '#3a3a4a'; ctx.lineWidth = 0.5;
+
+    // draw background
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
     for (let db = -12; db <= 12; db += 3) {
         const y = top + h / 2 - (db / 12) * (h * 0.8);
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
     }
-    ctx.strokeStyle = '#5a5a6a'; ctx.lineWidth = 1;
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
     const y0 = top + h / 2;
     ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
-    ctx.fillStyle = '#aaa'; ctx.font = '8px sans-serif'; ctx.textAlign = 'center';
+
+    // frequency labels (on bottom of EQ area)
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
     for (let k = 0; k < N_KEYS; k++) {
-        if ((MIDI_A0 + k) % 12 === 0) {
+        if ((MIDI_A0 + k) % 12 === 0) { // C notes
             const x = k * COL_W + COL_W / 2;
-            ctx.fillText(midi2freq(MIDI_A0 + k).toFixed(0) + ' Hz', x, top + h - 4);
+            const freq = midi2freq(MIDI_A0 + k);
+            ctx.fillText(freq.toFixed(0) + ' Hz', x, top + h - 4);
         }
     }
+
+    // draw curve
     ctx.beginPath();
-    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
     let first = true;
     for (let k = 0; k < N_KEYS; k++) {
         const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
@@ -365,18 +434,29 @@ function drawEQCurve() {
     ctx.stroke();
 }
 
+// ─── Waterfall Row ───────────────────────────────────────────────
 function addRow(sv, pm, beatLineType) {
-    const d = wfBuf.data, rowB = CANVAS_W * 4, base = (wfH - 1) * rowB;
-    d.copyWithin(0, rowB);
+    const d = wfBuf.data;
+    const rowB = CANVAS_W * 4;
+    const base = (wfH - 1) * rowB;
+    d.copyWithin(0, rowB); // scroll up
+
     for (let k = 0; k < N_KEYS; k++) {
         const isBlk = isBlack(k);
-        let r = isBlk ? 0 : 25, g = isBlk ? 0 : 25, b = isBlk ? 0 : 25;
+        let r = isBlk ? 0 : 25;
+        let g = isBlk ? 0 : 25;
+        let b = isBlk ? 0 : 25;
+
+        // metronome line brightness
         if (beatLineType === 1) { r += 60; g += 60; b += 60; }
         else if (beatLineType === 2) { r += 30; g += 30; b += 30; }
+
         if (pm[k]) {
             const v = Math.round(Math.min(1, Math.max(0, sv[k])) * 255);
             const lut = rainbow ? PC_LUT_COLOR[(MIDI_A0 + k) % 12] : MONO_LUT;
-            r = Math.max(r, lut[v * 3]); g = Math.max(g, lut[v * 3 + 1]); b = Math.max(b, lut[v * 3 + 2]);
+            r = Math.max(r, lut[v * 3]);
+            g = Math.max(g, lut[v * 3 + 1]);
+            b = Math.max(b, lut[v * 3 + 2]);
         }
         for (let px = 0; px < COL_W; px++) {
             const i = base + (k * COL_W + px) * 4;
@@ -385,86 +465,37 @@ function addRow(sv, pm, beatLineType) {
     }
 }
 
-// ─── Peak Detection with Hysteresis & Harmonics (FIXED) ─────────
-function detectPeaks(semVals) {
-    // hysteresis update (only for local maxima)
-    for (let k = 0; k < N_KEYS; k++) {
-        if (activeKeys[k] === 0) {
-            // activate only if above threshold AND is a local maximum
-            if (semVals[k] > thresh) {
-                const left = (k > 0) ? semVals[k - 1] : -Infinity;
-                const right = (k < N_KEYS - 1) ? semVals[k + 1] : -Infinity;
-                if (semVals[k] >= left && semVals[k] >= right) {
-                    activeKeys[k] = 1;
-                }
-            }
-        } else {
-            // release when below release threshold
-            if (semVals[k] < thresh * (1 - hysteresis)) {
-                activeKeys[k] = 0;
-            }
-        }
-    }
-
-    // collect active peaks as candidates
-    const candidates = [];
-    for (let k = 0; k < N_KEYS; k++) {
-        if (activeKeys[k] === 1) candidates.push(k);
-    }
-    candidates.sort((a, b) => semVals[b] - semVals[a]);
-
-    const accepted = [];
-    const used = new Uint8Array(N_KEYS);
-
-    for (const cand of candidates) {
-        if (used[cand]) continue;
-        // check if harmonic of an already accepted note
-        let isHarmonic = false, fundamental = -1;
-        for (const fund of accepted) {
-            const interval = (MIDI_A0 + cand) - (MIDI_A0 + fund);
-            if (HARM_INTERVALS.has(interval)) {
-                isHarmonic = true; fundamental = fund; break;
-            }
-        }
-        if (isHarmonic) {
-            if (useHarmonics && semVals[cand] >= semVals[fundamental] * harmRelThresh) {
-                accepted.push(cand); used[cand] = 1;
-            } else {
-                used[cand] = 1; // suppress
-            }
-        } else {
-            accepted.push(cand); used[cand] = 1;
-        }
-    }
-
-    peakMask.fill(0);
-    for (const idx of accepted.slice(0, MAX_PK)) peakMask[idx] = 1;
-    return peakMask;
-}
-
 // ─── Animation Loop ──────────────────────────────────────────────
 let lastRowTs = 0;
 function frame(ts) {
     if (!running) return;
     requestAnimationFrame(frame);
+
     for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
-    const pm = detectPeaks(semVals);
+
+    peakMask.fill(0);
+    const c = [];
+    for (let k = 1; k < N_KEYS - 1; k++)
+        if (semVals[k] > thresh && semVals[k] >= semVals[k - 1] && semVals[k] >= semVals[k + 1]) c.push(k);
+    c.sort((a, b) => semVals[b] - semVals[a]);
+    for (const k of c.slice(0, MAX_PK)) peakMask[k] = 1;
+
     if (ts - lastRowTs >= rowMs) {
         lastRowTs = ts;
         let bType = 0;
         if (visualBeatQueue.length > 0 && audioCtx.currentTime >= visualBeatQueue[0].time) {
             bType = visualBeatQueue.shift().type;
         }
-        addRow(semVals, pm, bType);
+        addRow(semVals, peakMask, bType);
         ctx.putImageData(wfBuf, 0, 0);
     }
-    drawKeyboard(pm);
+    drawKeyboard(peakMask);
     if (showEQCurve) drawEQCurve();
 }
 
-// ─── Metronome ───────────────────────────────────────────────────
+// ─── Metronome Logic ─────────────────────────────────────────────
 function generateNoiseClickBuffer() {
-    const len = audioCtx.sampleRate * 0.03;
+    const len = audioCtx.sampleRate * 0.03; // 30ms
     const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.2));
@@ -473,26 +504,34 @@ function generateNoiseClickBuffer() {
 
 function playClick(time, gainLevel) {
     if (!metroActive || metroVol <= 0.01 || !noiseClickBuffer) return;
-    const src = audioCtx.createBufferSource(); src.buffer = noiseClickBuffer;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseClickBuffer;
     const gainNode = audioCtx.createGain();
     src.connect(gainNode).connect(audioCtx.destination);
     gainNode.gain.setValueAtTime(gainLevel * metroVol, time);
     gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
-    src.start(time); src.stop(time + 0.03);
+    src.start(time);
+    src.stop(time + 0.03);
 }
 
 function updateBeatPattern() {
     beatPattern = [];
-    if (beatsPerBar === 4) beatPattern = [1, 0, 2, 0];
+    if (beatsPerBar === 4) beatPattern = [1, 0, 2, 0]; // strong, weak, half, weak
     else if (beatsPerBar === 6) beatPattern = [1, 0, 0, 2, 0, 0];
-    else { beatPattern = new Array(beatsPerBar).fill(0); beatPattern[0] = 1; }
+    else {
+        beatPattern = new Array(beatsPerBar).fill(0);
+        beatPattern[0] = 1; // strong on first
+    }
 }
 
 function scheduleMetronome() {
     if (!running || !metroActive) return;
     while (nextNoteTime < audioCtx.currentTime + 0.1) {
         const type = beatPattern[currentBeat];
-        const gain = type === 1 ? 1.0 : (type === 2 ? 0.65 : 0.35);
+        let gain = 0;
+        if (type === 1) gain = 1.0;
+        else if (type === 2) gain = 0.65;
+        else gain = 0.35;
         playClick(nextNoteTime, gain);
         visualBeatQueue.push({ time: nextNoteTime, type: type });
         currentBeat = (currentBeat + 1) % beatsPerBar;
@@ -501,12 +540,15 @@ function scheduleMetronome() {
     setTimeout(scheduleMetronome, 25);
 }
 
-// ─── EQ Management ──────────────────────────────────────────────
+// ─── EQ Management ───────────────────────────────────────────────
 function rebuildAudioGraph() {
     if (!micSource || !cqtNode) return;
-    micSource.disconnect(); preGainNode.disconnect();
+    micSource.disconnect();
+    preGainNode.disconnect();
     eqNodes.forEach(n => n.disconnect());
-    let prev = micSource; prev.connect(preGainNode); prev = preGainNode;
+    let prev = micSource;
+    prev.connect(preGainNode);
+    prev = preGainNode;
     eqNodes.forEach(n => { prev.connect(n); prev = n; });
     prev.connect(cqtNode);
 }
@@ -514,8 +556,10 @@ function rebuildAudioGraph() {
 function updateEQNode(idx) {
     if (!eqNodes[idx]) return;
     const d = eqBands[idx];
-    eqNodes[idx].type = d.type; eqNodes[idx].frequency.value = d.freq;
-    eqNodes[idx].Q.value = d.q; eqNodes[idx].gain.value = d.gain;
+    eqNodes[idx].type = d.type;
+    eqNodes[idx].frequency.value = d.freq;
+    eqNodes[idx].Q.value = d.q;
+    eqNodes[idx].gain.value = d.gain;
     if (showEQCurve && running) drawEQCurve();
 }
 
@@ -523,41 +567,58 @@ window.addEqBand = function () {
     const type = document.getElementById('eqType').value;
     eqBands.push({ id: Date.now(), type, freq: 1000, q: 1, gain: 0 });
     if (audioCtx) {
-        const filter = audioCtx.createBiquadFilter(); eqNodes.push(filter);
-        updateEQNode(eqBands.length - 1); rebuildAudioGraph();
+        const filter = audioCtx.createBiquadFilter();
+        eqNodes.push(filter);
+        updateEQNode(eqBands.length - 1);
+        rebuildAudioGraph();
     }
     renderEQUI();
 };
 
 window.removeEqBand = function (idx) {
     eqBands.splice(idx, 1);
-    if (audioCtx && eqNodes[idx]) { eqNodes[idx].disconnect(); eqNodes.splice(idx, 1); rebuildAudioGraph(); }
+    if (audioCtx && eqNodes[idx]) {
+        eqNodes[idx].disconnect();
+        eqNodes.splice(idx, 1);
+        rebuildAudioGraph();
+    }
     renderEQUI();
     if (showEQCurve) drawEQCurve();
 };
 
 const LOG_MIN = Math.log10(20), LOG_MAX = Math.log10(15000);
-function freqToSlider(freq) { return ((Math.log10(freq) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100; }
-function sliderToFreq(val) { return Math.pow(10, LOG_MIN + (LOG_MAX - LOG_MIN) * (val / 100)); }
+function freqToSlider(freq) {
+    return ((Math.log10(freq) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
+}
+function sliderToFreq(val) {
+    return Math.pow(10, LOG_MIN + (LOG_MAX - LOG_MIN) * (val / 100));
+}
 
 function renderEQUI() {
-    const list = document.getElementById('eqList'); list.innerHTML = '';
+    const list = document.getElementById('eqList');
+    list.innerHTML = '';
     eqBands.forEach((band, i) => {
         const tName = band.type === 'peaking' ? 'Полосовой' : (band.type === 'lowshelf' ? 'Low Shelf' : 'High Shelf');
         const sliderVal = freqToSlider(band.freq).toFixed(1);
         const html = `
         <div class="eq-band">
-            <div class="eq-band-header"><span>${tName}</span><button class="eq-del" onclick="removeEqBand(${i})">Удалить</button></div>
+            <div class="eq-band-header">
+                <span>${tName}</span>
+                <button class="eq-del" onclick="removeEqBand(${i})">Удалить</button>
+            </div>
             <div class="eq-sliders">
-                <div class="eq-slider-col">Freq: <span id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
+                <div class="eq-slider-col">
+                    Freq: <span id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
                     <input type="range" min="0" max="100" step="0.1" value="${sliderVal}"
                         oninput="let freq=sliderToFreq(parseFloat(this.value)); eqBands[${i}].freq=freq; document.getElementById('eqFv${i}').innerText=freq.toFixed(0)+'Hz'; updateEQNode(${i});">
                 </div>
-                <div class="eq-slider-col">Q: <span id="eqQv${i}">${band.q}</span>
+                <div class="eq-slider-col">
+                    Q: <span id="eqQv${i}">${band.q}</span>
                     <input type="range" min="0.1" max="20" step="0.1" value="${band.q}"
                         oninput="eqBands[${i}].q=parseFloat(this.value); document.getElementById('eqQv${i}').innerText=this.value; updateEQNode(${i});">
                 </div>
-                <div class="eq-slider-col">Gain: <span id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
+                <div class="eq-slider-col">
+                    Gain: <span id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
                     <input type="range" min="-12" max="12" step="0.1" value="${band.gain}"
                         oninput="eqBands[${i}].gain=parseFloat(this.value); document.getElementById('eqGv${i}').innerText=parseFloat(this.value).toFixed(1)+'dB'; updateEQNode(${i});">
                 </div>
@@ -567,7 +628,7 @@ function renderEQUI() {
     });
 }
 
-// ─── Recording ───────────────────────────────────────────────────
+// ─── Recording / Playback / Save ─────────────────────────────────
 async function startRecording() {
     if (!micSource) return;
     const stream = micSource.mediaStream;
@@ -583,6 +644,7 @@ async function startRecording() {
     mediaRecorder.start();
 }
 
+// ─── Start / Stop Audio ──────────────────────────────────────────
 async function startAudio() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -592,7 +654,8 @@ async function startAudio() {
         await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class CQTFilterbank extends AudioWorkletProcessor {
                 constructor() {
-                    super(); this.N = 88; this.fs = sampleRate; this.Q = 17.31;
+                    super();
+                    this.N = 88; this.fs = sampleRate; this.Q = 17.31;
                     this.b0=new Float32Array(this.N); this.b1=new Float32Array(this.N); this.b2=new Float32Array(this.N);
                     this.a1=new Float32Array(this.N); this.a2=new Float32Array(this.N);
                     this.x1=new Float32Array(this.N); this.x2=new Float32Array(this.N);
@@ -629,6 +692,7 @@ async function startAudio() {
         preGainNode = audioCtx.createGain();
         preGainNode.gain.value = parseFloat(document.getElementById('sPreG').value);
 
+        // restore EQ nodes
         eqNodes = eqBands.map(b => {
             const f = audioCtx.createBiquadFilter();
             f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
@@ -640,14 +704,16 @@ async function startAudio() {
             for (let k = 0; k < N_KEYS; k++) targetVals[k] = Math.sqrt(energies[k]) * visGain;
         };
         rebuildAudioGraph();
+
+        // metronome noise buffer
         noiseClickBuffer = generateNoiseClickBuffer();
         updateBeatPattern();
         nextNoteTime = audioCtx.currentTime + 0.1;
         currentBeat = 0;
-        activeKeys.fill(0);
+
         running = true;
-        document.getElementById('startBtn').textContent = '■ Stop';
-        document.getElementById('startBtn').classList.add('on');
+        const btn = document.getElementById('startBtn');
+        btn.textContent = '■ Stop'; btn.classList.add('on');
         scheduleMetronome();
         requestAnimationFrame(frame);
     } catch (e) { alert('Ошибка микрофона: ' + e.message); }
@@ -657,45 +723,75 @@ function stopAudio() {
     if (!running) return;
     running = false;
     if (audioCtx) { audioCtx.close(); audioCtx = null; }
-    micSource = cqtNode = preGainNode = null;
+    micSource = null; cqtNode = null; preGainNode = null;
     eqNodes = [];
     visualBeatQueue.length = 0;
-    document.getElementById('startBtn').textContent = '▶ Start';
-    document.getElementById('startBtn').classList.remove('on');
+    const btn = document.getElementById('startBtn');
+    btn.textContent = '▶ Start'; btn.classList.remove('on');
 }
 
-// UI bindings (unchanged except for ensuring proper initialization)
-document.getElementById('startBtn').addEventListener('click', () => { if (!running) startAudio(); else stopAudio(); });
+// ─── UI Event Bindings ───────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+    if (!running) startAudio(); else stopAudio();
+});
+
+// Metronome toggle
 document.getElementById('metroToggle').addEventListener('click', function () {
     metroActive = !metroActive;
     this.classList.toggle('on', metroActive);
     this.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
-    if (metroActive && running) { nextNoteTime = audioCtx.currentTime + 0.05; scheduleMetronome(); }
+    if (metroActive && running) {
+        nextNoteTime = audioCtx.currentTime + 0.05;
+        scheduleMetronome();
+    }
 });
+
+// Sliders spoiler
 document.getElementById('toggleSlidersBtn').addEventListener('click', function () {
     const container = document.getElementById('slidersContainer');
     container.classList.toggle('hidden-sliders');
     this.textContent = container.classList.contains('hidden-sliders') ? 'Показать слайдеры' : 'Скрыть слайдеры';
 });
-document.getElementById('rainbowChk').addEventListener('change', e => { rainbow = e.target.checked; });
-document.getElementById('eqShowCurveChk').addEventListener('change', e => { showEQCurve = e.target.checked; resizeCanvas(); });
 
-function bindSlider(id, updateFn) { document.getElementById(id).addEventListener('input', e => updateFn(e.target.value)); }
-bindSlider('sPreG', v => { if(preGainNode) preGainNode.gain.value = parseFloat(v); document.getElementById('vPreG').innerText = parseFloat(v).toFixed(1)+'×'; });
-bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v+'×'; });
-bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v+'/с'; });
-bindSlider('sTh', v => { thresh = parseFloat(v)/100; document.getElementById('vTh').innerText = v+'%'; });
-bindSlider('sHyst', v => { hysteresis = parseFloat(v)/100; document.getElementById('vHyst').innerText = v+'%'; });
-bindSlider('sHarmTh', v => { harmRelThresh = parseFloat(v)/100; document.getElementById('vHarmTh').innerText = v+'%'; });
-document.getElementById('harmChk').addEventListener('change', function(e) {
-    useHarmonics = e.target.checked;
-    document.getElementById('harmThrCtrl').style.display = useHarmonics ? 'flex' : 'none';
+// Rainbow checkbox
+document.getElementById('rainbowChk').addEventListener('change', e => {
+    rainbow = e.target.checked;
 });
 
-document.getElementById('sBpm').addEventListener('input', e => { bpm = parseInt(e.target.value); document.getElementById('vBpm').innerText = e.target.value; });
-document.getElementById('sMVol').addEventListener('input', e => { metroVol = parseFloat(e.target.value)/100; document.getElementById('vMVol').innerText = e.target.value+'%'; });
-document.getElementById('mSig').addEventListener('change', e => { beatsPerBar = parseInt(e.target.value); currentBeat = 0; updateBeatPattern(); });
+// EQ curve checkbox
+document.getElementById('eqShowCurveChk').addEventListener('change', e => {
+    showEQCurve = e.target.checked;
+    resizeCanvas();
+});
 
+// Metronome settings
+document.getElementById('sBpm').addEventListener('input', e => {
+    bpm = parseInt(e.target.value);
+    document.getElementById('vBpm').innerText = e.target.value;
+});
+document.getElementById('sMVol').addEventListener('input', e => {
+    metroVol = parseFloat(e.target.value) / 100;
+    document.getElementById('vMVol').innerText = e.target.value + '%';
+});
+document.getElementById('mSig').addEventListener('change', e => {
+    beatsPerBar = parseInt(e.target.value);
+    currentBeat = 0;
+    updateBeatPattern();
+});
+
+// Slider bindings
+function bindSlider(id, updateFn) {
+    document.getElementById(id).addEventListener('input', e => updateFn(e.target.value));
+}
+bindSlider('sPreG', v => {
+    if (preGainNode) preGainNode.gain.value = parseFloat(v);
+    document.getElementById('vPreG').innerText = parseFloat(v).toFixed(1) + '×';
+});
+bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v + '×'; });
+bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v + '/с'; });
+bindSlider('sTh', v => { thresh = parseFloat(v) / 100; document.getElementById('vTh').innerText = v + '%'; });
+
+// Record / Play / Stop / Save
 document.getElementById('recBtn').addEventListener('click', () => {
     if (!running) return;
     if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -715,40 +811,52 @@ document.getElementById('stopRecBtn').addEventListener('click', () => {
         document.getElementById('recBtn').textContent = '⏺ Record';
     }
 });
-document.getElementById('playBtn').addEventListener('click', () => { if (audioEl.src) audioEl[audioEl.paused ? 'play':'pause'](); });
+document.getElementById('playBtn').addEventListener('click', () => {
+    if (!audioEl.src) return;
+    if (audioEl.paused) audioEl.play();
+    else audioEl.pause();
+});
 document.getElementById('saveBtn').addEventListener('click', () => {
     if (!recordedBlob) return;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(recordedBlob); a.download = 'recording.webm'; a.click();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(recordedBlob);
+    a.download = 'recording.webm';
+    a.click();
 });
 
+// Config save / load
 function gatherConfig() {
     return {
         preGain: parseFloat(document.getElementById('sPreG').value),
         visGain: parseFloat(document.getElementById('sG').value),
         speed: parseFloat(document.getElementById('sR').value),
         thresh: parseFloat(document.getElementById('sTh').value),
-        hysteresis: parseFloat(document.getElementById('sHyst').value),
-        bpm, metroVol, beatsPerBar, metroActive, rainbow,
-        useHarmonics, harmRelThresh: parseFloat(document.getElementById('sHarmTh').value),
+        bpm: bpm,
+        metroVol: metroVol,
+        beatsPerBar: beatsPerBar,
+        metroActive: metroActive,
+        rainbow: rainbow,
         eqBands: eqBands.map(b => ({ type: b.type, freq: b.freq, q: b.q, gain: b.gain }))
     };
 }
 function applyConfig(cfg) {
-    document.getElementById('sPreG').value = cfg.preGain; document.getElementById('sPreG').dispatchEvent(new Event('input'));
-    document.getElementById('sG').value = cfg.visGain; document.getElementById('sG').dispatchEvent(new Event('input'));
-    document.getElementById('sR').value = cfg.speed; document.getElementById('sR').dispatchEvent(new Event('input'));
-    document.getElementById('sTh').value = cfg.thresh; document.getElementById('sTh').dispatchEvent(new Event('input'));
-    document.getElementById('sHyst').value = cfg.hysteresis; document.getElementById('sHyst').dispatchEvent(new Event('input'));
+    document.getElementById('sPreG').value = cfg.preGain;
+    document.getElementById('sPreG').dispatchEvent(new Event('input'));
+    document.getElementById('sG').value = cfg.visGain;
+    document.getElementById('sG').dispatchEvent(new Event('input'));
+    document.getElementById('sR').value = cfg.speed;
+    document.getElementById('sR').dispatchEvent(new Event('input'));
+    document.getElementById('sTh').value = cfg.thresh;
+    document.getElementById('sTh').dispatchEvent(new Event('input'));
     bpm = cfg.bpm; document.getElementById('sBpm').value = cfg.bpm; document.getElementById('vBpm').innerText = cfg.bpm;
-    metroVol = cfg.metroVol; document.getElementById('sMVol').value = cfg.metroVol*100; document.getElementById('vMVol').innerText = (cfg.metroVol*100).toFixed(0)+'%';
-    beatsPerBar = cfg.beatsPerBar; document.getElementById('mSig').value = cfg.beatsPerBar; updateBeatPattern();
+    metroVol = cfg.metroVol; document.getElementById('sMVol').value = cfg.metroVol * 100; document.getElementById('vMVol').innerText = (cfg.metroVol*100).toFixed(0)+'%';
+    beatsPerBar = cfg.beatsPerBar; document.getElementById('mSig').value = cfg.beatsPerBar;
     metroActive = cfg.metroActive;
     const metroBtn = document.getElementById('metroToggle');
-    metroBtn.classList.toggle('on', metroActive); metroBtn.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
+    metroBtn.classList.toggle('on', metroActive);
+    metroBtn.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
     rainbow = cfg.rainbow; document.getElementById('rainbowChk').checked = rainbow;
-    useHarmonics = cfg.useHarmonics; document.getElementById('harmChk').checked = useHarmonics;
-    document.getElementById('harmThrCtrl').style.display = useHarmonics ? 'flex' : 'none';
-    document.getElementById('sHarmTh').value = cfg.harmRelThresh; document.getElementById('sHarmTh').dispatchEvent(new Event('input'));
+    // EQ bands
     eqBands = [];
     if (audioCtx) { eqNodes.forEach(n => n.disconnect()); eqNodes = []; }
     cfg.eqBands.forEach(b => {
@@ -761,17 +869,26 @@ function applyConfig(cfg) {
     });
     if (audioCtx) rebuildAudioGraph();
     renderEQUI();
+    updateBeatPattern();
 }
-
 document.getElementById('saveConfigBtn').addEventListener('click', () => {
     const cfg = gatherConfig();
     const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cqt_config.json'; a.click();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cqt_config.json';
+    a.click();
 });
 document.getElementById('loadConfigInput').addEventListener('change', function (e) {
-    const file = e.target.files[0]; if (!file) return;
+    const file = e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => { try { applyConfig(JSON.parse(reader.result)); } catch (err) { alert('Ошибка чтения конфига: ' + err); } };
+    reader.onload = () => {
+        try {
+            const cfg = JSON.parse(reader.result);
+            applyConfig(cfg);
+        } catch (err) { alert('Ошибка чтения конфига: ' + err); }
+    };
     reader.readAsText(file);
 });
 
@@ -788,9 +905,11 @@ canvas.addEventListener('mousemove', e => {
 });
 canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
 
+// Resize handler
 let rsT;
 window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(resizeCanvas, 120); });
 
+// Initial canvas
 resizeCanvas();
 renderEQUI();
 updateBeatPattern();
