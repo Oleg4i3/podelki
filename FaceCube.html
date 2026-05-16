@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Окно | Зависание при потере лица</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a2a;}
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .controls {
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border-radius: 16px;
+            padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 12px;
+            justify-content: space-between; align-items: center; z-index: 3;
+            color: white; font-size: 14px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        button { background: #3b82f6; border: none; color: white; padding: 8px 18px; border-radius: 40px; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        .status { background: rgba(0,0,0,0.5); padding: 6px 14px; border-radius: 40px; font-family: monospace; }
+        .video-preview {
+            position: absolute; bottom: 20px; right: 20px; width: 180px;
+            border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.6);
+            z-index: 3; background: #000; opacity: 0.9; pointer-events: none;
+        }
+        .video-preview video, .video-preview canvas { width: 100%; display: block; transform: scaleX(-1); }
+        .info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.5); padding: 5px 12px; border-radius: 20px;
+            font-size: 12px; color: #ccc; z-index: 3; font-family: monospace;
+        }
+        
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(10, 10, 30, 0.95); border: 1px solid rgba(255,255,255,0.25);
+            padding: 24px; border-radius: 20px; z-index: 10; color: white; width: 320px;
+            backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal.active { display: block; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h3 { margin: 0; font-size: 18px; }
+        .close-btn { background: none; border: none; color: #ef4444; font-size: 24px; cursor: pointer; padding: 0; }
+        .setting-row { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .setting-row label { font-size: 13px; color: #cbd5e1; display: flex; justify-content: space-between; }
+        .setting-row input[type="range"] { width: 100%; cursor: pointer; }
+
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; align-items: stretch; bottom: 10px; left: 10px; right: 10px; }
+            .video-preview { width: 120px; bottom: 10px; right: 10px; }
+        }
+        .calibrate-btn { background: #8b5cf6; }
+        .calibrate-btn:hover { background: #7c3aed; }
+        .settings-btn { background: #4b5563; }
+        .settings-btn:hover { background: #374151; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="controls">
+        <div class="status" id="face-status">🔍 Загрузка...</div>
+        <div>
+            <button id="calibrate-btn" class="calibrate-btn" disabled>🎯 Калибровка</button>
+            <button id="reset-calib">↺ Сбросить</button>
+            <button id="settings-btn" class="settings-btn">⚙️ Настройки</button>
+        </div>
+        <div>👉 Двигайте головой</div>
+    </div>
+    <div class="video-preview">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="debug-canvas" style="position: absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+    </div>
+    <div class="info" id="debug-info">Ожидание лица...</div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-header">
+            <h3>⚙️ Настройки обзора</h3>
+            <button id="close-settings" class="close-btn">&times;</button>
+        </div>
+        <div class="setting-row">
+            <label>Поворот по горизонтали (X): <span id="val-x">6.0</span></label>
+            <input type="range" id="range-x" min="1" max="15" step="0.5" value="6.0">
+        </div>
+        <div class="setting-row">
+            <label>Поворот по вертикали (Y): <span id="val-y">6.0</span></label>
+            <input type="range" id="range-y" min="1" max="15" step="0.5" value="6.0">
+        </div>
+        <div class="setting-row">
+            <label>Интенсивность Зума (Z): <span id="val-z">5.0</span></label>
+            <input type="range" id="range-z" min="1" max="20" step="0.5" value="5.0">
+        </div>
+        <div class="setting-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <label style="color: #6ee7b7;">Порог смещения (Анти-дрожание): <span id="val-t">0.02</span></label>
+            <input type="range" id="range-t" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js'; 
+
+        const video = document.getElementById('video');
+        const debugCanvas = document.getElementById('debug-canvas');
+        const ctx = debugCanvas.getContext('2d');
+        const statusSpan = document.getElementById('face-status');
+        const calibrateBtn = document.getElementById('calibrate-btn');
+        const resetBtn = document.getElementById('reset-calib');
+        const debugInfo = document.getElementById('debug-info');
+        
+        const settingsBtn = document.getElementById('settings-btn');
+        const closeSettings = document.getElementById('close-settings');
+        const modal = document.getElementById('settings-modal');
+
+        let faceDetection = null, camera = null, currentFaceNorm = null, videoReady = false;
+        
+        let calibX = 0, calibY = 0, calibW = 0.25; 
+        let calibrated = false;
+        
+        const BASE_Z = 6;               
+        let MAX_POS_X = 6.0;            
+        let MAX_POS_Y = 6.0;            
+        let ZOOM_SENSITIVITY = 5.0; 
+        let MOVEMENT_THRESHOLD = 0.02; 
+        
+        let lastValidDx = 0, lastValidDy = 0, lastValidDw = 0;
+        let targetCamX = 0, targetCamY = 0, targetCamZ = BASE_Z;
+        
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a2a);
+        scene.fog = new THREE.Fog(0x0a0a2a, 5, 20); 
+        
+        const cam3d = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+        cam3d.position.set(0, 0, BASE_Z);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        
+        scene.add(new THREE.AmbientLight(0x404060));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(2, 5, 3);
+        scene.add(dirLight);
+        scene.add(new THREE.PointLight(0x4466cc, 0.5).position.set(-2,2,-2));
+        scene.add(new THREE.PointLight(0xffaa66, 0.6).position.set(2,2,2));
+
+        const grid = new THREE.GridHelper(10, 20, 0x88aaff, 0x335588);
+        grid.position.y = -1.5;
+        scene.add(grid);
+        
+        const CUBE_SIZE = 1.2;
+        const materialsCube = [
+            new THREE.MeshStandardMaterial({ color: 0xff3333 }), new THREE.MeshStandardMaterial({ color: 0x33ff33 }), 
+            new THREE.MeshStandardMaterial({ color: 0x3399ff }), new THREE.MeshStandardMaterial({ color: 0xffaa33 }), 
+            new THREE.MeshStandardMaterial({ color: 0xff66cc }), new THREE.MeshStandardMaterial({ color: 0xaaaaaa })  
+        ];
+        const mainCube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), materialsCube);
+        
+        function createMouse() {
+            const group = new THREE.Group();
+            const mouseBodyMaterial = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, metalness: 0.1, roughness: 0.8 });
+            const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xaa3333, metalness: 0.0, roughness: 0.5 });
+            const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffb6c1, metalness: 0.2, roughness: 0.6 }); 
+            const whiskerMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.0, roughness: 0.5 });
+
+            // 1. Тулуб
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mouseBodyMaterial);
+            body.position.y = 0; 
+            group.add(body);
+
+            // 2. Ноги
+            const legFL = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mouseBodyMaterial);
+            legFL.position.set(-0.7, 0, 0.5); 
+            const legFR = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mouseBodyMaterial);
+            legFR.position.set(0.7, 0, 0.5);  
+            const legBL = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mouseBodyMaterial);
+            legBL.position.set(-0.7, 0, -0.5);
+            const legBR = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mouseBodyMaterial);
+            legBR.position.set(0.7, 0, -0.5); 
+            group.add(legFL, legFR, legBL, legBR);
+
+            // 3. Голова
+            const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 16), mouseBodyMaterial);
+            headSphere.position.set(0, 0.3, 0.8); 
+            const headCone = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 32), mouseBodyMaterial);
+            headCone.position.set(0, 0.3, 1.45); 
+            headCone.rotation.x = Math.PI / 2; 
+            group.add(headSphere, headCone);
+
+            // 4. Ніс, Очі та ВУХА
+            const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 8), noseMaterial);
+            nose.position.set(0, 0.3, 1.8); 
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 8), eyeMaterial);
+            eyeL.position.set(-0.3, 0.6, 1.1); 
+            const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 8), whiskerMaterial);
+            eyeR.position.set(0.3, 0.6, 1.1); 
+            
+            const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 20), noseMaterial); 
+            earL.position.set(-0.5, 0.8, 0.8); 
+            earL.rotation.set(Math.PI / 2.2, 0, -Math.PI / 10); 
+            const earR = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 20), noseMaterial);
+            earR.position.set(0.5, 0.8, 0.8);
+            earR.rotation.set(Math.PI / 2.3, 0, Math.PI / 10); 
+            group.add(nose, eyeL, eyeR, earL, earR);
+
+            // 5. Вуса
+            const whiskerPos = { x: 0, y: 0.3, z: 1.7 }; 
+            const whiskerRadius = 0.007; 
+            const whiskerLength = 1.2;  
+            
+            const wL1 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wL1.position.set(whiskerPos.x - 0.5, whiskerPos.y + 0.1, whiskerPos.z);
+            wL1.rotation.set(Math.PI / 20, 0.4, Math.PI / 2.3); 
+            
+            const wL2 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wL2.position.set(whiskerPos.x - 0.5, whiskerPos.y, whiskerPos.z);
+            wL2.rotation.set(0, 0.4, Math.PI / 2);
+            
+            const wL3 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wL3.position.set(whiskerPos.x - 0.5, whiskerPos.y - 0.1, whiskerPos.z);
+            wL3.rotation.set(-Math.PI / 20, 0.4, Math.PI / 1.9);
+            
+            const wR1 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wR1.position.set(whiskerPos.x + 0.5, whiskerPos.y + 0.1, whiskerPos.z);
+            wR1.rotation.set(Math.PI / 20, -0.4, -Math.PI / 2.3); 
+            
+            const wR2 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wR2.position.set(whiskerPos.x + 0.5, whiskerPos.y, whiskerPos.z);
+            wR2.rotation.set(0, -0.4, -Math.PI / 2);
+            
+            const wR3 = new THREE.Mesh(new THREE.CylinderGeometry(whiskerRadius, whiskerRadius, whiskerLength, 8), whiskerMaterial);
+            wR3.position.set(whiskerPos.x + 0.5, whiskerPos.y - 0.1, whiskerPos.z);
+            wR3.rotation.set(-Math.PI / 20, -0.4, -Math.PI / 1.9);
+            group.add(wL1, wL2, wL3, wR1, wR2, wR3);
+
+            // 6. Хвіст
+            const tailPath = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, 0.2, -1.0),
+                new THREE.Vector3(0, 0.6, -2.5),
+                new THREE.Vector3(-0.9, 0.4, -3.5)
+            ]);
+            const tailGeom = new THREE.TubeGeometry(tailPath, 30, 0.05, 8, false);
+            const tail = new THREE.Mesh(tailGeom, noseMaterial);
+            group.add(tail);
+
+            const endPoint = tailPath.getPointAt(1.0);
+            const tangent = tailPath.getTangentAt(1.0).normalize();
+            const coneGeom = new THREE.ConeGeometry(0.05, 0.6, 8); 
+            coneGeom.translate(0, 0.3, 0); 
+            
+            const coneTip = new THREE.Mesh(coneGeom, noseMaterial);
+            coneTip.position.copy(endPoint);
+            coneTip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+            group.add(coneTip);
+
+            group.scale.set(0.4, 0.4, 0.4); 
+            return group;
+        }
+
+        const centerGroup = new THREE.Group();
+        centerGroup.add(mainCube);
+        const mouse = createMouse();
+        mouse.position.set(0, CUBE_SIZE / 2, 0); 
+        centerGroup.add(mouse);
+        scene.add(centerGroup);
+
+        function createSnowman() {
+            const group = new THREE.Group();
+            const snowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+            const noseMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.6 });
+            const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.3 });
+
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1), snowMat); body.position.y = -0.3;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.7), snowMat); head.position.y = 1.1;
+            const armL = new THREE.Mesh(new THREE.SphereGeometry(0.3), snowMat); armL.position.set(-1.1, -0.1, 0.1);
+            const armR = new THREE.Mesh(new THREE.SphereGeometry(0.2), snowMat); armR.position.set(1.1, -0.1, -0.1);
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeL.position.set(-0.25, 1.3, 0.6);
+            const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeR.position.set(0.25, 1.3, 0.6);
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.5, 16), noseMat);
+            nose.position.set(0, 1.1, 0.95); nose.rotation.x = Math.PI / 2;
+            const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 0.65, 32), bucketMat);
+            bucket.position.y = 1.9;
+
+            group.add(body, head, armL, armR, eyeL, eyeR, nose, bucket);
+            group.scale.set(0.6, 0.6, 0.6);
+            return group;
+        }
+        const snowman = createSnowman();
+        snowman.position.set(2.4, -0.6, -0.5); 
+        scene.add(snowman);
+
+        const teapotMat = new THREE.MeshStandardMaterial({ color: 0x00c0ff, metalness: 0.5, roughness: 0.4 });
+        const teapot = new THREE.Mesh(new TeapotGeometry(0.5, 10), teapotMat);
+        teapot.position.set(-2.4, -0.5, -0.5); 
+        scene.add(teapot);
+
+        for(let i = 0; i < 20; i++) {
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.25, 0.25),
+                new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff, roughness: 0.5 })
+            );
+            mesh.position.set((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 8 - 4);
+            scene.add(mesh);
+        }
+        
+        function updateCamera() {
+            cam3d.position.x += (targetCamX - cam3d.position.x) * 0.1;
+            cam3d.position.y += (targetCamY - cam3d.position.y) * 0.1;
+            cam3d.position.z += (targetCamZ - cam3d.position.z) * 0.1;
+            cam3d.lookAt(0, 0, 0); 
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            updateCamera();
+            renderer.render(scene, cam3d);
+        }
+        animate();
+        
+        function updateAnglesFromFace() {
+            if (!currentFaceNorm) {
+                // Изменение: больше не сбрасываем координаты. Камера зависнет там, где была.
+                statusSpan.innerHTML = "⏸️ Лицо потеряно (пауза)";
+                debugInfo.innerHTML = "Пауза: ожидание лица";
+                return;
+            }
+            
+            const centerX = currentFaceNorm.x + currentFaceNorm.w/2;
+            const centerY = currentFaceNorm.y + currentFaceNorm.h/2;
+            const currentW = currentFaceNorm.w;
+            
+            let rawX = Math.min(1, Math.max(-1, (centerX - 0.5) * 2));
+            let rawY = Math.min(1, Math.max(-1, (centerY - 0.5) * 2));
+            
+            let dx = Math.min(1, Math.max(-1, rawX - calibX));
+            let dy = Math.min(1, Math.max(-1, rawY - calibY));
+            let dw = currentW - calibW; 
+
+            if (Math.abs(dx - lastValidDx) > MOVEMENT_THRESHOLD) lastValidDx = dx;
+            if (Math.abs(dy - lastValidDy) > MOVEMENT_THRESHOLD) lastValidDy = dy;
+            if (Math.abs(dw - lastValidDw) > (MOVEMENT_THRESHOLD / 2)) lastValidDw = dw;
+            
+            targetCamX = -lastValidDx * MAX_POS_X;
+            targetCamY = -lastValidDy * MAX_POS_Y;
+            targetCamZ = Math.max(2.0, Math.min(12, BASE_Z - (lastValidDw * ZOOM_SENSITIVITY))); 
+            
+            debugInfo.innerHTML = `X: ${targetCamX.toFixed(2)} | Y: ${targetCamY.toFixed(2)}<br>Z: ${targetCamZ.toFixed(2)}`;
+            statusSpan.innerHTML = calibrated ? "🎯 Калибровка активна" : "🔄 Нажмите Калибровку";
+        }
+        
+        function calibrate() {
+            if (!currentFaceNorm) return;
+            calibX = (currentFaceNorm.x + currentFaceNorm.w/2 - 0.5) * 2;
+            calibY = (currentFaceNorm.y + currentFaceNorm.h/2 - 0.5) * 2;
+            calibW = currentFaceNorm.w; 
+            lastValidDx = 0; lastValidDy = 0; lastValidDw = 0;
+            calibrated = true;
+            statusSpan.innerHTML = "✅ Выполнено!";
+            setTimeout(() => statusSpan.innerHTML = "🎯 Калибровка активна", 1200);
+        }
+        
+        function resetCalib() {
+            calibX = 0; calibY = 0; calibW = 0.25;
+            lastValidDx = 0; lastValidDy = 0; lastValidDw = 0;
+            calibrated = false;
+            statusSpan.innerHTML = "🔄 Сброшено";
+        }
+        
+        settingsBtn.addEventListener('click', () => modal.classList.add('active'));
+        closeSettings.addEventListener('click', () => modal.classList.remove('active'));
+        
+        document.getElementById('range-x').addEventListener('input', (e) => { MAX_POS_X = parseFloat(e.target.value); document.getElementById('val-x').innerText = MAX_POS_X.toFixed(1); });
+        document.getElementById('range-y').addEventListener('input', (e) => { MAX_POS_Y = parseFloat(e.target.value); document.getElementById('val-y').innerText = MAX_POS_Y.toFixed(1); });
+        document.getElementById('range-z').addEventListener('input', (e) => { ZOOM_SENSITIVITY = parseFloat(e.target.value); document.getElementById('val-z').innerText = ZOOM_SENSITIVITY.toFixed(1); });
+        document.getElementById('range-t').addEventListener('input', (e) => { MOVEMENT_THRESHOLD = parseFloat(e.target.value); document.getElementById('val-t').innerText = MOVEMENT_THRESHOLD.toFixed(3); });
+
+        function onResults(results) {
+            if (!videoReady) return;
+            ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+            
+            if (results.detections && results.detections.length > 0) {
+                const bbox = results.detections[0].boundingBox;
+                currentFaceNorm = { x: bbox.xCenter - bbox.width/2, y: bbox.yCenter - bbox.height/2, w: bbox.width, h: bbox.height };
+                
+                ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2;
+                ctx.strokeRect(currentFaceNorm.x * debugCanvas.width, currentFaceNorm.y * debugCanvas.height, bbox.width * debugCanvas.width, bbox.height * debugCanvas.height);
+            } else {
+                currentFaceNorm = null;
+            }
+            updateAnglesFromFace();
+        }
+        
+        async function init() {
+            statusSpan.innerHTML = "Запуск камеры...";
+            try {
+                faceDetection = new FaceDetection({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}` });
+                faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
+                faceDetection.onResults(onResults);
+                
+                camera = new Camera(video, { onFrame: async () => { await faceDetection.send({ image: video }); }, width: 640, height: 480 });
+                await camera.start();
+                await new Promise(r => setTimeout(r, 500));
+                
+                debugCanvas.width = video.videoWidth; debugCanvas.height = video.videoHeight;
+                videoReady = true;
+                statusSpan.innerHTML = "✅ Ищем лицо..."; calibrateBtn.disabled = false;
+                
+                window.addEventListener('resize', () => {
+                    cam3d.aspect = window.innerWidth / window.innerHeight; cam3d.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+                
+                calibrateBtn.addEventListener('click', calibrate); resetBtn.addEventListener('click', resetCalib);
+            } catch (err) { statusSpan.innerHTML = "❌ Ошибка: " + err.message; }
+        }
+        init();
+    </script>
+</body>
+</html>
