@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pro CQT Piano Roll – Full</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; }
+        body { display: flex; flex-direction: column; }
+
+        /* ─── CONTROL PANEL ────────────────────────────────────────── */
+        #panel {
+            flex-shrink: 0; background: #f0f2f5; border-bottom: 1px solid #c8cdd6;
+            padding: 10px 16px 12px; display: flex; align-items: flex-end; gap: 10px;
+            flex-wrap: wrap; z-index: 10;
+        }
+        .btn {
+            height: 38px; padding: 0 14px; border-radius: 6px; border: none;
+            background: #2563eb; color: #fff; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: 0.15s; white-space: nowrap;
+        }
+        .btn:hover { background: #1d4fd8; }
+        .btn.on { background: #16a34a; }
+        .btn.rec { background: #dc2626; }
+        .btn.rec:hover { background: #b91c1c; }
+        .btn.modal-trigger { background: #4b5563; }
+        .btn.modal-trigger:hover { background: #374151; }
+        .btn.small { height: 30px; padding: 0 10px; font-size: 11px; }
+
+        .ctrl-row {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+            margin-left: 10px;
+        }
+        .ctrl {
+            display: flex; flex-direction: column; gap: 2px; min-width: 100px;
+        }
+        .ctrl-label {
+            font-size: 10px; font-weight: 600; color: #374151;
+            display: flex; justify-content: space-between;
+        }
+        .ctrl-val { color: #2563eb; }
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; height: 5px;
+            border-radius: 3px; background: #d1d5db; cursor: pointer; outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px;
+            border-radius: 50%; background: #2563eb; transition: 0.1s;
+        }
+        .toggle-wrap { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; }
+        .toggle-wrap input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+        /* ─── CANVAS AREA ──────────────────────────────────────────── */
+        #wrap { flex: 1; overflow-x: auto; overflow-y: hidden; }
+        canvas { display: block; cursor: crosshair; }
+        #tip {
+            position: fixed; background: #ffffffee; border:1px solid #ccc;
+            font-size: 11px; font-weight: 600; padding: 3px 8px;
+            border-radius: 4px; pointer-events: none; display: none; z-index: 99;
+        }
+
+        /* ─── MODALS ───────────────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal {
+            background: #fff; padding: 18px; border-radius: 8px;
+            width: 420px; max-width: 95vw; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 14px; font-weight: bold; font-size: 16px;
+        }
+        .close-btn {
+            background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;
+        }
+        .modal-row { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        select {
+            padding: 4px 8px; border-radius: 4px; border:1px solid #ccc; font-size:13px; outline:none;
+        }
+
+        /* EQ specific */
+        .eq-band {
+            border:1px solid #e5e7eb; padding:10px; border-radius:6px;
+            margin-bottom:10px; background:#f9fafb;
+        }
+        .eq-band-header { font-size:12px; font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; }
+        .eq-del { background:#ef4444; color:#fff; border:none; border-radius:3px; cursor:pointer; padding:2px 6px; font-size:10px; }
+        .eq-slider-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+        .eq-label { font-size:11px; font-weight:600; color:#374151; min-width:34px; }
+        .eq-slider-val { font-size:11px; font-weight:600; color:#2563eb; min-width:58px; text-align:right; }
+        .eq-slider-row input[type=range] { flex:1; min-width:0; }
+
+        /* hidden sliders */
+        #slidersContainer { transition: all 0.2s; }
+        .hidden-sliders { display: none !important; }
+
+        /* Calibration */
+        .calib-note-big { font-size: 38px; font-weight: 800; letter-spacing: 2px; }
+        .calib-bar-bg { background: #e5e7eb; border-radius: 6px; height: 10px; margin: 8px 0; }
+        .calib-bar-fill { background: #0891b2; height: 10px; border-radius: 6px; transition: width 0.15s; }
+        .calib-rec-bar-bg { background: #fecaca; border-radius: 4px; height: 6px; margin: 4px 0; }
+        .calib-rec-bar-fill { background: #dc2626; height: 6px; border-radius: 4px; transition: width 0.1s; }
+        .note-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 1px; }
+        .btn.midi-on { background: #16a34a !important; }
+        select.mode-sel { height: 30px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 6px; border: 2px solid #2563eb; color: #1e3a8a; background:#eff6ff; cursor:pointer; }
+    </style>
+</head>
+<body>
+
+<div id="panel">
+    <button id="startBtn" class="btn">▶ Start</button>
+    <button id="metroToggle" class="btn on" style="background:#6b7280;">🔊 Метроном</button>
+
+    <button class="btn modal-trigger" onclick="document.getElementById('eqModal').style.display='flex'">Эквалайзер</button>
+    <button class="btn modal-trigger" onclick="document.getElementById('metronomeModal').style.display='flex'">Размер</button>
+
+    <button id="toggleSlidersBtn" class="btn small" style="background:#9ca3af;">Скрыть слайдеры</button>
+
+    <span class="toggle-wrap">
+        <input type="checkbox" id="rainbowChk" checked> Rainbow
+    </span>
+
+    <!-- record / play / save block -->
+    <button id="recBtn" class="btn rec">⏺ Record</button>
+    <button id="playBtn" class="btn">▶ Play</button>
+    <button id="stopRecBtn" class="btn" style="background:#6b7280;">⏹ Stop</button>
+    <button id="saveBtn" class="btn small" style="background:#475569;">💾 Save</button>
+
+    <!-- config load/save -->
+    <button id="saveConfigBtn" class="btn small" style="background:#475569;">📁 Save cfg</button>
+    <label class="btn small" style="background:#475569; cursor:pointer; display:inline-flex; align-items:center;">
+        📂 Load cfg
+        <input type="file" id="loadConfigInput" style="display:none;" accept=".json">
+    </label>
+
+    <!-- MIDI + Detection mode + Calibration -->
+    <button id="midiBtn" class="btn small" style="background:#7c3aed;" title="Подключить USB MIDI клавиатуру">🎹 MIDI</button>
+    <button id="midiSettingsBtn" class="btn small" style="background:#6b21a8; display:none;" onclick="openMIDIModal()">⚙ SF2</button>
+    <select id="detModeSelect" class="mode-sel" title="Режим детектирования нот">
+        <option value="0">🔺 Пики</option>
+        <option value="1">📊 Профиль</option>
+        <option value="2">⚡ Комбо</option>
+    </select>
+    <button class="btn small" style="background:#0891b2;" onclick="openCalib()" title="Калибровка под конкретный инструмент">📊 Калибровка</button>
+    <button id="saveProfileBtn" class="btn small" style="background:#475569;" title="Сохранить профиль инструмента">💾 Профиль</button>
+    <label class="btn small" style="background:#475569; cursor:pointer; display:inline-flex; align-items:center;" title="Загрузить профиль инструмента">
+        📂 Профиль
+        <input type="file" id="loadProfileInput" style="display:none;" accept=".json">
+    </label>
+
+    <div id="slidersContainer" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-left:10px;">
+        <div class="ctrl">
+            <div class="ctrl-label">Mic Gain <span class="ctrl-val" id="vPreG">1.0×</span></div>
+            <input type="range" id="sPreG" min="1" max="20" step="0.1" value="1">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Vis Gain <span class="ctrl-val" id="vG">50×</span></div>
+            <input type="range" id="sG" min="1" max="150" step="1" value="50">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Скорость <span class="ctrl-val" id="vR">30/с</span></div>
+            <input type="range" id="sR" min="10" max="60" step="1" value="30">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
+            <input type="range" id="sTh" min="1" max="40" step="1" value="4">
+        </div>
+        <div class="ctrl" style="min-width:110px;">
+            <div class="ctrl-label">Г.Порог <span class="ctrl-val" id="vHarm">35%</span></div>
+            <input type="range" id="sHarm" min="5" max="90" step="5" value="35">
+        </div>
+        <span class="toggle-wrap" style="padding-bottom:4px;">
+            <input type="checkbox" id="harmSuppChk" checked> Подавл.гарм.
+        </span>
+        <span class="toggle-wrap" style="padding-bottom:4px;">
+            <input type="checkbox" id="hpsChk" checked> HPS буст
+        </span>
+        <div class="ctrl" style="min-width:110px;">
+            <div class="ctrl-label">Гистерезис <span class="ctrl-val" id="vHyst">0мс</span></div>
+            <input type="range" id="sHyst" min="0" max="500" step="10" value="0">
+        </div>
+    </div>
+</div>
+
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="tip"></div>
+
+<!-- EQ MODAL – anchored top-right so the piano roll remains visible -->
+<div id="eqModal" class="modal-overlay" style="align-items:flex-start; justify-content:flex-end; padding:6px 8px 0 0; pointer-events:none;">
+    <div class="modal" style="width:480px; max-width:50vw; pointer-events:all; max-height:calc(100vh - 14px);">
+        <div class="modal-header">
+            <span>Параметрический EQ</span>
+            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
+        </div>
+        <!-- Inline frequency response curve – always visible in modal -->
+        <canvas id="eqModalCurve" width="500" height="80"
+            style="width:100%; border-radius:6px; display:block; margin-bottom:10px; background:#1e1e2f;"></canvas>
+        <div class="modal-row" style="justify-content: space-between; margin-bottom:8px;">
+            <span class="toggle-wrap">
+                <input type="checkbox" id="eqShowCurveChk"> АЧХ на главном холсте
+            </span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <select id="eqType">
+                    <option value="peaking">Полосовой (Peaking)</option>
+                    <option value="lowshelf">Low Shelf</option>
+                    <option value="highshelf">High Shelf</option>
+                </select>
+                <button class="btn small" onclick="addEqBand()">+ Добавить</button>
+            </div>
+        </div>
+        <div id="eqList"></div>
+    </div>
+</div>
+
+<!-- METRONOME MODAL -->
+<div id="metronomeModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <span>Метроном</span>
+            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
+        </div>
+        <div class="modal-row" style="justify-content: space-between;">
+            <span>Размер:</span>
+            <select id="mSig">
+                <option value="2">2/4</option><option value="3">3/4</option>
+                <option value="4" selected>4/4</option>
+                <option value="5">5/4</option><option value="6">6/8</option><option value="7">7/8</option>
+            </select>
+        </div>
+        <div class="ctrl" style="margin-bottom: 12px;">
+            <div class="ctrl-label">Темп (BPM) <span class="ctrl-val" id="vBpm">120</span></div>
+            <input type="range" id="sBpm" min="40" max="240" step="1" value="120">
+        </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Громкость <span class="ctrl-val" id="vMVol">50%</span></div>
+            <input type="range" id="sMVol" min="0" max="100" step="1" value="50">
+        </div>
+    </div>
+</div>
+
+<!-- MIDI SETTINGS MODAL -->
+<div id="midiModal" class="modal-overlay">
+    <div class="modal" style="width:430px;">
+        <div class="modal-header">
+            <span>🎹 MIDI Настройки</span>
+            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
+        </div>
+
+        <div style="font-weight:700; font-size:12px; color:#374151; margin-bottom:8px;">🎵 SoundFont (SF2)</div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <label class="btn small" style="background:#2563eb; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+                📂 Загрузить SF2
+                <input type="file" id="sf2FileInput" style="display:none;" accept=".sf2,.SF2">
+            </label>
+            <span id="sf2Status" style="font-size:10px; color:#6b7280; flex:1; line-height:1.3;">Не загружен — звука не будет</span>
+        </div>
+        <div class="modal-row" style="margin-bottom:10px;">
+            <label style="font-size:11px; font-weight:600; min-width:55px;">Пресет:</label>
+            <select id="sf2PresetSel" style="flex:1; font-size:11px;" disabled>
+                <option>— загрузите SF2 —</option>
+            </select>
+        </div>
+        <div class="ctrl" style="margin-bottom:14px;">
+            <div class="ctrl-label">Громкость SF2 <span class="ctrl-val" id="vSF2Vol">85%</span></div>
+            <input type="range" id="sSF2Vol" min="0" max="150" step="5" value="85">
+        </div>
+
+        <div style="font-weight:700; font-size:12px; color:#374151; margin-bottom:8px; border-top:1px solid #e5e7eb; padding-top:10px;">🎛 Канал / Инструмент</div>
+        <div class="modal-row" style="margin-bottom:12px;">
+            <label style="font-size:11px; font-weight:600; min-width:55px;">Канал:</label>
+            <select id="midiChSel" style="flex:1; font-size:11px;">
+                <option value="-1">Все каналы</option>
+                <option value="0">1 – Piano</option>
+                <option value="1">2</option><option value="2">3</option>
+                <option value="3">4</option><option value="4">5</option>
+                <option value="5">6</option><option value="6">7</option>
+                <option value="7">8</option>
+                <option value="8">9</option>
+                <option value="9">10 – Drums</option>
+                <option value="10">11</option><option value="11">12</option>
+                <option value="12">13</option><option value="13">14</option>
+                <option value="14">15</option><option value="15">16</option>
+            </select>
+        </div>
+        <div id="midiDevInfo" style="font-size:10px; color:#9ca3af; line-height:1.5;"></div>
+    </div>
+</div>
+
+<!-- CALIBRATION MODAL -->
+<div id="calibModal" class="modal-overlay">
+    <div class="modal" style="width:460px;">
+        <div class="modal-header">
+            <span>📊 Калибровка инструмента</span>
+            <button class="close-btn" onclick="closeCalib()">×</button>
+        </div>
+
+        <!-- Profile summary -->
+        <div id="calibProfileStatus" style="font-size:11px; color:#6b7280; margin-bottom:6px; text-align:center;"></div>
+
+        <!-- 88 dots progress -->
+        <div id="calibDots" style="line-height:1.4; margin-bottom:8px; text-align:center;"></div>
+
+        <!-- Overall progress bar -->
+        <div class="calib-bar-bg"><div class="calib-bar-fill" id="calibBar" style="width:0%"></div></div>
+
+        <!-- Current note -->
+        <div style="text-align:center; margin:14px 0 8px;">
+            <div class="calib-note-big" id="calibNName">—</div>
+            <div style="font-size:13px; color:#4b5563;" id="calibNFreq"></div>
+            <div style="font-size:11px; color:#9ca3af;" id="calibNIdx">Нота ? / 88</div>
+        </div>
+
+        <!-- Recording progress bar -->
+        <div class="calib-rec-bar-bg"><div class="calib-rec-bar-fill" id="calibRecBar" style="width:0%"></div></div>
+        <div id="calibMsg" style="text-align:center; font-size:11px; color:#6b7280; min-height:18px; margin:4px 0 10px;"></div>
+
+        <!-- Buttons row -->
+        <div style="display:flex; gap:8px; justify-content:center; margin-bottom:8px; flex-wrap:wrap;">
+            <button class="btn small" style="background:#6b7280;" onclick="calibGo(-10)">«−10</button>
+            <button class="btn small" style="background:#6b7280;" onclick="calibGo(-1)">◀ Пред</button>
+            <button class="btn" id="calibRecBtn" onclick="startCalibRecord()">⏺ Записать (2с)</button>
+            <button class="btn small" style="background:#6b7280;" onclick="calibGo(1)">Пропустить ▶</button>
+            <button class="btn small" style="background:#6b7280;" onclick="calibGo(10)">+10»</button>
+        </div>
+
+        <!-- Save/clear -->
+        <div style="display:flex; gap:8px; justify-content:space-between; margin-top:4px;">
+            <button class="btn small" style="background:#ef4444;" onclick="clearProfile()">🗑 Очистить профиль</button>
+            <button class="btn small" style="background:#16a34a;" onclick="saveProfile()">💾 Сохранить профиль</button>
+        </div>
+    </div>
+</div>
+
+<!-- hidden audio element for playback -->
+<audio id="audioPlayback" style="display:none;"></audio>
+
+<script>
+'use strict';
+
+// ─── Constants & Utilities ───────────────────────────────────────
+const MIDI_A0 = 21, N_KEYS = 88, COL_W = 12, KB_H = 96, MAX_PK = 5;
+const BLK_PC = new Set([1, 3, 6, 8, 10]);
+const isBlack = k => BLK_PC.has((MIDI_A0 + k) % 12);
+const midi2freq = m => 440 * 2 ** ((m - 69) / 12);
+const midi2name = m => ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12] + (Math.floor(m / 12) - 1);
+const NOTE_HUE = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+// ─── Precomputed Color LUTs ──────────────────────────────────────
+function makeLUT(hue, sat, litRange) {
+    const lut = new Uint8Array(256 * 3);
+    const [l0, l1] = litRange;
+    for (let i = 0; i < 256; i++) {
+        const l = l0 + (i / 255) * (l1 - l0);
+        const [r, g, b] = hsl2rgb(hue, sat, l);
+        lut[i * 3] = r;
+        lut[i * 3 + 1] = g;
+        lut[i * 3 + 2] = b;
+    }
+    return lut;
+}
+
+function hsl2rgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    return [
+        Math.round((r + m) * 255),
+        Math.round((g + m) * 255),
+        Math.round((b + m) * 255)
+    ];
+}
+
+const PC_LUT_COLOR = Array.from({ length: 12 }, (_, pc) =>
+    makeLUT(NOTE_HUE[pc], 1.0, [0.06, 0.62])
+);
+const MONO_LUT = makeLUT(0, 0, [0.1, 0.55]); // grayscale
+
+let rainbow = true; // toggled by checkbox
+
+// ─── Global State ────────────────────────────────────────────────
+let audioCtx = null, micSource = null, cqtNode = null, preGainNode = null;
+let running = false;
+let visGain = 50.0;
+let rowMs = 1000 / 30;
+let thresh = 0.04;
+const targetVals = new Float32Array(N_KEYS), semVals = new Float32Array(N_KEYS), peakMask = new Uint8Array(N_KEYS);
+
+// ─── Harmonic Analysis ───────────────────────────────────────────
+// Semitone offsets for harmonics 2–5 relative to fundamental
+const HARM_OFFSETS = [12, 19, 24, 28]; // octave, 5th+oct, 2oct, 2oct+3rd
+// Weights for HPS boost: how much each harmonic contributes to fundamental detection
+const HPS_WEIGHTS  = [0.50, 0.35, 0.25, 0.18];
+const detVals = new Float32Array(N_KEYS); // HPS-enhanced detection values
+let hpsBoost    = true;   // boost weak fundamentals using harmonic energy
+let harmSuppress = true;  // suppress harmonic false-positives
+let harmRatio   = 0.35;   // fundamental must be ≥ this fraction of harmonic to suppress it
+
+// ─── Detection Mode ──────────────────────────────────────────────
+// 0 = peaks (original), 1 = instrument profile, 2 = combo
+let detMode = 0;
+let instrProfile = null; // Array(88) of Float32Array(88), or null
+
+// ─── MIDI ────────────────────────────────────────────────────────
+let midiEnabled = false, midiAccess = null;
+const midiActiveNotes = new Set();
+let midiFrameId = null;
+
+// ─── SF2 / MIDI Sound ────────────────────────────────────────────
+let sf2Ctx       = null;   // dedicated AudioContext for SF2 playback
+let sf2Synth     = null;   // SF2Synth instance
+let sf2ParsedData = null;  // cached parsed SF2 data (survives MIDI toggle)
+let sf2PresetIdx = 0;      // currently selected preset index
+let midiChannel  = -1;     // -1 = all channels, 0-15 = specific MIDI channel
+
+// ─── Hysteresis ──────────────────────────────────────────────────
+let hystMs = 0;                             // hold-time in ms (0 = off)
+const noteOnTs = new Float32Array(N_KEYS);  // timestamp of last detection per key
+
+// EQ
+let eqBands = [];
+let eqNodes = [];
+let showEQCurve = false;
+
+// Metronome
+let bpm = 120, metroVol = 0.5, beatsPerBar = 4, metroActive = true;
+let nextNoteTime = 0, currentBeat = 0, visualBeatQueue = [];
+let beatPattern = []; // will be computed
+let noiseClickBuffer = null; // AudioBuffer for metronome click
+
+// Recording / Playback
+let mediaRecorder = null, recordedBlob = null;
+const audioEl = document.getElementById('audioPlayback');
+
+// ─── Canvas Setup ────────────────────────────────────────────────
+const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d', { alpha: false });
+let wfH = 0, wfBuf = null, CANVAS_W = N_KEYS * COL_W;
+let EQ_H = 100; // height of EQ curve area when visible
+
+function resizeCanvas() {
+    const h = document.getElementById('wrap').clientHeight;
+    canvas.width = CANVAS_W;
+    canvas.height = h;
+    const usedForEQ = showEQCurve ? EQ_H : 0;
+    wfH = Math.max(20, h - KB_H - usedForEQ);
+    wfBuf = new ImageData(CANVAS_W, wfH);
+    // fill with dark background
+    const d = wfBuf.data;
+    for (let y = 0; y < wfH; y++) {
+        for (let k = 0; k < N_KEYS; k++) {
+            const c = isBlack(k) ? 0 : 25;
+            for (let px = 0; px < COL_W; px++) {
+                const i = (y * CANVAS_W + k * COL_W + px) * 4;
+                d[i] = c; d[i + 1] = c; d[i + 2] = c; d[i + 3] = 255;
+            }
+        }
+    }
+    drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
+}
+
+// ─── Keyboard Drawing (proper piano layout) ──────────────────────
+function drawKeyboard(pm) {
+    const top = wfH + (showEQCurve ? EQ_H : 0);
+    // Background
+    ctx.fillStyle = '#e8eaf0';
+    ctx.fillRect(0, top, CANVAS_W, KB_H);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, top, CANVAS_W, 2);
+
+    // White keys (full contiguous columns)
+    for (let k = 0; k < N_KEYS; k++) {
+        if (isBlack(k)) continue;
+        const x = k * COL_W;
+        const lit = pm[k];
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210; // blue-grey if mono
+        const g = ctx.createLinearGradient(0, top + 2, 0, top + KB_H);
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},90%,72%)`);
+            g.addColorStop(1, `hsl(${hue},90%,58%)`);
+        } else {
+            g.addColorStop(0, '#f8f9fc');
+            g.addColorStop(1, '#d4d8e5');
+        }
+        ctx.fillStyle = g;
+        ctx.fillRect(x + 1, top + 2, COL_W - 1, KB_H - 3);
+        // side line
+        ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
+        ctx.fillRect(x + COL_W - 1, top + 2, 1, KB_H - 3);
+        // note name on C
+        if ((MIDI_A0 + k) % 12 === 0) {
+            ctx.fillStyle = lit ? '#fff' : '#778899';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.font = 'bold 8px sans-serif';
+            ctx.fillText(midi2name(MIDI_A0 + k), x + COL_W / 2, top + KB_H - 4);
+        }
+    }
+
+    // Black keys (overlay)
+    const BK_H = Math.round(KB_H * 0.6);
+    const BK_W = Math.round(COL_W * 0.65);
+    const BK_OX = Math.floor((COL_W - BK_W) / 2);
+    for (let k = 0; k < N_KEYS; k++) {
+        if (!isBlack(k)) continue;
+        const x = k * COL_W + BK_OX, y = top + 2;
+        const lit = pm[k];
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
+        const g = ctx.createLinearGradient(0, y, 0, y + BK_H);
+        if (lit) {
+            g.addColorStop(0, `hsl(${hue},100%,40%)`);
+            g.addColorStop(1, `hsl(${hue},100%,38%)`);
+        } else {
+            g.addColorStop(0, '#3a3c4c');
+            g.addColorStop(1, '#12131c');
+        }
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 3, 3]);
+        ctx.fill();
+        if (!lit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85);
+        }
+    }
+}
+
+// ─── EQ Curve Drawing ────────────────────────────────────────────
+function drawEQCurve() {
+    if (!showEQCurve) return;
+    if (!audioCtx || eqNodes.length === 0) return;
+
+    const top = wfH;
+    const h = EQ_H;
+    const freqs = new Float32Array(N_KEYS);
+    for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
+
+    const magLinear = new Float32Array(N_KEYS);
+    const phase = new Float32Array(N_KEYS);
+    // start with 1 (0 dB)
+    for (let k = 0; k < N_KEYS; k++) magLinear[k] = 1;
+
+    eqNodes.forEach(node => {
+        const singleMag = new Float32Array(N_KEYS);
+        node.getFrequencyResponse(freqs, singleMag, phase);
+        for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
+    });
+
+    // draw background
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = top + h / 2 - (db / 12) * (h * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+    }
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
+    const y0 = top + h / 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
+
+    // frequency labels (on bottom of EQ area)
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    for (let k = 0; k < N_KEYS; k++) {
+        if ((MIDI_A0 + k) % 12 === 0) { // C notes
+            const x = k * COL_W + COL_W / 2;
+            const freq = midi2freq(MIDI_A0 + k);
+            ctx.fillText(freq.toFixed(0) + ' Hz', x, top + h - 4);
+        }
+    }
+
+    // draw curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    let first = true;
+    for (let k = 0; k < N_KEYS; k++) {
+        const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
+        const y = y0 - (db / 12) * (h * 0.8);
+        const x = k * COL_W + COL_W / 2;
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+// ─── Waterfall Row ───────────────────────────────────────────────
+function addRow(sv, pm, beatLineType) {
+    const d = wfBuf.data;
+    const rowB = CANVAS_W * 4;
+    const base = (wfH - 1) * rowB;
+    d.copyWithin(0, rowB); // scroll up
+
+    for (let k = 0; k < N_KEYS; k++) {
+        const isBlk = isBlack(k);
+        let r = isBlk ? 0 : 25;
+        let g = isBlk ? 0 : 25;
+        let b = isBlk ? 0 : 25;
+
+        // metronome line brightness
+        if (beatLineType === 1) { r += 60; g += 60; b += 60; }
+        else if (beatLineType === 2) { r += 30; g += 30; b += 30; }
+
+        if (pm[k]) {
+            // MIDI mode: use fixed bright level so notes show clearly even without audio
+            const displayVal = (midiEnabled && midiActiveNotes.has(k)) ? 0.88 : sv[k];
+            const v = Math.round(Math.min(1, Math.max(0, displayVal)) * 255);
+            const lut = rainbow ? PC_LUT_COLOR[(MIDI_A0 + k) % 12] : MONO_LUT;
+            r = Math.max(r, lut[v * 3]);
+            g = Math.max(g, lut[v * 3 + 1]);
+            b = Math.max(b, lut[v * 3 + 2]);
+        }
+        for (let px = 0; px < COL_W; px++) {
+            const i = base + (k * COL_W + px) * 4;
+            d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        }
+    }
+}
+
+// ─── Cosine similarity against instrument profile ─────────────────
+function computeProfileScores() {
+    const scores = new Float32Array(N_KEYS);
+    if (!instrProfile) return scores;
+    let normSem = 0;
+    for (let k = 0; k < N_KEYS; k++) normSem += semVals[k] * semVals[k];
+    normSem = Math.sqrt(normSem) || 1e-9;
+    for (let n = 0; n < N_KEYS; n++) {
+        const prof = instrProfile[n];
+        if (!prof) continue;
+        let dot = 0, normP = 0;
+        for (let k = 0; k < N_KEYS; k++) { dot += semVals[k] * prof[k]; normP += prof[k] * prof[k]; }
+        scores[n] = dot / (normSem * (Math.sqrt(normP) || 1e-9));
+    }
+    return scores;
+}
+
+// ─── Animation Loop ──────────────────────────────────────────────
+let lastRowTs = 0;
+
+// MIDI-only frame loop (audio not running)
+function midiOnlyFrame(ts) {
+    if (!midiEnabled || running) { midiFrameId = null; return; }
+    midiFrameId = requestAnimationFrame(midiOnlyFrame);
+    peakMask.fill(0);
+    for (const k of midiActiveNotes) if (k >= 0 && k < N_KEYS) peakMask[k] = 1;
+    if (ts - lastRowTs >= rowMs) {
+        lastRowTs = ts;
+        addRow(semVals, peakMask, 0);
+        ctx.putImageData(wfBuf, 0, 0);
+    }
+    drawKeyboard(peakMask);
+}
+
+function frame(ts) {
+    if (!running) return;
+    requestAnimationFrame(frame);
+
+    // ── Smooth audio energy ──
+    for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
+
+    // ── Calibration accumulation ──
+    if (calibOpen && calibRecording) {
+        for (let k = 0; k < N_KEYS; k++) calibAccum[k] += semVals[k];
+        calibFrames++;
+        const pct = (calibFrames / CALIB_FRAMES * 100).toFixed(0);
+        const recBar = document.getElementById('calibRecBar');
+        if (recBar) recBar.style.width = pct + '%';
+        if (calibFrames >= CALIB_FRAMES) finishCalibNote();
+    }
+
+    peakMask.fill(0);
+
+    if (midiEnabled) {
+        // ── MIDI mode: notes from keyboard ──
+        for (const k of midiActiveNotes) if (k >= 0 && k < N_KEYS) peakMask[k] = 1;
+    } else {
+        // ── Audio detection ──
+
+        // HPS boost: add weighted harmonic energy upward into each bin's fundamental
+        for (let k = 0; k < N_KEYS; k++) {
+            detVals[k] = semVals[k];
+            if (hpsBoost) {
+                for (let h = 0; h < HARM_OFFSETS.length; h++) {
+                    const hk = k + HARM_OFFSETS[h];
+                    if (hk < N_KEYS) detVals[k] += HPS_WEIGHTS[h] * semVals[hk];
+                }
+            }
+        }
+
+        let scoreVals = null;
+        if (detMode === 1 || detMode === 2) scoreVals = computeProfileScores();
+
+        // Build composite detection signal per mode
+        const useVals = new Float32Array(N_KEYS);
+        for (let k = 0; k < N_KEYS; k++) {
+            if (detMode === 0) {
+                useVals[k] = detVals[k];
+            } else if (detMode === 1) {
+                // Pure profile: cosine score (only valid notes have profile)
+                useVals[k] = instrProfile && instrProfile[k] ? scoreVals[k] : 0;
+            } else {
+                // Combo: HPS-boosted * profile weight; falls back to peaks if no profile
+                const w = (instrProfile && instrProfile[k]) ? (0.35 + 0.65 * scoreVals[k]) : 1.0;
+                useVals[k] = detVals[k] * w;
+            }
+        }
+
+        // Find local peaks
+        const c = [];
+        for (let k = 1; k < N_KEYS - 1; k++)
+            if (useVals[k] > thresh && useVals[k] >= useVals[k - 1] && useVals[k] >= useVals[k + 1])
+                c.push(k);
+        c.sort((a, b) => useVals[b] - useVals[a]);
+
+        // Harmonic suppression (modes 0 & 2; in pure-profile mode the profile handles this)
+        const confirmed = [];
+        for (const k of c) {
+            if (harmSuppress && detMode !== 1) {
+                let isHarm = false;
+                for (const off of HARM_OFFSETS) {
+                    const fk = k - off;
+                    if (fk >= 0 && semVals[fk] >= semVals[k] * harmRatio) { isHarm = true; break; }
+                }
+                if (isHarm) continue;
+            }
+            confirmed.push(k);
+            if (confirmed.length >= MAX_PK) break;
+        }
+        for (const k of confirmed) peakMask[k] = 1;
+
+        // ── Hysteresis: hold peakMask to prevent buzzing at note decay ──
+        if (hystMs > 0) {
+            for (let k = 0; k < N_KEYS; k++) {
+                if (peakMask[k]) { noteOnTs[k] = ts; }           // note freshly detected — reset timer
+                else if (ts - noteOnTs[k] < hystMs) { peakMask[k] = 1; } // still in hold window
+            }
+        }
+    }
+
+    if (ts - lastRowTs >= rowMs) {
+        lastRowTs = ts;
+        let bType = 0;
+        if (visualBeatQueue.length > 0 && audioCtx && audioCtx.currentTime >= visualBeatQueue[0].time) {
+            bType = visualBeatQueue.shift().type;
+        }
+        addRow(semVals, peakMask, bType);
+        ctx.putImageData(wfBuf, 0, 0);
+    }
+    drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
+}
+
+// ─── Metronome Logic ─────────────────────────────────────────────
+function generateNoiseClickBuffer() {
+    const len = audioCtx.sampleRate * 0.03; // 30ms
+    const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.2));
+    return buffer;
+}
+
+function playClick(time, gainLevel) {
+    if (!metroActive || metroVol <= 0.01 || !noiseClickBuffer) return;
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseClickBuffer;
+    const gainNode = audioCtx.createGain();
+    src.connect(gainNode).connect(audioCtx.destination);
+    gainNode.gain.setValueAtTime(gainLevel * metroVol, time);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+    src.start(time);
+    src.stop(time + 0.03);
+}
+
+function updateBeatPattern() {
+    beatPattern = [];
+    if (beatsPerBar === 4) beatPattern = [1, 0, 2, 0]; // strong, weak, half, weak
+    else if (beatsPerBar === 6) beatPattern = [1, 0, 0, 2, 0, 0];
+    else {
+        beatPattern = new Array(beatsPerBar).fill(0);
+        beatPattern[0] = 1; // strong on first
+    }
+}
+
+function scheduleMetronome() {
+    if (!running || !metroActive) return;
+    while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        const type = beatPattern[currentBeat];
+        let gain = 0;
+        if (type === 1) gain = 1.0;
+        else if (type === 2) gain = 0.65;
+        else gain = 0.35;
+        playClick(nextNoteTime, gain);
+        visualBeatQueue.push({ time: nextNoteTime, type: type });
+        currentBeat = (currentBeat + 1) % beatsPerBar;
+        nextNoteTime += 60.0 / bpm;
+    }
+    setTimeout(scheduleMetronome, 25);
+}
+
+// ─── EQ Management ───────────────────────────────────────────────
+function rebuildAudioGraph() {
+    if (!micSource || !cqtNode) return;
+    micSource.disconnect();
+    preGainNode.disconnect();
+    eqNodes.forEach(n => n.disconnect());
+    let prev = micSource;
+    prev.connect(preGainNode);
+    prev = preGainNode;
+    eqNodes.forEach(n => { prev.connect(n); prev = n; });
+    prev.connect(cqtNode);
+}
+
+function updateEQNode(idx) {
+    if (!eqNodes[idx]) return;
+    const d = eqBands[idx];
+    eqNodes[idx].type = d.type;
+    eqNodes[idx].frequency.value = d.freq;
+    eqNodes[idx].Q.value = d.q;
+    eqNodes[idx].gain.value = d.gain;
+    if (showEQCurve && running) drawEQCurve();
+}
+
+window.addEqBand = function () {
+    const type = document.getElementById('eqType').value;
+    eqBands.push({ id: Date.now(), type, freq: 1000, q: 1, gain: 0 });
+    if (audioCtx) {
+        const filter = audioCtx.createBiquadFilter();
+        eqNodes.push(filter);
+        updateEQNode(eqBands.length - 1);
+        rebuildAudioGraph();
+    }
+    renderEQUI();
+};
+
+window.removeEqBand = function (idx) {
+    eqBands.splice(idx, 1);
+    if (audioCtx && eqNodes[idx]) {
+        eqNodes[idx].disconnect();
+        eqNodes.splice(idx, 1);
+        rebuildAudioGraph();
+    }
+    renderEQUI();
+    if (showEQCurve) drawEQCurve();
+};
+
+const LOG_MIN = Math.log10(20), LOG_MAX = Math.log10(15000);
+function freqToSlider(freq) {
+    return ((Math.log10(freq) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 100;
+}
+function sliderToFreq(val) {
+    return Math.pow(10, LOG_MIN + (LOG_MAX - LOG_MIN) * (val / 100));
+}
+
+// ─── EQ Modal Curve ──────────────────────────────────────────────
+function drawEQModalCurve() {
+    const cvs = document.getElementById('eqModalCurve');
+    if (!cvs) return;
+    const mc = cvs.getContext('2d');
+    const W = cvs.width, H = cvs.height;
+    mc.fillStyle = '#1e1e2f'; mc.fillRect(0, 0, W, H);
+    // grid
+    mc.strokeStyle = '#3a3a4a'; mc.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = H/2 - (db/12)*(H*0.78);
+        mc.beginPath(); mc.moveTo(0,y); mc.lineTo(W,y); mc.stroke();
+    }
+    mc.strokeStyle = '#5a5a6a'; mc.lineWidth = 1;
+    const y0 = H/2;
+    mc.beginPath(); mc.moveTo(0,y0); mc.lineTo(W,y0); mc.stroke();
+    // dB labels
+    mc.fillStyle = '#777'; mc.font = '9px sans-serif'; mc.textAlign = 'left';
+    for (const db of [-12,-6,0,6,12]) {
+        mc.fillText(db+(db===0?'dB':''), 2, H/2-(db/12)*(H*0.78)+3);
+    }
+    // Note labels
+    mc.fillStyle = '#555'; mc.textAlign = 'center';
+    for (let k = 0; k < N_KEYS; k++) {
+        const m = MIDI_A0+k;
+        if (m % 12 === 0) { // C notes
+            const x = (k/(N_KEYS-1))*W;
+            mc.fillText(midi2name(m), x, H-2);
+        }
+    }
+    // Curve
+    const freqs = new Float32Array(N_KEYS);
+    for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0+k);
+    const mag = new Float32Array(N_KEYS).fill(1);
+    if (audioCtx && eqNodes.length > 0) {
+        const phase = new Float32Array(N_KEYS);
+        eqNodes.forEach(node => { const m=new Float32Array(N_KEYS); node.getFrequencyResponse(freqs,m,phase); for(let k=0;k<N_KEYS;k++) mag[k]*=m[k]; });
+    }
+    mc.beginPath(); mc.strokeStyle='#f59e0b'; mc.lineWidth=2;
+    for (let k=0;k<N_KEYS;k++) {
+        const db=20*Math.log10(Math.max(mag[k],1e-6));
+        const y=y0-(db/12)*(H*0.78), x=(k/(N_KEYS-1))*W;
+        k===0?mc.moveTo(x,y):mc.lineTo(x,y);
+    }
+    mc.stroke();
+}
+
+function renderEQUI() {
+    const list = document.getElementById('eqList');
+    list.innerHTML = '';
+    eqBands.forEach((band, i) => {
+        const tName = band.type==='peaking' ? 'Полосовой' : (band.type==='lowshelf' ? 'Low Shelf' : 'High Shelf');
+        const fSlider = freqToSlider(band.freq).toFixed(1);
+        const qRow = band.type==='peaking' ? `
+            <div class="eq-slider-row">
+                <span class="eq-label">Q</span>
+                <input type="range" min="0.1" max="20" step="0.1" value="${band.q}"
+                    oninput="eqBands[${i}].q=parseFloat(this.value);document.getElementById('eqQv${i}').innerText=parseFloat(this.value).toFixed(1);updateEQNode(${i});">
+                <span class="eq-slider-val" id="eqQv${i}">${band.q}</span>
+            </div>` : '';
+        const gainRow = `
+            <div class="eq-slider-row">
+                <span class="eq-label">Gain</span>
+                <input type="range" min="-18" max="18" step="0.1" value="${band.gain}"
+                    oninput="eqBands[${i}].gain=parseFloat(this.value);document.getElementById('eqGv${i}').innerText=parseFloat(this.value).toFixed(1)+'dB';updateEQNode(${i});">
+                <span class="eq-slider-val" id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
+            </div>`;
+        const html = `
+        <div class="eq-band">
+            <div class="eq-band-header">
+                <span>${tName}</span>
+                <button class="eq-del" onclick="removeEqBand(${i})">Удалить</button>
+            </div>
+            <div class="eq-slider-row">
+                <span class="eq-label">Freq</span>
+                <input type="range" min="0" max="100" step="0.1" value="${fSlider}"
+                    oninput="let f=sliderToFreq(parseFloat(this.value));eqBands[${i}].freq=f;document.getElementById('eqFv${i}').innerText=f.toFixed(0)+'Hz';updateEQNode(${i});">
+                <span class="eq-slider-val" id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
+            </div>
+            ${qRow}
+            ${gainRow}
+        </div>`;
+        list.insertAdjacentHTML('beforeend', html);
+    });
+    drawEQModalCurve();
+}
+
+// ─── Recording / Playback / Save ─────────────────────────────────
+async function startRecording() {
+    if (!micSource) return;
+    const stream = micSource.mediaStream;
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    const chunks = [];
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+        audioEl.src = URL.createObjectURL(recordedBlob);
+        document.getElementById('playBtn').disabled = false;
+        document.getElementById('saveBtn').disabled = false;
+    };
+    mediaRecorder.start();
+}
+
+// ─── Start / Stop Audio ──────────────────────────────────────────
+async function startAudio() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([`
+            class CQTFilterbank extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this.N = 88; this.fs = sampleRate; this.Q = 17.31;
+                    this.b0=new Float32Array(this.N); this.b1=new Float32Array(this.N); this.b2=new Float32Array(this.N);
+                    this.a1=new Float32Array(this.N); this.a2=new Float32Array(this.N);
+                    this.x1=new Float32Array(this.N); this.x2=new Float32Array(this.N);
+                    this.y1=new Float32Array(this.N); this.y2=new Float32Array(this.N);
+                    this.env=new Float32Array(this.N); this.envAlpha=new Float32Array(this.N);
+                    for(let k=0;k<this.N;k++){
+                        let freq=440*Math.pow(2,(21+k-69)/12), w0=2*Math.PI*freq/this.fs;
+                        let alpha=Math.sin(w0)/(2*this.Q), a0=1+alpha;
+                        this.b0[k]=alpha/a0; this.b1[k]=0; this.b2[k]=-alpha/a0;
+                        this.a1[k]=(-2*Math.cos(w0))/a0; this.a2[k]=(1-alpha)/a0;
+                        this.envAlpha[k]=Math.exp(-1.0/(this.fs*Math.max(1.0/freq*4,0.01)));
+                    }
+                    this.samplesCount=0;
+                }
+                process(inputs){
+                    const input=inputs[0][0]; if(!input) return true;
+                    for(let i=0;i<input.length;i++){
+                        let x=input[i];
+                        for(let k=0;k<this.N;k++){
+                            let y=this.b0[k]*x+this.b1[k]*this.x1[k]+this.b2[k]*this.x2[k]-this.a1[k]*this.y1[k]-this.a2[k]*this.y2[k];
+                            this.x2[k]=this.x1[k]; this.x1[k]=x; this.y2[k]=this.y1[k]; this.y1[k]=y;
+                            this.env[k]=this.env[k]*this.envAlpha[k]+(y*y)*(1-this.envAlpha[k]);
+                        }
+                    }
+                    this.samplesCount+=input.length;
+                    if(this.samplesCount>=this.fs/60){ this.port.postMessage(new Float32Array(this.env)); this.samplesCount=0; }
+                    return true;
+                }
+            }
+            registerProcessor('cqt-filterbank', CQTFilterbank);
+        `], { type: 'application/javascript' })));
+
+        micSource = audioCtx.createMediaStreamSource(stream);
+        preGainNode = audioCtx.createGain();
+        preGainNode.gain.value = parseFloat(document.getElementById('sPreG').value);
+
+        // restore EQ nodes
+        eqNodes = eqBands.map(b => {
+            const f = audioCtx.createBiquadFilter();
+            f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
+            return f;
+        });
+        cqtNode = new AudioWorkletNode(audioCtx, 'cqt-filterbank');
+        cqtNode.port.onmessage = e => {
+            const energies = e.data;
+            for (let k = 0; k < N_KEYS; k++) targetVals[k] = Math.sqrt(energies[k]) * visGain;
+        };
+        rebuildAudioGraph();
+
+        // metronome noise buffer
+        noiseClickBuffer = generateNoiseClickBuffer();
+        updateBeatPattern();
+        nextNoteTime = audioCtx.currentTime + 0.1;
+        currentBeat = 0;
+
+        running = true;
+        // If MIDI-only loop was running, stop it (main frame() handles MIDI too)
+        if (midiFrameId) { cancelAnimationFrame(midiFrameId); midiFrameId = null; }
+        const btn = document.getElementById('startBtn');
+        btn.textContent = '■ Stop'; btn.classList.add('on');
+        scheduleMetronome();
+        requestAnimationFrame(frame);
+    } catch (e) { alert('Ошибка микрофона: ' + e.message); }
+}
+
+function stopAudio() {
+    if (!running) return;
+    running = false; calibRecording = false;
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    micSource = null; cqtNode = null; preGainNode = null;
+    eqNodes = [];
+    visualBeatQueue.length = 0;
+    const btn = document.getElementById('startBtn');
+    btn.textContent = '▶ Start'; btn.classList.remove('on');
+    // Resume MIDI-only loop if MIDI is still on
+    if (midiEnabled) { lastRowTs = 0; midiFrameId = requestAnimationFrame(midiOnlyFrame); }
+}
+
+// ─── UI Event Bindings ───────────────────────────────────────────
+
+// ─── SF2 Parser ──────────────────────────────────────────────────
+function parseSF2(ab) {
+    const v = new DataView(ab), b = new Uint8Array(ab);
+    const u16 = o => v.getUint16(o,true), u32 = o => v.getUint32(o,true);
+    const s8  = o => v.getInt8(o),        s16 = o => v.getInt16(o,true);
+    const tag = o => String.fromCharCode(b[o],b[o+1],b[o+2],b[o+3]);
+    const str = (o,n) => { let s=''; for(let i=0;i<n&&b[o+i];i++) s+=String.fromCharCode(b[o+i]); return s; };
+    if (tag(0)!=='RIFF'||tag(8)!=='sfbk') throw new Error('Not a valid SF2 file');
+    const end=u32(4)+8; let smpl=null;
+    const shdr=[],inst=[],ibag=[],igen=[],phdr=[],pbag=[],pgen=[];
+    for (let p=12; p<end-8;) {
+        const id=tag(p), sz=u32(p+4);
+        if (id==='LIST') {
+            const lt=tag(p+8), ds=p+12, de=p+8+sz;
+            if (lt==='sdta') {
+                for(let q=ds;q<de-8;){const qi=tag(q),qs=u32(q+4);if(qi==='smpl')smpl=new Int16Array(ab,q+8,qs>>1);q+=8+qs+(qs&1);}
+            } else if (lt==='pdta') {
+                for(let q=ds;q<de-8;){
+                    const qi=tag(q),qs=u32(q+4),qo=q+8;
+                    if(qi==='shdr'){const n=(qs/46|0)-1;for(let i=0;i<n;i++){const x=qo+i*46;shdr.push({name:str(x,20),start:u32(x+20),end:u32(x+24),loopStart:u32(x+28),loopEnd:u32(x+32),rate:u32(x+36),pitch:b[x+40],tune:s8(x+41),type:u16(x+44)});}}
+                    else if(qi==='inst'){const n=(qs/22|0)-1;for(let i=0;i<n;i++){const x=qo+i*22;inst.push({name:str(x,20),bag:u16(x+20)});}}
+                    else if(qi==='phdr'){const n=(qs/38|0)-1;for(let i=0;i<n;i++){const x=qo+i*38;phdr.push({name:str(x,20),preset:u16(x+20),bank:u16(x+22),bag:u16(x+24)});}}
+                    else if(qi==='ibag'||qi==='pbag'){const arr=qi==='ibag'?ibag:pbag;const n=qs/4|0;for(let i=0;i<n;i++){const x=qo+i*4;arr.push({gen:u16(x),mod:u16(x+2)});}}
+                    else if(qi==='igen'||qi==='pgen'){const arr=qi==='igen'?igen:pgen;const n=qs/4|0;for(let i=0;i<n;i++){const x=qo+i*4;arr.push({op:u16(x),lo:b[x+2],hi:b[x+3],w:u16(x+2),s:s16(x+2)});}}
+                    q+=8+qs+(qs&1);
+                }
+            }
+        }
+        p+=8+sz+(sz&1);
+    }
+    if(!smpl) throw new Error('No sample data found in SF2');
+    return {smpl,shdr,inst,ibag,igen,phdr,pbag,pgen};
+}
+
+// ─── SF2 Synthesizer ─────────────────────────────────────────────
+class SF2Synth {
+    constructor(ctx){this.ctx=ctx;this.sf2=null;this.zones=[];this.cache=new Map();this.playing=new Map();this.vol=0.85;}
+    tc2s(tc){return Math.pow(2,Math.min(Math.max(tc,-12000),8000)/1200);}
+    load(sf2){this.sf2=sf2;this.cache.clear();}
+    presets(){if(!this.sf2)return[];return this.sf2.phdr.map((p,i)=>({i,label:`${p.bank}:${String(p.preset).padStart(3,'0')} ${p.name}`,bank:p.bank,preset:p.preset}));}
+    selectPreset(pi){
+        this.zones=[];if(!this.sf2)return;
+        const{phdr,pbag,pgen,inst,ibag,igen}=this.sf2;
+        const p=phdr[pi],pn=phdr[pi+1];if(!p||!pn)return;
+        for(let bi=p.bag;bi<pn.bag;bi++){
+            const gb=pbag[bi],gbn=pbag[bi+1]||{gen:pgen.length};
+            let instIdx=-1;for(let g=gb.gen;g<gbn.gen;g++)if(pgen[g].op===41)instIdx=pgen[g].w;
+            if(instIdx<0)continue;
+            const ins=inst[instIdx],insN=inst[instIdx+1];if(!insN)continue;
+            for(let ib=ins.bag;ib<insN.bag;ib++){
+                const iz=ibag[ib],izn=ibag[ib+1]||{gen:igen.length};
+                const z={kLo:0,kHi:127,vLo:0,vHi:127,sid:-1,mode:0,root:-1,atk:-12000,dec:-12000,sus:0,rel:-7200,pan:0};
+                let hasSmp=false;
+                for(let g=iz.gen;g<izn.gen;g++){const{op,lo,hi,w,s}=igen[g];
+                    if(op===43){z.kLo=lo;z.kHi=hi;}else if(op===44){z.vLo=lo;z.vHi=hi;}
+                    else if(op===53){z.sid=w;hasSmp=true;}else if(op===54)z.mode=w;
+                    else if(op===51)z.root=w;else if(op===33)z.atk=s;
+                    else if(op===35)z.dec=s;else if(op===36)z.sus=s;
+                    else if(op===38)z.rel=s;else if(op===17)z.pan=s;
+                }
+                if(hasSmp&&z.sid>=0)this.zones.push(z);
+            }
+        }
+    }
+    _buf(sid){
+        if(this.cache.has(sid))return this.cache.get(sid);
+        const s=this.sf2.shdr[sid];if(!s||s.type&0x8000)return null;
+        const len=s.end-s.start;if(len<=0)return null;
+        const buf=this.ctx.createBuffer(1,len,s.rate);
+        const d=buf.getChannelData(0),raw=this.sf2.smpl;
+        for(let i=0;i<len;i++)d[i]=raw[s.start+i]/32768;
+        this.cache.set(sid,buf);return buf;
+    }
+    noteOn(note,vel,ch=0){
+        this.noteOff(note,ch);
+        if(this.ctx.state==='suspended')this.ctx.resume();
+        const z=this.zones.find(z=>note>=z.kLo&&note<=z.kHi&&vel>=z.vLo&&vel<=z.vHi);if(!z)return;
+        const buf=this._buf(z.sid);if(!buf)return;
+        const s=this.sf2.shdr[z.sid],root=z.root>=0?z.root:s.pitch;
+        const src=this.ctx.createBufferSource();
+        src.buffer=buf;src.detune.value=(note-root)*100+s.tune;
+        if(z.mode&1){src.loop=true;src.loopStart=(s.loopStart-s.start)/s.rate;src.loopEnd=(s.loopEnd-s.start)/s.rate;}
+        const gain=this.ctx.createGain(),v01=vel/127,now=this.ctx.currentTime,atk=Math.max(0.001,this.tc2s(z.atk));
+        gain.gain.setValueAtTime(0.001,now);gain.gain.linearRampToValueAtTime(v01*this.vol,now+atk);
+        src.connect(gain).connect(this.ctx.destination);src.start(now);
+        this.playing.set(`${ch}:${note}`,{src,gain,z});
+    }
+    noteOff(note,ch=0){
+        const key=`${ch}:${note}`,node=this.playing.get(key);if(!node)return;
+        const{src,gain,z}=node,now=this.ctx.currentTime,rel=Math.max(0.05,Math.min(5,this.tc2s(z?.rel??-7200)));
+        gain.gain.cancelScheduledValues(now);gain.gain.setValueAtTime(Math.max(0.0001,gain.gain.value||0.0001),now);
+        gain.gain.exponentialRampToValueAtTime(0.0001,now+rel);
+        try{src.stop(now+rel+0.05);}catch(e){}this.playing.delete(key);
+    }
+    allNotesOff(){
+        const now=this.ctx.currentTime;
+        for(const{src,gain}of this.playing.values()){
+            gain.gain.cancelScheduledValues(now);gain.gain.setValueAtTime(Math.max(0.0001,gain.gain.value||0.0001),now);
+            gain.gain.exponentialRampToValueAtTime(0.0001,now+0.05);try{src.stop(now+0.1);}catch(e){}
+        }
+        this.playing.clear();
+    }
+}
+
+// ─── MIDI functions ───────────────────────────────────────────────
+function handleMIDIMessage(msg) {
+    const [status, note, velocity] = msg.data;
+    if (note === undefined) return;
+    const cmd = status & 0xF0, ch = status & 0x0F;
+    if (midiChannel >= 0 && ch !== midiChannel) return;
+    const k = note - MIDI_A0;
+    if (cmd === 0x90 && velocity > 0) {
+        if (k >= 0 && k < N_KEYS) midiActiveNotes.add(k);
+        if (sf2Synth) sf2Synth.noteOn(note, velocity, ch);
+    } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
+        if (k >= 0 && k < N_KEYS) midiActiveNotes.delete(k);
+        if (sf2Synth) sf2Synth.noteOff(note, ch);
+    }
+}
+
+function openMIDIModal() {
+    if (midiAccess) {
+        const devs = [...midiAccess.inputs.values()].map(i => `• ${i.name}`).join('\n');
+        document.getElementById('midiDevInfo').textContent = devs || '(устройств не найдено)';
+    }
+    document.getElementById('midiModal').style.display = 'flex';
+}
+
+async function toggleMIDI() {
+    const btn = document.getElementById('midiBtn');
+    const settBtn = document.getElementById('midiSettingsBtn');
+    if (midiEnabled) {
+        midiEnabled = false;
+        midiActiveNotes.clear();
+        if (sf2Synth) sf2Synth.allNotesOff();
+        if (sf2Ctx) { sf2Ctx.close().catch(()=>{}); sf2Ctx = null; sf2Synth = null; }
+        if (midiFrameId) { cancelAnimationFrame(midiFrameId); midiFrameId = null; }
+        btn.textContent = '🎹 MIDI'; btn.classList.remove('midi-on'); btn.style.background = '#7c3aed';
+        settBtn.style.display = 'none';
+        document.getElementById('midiModal').style.display = 'none';
+        return;
+    }
+    if (!navigator.requestMIDIAccess) { alert('Web MIDI API не поддерживается этим браузером.\nИспользуйте Chrome или Edge.'); return; }
+    try {
+        sf2Ctx = new (window.AudioContext || window.webkitAudioContext)();
+        sf2Synth = new SF2Synth(sf2Ctx);
+        // Restore previously loaded SF2 if user re-enables MIDI
+        if (sf2ParsedData) { sf2Synth.load(sf2ParsedData); sf2Synth.selectPreset(sf2PresetIdx); }
+        midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+        const attach = inp => { inp.onmidimessage = handleMIDIMessage; };
+        for (const inp of midiAccess.inputs.values()) attach(inp);
+        midiAccess.onstatechange = e => { if (e.port.type==='input'&&e.port.state==='connected') attach(e.port); };
+        midiEnabled = true;
+        btn.textContent = '🎹 MIDI ✓'; btn.classList.add('midi-on'); btn.style.background = '';
+        settBtn.style.display = '';
+        const n = midiAccess.inputs.size;
+        btn.title = n===0 ? 'MIDI включён — устройств не найдено' : `MIDI включён: ${n} устройств`;
+        if (!running) { lastRowTs = 0; midiFrameId = requestAnimationFrame(midiOnlyFrame); }
+    } catch(e) { alert('MIDI ошибка: ' + e.message); }
+}
+
+// ─── Calibration ─────────────────────────────────────────────────
+function openCalib() {
+    calibOpen = true;
+    document.getElementById('calibModal').style.display = 'flex';
+    updateCalibUI();
+}
+function closeCalib() {
+    calibOpen = false; calibRecording = false;
+    document.getElementById('calibModal').style.display = 'none';
+}
+
+function updateCalibUI() {
+    const k = calibNoteIdx;
+    const midi = MIDI_A0 + k;
+    document.getElementById('calibNName').textContent = midi2name(midi);
+    document.getElementById('calibNFreq').textContent = midi2freq(midi).toFixed(2) + ' Hz';
+    document.getElementById('calibNIdx').textContent = `Нота ${k + 1} / ${N_KEYS}`;
+    document.getElementById('calibBar').style.width = ((k / N_KEYS) * 100).toFixed(1) + '%';
+    document.getElementById('calibMsg').textContent = instrProfile && instrProfile[k]
+        ? '✅ Записана — можно перезаписать' : 'Сыграйте ноту и нажмите Записать';
+    document.getElementById('calibRecBar').style.width = '0%';
+    // Profile status
+    const recorded = instrProfile ? instrProfile.filter(Boolean).length : 0;
+    document.getElementById('calibProfileStatus').textContent =
+        `Профиль: ${recorded} / ${N_KEYS} нот записано`;
+    // Dots visualization (compact 88-dot grid)
+    if (!instrProfile) { document.getElementById('calibDots').innerHTML = ''; return; }
+    let html = '';
+    for (let i = 0; i < N_KEYS; i++) {
+        const clr = i === k ? '#0891b2' : (instrProfile[i] ? '#16a34a' : '#d1d5db');
+        html += `<span class="note-dot" style="background:${clr}" title="${midi2name(MIDI_A0+i)}"></span>`;
+    }
+    document.getElementById('calibDots').innerHTML = html;
+}
+
+function startCalibRecord() {
+    if (!running) { alert('Сначала запустите микрофон (▶ Start)'); return; }
+    calibAccum.fill(0); calibFrames = 0; calibRecording = true;
+    document.getElementById('calibRecBtn').textContent = '⏺ Запись…';
+    document.getElementById('calibRecBtn').disabled = true;
+    document.getElementById('calibMsg').textContent = 'Удерживайте ноту…';
+}
+
+function finishCalibNote() {
+    calibRecording = false;
+    if (!instrProfile) instrProfile = new Array(N_KEYS).fill(null);
+    // Average & normalize
+    let mx = 0;
+    for (let k = 0; k < N_KEYS; k++) { calibAccum[k] /= calibFrames; if (calibAccum[k] > mx) mx = calibAccum[k]; }
+    if (mx > 0) for (let k = 0; k < N_KEYS; k++) calibAccum[k] /= mx;
+    instrProfile[calibNoteIdx] = new Float32Array(calibAccum);
+    const btn = document.getElementById('calibRecBtn');
+    if (btn) { btn.textContent = '⏺ Записать (2с)'; btn.disabled = false; }
+    // Auto-advance
+    if (calibNoteIdx < N_KEYS - 1) calibNoteIdx++;
+    updateCalibUI();
+}
+
+function calibGo(delta) {
+    calibRecording = false;
+    calibNoteIdx = Math.max(0, Math.min(N_KEYS - 1, calibNoteIdx + delta));
+    const btn = document.getElementById('calibRecBtn');
+    if (btn) { btn.textContent = '⏺ Записать (2с)'; btn.disabled = false; }
+    updateCalibUI();
+}
+
+function clearProfile() {
+    if (!confirm('Очистить весь профиль инструмента?')) return;
+    instrProfile = null;
+    updateCalibUI();
+}
+
+// ─── Profile save / load ──────────────────────────────────────────
+function saveProfile() {
+    if (!instrProfile || !instrProfile.some(Boolean)) { alert('Профиль пуст — нечего сохранять.'); return; }
+    const recorded = instrProfile.map(v => v ? Array.from(v) : null);
+    const blob = new Blob([JSON.stringify({ instrument: 'My Piano', date: new Date().toISOString(), profiles: recorded }, null, 1)],
+        { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'instrument_profile.json'; a.click();
+}
+
+function loadProfileFromJSON(json) {
+    if (!json.profiles || !Array.isArray(json.profiles)) throw new Error('Неверный формат профиля');
+    instrProfile = json.profiles.map(v => v ? new Float32Array(v) : null);
+    if (calibOpen) updateCalibUI();
+}
+
+document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
+document.getElementById('loadProfileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { loadProfileFromJSON(JSON.parse(reader.result)); alert('Профиль загружен!'); } catch(err) { alert('Ошибка: ' + err); } };
+    reader.readAsText(file); e.target.value = '';
+});
+document.getElementById('midiBtn').addEventListener('click', toggleMIDI);
+document.getElementById('detModeSelect').addEventListener('change', e => { detMode = parseInt(e.target.value); });
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    if (!running) startAudio(); else stopAudio();
+});
+
+// Metronome toggle
+document.getElementById('metroToggle').addEventListener('click', function () {
+    metroActive = !metroActive;
+    this.classList.toggle('on', metroActive);
+    this.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
+    if (metroActive && running) {
+        nextNoteTime = audioCtx.currentTime + 0.05;
+        scheduleMetronome();
+    }
+});
+
+// Sliders spoiler
+document.getElementById('toggleSlidersBtn').addEventListener('click', function () {
+    const container = document.getElementById('slidersContainer');
+    container.classList.toggle('hidden-sliders');
+    this.textContent = container.classList.contains('hidden-sliders') ? 'Показать слайдеры' : 'Скрыть слайдеры';
+});
+
+// Rainbow checkbox
+document.getElementById('rainbowChk').addEventListener('change', e => {
+    rainbow = e.target.checked;
+});
+
+// EQ curve checkbox
+document.getElementById('eqShowCurveChk').addEventListener('change', e => {
+    showEQCurve = e.target.checked;
+    resizeCanvas();
+});
+
+// Metronome settings
+document.getElementById('sBpm').addEventListener('input', e => {
+    bpm = parseInt(e.target.value);
+    document.getElementById('vBpm').innerText = e.target.value;
+});
+document.getElementById('sMVol').addEventListener('input', e => {
+    metroVol = parseFloat(e.target.value) / 100;
+    document.getElementById('vMVol').innerText = e.target.value + '%';
+});
+document.getElementById('mSig').addEventListener('change', e => {
+    beatsPerBar = parseInt(e.target.value);
+    currentBeat = 0;
+    updateBeatPattern();
+});
+
+// Slider bindings
+function bindSlider(id, updateFn) {
+    document.getElementById(id).addEventListener('input', e => updateFn(e.target.value));
+}
+bindSlider('sPreG', v => {
+    if (preGainNode) preGainNode.gain.value = parseFloat(v);
+    document.getElementById('vPreG').innerText = parseFloat(v).toFixed(1) + '×';
+});
+bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v + '×'; });
+bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v + '/с'; });
+bindSlider('sTh', v => { thresh = parseFloat(v) / 100; document.getElementById('vTh').innerText = v + '%'; });
+bindSlider('sHarm', v => { harmRatio = parseFloat(v) / 100; document.getElementById('vHarm').innerText = v + '%'; });
+
+document.getElementById('harmSuppChk').addEventListener('change', e => { harmSuppress = e.target.checked; });
+document.getElementById('hpsChk').addEventListener('change', e => { hpsBoost = e.target.checked; });
+bindSlider('sHyst', v => { hystMs = parseFloat(v); document.getElementById('vHyst').innerText = v + 'мс'; });
+
+// SF2 file load
+document.getElementById('sf2FileInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const status = document.getElementById('sf2Status');
+    status.textContent = 'Загрузка…';
+    try {
+        const ab = await file.arrayBuffer();
+        const data = parseSF2(ab);
+        sf2ParsedData = data; // persist across MIDI on/off toggles
+        // Ensure sf2Ctx exists (MIDI may not be active yet)
+        if (!sf2Ctx) { sf2Ctx = new (window.AudioContext || window.webkitAudioContext)(); sf2Synth = new SF2Synth(sf2Ctx); }
+        sf2Synth.load(data);
+        sf2Synth.selectPreset(0);
+        sf2PresetIdx = 0;
+        // Populate preset dropdown
+        const sel = document.getElementById('sf2PresetSel');
+        sel.innerHTML = '';
+        sf2Synth.presets().forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.i; opt.textContent = p.label; sel.appendChild(opt);
+        });
+        sel.disabled = false;
+        status.textContent = `✅ ${file.name} (${data.shdr.length} сэмплов)`;
+    } catch(err) { status.textContent = '❌ ' + err.message; }
+    e.target.value = '';
+});
+
+document.getElementById('sf2PresetSel').addEventListener('change', function() {
+    sf2PresetIdx = parseInt(this.value);
+    if (sf2Synth) sf2Synth.selectPreset(sf2PresetIdx);
+});
+
+document.getElementById('midiChSel').addEventListener('change', function() {
+    midiChannel = parseInt(this.value);
+    if (sf2Synth) sf2Synth.allNotesOff(); // clear notes when switching channel
+});
+
+bindSlider('sSF2Vol', v => {
+    document.getElementById('vSF2Vol').innerText = v + '%';
+    if (sf2Synth) sf2Synth.vol = parseFloat(v) / 100;
+});
+
+// Record / Play / Stop / Save
+document.getElementById('recBtn').addEventListener('click', () => {
+    if (!running) return;
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        document.getElementById('recBtn').classList.remove('on');
+        document.getElementById('recBtn').textContent = '⏺ Record';
+    } else {
+        startRecording();
+        document.getElementById('recBtn').classList.add('on');
+        document.getElementById('recBtn').textContent = '⏺ Recording...';
+    }
+});
+document.getElementById('stopRecBtn').addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        document.getElementById('recBtn').classList.remove('on');
+        document.getElementById('recBtn').textContent = '⏺ Record';
+    }
+});
+document.getElementById('playBtn').addEventListener('click', () => {
+    if (!audioEl.src) return;
+    if (audioEl.paused) audioEl.play();
+    else audioEl.pause();
+});
+document.getElementById('saveBtn').addEventListener('click', () => {
+    if (!recordedBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(recordedBlob);
+    a.download = 'recording.webm';
+    a.click();
+});
+
+// Config save / load
+function gatherConfig() {
+    return {
+        preGain: parseFloat(document.getElementById('sPreG').value),
+        visGain: parseFloat(document.getElementById('sG').value),
+        speed: parseFloat(document.getElementById('sR').value),
+        thresh: parseFloat(document.getElementById('sTh').value),
+        bpm: bpm,
+        metroVol: metroVol,
+        beatsPerBar: beatsPerBar,
+        metroActive: metroActive,
+        rainbow: rainbow,
+        harmSuppress: harmSuppress,
+        harmRatio: harmRatio,
+        hpsBoost: hpsBoost,
+        eqBands: eqBands.map(b => ({ type: b.type, freq: b.freq, q: b.q, gain: b.gain }))
+    };
+}
+function applyConfig(cfg) {
+    document.getElementById('sPreG').value = cfg.preGain;
+    document.getElementById('sPreG').dispatchEvent(new Event('input'));
+    document.getElementById('sG').value = cfg.visGain;
+    document.getElementById('sG').dispatchEvent(new Event('input'));
+    document.getElementById('sR').value = cfg.speed;
+    document.getElementById('sR').dispatchEvent(new Event('input'));
+    document.getElementById('sTh').value = cfg.thresh;
+    document.getElementById('sTh').dispatchEvent(new Event('input'));
+    bpm = cfg.bpm; document.getElementById('sBpm').value = cfg.bpm; document.getElementById('vBpm').innerText = cfg.bpm;
+    metroVol = cfg.metroVol; document.getElementById('sMVol').value = cfg.metroVol * 100; document.getElementById('vMVol').innerText = (cfg.metroVol*100).toFixed(0)+'%';
+    beatsPerBar = cfg.beatsPerBar; document.getElementById('mSig').value = cfg.beatsPerBar;
+    metroActive = cfg.metroActive;
+    const metroBtn = document.getElementById('metroToggle');
+    metroBtn.classList.toggle('on', metroActive);
+    metroBtn.textContent = metroActive ? '🔊 Метроном' : '🔇 Метроном';
+    rainbow = cfg.rainbow; document.getElementById('rainbowChk').checked = rainbow;
+    if (cfg.harmSuppress !== undefined) {
+        harmSuppress = cfg.harmSuppress;
+        document.getElementById('harmSuppChk').checked = harmSuppress;
+    }
+    if (cfg.harmRatio !== undefined) {
+        harmRatio = cfg.harmRatio;
+        const hv = Math.round(cfg.harmRatio * 100);
+        document.getElementById('sHarm').value = hv;
+        document.getElementById('vHarm').innerText = hv + '%';
+    }
+    if (cfg.hpsBoost !== undefined) {
+        hpsBoost = cfg.hpsBoost;
+        document.getElementById('hpsChk').checked = hpsBoost;
+    }
+    // EQ bands
+    eqBands = [];
+    if (audioCtx) { eqNodes.forEach(n => n.disconnect()); eqNodes = []; }
+    cfg.eqBands.forEach(b => {
+        eqBands.push({ id: Date.now()+Math.random(), type: b.type, freq: b.freq, q: b.q, gain: b.gain });
+        if (audioCtx) {
+            const f = audioCtx.createBiquadFilter();
+            f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
+            eqNodes.push(f);
+        }
+    });
+    if (audioCtx) rebuildAudioGraph();
+    renderEQUI();
+    updateBeatPattern();
+}
+document.getElementById('saveConfigBtn').addEventListener('click', () => {
+    const cfg = gatherConfig();
+    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cqt_config.json';
+    a.click();
+});
+document.getElementById('loadConfigInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const cfg = JSON.parse(reader.result);
+            applyConfig(cfg);
+        } catch (err) { alert('Ошибка чтения конфига: ' + err); }
+    };
+    reader.readAsText(file);
+});
+
+// Tooltip
+const tip = document.getElementById('tip');
+canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    const k = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
+    if (k >= 0 && k < N_KEYS) {
+        const midi = MIDI_A0 + k;
+        tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
+        tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
+    }
+});
+canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+// Resize handler
+let rsT;
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(resizeCanvas, 120); });
+
+// Initial canvas
+resizeCanvas();
+renderEQUI();
+updateBeatPattern();
+</script>
+</body>
+</html>
