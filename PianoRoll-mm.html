@@ -88,12 +88,11 @@
             border:1px solid #e5e7eb; padding:10px; border-radius:6px;
             margin-bottom:10px; background:#f9fafb;
         }
-        .eq-band-header { font-size:12px; font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; }
+        .eq-band-header { font-size:12px; font-weight:bold; margin-bottom:6px; display:flex; justify-content:space-between; }
         .eq-del { background:#ef4444; color:#fff; border:none; border-radius:3px; cursor:pointer; padding:2px 6px; font-size:10px; }
-        .eq-slider-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-        .eq-label { font-size:11px; font-weight:600; color:#374151; min-width:34px; }
-        .eq-slider-val { font-size:11px; font-weight:600; color:#2563eb; min-width:58px; text-align:right; }
-        .eq-slider-row input[type=range] { flex:1; min-width:0; }
+        .eq-sliders { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+        .eq-slider-col { display:flex; flex-direction:column; font-size:10px; text-align:center; }
+        .eq-slider-col input { margin-top:4px; width:100%; }
 
         /* hidden sliders */
         #slidersContainer { transition: all 0.2s; }
@@ -140,7 +139,24 @@
 
     <!-- MIDI + Detection mode + Calibration -->
     <button id="midiBtn" class="btn small" style="background:#7c3aed;" title="Подключить USB MIDI клавиатуру">🎹 MIDI</button>
-    <button id="midiSettingsBtn" class="btn small" style="background:#6b21a8; display:none;" onclick="openMIDIModal()">⚙ SF2</button>
+
+    <!-- MIDI extended controls — visible when MIDI is active -->
+    <div id="midiExtControls" style="display:none; flex-wrap:wrap; gap:6px; align-items:flex-end;">
+        <label class="btn small" style="background:#5b21b6; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="Загрузить SoundFont SF2">
+            🎵 SF2
+            <input type="file" id="sf2Input" style="display:none;" accept=".sf2">
+        </label>
+        <span id="sf2LoadStatus" style="font-size:10px; color:#5b21b6; font-weight:700; white-space:nowrap; align-self:center;"></span>
+        <div class="ctrl" style="min-width:68px;">
+            <div class="ctrl-label">Канал</div>
+            <select id="midiChanSel" style="height:26px; font-size:11px; padding:0 4px; border-radius:4px; border:1px solid #9ca3af; background:#fff;"></select>
+        </div>
+        <div class="ctrl" style="min-width:155px;">
+            <div class="ctrl-label">Инструмент</div>
+            <select id="midiProgSel" style="height:26px; font-size:11px; padding:0 4px; border-radius:4px; border:1px solid #9ca3af; background:#fff; max-width:200px;"></select>
+        </div>
+    </div>
+
     <select id="detModeSelect" class="mode-sel" title="Режим детектирования нот">
         <option value="0">🔺 Пики</option>
         <option value="1">📊 Профиль</option>
@@ -170,6 +186,10 @@
             <div class="ctrl-label">Порог <span class="ctrl-val" id="vTh">4%</span></div>
             <input type="range" id="sTh" min="1" max="40" step="1" value="4">
         </div>
+        <div class="ctrl">
+            <div class="ctrl-label">Гистерезис <span class="ctrl-val" id="vHyst">0%</span></div>
+            <input type="range" id="sHyst" min="0" max="95" step="1" value="0" title="Снижение порога закрытия ноты — убирает дрожание при затухании">
+        </div>
         <div class="ctrl" style="min-width:110px;">
             <div class="ctrl-label">Г.Порог <span class="ctrl-val" id="vHarm">35%</span></div>
             <input type="range" id="sHarm" min="5" max="90" step="5" value="35">
@@ -180,38 +200,29 @@
         <span class="toggle-wrap" style="padding-bottom:4px;">
             <input type="checkbox" id="hpsChk" checked> HPS буст
         </span>
-        <div class="ctrl" style="min-width:110px;">
-            <div class="ctrl-label">Гистерезис <span class="ctrl-val" id="vHyst">0мс</span></div>
-            <input type="range" id="sHyst" min="0" max="500" step="10" value="0">
-        </div>
     </div>
 </div>
 
 <div id="wrap"><canvas id="cv"></canvas></div>
 <div id="tip"></div>
 
-<!-- EQ MODAL – anchored top-right so the piano roll remains visible -->
-<div id="eqModal" class="modal-overlay" style="align-items:flex-start; justify-content:flex-end; padding:6px 8px 0 0; pointer-events:none;">
-    <div class="modal" style="width:480px; max-width:50vw; pointer-events:all; max-height:calc(100vh - 14px);">
+<!-- EQ MODAL -->
+<div id="eqModal" class="modal-overlay">
+    <div class="modal">
         <div class="modal-header">
             <span>Параметрический EQ</span>
             <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
         </div>
-        <!-- Inline frequency response curve – always visible in modal -->
-        <canvas id="eqModalCurve" width="500" height="80"
-            style="width:100%; border-radius:6px; display:block; margin-bottom:10px; background:#1e1e2f;"></canvas>
-        <div class="modal-row" style="justify-content: space-between; margin-bottom:8px;">
+        <div class="modal-row" style="justify-content: space-between;">
             <span class="toggle-wrap">
-                <input type="checkbox" id="eqShowCurveChk" checked> АЧХ на главном холсте
+                <input type="checkbox" id="eqShowCurveChk"> Показать АЧХ
             </span>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <select id="eqType">
-                    <option value="peaking">Полосовой (Peaking)</option>
-                    <option value="lowshelf">Low Shelf</option>
-                    <option value="highshelf">High Shelf</option>
-                </select>
-                <button class="btn small" onclick="addEqBand()">+ Добавить</button>
-            </div>
+            <select id="eqType">
+                <option value="peaking">Полосовой (Peaking)</option>
+                <option value="lowshelf">Low Shelf</option>
+                <option value="highshelf">High Shelf</option>
+            </select>
+            <button class="btn small" onclick="addEqBand()">+ Добавить</button>
         </div>
         <div id="eqList"></div>
     </div>
@@ -240,54 +251,6 @@
             <div class="ctrl-label">Громкость <span class="ctrl-val" id="vMVol">50%</span></div>
             <input type="range" id="sMVol" min="0" max="100" step="1" value="50">
         </div>
-    </div>
-</div>
-
-<!-- MIDI SETTINGS MODAL -->
-<div id="midiModal" class="modal-overlay">
-    <div class="modal" style="width:430px;">
-        <div class="modal-header">
-            <span>🎹 MIDI Настройки</span>
-            <button class="close-btn" onclick="this.closest('.modal-overlay').style.display='none'">×</button>
-        </div>
-
-        <div style="font-weight:700; font-size:12px; color:#374151; margin-bottom:8px;">🎵 SoundFont (SF2)</div>
-        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-            <label class="btn small" style="background:#2563eb; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
-                📂 Загрузить SF2
-                <input type="file" id="sf2FileInput" style="display:none;" accept=".sf2,.SF2">
-            </label>
-            <span id="sf2Status" style="font-size:10px; color:#6b7280; flex:1; line-height:1.3;">Не загружен — звука не будет</span>
-        </div>
-        <div class="modal-row" style="margin-bottom:10px;">
-            <label style="font-size:11px; font-weight:600; min-width:55px;">Пресет:</label>
-            <select id="sf2PresetSel" style="flex:1; font-size:11px;" disabled>
-                <option>— загрузите SF2 —</option>
-            </select>
-        </div>
-        <div class="ctrl" style="margin-bottom:14px;">
-            <div class="ctrl-label">Громкость SF2 <span class="ctrl-val" id="vSF2Vol">85%</span></div>
-            <input type="range" id="sSF2Vol" min="0" max="150" step="5" value="85">
-        </div>
-
-        <div style="font-weight:700; font-size:12px; color:#374151; margin-bottom:8px; border-top:1px solid #e5e7eb; padding-top:10px;">🎛 Канал / Инструмент</div>
-        <div class="modal-row" style="margin-bottom:12px;">
-            <label style="font-size:11px; font-weight:600; min-width:55px;">Канал:</label>
-            <select id="midiChSel" style="flex:1; font-size:11px;">
-                <option value="-1">Все каналы</option>
-                <option value="0">1 – Piano</option>
-                <option value="1">2</option><option value="2">3</option>
-                <option value="3">4</option><option value="4">5</option>
-                <option value="5">6</option><option value="6">7</option>
-                <option value="7">8</option>
-                <option value="8">9</option>
-                <option value="9">10 – Drums</option>
-                <option value="10">11</option><option value="11">12</option>
-                <option value="12">13</option><option value="13">14</option>
-                <option value="14">15</option><option value="15">16</option>
-            </select>
-        </div>
-        <div id="midiDevInfo" style="font-size:10px; color:#9ca3af; line-height:1.5;"></div>
     </div>
 </div>
 
@@ -395,6 +358,8 @@ let running = false;
 let visGain = 50.0;
 let rowMs = 1000 / 30;
 let thresh = 0.04;
+let hysteresis = 0;                          // close-threshold = thresh*(1-hysteresis)
+const noteState = new Uint8Array(N_KEYS);    // per-note on/off state for hysteresis
 const targetVals = new Float32Array(N_KEYS), semVals = new Float32Array(N_KEYS), peakMask = new Uint8Array(N_KEYS);
 
 // ─── Harmonic Analysis ───────────────────────────────────────────
@@ -417,24 +382,16 @@ let midiEnabled = false, midiAccess = null;
 const midiActiveNotes = new Set();
 let midiFrameId = null;
 
-// ─── SF2 / MIDI Sound ────────────────────────────────────────────
-let sf2Ctx       = null;   // dedicated AudioContext for SF2 playback
-let sf2Synth     = null;   // SF2Synth instance
-let sf2ParsedData = null;  // cached parsed SF2 data (survives MIDI toggle)
-let sf2PresetIdx = 0;      // currently selected preset index
-let midiChannel  = -1;     // -1 = all channels, 0-15 = specific MIDI channel
-
-// ─── Hysteresis ──────────────────────────────────────────────────
-let hystMs = 0;                             // hold-time in ms (0 = off)
-const noteOnTs = new Float32Array(N_KEYS);  // timestamp of last detection per key
-
-// ─── Mouse Keyboard ──────────────────────────────────────────────
-const mouseKeys = new Set(); // keys held down by mouse on the drawn keyboard
+// ─── MIDI channel / SF2 state ────────────────────────────────────
+let midiChannelFilter = -1;                  // -1 = all channels
+const channelPrograms = new Array(16).fill(0);
+let sf2 = null, sf2Cache = {}, sf2AC = null;
+const activeNoteNodes = new Map();           // channel*128+note → sf2Play node
 
 // ─── Calibration ─────────────────────────────────────────────────
-const CALIB_FRAMES = 60;                   // ~2 s at 30 fps
+const CALIB_FRAMES = 60;          // ~2 s at 30 fps
 let calibOpen      = false;
-let calibNoteIdx   = 0;                    // 0–87, current note being calibrated
+let calibNoteIdx   = 0;           // 0–87, current note being calibrated
 let calibRecording = false;
 let calibAccum     = new Float32Array(N_KEYS);
 let calibFrames    = 0;
@@ -442,7 +399,7 @@ let calibFrames    = 0;
 // EQ
 let eqBands = [];
 let eqNodes = [];
-let showEQCurve = true;  // EQ curve always shown above keyboard by default
+let showEQCurve = false;
 
 // Metronome
 let bpm = 120, metroVol = 0.5, beatsPerBar = 4, metroActive = true;
@@ -477,8 +434,8 @@ function resizeCanvas() {
             }
         }
     }
-    drawEQCurve();        // EQ curve between waterfall and keyboard
-    drawKeyboard(peakMask); // keyboard on top
+    drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
 }
 
 // ─── Keyboard Drawing (proper piano layout) ──────────────────────
@@ -547,62 +504,83 @@ function drawKeyboard(pm) {
     }
 }
 
-// ─── EQ Curve Drawing (above keyboard, always when showEQCurve) ──
+// ─── EQ Curve Drawing ────────────────────────────────────────────
+let eqCalcCtx = null; // minimal OfflineAudioContext for getFrequencyResponse without live mic
+
 function drawEQCurve() {
     if (!showEQCurve) return;
-    const top = wfH, h = EQ_H;
+    if (eqBands.length === 0) return;
 
-    // Background
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, top, CANVAS_W, h);
-
-    // dB grid lines
-    ctx.lineWidth = 0.5;
-    for (let db = -18; db <= 18; db += 6) {
-        const y = top + h / 2 - (db / 18) * (h * 0.82);
-        ctx.strokeStyle = db === 0 ? '#5a5a7a' : '#2e2e40';
-        ctx.lineWidth = db === 0 ? 1 : 0.5;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
-        ctx.fillStyle = '#556'; ctx.font = '7px sans-serif'; ctx.textAlign = 'left';
-        if (db !== 0) ctx.fillText((db > 0 ? '+' : '') + db, 2, y - 1);
-    }
-
-    // C-note vertical guides aligned with keyboard
-    for (let k = 0; k < N_KEYS; k++) {
-        if ((MIDI_A0 + k) % 12 === 0) {
-            const x = k * COL_W;
-            ctx.strokeStyle = '#33334a'; ctx.lineWidth = 0.5;
-            ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + h); ctx.stroke();
-            ctx.fillStyle = '#667'; ctx.font = '7px sans-serif'; ctx.textAlign = 'left';
-            ctx.fillText(midi2name(MIDI_A0 + k), x + 1, top + h - 2);
-        }
-    }
-
-    // Compute magnitude response
+    const top = wfH;
+    const h = EQ_H;
     const freqs = new Float32Array(N_KEYS);
     for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
-    const mag = new Float32Array(N_KEYS).fill(1); // flat = 0 dB
 
-    if (audioCtx && eqNodes.length > 0) {
-        const phase = new Float32Array(N_KEYS);
-        eqNodes.forEach(node => {
-            const m = new Float32Array(N_KEYS);
-            node.getFrequencyResponse(freqs, m, phase);
-            for (let k = 0; k < N_KEYS; k++) mag[k] *= m[k];
+    const magLinear = new Float32Array(N_KEYS);
+    const phase = new Float32Array(N_KEYS);
+    for (let k = 0; k < N_KEYS; k++) magLinear[k] = 1;
+
+    // Use live eqNodes when audio is running; otherwise spin up temp filters
+    let filterSrc;
+    if (audioCtx && eqNodes.length === eqBands.length) {
+        filterSrc = eqNodes;
+    } else {
+        if (!eqCalcCtx) eqCalcCtx = new OfflineAudioContext(1, 1, 44100);
+        filterSrc = eqBands.map(b => {
+            const f = eqCalcCtx.createBiquadFilter();
+            f.type = b.type; f.frequency.value = b.freq; f.Q.value = b.q; f.gain.value = b.gain;
+            return f;
         });
     }
 
-    // Draw curve
-    const hasEQ = eqNodes.length > 0;
-    ctx.beginPath();
-    ctx.strokeStyle = hasEQ ? '#f59e0b' : '#445566';
-    ctx.lineWidth = hasEQ ? 2 : 1;
+    filterSrc.forEach(node => {
+        const singleMag = new Float32Array(N_KEYS);
+        node.getFrequencyResponse(freqs, singleMag, phase);
+        for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
+    });
+
+    // draw background
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = top + h / 2 - (db / 12) * (h * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+    }
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
     const y0 = top + h / 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
+
+    // frequency labels (on bottom of EQ area)
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
     for (let k = 0; k < N_KEYS; k++) {
-        const db = 20 * Math.log10(Math.max(mag[k], 1e-6));
-        const y = y0 - (db / 18) * (h * 0.82);
+        if ((MIDI_A0 + k) % 12 === 0) { // C notes
+            const x = k * COL_W + COL_W / 2;
+            const freq = midi2freq(MIDI_A0 + k);
+            ctx.fillText(freq.toFixed(0) + ' Hz', x, top + h - 4);
+        }
+    }
+
+    // draw curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    let first = true;
+    for (let k = 0; k < N_KEYS; k++) {
+        const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
+        const y = y0 - (db / 12) * (h * 0.8);
         const x = k * COL_W + COL_W / 2;
-        k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
     }
     ctx.stroke();
 }
@@ -626,7 +604,7 @@ function addRow(sv, pm, beatLineType) {
 
         if (pm[k]) {
             // MIDI mode: use fixed bright level so notes show clearly even without audio
-            const displayVal = ((midiEnabled && midiActiveNotes.has(k)) || mouseKeys.has(k)) ? 0.88 : sv[k];
+            const displayVal = (midiEnabled && midiActiveNotes.has(k)) ? 0.88 : sv[k];
             const v = Math.round(Math.min(1, Math.max(0, displayVal)) * 255);
             const lut = rainbow ? PC_LUT_COLOR[(MIDI_A0 + k) % 12] : MONO_LUT;
             r = Math.max(r, lut[v * 3]);
@@ -659,20 +637,20 @@ function computeProfileScores() {
 
 // ─── Animation Loop ──────────────────────────────────────────────
 let lastRowTs = 0;
+let mouseHeldKey = -1;  // key index held by mouse (-1 = none)
 
-// MIDI-only frame loop (audio not running)
+// MIDI-only frame loop (audio not running) — runs for MIDI keyboard OR mouse keyboard
 function midiOnlyFrame(ts) {
-    if ((!midiEnabled && mouseKeys.size === 0) || running) { midiFrameId = null; return; }
+    if ((!midiEnabled && mouseHeldKey < 0) || running) { midiFrameId = null; return; }
     midiFrameId = requestAnimationFrame(midiOnlyFrame);
     peakMask.fill(0);
     for (const k of midiActiveNotes) if (k >= 0 && k < N_KEYS) peakMask[k] = 1;
-    for (const k of mouseKeys) peakMask[k] = 1;
+    if (mouseHeldKey >= 0 && mouseHeldKey < N_KEYS) peakMask[mouseHeldKey] = 1;
     if (ts - lastRowTs >= rowMs) {
         lastRowTs = ts;
         addRow(semVals, peakMask, 0);
         ctx.putImageData(wfBuf, 0, 0);
     }
-    if (showEQCurve) drawEQCurve();
     drawKeyboard(peakMask);
 }
 
@@ -751,19 +729,15 @@ function frame(ts) {
             confirmed.push(k);
             if (confirmed.length >= MAX_PK) break;
         }
-        for (const k of confirmed) peakMask[k] = 1;
 
-        // ── Hysteresis: hold peakMask to prevent buzzing at note decay ──
-        if (hystMs > 0) {
-            for (let k = 0; k < N_KEYS; k++) {
-                if (peakMask[k]) { noteOnTs[k] = ts; }           // note freshly detected — reset timer
-                else if (ts - noteOnTs[k] < hystMs) { peakMask[k] = 1; } // still in hold window
-            }
+        // Hysteresis: release notes only when energy drops below closeThresh
+        const closeThresh = thresh * (1 - hysteresis);
+        for (let k = 0; k < N_KEYS; k++) {
+            if (noteState[k] && useVals[k] < closeThresh) noteState[k] = 0;
         }
+        for (const k of confirmed) noteState[k] = 1;
+        for (let k = 0; k < N_KEYS; k++) if (noteState[k]) peakMask[k] = 1;
     }
-
-    // ── Mouse keyboard adds to peakMask ──
-    for (const k of mouseKeys) peakMask[k] = 1;
 
     if (ts - lastRowTs >= rowMs) {
         lastRowTs = ts;
@@ -774,9 +748,8 @@ function frame(ts) {
         addRow(semVals, peakMask, bType);
         ctx.putImageData(wfBuf, 0, 0);
     }
-    // EQ curve first (between waterfall and keyboard), then keyboard on top
-    if (showEQCurve) drawEQCurve();
     drawKeyboard(peakMask);
+    if (showEQCurve) drawEQCurve();
 }
 
 // ─── Metronome Logic ─────────────────────────────────────────────
@@ -846,12 +819,14 @@ function updateEQNode(idx) {
     eqNodes[idx].frequency.value = d.freq;
     eqNodes[idx].Q.value = d.q;
     eqNodes[idx].gain.value = d.gain;
-    if (showEQCurve && running) drawEQCurve();
+    eqCalcCtx = null; // force rebuild of temp filters next curve draw
+    if (showEQCurve) drawEQCurve();
 }
 
 window.addEqBand = function () {
     const type = document.getElementById('eqType').value;
     eqBands.push({ id: Date.now(), type, freq: 1000, q: 1, gain: 0 });
+    eqCalcCtx = null;
     if (audioCtx) {
         const filter = audioCtx.createBiquadFilter();
         eqNodes.push(filter);
@@ -863,6 +838,7 @@ window.addEqBand = function () {
 
 window.removeEqBand = function (idx) {
     eqBands.splice(idx, 1);
+    eqCalcCtx = null;
     if (audioCtx && eqNodes[idx]) {
         eqNodes[idx].disconnect();
         eqNodes.splice(idx, 1);
@@ -880,91 +856,38 @@ function sliderToFreq(val) {
     return Math.pow(10, LOG_MIN + (LOG_MAX - LOG_MIN) * (val / 100));
 }
 
-// ─── EQ Modal Curve ──────────────────────────────────────────────
-function drawEQModalCurve() {
-    const cvs = document.getElementById('eqModalCurve');
-    if (!cvs) return;
-    const mc = cvs.getContext('2d');
-    const W = cvs.width, H = cvs.height;
-    mc.fillStyle = '#1e1e2f'; mc.fillRect(0, 0, W, H);
-    // grid
-    mc.strokeStyle = '#3a3a4a'; mc.lineWidth = 0.5;
-    for (let db = -12; db <= 12; db += 3) {
-        const y = H/2 - (db/12)*(H*0.78);
-        mc.beginPath(); mc.moveTo(0,y); mc.lineTo(W,y); mc.stroke();
-    }
-    mc.strokeStyle = '#5a5a6a'; mc.lineWidth = 1;
-    const y0 = H/2;
-    mc.beginPath(); mc.moveTo(0,y0); mc.lineTo(W,y0); mc.stroke();
-    // dB labels
-    mc.fillStyle = '#777'; mc.font = '9px sans-serif'; mc.textAlign = 'left';
-    for (const db of [-12,-6,0,6,12]) {
-        mc.fillText(db+(db===0?'dB':''), 2, H/2-(db/12)*(H*0.78)+3);
-    }
-    // Note labels
-    mc.fillStyle = '#555'; mc.textAlign = 'center';
-    for (let k = 0; k < N_KEYS; k++) {
-        const m = MIDI_A0+k;
-        if (m % 12 === 0) { // C notes
-            const x = (k/(N_KEYS-1))*W;
-            mc.fillText(midi2name(m), x, H-2);
-        }
-    }
-    // Curve
-    const freqs = new Float32Array(N_KEYS);
-    for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0+k);
-    const mag = new Float32Array(N_KEYS).fill(1);
-    if (audioCtx && eqNodes.length > 0) {
-        const phase = new Float32Array(N_KEYS);
-        eqNodes.forEach(node => { const m=new Float32Array(N_KEYS); node.getFrequencyResponse(freqs,m,phase); for(let k=0;k<N_KEYS;k++) mag[k]*=m[k]; });
-    }
-    mc.beginPath(); mc.strokeStyle='#f59e0b'; mc.lineWidth=2;
-    for (let k=0;k<N_KEYS;k++) {
-        const db=20*Math.log10(Math.max(mag[k],1e-6));
-        const y=y0-(db/12)*(H*0.78), x=(k/(N_KEYS-1))*W;
-        k===0?mc.moveTo(x,y):mc.lineTo(x,y);
-    }
-    mc.stroke();
-}
-
 function renderEQUI() {
     const list = document.getElementById('eqList');
     list.innerHTML = '';
     eqBands.forEach((band, i) => {
-        const tName = band.type==='peaking' ? 'Полосовой' : (band.type==='lowshelf' ? 'Low Shelf' : 'High Shelf');
-        const fSlider = freqToSlider(band.freq).toFixed(1);
-        const qRow = band.type==='peaking' ? `
-            <div class="eq-slider-row">
-                <span class="eq-label">Q</span>
-                <input type="range" min="0.1" max="20" step="0.1" value="${band.q}"
-                    oninput="eqBands[${i}].q=parseFloat(this.value);document.getElementById('eqQv${i}').innerText=parseFloat(this.value).toFixed(1);updateEQNode(${i});">
-                <span class="eq-slider-val" id="eqQv${i}">${band.q}</span>
-            </div>` : '';
-        const gainRow = `
-            <div class="eq-slider-row">
-                <span class="eq-label">Gain</span>
-                <input type="range" min="-18" max="18" step="0.1" value="${band.gain}"
-                    oninput="eqBands[${i}].gain=parseFloat(this.value);document.getElementById('eqGv${i}').innerText=parseFloat(this.value).toFixed(1)+'dB';updateEQNode(${i});">
-                <span class="eq-slider-val" id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
-            </div>`;
+        const tName = band.type === 'peaking' ? 'Полосовой' : (band.type === 'lowshelf' ? 'Low Shelf' : 'High Shelf');
+        const sliderVal = freqToSlider(band.freq).toFixed(1);
         const html = `
         <div class="eq-band">
             <div class="eq-band-header">
                 <span>${tName}</span>
                 <button class="eq-del" onclick="removeEqBand(${i})">Удалить</button>
             </div>
-            <div class="eq-slider-row">
-                <span class="eq-label">Freq</span>
-                <input type="range" min="0" max="100" step="0.1" value="${fSlider}"
-                    oninput="let f=sliderToFreq(parseFloat(this.value));eqBands[${i}].freq=f;document.getElementById('eqFv${i}').innerText=f.toFixed(0)+'Hz';updateEQNode(${i});">
-                <span class="eq-slider-val" id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
+            <div class="eq-sliders">
+                <div class="eq-slider-col">
+                    Freq: <span id="eqFv${i}">${band.freq.toFixed(0)}Hz</span>
+                    <input type="range" min="0" max="100" step="0.1" value="${sliderVal}"
+                        oninput="let freq=sliderToFreq(parseFloat(this.value)); eqBands[${i}].freq=freq; document.getElementById('eqFv${i}').innerText=freq.toFixed(0)+'Hz'; updateEQNode(${i});">
+                </div>
+                <div class="eq-slider-col">
+                    Q: <span id="eqQv${i}">${band.q}</span>
+                    <input type="range" min="0.1" max="20" step="0.1" value="${band.q}"
+                        oninput="eqBands[${i}].q=parseFloat(this.value); document.getElementById('eqQv${i}').innerText=this.value; updateEQNode(${i});">
+                </div>
+                <div class="eq-slider-col">
+                    Gain: <span id="eqGv${i}">${band.gain.toFixed(1)}dB</span>
+                    <input type="range" min="-12" max="12" step="0.1" value="${band.gain}"
+                        oninput="eqBands[${i}].gain=parseFloat(this.value); document.getElementById('eqGv${i}').innerText=parseFloat(this.value).toFixed(1)+'dB'; updateEQNode(${i});">
+                </div>
             </div>
-            ${qRow}
-            ${gainRow}
         </div>`;
         list.insertAdjacentHTML('beforeend', html);
     });
-    drawEQModalCurve();
 }
 
 // ─── Recording / Playback / Save ─────────────────────────────────
@@ -1075,163 +998,320 @@ function stopAudio() {
 
 // ─── UI Event Bindings ───────────────────────────────────────────
 
-// ─── SF2 Parser ──────────────────────────────────────────────────
+// ─── SF2 ENGINE (ported from MidiRender) ─────────────────────────
+
+const GM_NAMES = [
+    'Acoustic Grand Piano','Bright Acoustic Piano','Electric Grand Piano','Honky-tonk Piano',
+    'Electric Piano 1','Electric Piano 2','Harpsichord','Clavi',
+    'Celesta','Glockenspiel','Music Box','Vibraphone','Marimba','Xylophone','Tubular Bells','Dulcimer',
+    'Drawbar Organ','Percussive Organ','Rock Organ','Church Organ','Reed Organ','Accordion','Harmonica','Tango Accordion',
+    'Acoustic Guitar (nylon)','Acoustic Guitar (steel)','Electric Guitar (jazz)','Electric Guitar (clean)',
+    'Electric Guitar (muted)','Overdriven Guitar','Distortion Guitar','Guitar Harmonics',
+    'Acoustic Bass','Electric Bass (finger)','Electric Bass (pick)','Fretless Bass',
+    'Slap Bass 1','Slap Bass 2','Synth Bass 1','Synth Bass 2',
+    'Violin','Viola','Cello','Contrabass','Tremolo Strings','Pizzicato Strings','Orchestral Harp','Timpani',
+    'String Ensemble 1','String Ensemble 2','Synth Strings 1','Synth Strings 2',
+    'Choir Aahs','Voice Oohs','Synth Choir','Orchestra Hit',
+    'Trumpet','Trombone','Tuba','Muted Trumpet','French Horn','Brass Section','Synth Brass 1','Synth Brass 2',
+    'Soprano Sax','Alto Sax','Tenor Sax','Baritone Sax',
+    'Oboe','English Horn','Bassoon','Clarinet',
+    'Piccolo','Flute','Recorder','Pan Flute','Blown Bottle','Shakuhachi','Whistle','Ocarina',
+    'Lead 1 (square)','Lead 2 (sawtooth)','Lead 3 (calliope)','Lead 4 (chiff)',
+    'Lead 5 (charang)','Lead 6 (voice)','Lead 7 (fifths)','Lead 8 (bass+lead)',
+    'Pad 1 (new age)','Pad 2 (warm)','Pad 3 (polysynth)','Pad 4 (choir)',
+    'Pad 5 (bowed)','Pad 6 (metallic)','Pad 7 (halo)','Pad 8 (sweep)',
+    'FX 1 (rain)','FX 2 (soundtrack)','FX 3 (crystal)','FX 4 (atmosphere)',
+    'FX 5 (brightness)','FX 6 (goblins)','FX 7 (echoes)','FX 8 (sci-fi)',
+    'Sitar','Banjo','Shamisen','Koto','Kalimba','Bagpipe','Fiddle','Shanai',
+    'Tinkle Bell','Agogo','Steel Drums','Woodblock','Taiko Drum','Melodic Tom','Synth Drum','Reverse Cymbal',
+    'Guitar Fret Noise','Breath Noise','Seashore','Bird Tweet','Telephone Ring','Helicopter','Applause','Gunshot'
+];
+
 function parseSF2(ab) {
-    const v = new DataView(ab), b = new Uint8Array(ab);
-    const u16 = o => v.getUint16(o,true), u32 = o => v.getUint32(o,true);
-    const s8  = o => v.getInt8(o),        s16 = o => v.getInt16(o,true);
-    const tag = o => String.fromCharCode(b[o],b[o+1],b[o+2],b[o+3]);
-    const str = (o,n) => { let s=''; for(let i=0;i<n&&b[o+i];i++) s+=String.fromCharCode(b[o+i]); return s; };
-    if (tag(0)!=='RIFF'||tag(8)!=='sfbk') throw new Error('Not a valid SF2 file');
-    const end=u32(4)+8; let smpl=null;
-    const shdr=[],inst=[],ibag=[],igen=[],phdr=[],pbag=[],pgen=[];
-    for (let p=12; p<end-8;) {
-        const id=tag(p), sz=u32(p+4);
+    const v = new DataView(ab);
+    const fcc = o => String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3));
+    if (fcc(0)!=='RIFF') throw new Error('Not a RIFF file');
+    if (fcc(8)!=='sfbk') throw new Error('Not SF2 (sfbk)');
+    const lists = {};
+    let off = 12;
+    while (off+8 <= ab.byteLength) {
+        const id = fcc(off), sz = v.getUint32(off+4,true);
         if (id==='LIST') {
-            const lt=tag(p+8), ds=p+12, de=p+8+sz;
-            if (lt==='sdta') {
-                for(let q=ds;q<de-8;){const qi=tag(q),qs=u32(q+4);if(qi==='smpl')smpl=new Int16Array(ab,q+8,qs>>1);q+=8+qs+(qs&1);}
-            } else if (lt==='pdta') {
-                for(let q=ds;q<de-8;){
-                    const qi=tag(q),qs=u32(q+4),qo=q+8;
-                    if(qi==='shdr'){const n=(qs/46|0)-1;for(let i=0;i<n;i++){const x=qo+i*46;shdr.push({name:str(x,20),start:u32(x+20),end:u32(x+24),loopStart:u32(x+28),loopEnd:u32(x+32),rate:u32(x+36),pitch:b[x+40],tune:s8(x+41),type:u16(x+44)});}}
-                    else if(qi==='inst'){const n=(qs/22|0)-1;for(let i=0;i<n;i++){const x=qo+i*22;inst.push({name:str(x,20),bag:u16(x+20)});}}
-                    else if(qi==='phdr'){const n=(qs/38|0)-1;for(let i=0;i<n;i++){const x=qo+i*38;phdr.push({name:str(x,20),preset:u16(x+20),bank:u16(x+22),bag:u16(x+24)});}}
-                    else if(qi==='ibag'||qi==='pbag'){const arr=qi==='ibag'?ibag:pbag;const n=qs/4|0;for(let i=0;i<n;i++){const x=qo+i*4;arr.push({gen:u16(x),mod:u16(x+2)});}}
-                    else if(qi==='igen'||qi==='pgen'){const arr=qi==='igen'?igen:pgen;const n=qs/4|0;for(let i=0;i<n;i++){const x=qo+i*4;arr.push({op:u16(x),lo:b[x+2],hi:b[x+3],w:u16(x+2),s:s16(x+2)});}}
-                    q+=8+qs+(qs&1);
-                }
+            const lid = fcc(off+8), sub = {};
+            let so=off+12, se=off+8+sz;
+            while (so+8<=se) {
+                const sid=fcc(so), ssz=v.getUint32(so+4,true);
+                sub[sid]={start:so+8,size:ssz}; so+=8+ssz; if(so&1)so++;
+            }
+            lists[lid]=sub;
+        }
+        off+=8+sz; if(off&1)off++;
+    }
+    const sdta=lists.sdta||{}, pdta=lists.pdta||{};
+    const smpl=sdta.smpl;
+    if (!smpl) throw new Error('No smpl chunk');
+    for (const k of ['shdr','inst','ibag','igen','phdr','pbag','pgen'])
+        if (!pdta[k]) throw new Error('Missing SF2 chunk: '+k);
+    const C=pdta;
+    const shdrN=Math.floor(C.shdr.size/46), shdrs=[];
+    for (let i=0;i<shdrN;i++) {
+        const o=C.shdr.start+i*46, st=v.getUint16(o+44,true);
+        if (st===0||(st&0x8000)){shdrs.push(null);continue;}
+        const dS=v.getUint32(o+20,true), dE=v.getUint32(o+24,true);
+        if (dE<=dS){shdrs.push(null);continue;}
+        shdrs.push({dS,dE,dSl:v.getUint32(o+28,true),dEl:v.getUint32(o+32,true),
+            sr:v.getUint32(o+36,true),pitch:v.getUint8(o+40),fine:v.getUint8(o+41)});
+    }
+    const ibagN=Math.floor(C.ibag.size/4), ibagG=new Uint16Array(ibagN);
+    for(let i=0;i<ibagN;i++) ibagG[i]=v.getUint16(C.ibag.start+i*4,true);
+    const igenN=Math.floor(C.igen.size/4), iOp=new Uint16Array(igenN), iAm=new Uint16Array(igenN);
+    for(let i=0;i<igenN;i++){const o=C.igen.start+i*4;iOp[i]=v.getUint16(o,true);iAm[i]=v.getUint16(o+2,true);}
+    const instN=Math.floor(C.inst.size/22), instB=new Uint16Array(instN);
+    for(let i=0;i<instN;i++) instB[i]=v.getUint16(C.inst.start+i*22+20,true);
+    function buildZones(ii) {
+        if (ii>=instN-1) return [];
+        const bs=instB[ii], be=instB[ii+1], zones=[];
+        for (let b=bs;b<be;b++) {
+            const gs=ibagG[b], ge=(b+1<ibagN)?ibagG[b+1]:igenN;
+            let kl=0,kh=127,vl=0,vh=127,sid=-1,rk=-1,ct=0,ft=0,sc=100;
+            for (let g=gs;g<ge;g++) {
+                const op=iOp[g],am=iAm[g];
+                if(op===43){kl=am&0xFF;kh=(am>>8)&0xFF;}
+                if(op===44){vl=am&0xFF;vh=(am>>8)&0xFF;}
+                if(op===51){ct=am&0xFF;if(ct>127)ct-=256;}
+                if(op===52){ft=am&0xFF;if(ft>127)ft-=256;}
+                if(op===53) sid=am;
+                if(op===56) sc=am&0xFFFF;
+                if(op===58){const rr=am&0xFF;if(rr<=127)rk=rr;}
+            }
+            if (sid>=0 && sid<shdrs.length && shdrs[sid]) {
+                const sh=shdrs[sid];
+                const sf=sh.fine>127?sh.fine-256:sh.fine;
+                zones.push({kl,kh,vl,vh,sid,rk:rk>=0?rk:sh.pitch,ct,ft:ft+sf,
+                    sc:sc>0?sc:100,lS:sh.dSl-sh.dS,lE:sh.dEl-sh.dS,
+                    hasLoop:sh.dEl>sh.dSl&&sh.dSl>=sh.dS});
             }
         }
-        p+=8+sz+(sz&1);
+        return zones;
     }
-    if(!smpl) throw new Error('No sample data found in SF2');
-    return {smpl,shdr,inst,ibag,igen,phdr,pbag,pgen};
+    const pbagN=Math.floor(C.pbag.size/4), pbagG=new Uint16Array(pbagN);
+    for(let i=0;i<pbagN;i++) pbagG[i]=v.getUint16(C.pbag.start+i*4,true);
+    const pgenN=Math.floor(C.pgen.size/4), pOp=new Uint16Array(pgenN), pAm=new Uint16Array(pgenN);
+    for(let i=0;i<pgenN;i++){const o=C.pgen.start+i*4;pOp[i]=v.getUint16(o,true);pAm[i]=v.getUint16(o+2,true);}
+    const phdrN=Math.floor(C.phdr.size/38);
+    const progZ={}, percZ={};
+    for (let i=0;i<phdrN-1;i++) {
+        const o=C.phdr.start+i*38;
+        const preset=v.getUint16(o+20,true), bank=v.getUint16(o+22,true);
+        if(bank!==0&&bank!==128) continue;
+        const bs=v.getUint16(o+24,true), be=v.getUint16(C.phdr.start+(i+1)*38+24,true);
+        const zones=[];
+        for(let b=bs;b<be;b++){
+            const gs=pbagG[b], ge=(b+1<pbagN)?pbagG[b+1]:pgenN;
+            for(let g=gs;g<ge;g++) if(pOp[g]===41) zones.push(...buildZones(pAm[g]));
+        }
+        if(zones.length>0) (bank===128?percZ:progZ)[preset]=zones;
+    }
+    if (!Object.keys(progZ).length && !Object.keys(percZ).length)
+        throw new Error('No GM presets found');
+    return {v, smplOff:smpl.start, shdrs, progZ, percZ};
 }
 
-// ─── SF2 Synthesizer ─────────────────────────────────────────────
-class SF2Synth {
-    constructor(ctx){this.ctx=ctx;this.sf2=null;this.zones=[];this.cache=new Map();this.playing=new Map();this.vol=0.85;}
-    tc2s(tc){return Math.pow(2,Math.min(Math.max(tc,-12000),8000)/1200);}
-    load(sf2){this.sf2=sf2;this.cache.clear();}
-    presets(){if(!this.sf2)return[];return this.sf2.phdr.map((p,i)=>({i,label:`${p.bank}:${String(p.preset).padStart(3,'0')} ${p.name}`,bank:p.bank,preset:p.preset}));}
-    selectPreset(pi){
-        this.zones=[];if(!this.sf2)return;
-        const{phdr,pbag,pgen,inst,ibag,igen}=this.sf2;
-        const p=phdr[pi],pn=phdr[pi+1];if(!p||!pn)return;
-        for(let bi=p.bag;bi<pn.bag;bi++){
-            const gb=pbag[bi],gbn=pbag[bi+1]||{gen:pgen.length};
-            let instIdx=-1;for(let g=gb.gen;g<gbn.gen;g++)if(pgen[g].op===41)instIdx=pgen[g].w;
-            if(instIdx<0)continue;
-            const ins=inst[instIdx],insN=inst[instIdx+1];if(!insN)continue;
-            for(let ib=ins.bag;ib<insN.bag;ib++){
-                const iz=ibag[ib],izn=ibag[ib+1]||{gen:igen.length};
-                const z={kLo:0,kHi:127,vLo:0,vHi:127,sid:-1,mode:0,root:-1,atk:-12000,dec:-12000,sus:0,rel:-7200,pan:0};
-                let hasSmp=false;
-                for(let g=iz.gen;g<izn.gen;g++){const{op,lo,hi,w,s}=igen[g];
-                    if(op===43){z.kLo=lo;z.kHi=hi;}else if(op===44){z.vLo=lo;z.vHi=hi;}
-                    else if(op===53){z.sid=w;hasSmp=true;}else if(op===54)z.mode=w;
-                    else if(op===51)z.root=w;else if(op===33)z.atk=s;
-                    else if(op===35)z.dec=s;else if(op===36)z.sus=s;
-                    else if(op===38)z.rel=s;else if(op===17)z.pan=s;
-                }
-                if(hasSmp&&z.sid>=0)this.zones.push(z);
-            }
-        }
-    }
-    _buf(sid){
-        if(this.cache.has(sid))return this.cache.get(sid);
-        const s=this.sf2.shdr[sid];if(!s||s.type&0x8000)return null;
-        const len=s.end-s.start;if(len<=0)return null;
-        const buf=this.ctx.createBuffer(1,len,s.rate);
-        const d=buf.getChannelData(0),raw=this.sf2.smpl;
-        for(let i=0;i<len;i++)d[i]=raw[s.start+i]/32768;
-        this.cache.set(sid,buf);return buf;
-    }
-    noteOn(note,vel,ch=0){
-        this.noteOff(note,ch);
-        if(this.ctx.state==='suspended')this.ctx.resume();
-        const z=this.zones.find(z=>note>=z.kLo&&note<=z.kHi&&vel>=z.vLo&&vel<=z.vHi);if(!z)return;
-        const buf=this._buf(z.sid);if(!buf)return;
-        const s=this.sf2.shdr[z.sid],root=z.root>=0?z.root:s.pitch;
-        const src=this.ctx.createBufferSource();
-        src.buffer=buf;src.detune.value=(note-root)*100+s.tune;
-        if(z.mode&1){src.loop=true;src.loopStart=(s.loopStart-s.start)/s.rate;src.loopEnd=(s.loopEnd-s.start)/s.rate;}
-        const gain=this.ctx.createGain(),v01=vel/127,now=this.ctx.currentTime,atk=Math.max(0.001,this.tc2s(z.atk));
-        gain.gain.setValueAtTime(0.001,now);gain.gain.linearRampToValueAtTime(v01*this.vol,now+atk);
-        src.connect(gain).connect(this.ctx.destination);src.start(now);
-        this.playing.set(`${ch}:${note}`,{src,gain,z});
-    }
-    noteOff(note,ch=0){
-        const key=`${ch}:${note}`,node=this.playing.get(key);if(!node)return;
-        const{src,gain,z}=node,now=this.ctx.currentTime,rel=Math.max(0.05,Math.min(5,this.tc2s(z?.rel??-7200)));
-        gain.gain.cancelScheduledValues(now);gain.gain.setValueAtTime(Math.max(0.0001,gain.gain.value||0.0001),now);
-        gain.gain.exponentialRampToValueAtTime(0.0001,now+rel);
-        try{src.stop(now+rel+0.05);}catch(e){}this.playing.delete(key);
-    }
-    allNotesOff(){
-        const now=this.ctx.currentTime;
-        for(const{src,gain}of this.playing.values()){
-            gain.gain.cancelScheduledValues(now);gain.gain.setValueAtTime(Math.max(0.0001,gain.gain.value||0.0001),now);
-            gain.gain.exponentialRampToValueAtTime(0.0001,now+0.05);try{src.stop(now+0.1);}catch(e){}
-        }
-        this.playing.clear();
-    }
+function sf2Buf(ctx, sf2d, cache, sid) {
+    if (cache[sid]) return cache[sid];
+    const sh=sf2d.shdrs[sid];
+    if (!sh||sh.sr<=0) return null;
+    const n=sh.dE-sh.dS; if(n<=0||n>8e6) return null;
+    const buf=ctx.createBuffer(1,n,sh.sr), data=buf.getChannelData(0);
+    const base=sf2d.smplOff+sh.dS*2;
+    for(let i=0;i<n;i++) data[i]=sf2d.v.getInt16(base+i*2,true)/32768;
+    cache[sid]=buf; return buf;
 }
 
-// ─── MIDI functions ───────────────────────────────────────────────
+function sf2Zone(sf2d, prog, note, vel, isPerc) {
+    let zones;
+    if (isPerc) {
+        zones = sf2d.percZ[prog] || sf2d.percZ[0] || sf2d.progZ[0];
+    } else {
+        zones = sf2d.progZ[prog];
+        if (!zones) {
+            const ks=Object.keys(sf2d.progZ).map(Number).sort((a,b)=>a-b);
+            if (!ks.length) return null;
+            zones=sf2d.progZ[ks.reduce((p,c)=>Math.abs(c-prog)<Math.abs(p-prog)?c:p)];
+        }
+    }
+    if (!zones) return null;
+    const vv=vel??64;
+    return zones.find(z=>note>=z.kl&&note<=z.kh&&vv>=(z.vl||0)&&vv<=(z.vh||127))
+        || zones.find(z=>note>=z.kl&&note<=z.kh)
+        || zones[0];
+}
+
+function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
+    if (!sf2d||!ctx) return null;
+    const zone=sf2Zone(sf2d, prog, note, vel, isPerc);
+    if (!zone) return null;
+    const ab=sf2Buf(ctx, sf2d, cache, zone.sid);
+    if (!ab) return null;
+    const cents = isPerc
+        ? zone.ct*100 + zone.ft
+        : (note-zone.rk)*zone.sc + zone.ct*100 + zone.ft;
+    const rate=Math.pow(2,cents/1200);
+    const src=ctx.createBufferSource();
+    src.buffer=ab; src.playbackRate.value=rate;
+    if (zone.hasLoop && zone.lE>zone.lS && zone.lE<=ab.length) {
+        src.loop=true;
+        src.loopStart=zone.lS/ab.sampleRate;
+        src.loopEnd=zone.lE/ab.sampleRate;
+    }
+    const gn=ctx.createGain();
+    const sg=Math.max(0.001, Math.min(2, gain));
+    gn.gain.setValueAtTime(sg, t0);
+    src.connect(gn); gn.connect(dest||ctx.destination);
+    src.start(t0);
+    if (!zone.hasLoop) src.stop(t0+30);
+    return {
+        src, gn, sg,
+        stop() { try{gn.gain.cancelScheduledValues(0);src.stop(0);}catch(e){} },
+        stopAt(t) {
+            try{
+                const rt=Math.max(t0,t), rel=0.06;
+                gn.gain.cancelScheduledValues(rt);
+                gn.gain.setValueAtTime(sg, rt);
+                gn.gain.linearRampToValueAtTime(0.0001, rt+rel);
+                src.stop(rt+rel+0.025);
+            }catch(e){}
+        }
+    };
+}
+
+function getSF2AC() {
+    if (!sf2AC || sf2AC.state === 'closed') {
+        sf2AC = new (window.AudioContext || window.webkitAudioContext)();
+        sf2Cache = {};
+    }
+    if (sf2AC.state === 'suspended') sf2AC.resume();
+    return sf2AC;
+}
+
+function handleSF2NoteOn(channel, note, velocity) {
+    if (!sf2) return;
+    const ctx = getSF2AC();
+    const key = channel * 128 + note;
+    if (activeNoteNodes.has(key)) { activeNoteNodes.get(key).stopAt(ctx.currentTime); activeNoteNodes.delete(key); }
+    const prog = channelPrograms[channel];
+    const isPerc = (channel === 9);
+    const node = sf2Play(ctx, sf2, sf2Cache, note, prog, ctx.currentTime, velocity/127, velocity, ctx.destination, isPerc);
+    if (node) activeNoteNodes.set(key, node);
+}
+
+function handleSF2NoteOff(channel, note) {
+    const key = channel * 128 + note;
+    if (!activeNoteNodes.has(key)) return;
+    const ctx = sf2AC;
+    if (ctx) activeNoteNodes.get(key).stopAt(ctx.currentTime);
+    else activeNoteNodes.get(key).stop();
+    activeNoteNodes.delete(key);
+}
+
+function sf2AllNotesOff() {
+    activeNoteNodes.forEach(n => { try { n.stop(); } catch(e){} });
+    activeNoteNodes.clear();
+}
+
+// ─── MIDI Channel/Program UI helpers ─────────────────────────────
+function buildMidiChanSel() {
+    const sel = document.getElementById('midiChanSel');
+    sel.innerHTML = '<option value="-1">Все</option>';
+    for (let i = 0; i < 16; i++)
+        sel.innerHTML += `<option value="${i}">${i+1}${i===9?' (ударн.)':''}</option>`;
+    sel.value = String(midiChannelFilter);
+}
+
+function buildMidiProgSel() {
+    const sel = document.getElementById('midiProgSel');
+    sel.innerHTML = '';
+    if (sf2) {
+        // Show presets available in SF2
+        const isPerc = (midiChannelFilter === 9);
+        const map = isPerc ? sf2.percZ : sf2.progZ;
+        const ids = Object.keys(map).map(Number).sort((a,b)=>a-b);
+        for (const id of ids) {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = isPerc ? `${id}: (percussion)` : `${id}: ${GM_NAMES[id]||'?'}`;
+            sel.appendChild(opt);
+        }
+    } else {
+        // GM fallback
+        for (let i = 0; i < 128; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = `${i}: ${GM_NAMES[i]}`;
+            sel.appendChild(opt);
+        }
+    }
+    const ch = midiChannelFilter >= 0 ? midiChannelFilter : 0;
+    sel.value = String(channelPrograms[ch]);
+}
+
+// ─── MIDI ────────────────────────────────────────────────────────
 function handleMIDIMessage(msg) {
-    const [status, note, velocity] = msg.data;
-    if (note === undefined) return;
-    const cmd = status & 0xF0, ch = status & 0x0F;
-    if (midiChannel >= 0 && ch !== midiChannel) return;
+    const data = msg.data;
+    if (!data || data.length < 2) return;
+    const status = data[0], note = data[1], velocity = data.length > 2 ? data[2] : 0;
+    const cmd = status & 0xF0;
+    const channel = status & 0x0F;
+
+    // Channel filter
+    if (midiChannelFilter >= 0 && channel !== midiChannelFilter) return;
+
+    // Program change
+    if (cmd === 0xC0) {
+        channelPrograms[channel] = note;
+        if (midiChannelFilter < 0 || midiChannelFilter === channel) {
+            const sel = document.getElementById('midiProgSel');
+            if (sel) sel.value = String(note);
+        }
+        return;
+    }
+
     const k = note - MIDI_A0;
     if (cmd === 0x90 && velocity > 0) {
         if (k >= 0 && k < N_KEYS) midiActiveNotes.add(k);
-        if (sf2Synth) sf2Synth.noteOn(note, velocity, ch);
+        handleSF2NoteOn(channel, note, velocity);
     } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
         if (k >= 0 && k < N_KEYS) midiActiveNotes.delete(k);
-        if (sf2Synth) sf2Synth.noteOff(note, ch);
+        handleSF2NoteOff(channel, note);
     }
-}
-
-function openMIDIModal() {
-    if (midiAccess) {
-        const devs = [...midiAccess.inputs.values()].map(i => `• ${i.name}`).join('\n');
-        document.getElementById('midiDevInfo').textContent = devs || '(устройств не найдено)';
-    }
-    document.getElementById('midiModal').style.display = 'flex';
 }
 
 async function toggleMIDI() {
     const btn = document.getElementById('midiBtn');
-    const settBtn = document.getElementById('midiSettingsBtn');
     if (midiEnabled) {
         midiEnabled = false;
         midiActiveNotes.clear();
-        if (sf2Synth) sf2Synth.allNotesOff();
-        if (sf2Ctx) { sf2Ctx.close().catch(()=>{}); sf2Ctx = null; sf2Synth = null; }
+        sf2AllNotesOff();
         if (midiFrameId) { cancelAnimationFrame(midiFrameId); midiFrameId = null; }
         btn.textContent = '🎹 MIDI'; btn.classList.remove('midi-on'); btn.style.background = '#7c3aed';
-        settBtn.style.display = 'none';
-        document.getElementById('midiModal').style.display = 'none';
+        document.getElementById('midiExtControls').style.display = 'none';
         return;
     }
     if (!navigator.requestMIDIAccess) { alert('Web MIDI API не поддерживается этим браузером.\nИспользуйте Chrome или Edge.'); return; }
     try {
-        sf2Ctx = new (window.AudioContext || window.webkitAudioContext)();
-        sf2Synth = new SF2Synth(sf2Ctx);
-        // Restore previously loaded SF2 if user re-enables MIDI
-        if (sf2ParsedData) { sf2Synth.load(sf2ParsedData); sf2Synth.selectPreset(sf2PresetIdx); }
         midiAccess = await navigator.requestMIDIAccess({ sysex: false });
         const attach = inp => { inp.onmidimessage = handleMIDIMessage; };
         for (const inp of midiAccess.inputs.values()) attach(inp);
-        midiAccess.onstatechange = e => { if (e.port.type==='input'&&e.port.state==='connected') attach(e.port); };
+        midiAccess.onstatechange = e => { if (e.port.type === 'input' && e.port.state === 'connected') attach(e.port); };
         midiEnabled = true;
         btn.textContent = '🎹 MIDI ✓'; btn.classList.add('midi-on'); btn.style.background = '';
-        settBtn.style.display = '';
         const n = midiAccess.inputs.size;
-        btn.title = n===0 ? 'MIDI включён — устройств не найдено' : `MIDI включён: ${n} устройств`;
+        btn.title = n === 0 ? 'MIDI включён — устройств не найдено' : `MIDI включён: ${n} устройств`;
+        // Show extended controls and populate selects
+        document.getElementById('midiExtControls').style.display = 'flex';
+        buildMidiChanSel();
+        buildMidiProgSel();
+        // Start MIDI-only loop if audio not running
         if (!running) { lastRowTs = 0; midiFrameId = requestAnimationFrame(midiOnlyFrame); }
     } catch(e) { alert('MIDI ошибка: ' + e.message); }
 }
@@ -1334,6 +1414,44 @@ document.getElementById('loadProfileInput').addEventListener('change', function(
 document.getElementById('midiBtn').addEventListener('click', toggleMIDI);
 document.getElementById('detModeSelect').addEventListener('change', e => { detMode = parseInt(e.target.value); });
 
+// SF2 file load
+document.getElementById('sf2Input').addEventListener('change', async function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const stat = document.getElementById('sf2LoadStatus');
+    stat.textContent = '⏳ Загрузка…';
+    try {
+        const ab = await file.arrayBuffer();
+        sf2 = parseSF2(ab);
+        sf2Cache = {};
+        const np = Object.keys(sf2.progZ).length, nd = Object.keys(sf2.percZ).length;
+        stat.textContent = `✅ ${file.name.replace(/\.sf2$/i,'')} (${np}+${nd})`;
+        buildMidiProgSel(); // repopulate with SF2 presets
+    } catch(err) {
+        sf2 = null;
+        stat.textContent = '❌ Ошибка SF2';
+        console.error('SF2 parse error:', err);
+        alert('Ошибка загрузки SF2: ' + err.message);
+    }
+    e.target.value = '';
+});
+
+// MIDI channel filter
+document.getElementById('midiChanSel').addEventListener('change', function() {
+    midiChannelFilter = parseInt(this.value);
+    sf2AllNotesOff();
+    buildMidiProgSel();
+});
+
+// Program selection
+document.getElementById('midiProgSel').addEventListener('change', function() {
+    const prog = parseInt(this.value);
+    if (midiChannelFilter >= 0) {
+        channelPrograms[midiChannelFilter] = prog;
+    } else {
+        channelPrograms.fill(prog);
+    }
+});
+
 document.getElementById('startBtn').addEventListener('click', () => {
     if (!running) startAudio(); else stopAudio();
 });
@@ -1364,7 +1482,9 @@ document.getElementById('rainbowChk').addEventListener('change', e => {
 // EQ curve checkbox
 document.getElementById('eqShowCurveChk').addEventListener('change', e => {
     showEQCurve = e.target.checked;
+    eqCalcCtx = null; // fresh temp filters on next draw
     resizeCanvas();
+    if (showEQCurve && eqBands.length > 0) drawEQCurve();
 });
 
 // Metronome settings
@@ -1393,53 +1513,11 @@ bindSlider('sPreG', v => {
 bindSlider('sG', v => { visGain = parseFloat(v); document.getElementById('vG').innerText = v + '×'; });
 bindSlider('sR', v => { rowMs = 1000 / parseFloat(v); document.getElementById('vR').innerText = v + '/с'; });
 bindSlider('sTh', v => { thresh = parseFloat(v) / 100; document.getElementById('vTh').innerText = v + '%'; });
+bindSlider('sHyst', v => { hysteresis = parseFloat(v) / 100; document.getElementById('vHyst').innerText = v + '%'; });
 bindSlider('sHarm', v => { harmRatio = parseFloat(v) / 100; document.getElementById('vHarm').innerText = v + '%'; });
 
 document.getElementById('harmSuppChk').addEventListener('change', e => { harmSuppress = e.target.checked; });
 document.getElementById('hpsChk').addEventListener('change', e => { hpsBoost = e.target.checked; });
-bindSlider('sHyst', v => { hystMs = parseFloat(v); document.getElementById('vHyst').innerText = v + 'мс'; });
-
-// SF2 file load
-document.getElementById('sf2FileInput').addEventListener('change', async function(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const status = document.getElementById('sf2Status');
-    status.textContent = 'Загрузка…';
-    try {
-        const ab = await file.arrayBuffer();
-        const data = parseSF2(ab);
-        sf2ParsedData = data; // persist across MIDI on/off toggles
-        // Ensure sf2Ctx exists (MIDI may not be active yet)
-        if (!sf2Ctx) { sf2Ctx = new (window.AudioContext || window.webkitAudioContext)(); sf2Synth = new SF2Synth(sf2Ctx); }
-        sf2Synth.load(data);
-        sf2Synth.selectPreset(0);
-        sf2PresetIdx = 0;
-        // Populate preset dropdown
-        const sel = document.getElementById('sf2PresetSel');
-        sel.innerHTML = '';
-        sf2Synth.presets().forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.i; opt.textContent = p.label; sel.appendChild(opt);
-        });
-        sel.disabled = false;
-        status.textContent = `✅ ${file.name} (${data.shdr.length} сэмплов)`;
-    } catch(err) { status.textContent = '❌ ' + err.message; }
-    e.target.value = '';
-});
-
-document.getElementById('sf2PresetSel').addEventListener('change', function() {
-    sf2PresetIdx = parseInt(this.value);
-    if (sf2Synth) sf2Synth.selectPreset(sf2PresetIdx);
-});
-
-document.getElementById('midiChSel').addEventListener('change', function() {
-    midiChannel = parseInt(this.value);
-    if (sf2Synth) sf2Synth.allNotesOff(); // clear notes when switching channel
-});
-
-bindSlider('sSF2Vol', v => {
-    document.getElementById('vSF2Vol').innerText = v + '%';
-    if (sf2Synth) sf2Synth.vol = parseFloat(v) / 100;
-});
 
 // Record / Play / Stop / Save
 document.getElementById('recBtn').addEventListener('click', () => {
@@ -1559,61 +1637,89 @@ document.getElementById('loadConfigInput').addEventListener('change', function (
     reader.readAsText(file);
 });
 
-// ─── Mouse Keyboard ──────────────────────────────────────────────
-function keyFromMouse(e) {
-    const r = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / r.width;
-    const scaleY = canvas.height / r.height;
-    const x = (e.clientX - r.left) * scaleX;
-    const y = (e.clientY - r.top) * scaleY;
+// ─── Keyboard hit-test ───────────────────────────────────────────
+function keyAtPoint(canvasX, canvasY) {
     const kbTop = wfH + (showEQCurve ? EQ_H : 0);
-    if (y < kbTop || y > kbTop + KB_H) return -1;
-    const k = Math.floor(x / COL_W);
-    return (k >= 0 && k < N_KEYS) ? k : -1;
+    if (canvasY < kbTop || canvasY > kbTop + KB_H) return -1;
+    const relY = canvasY - kbTop;
+    const BK_H = Math.round(KB_H * 0.6);
+    const BK_W = Math.round(COL_W * 0.65);
+    const BK_OX = Math.floor((COL_W - BK_W) / 2);
+    // Black keys have priority (they overlay white keys)
+    if (relY <= BK_H) {
+        for (let k = 0; k < N_KEYS; k++) {
+            if (!isBlack(k)) continue;
+            const bx = k * COL_W + BK_OX;
+            if (canvasX >= bx && canvasX < bx + BK_W) return k;
+        }
+    }
+    // White key
+    const k = Math.floor(canvasX / COL_W);
+    return (k >= 0 && k < N_KEYS && !isBlack(k)) ? k : -1;
+}
+
+function canvasXY(e) {
+    const r = canvas.getBoundingClientRect();
+    return [
+        (e.clientX - r.left) * (canvas.width / r.width),
+        (e.clientY - r.top)  * (canvas.height / r.height)
+    ];
 }
 
 function mouseKeyOn(k) {
-    if (mouseKeys.has(k)) return;
-    mouseKeys.add(k);
-    if (sf2Synth && sf2Synth.zones.length > 0) sf2Synth.noteOn(MIDI_A0 + k, 90, 0);
-    // Also trigger midiOnly loop if audio not running
+    if (k === mouseHeldKey) return;
+    mouseKeyOff();
+    mouseHeldKey = k;
+    if (sf2) handleSF2NoteOn(0, MIDI_A0 + k, 90);
+    // Kick off animation if nothing else is running
     if (!running && !midiFrameId) { lastRowTs = 0; midiFrameId = requestAnimationFrame(midiOnlyFrame); }
 }
-function mouseKeyOff(k) {
-    mouseKeys.delete(k);
-    if (sf2Synth) sf2Synth.noteOff(MIDI_A0 + k, 0);
+
+function mouseKeyOff() {
+    if (mouseHeldKey < 0) return;
+    if (sf2) handleSF2NoteOff(0, MIDI_A0 + mouseHeldKey);
+    mouseHeldKey = -1;
 }
-function mouseAllOff() {
-    for (const k of mouseKeys) mouseKeyOff(k);
-    mouseKeys.clear();
-}
+
+// Tooltip
+const tip = document.getElementById('tip');
 
 canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    const k = keyFromMouse(e);
+    const [cx, cy] = canvasXY(e);
+    const k = keyAtPoint(cx, cy);
     if (k >= 0) { e.preventDefault(); mouseKeyOn(k); }
 });
+
 canvas.addEventListener('mousemove', e => {
-    // Drag to glide across keys
-    if (e.buttons & 1) {
-        const k = keyFromMouse(e);
-        if (k >= 0) {
-            // Release keys no longer under cursor
-            for (const held of [...mouseKeys]) { if (held !== k) mouseKeyOff(held); }
-            mouseKeyOn(k);
+    const [cx, cy] = canvasXY(e);
+    const kbTop = wfH + (showEQCurve ? EQ_H : 0);
+    const overKb = cy >= kbTop;
+
+    // Tooltip (only over waterfall area)
+    if (!overKb) {
+        const k = Math.floor(cx / COL_W);
+        if (k >= 0 && k < N_KEYS) {
+            const midi = MIDI_A0 + k;
+            tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
+            tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
         }
+    } else {
+        tip.style.display = 'none';
     }
-    // Tooltip (existing)
-    const r = canvas.getBoundingClientRect();
-    const kk = Math.floor((e.clientX - r.left) * (canvas.width / r.width) / COL_W);
-    if (kk >= 0 && kk < N_KEYS) {
-        const midi = MIDI_A0 + kk;
-        tip.style.cssText = `display:block;left:${e.clientX + 14}px;top:${e.clientY - 6}px`;
-        tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
+
+    // Cursor
+    canvas.style.cursor = overKb ? 'pointer' : 'crosshair';
+
+    // Slide to new key while held
+    if (mouseHeldKey >= 0) {
+        const k = keyAtPoint(cx, cy);
+        if (k >= 0 && k !== mouseHeldKey) mouseKeyOn(k);
     }
 });
-canvas.addEventListener('mouseup',    () => mouseAllOff());
-canvas.addEventListener('mouseleave', () => { mouseAllOff(); tip.style.display = 'none'; });
+
+canvas.addEventListener('mouseup',    () => mouseKeyOff());
+canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; mouseKeyOff(); });
 
 // Resize handler
 let rsT;
