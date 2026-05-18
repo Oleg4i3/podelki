@@ -401,10 +401,12 @@ const sustainHeld = new Map();   // channel*128+note → channel, for deferred n
 let sf2RecordDest = null;
 let midiRecordEvents = [];       // [{t, type:'on'/'off', k, vel}] ms from rec start
 let midiRecordStartTime = null;
-let midiPlaybackEvents = [];     // saved copy played back during audioEl playback
+let midiPlaybackEvents = [];     // saved copy of recorded MIDI events for playback
 let midiPlaybackIndex = 0;
 let midiPlaybackActive = false;
 let midiPlaybackRaf = null;
+let playbackWallStart = null;   // performance.now() snapshot when playback started
+let midiPlaybackMode = false;   // true = replay via SF2 engine; false = audioEl (mic)
 
 // ─── Calibration ─────────────────────────────────────────────────
 const CALIB_FRAMES = 60;          // ~2 s at 30 fps
@@ -456,71 +458,78 @@ function resizeCanvas() {
     if (showEQCurve) drawEQCurve();
 }
 
-// ─── Keyboard Drawing (proper piano layout) ──────────────────────
+// ─── Keyboard Drawing ─────────────────────────────────────────────
+// Classic algorithm (Benjamin Pritchard / every standard impl):
+//   pass 1 – white background fills the entire area (no holes possible)
+//   pass 2 – white key gradients painted in their columns
+//   pass 3 – black keys painted on top
 function drawKeyboard(pm) {
     const top = wfH + (showEQCurve ? EQ_H : 0);
-    // Background
-    ctx.fillStyle = '#e8eaf0';
+    const BK_H = Math.round(KB_H * 0.6);
+    const BK_W = Math.round(COL_W * 0.65);
+    const BK_OX = Math.floor((COL_W - BK_W) / 2);
+    const y0 = top + 2;      // keyboard body starts here
+    const kH = KB_H - 2;     // keyboard body height
+
+    // Pass 0 – solid white background for the whole keyboard rect.
+    // This automatically fills the space around/below black keys — no holes.
+    ctx.fillStyle = '#f5f5f8';
     ctx.fillRect(0, top, CANVAS_W, KB_H);
     ctx.fillStyle = '#222';
-    ctx.fillRect(0, top, CANVAS_W, 2);
+    ctx.fillRect(0, top, CANVAS_W, 2);   // top border
 
-    // White keys (full contiguous columns)
+    // Pass 1 – white keys (full height, their own column)
     for (let k = 0; k < N_KEYS; k++) {
         if (isBlack(k)) continue;
-        const x = k * COL_W;
+        const x   = k * COL_W;
         const lit = pm[k];
-        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210; // blue-grey if mono
-        const g = ctx.createLinearGradient(0, top + 2, 0, top + KB_H);
+        const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
+        const g = ctx.createLinearGradient(0, y0, 0, y0 + kH);
         if (lit) {
-            g.addColorStop(0, `hsl(${hue},90%,72%)`);
-            g.addColorStop(1, `hsl(${hue},90%,58%)`);
+            g.addColorStop(0, `hsl(${hue},90%,78%)`);
+            g.addColorStop(1, `hsl(${hue},90%,60%)`);
         } else {
-            g.addColorStop(0, '#f8f9fc');
-            g.addColorStop(1, '#d4d8e5');
+            g.addColorStop(0, '#fafbfc');
+            g.addColorStop(1, '#d8dce8');
         }
         ctx.fillStyle = g;
-        // No left gap — keys touch; only draw right separator between directly adjacent white keys (B-C, E-F)
-        ctx.fillRect(x, top + 2, COL_W, KB_H - 3);
-        const nextIsWhite = (k + 1 < N_KEYS) && !isBlack(k + 1);
-        if (nextIsWhite) {
-            ctx.fillStyle = lit ? `hsl(${hue},60%,50%)` : '#aab0c0';
-            ctx.fillRect(x + COL_W - 1, top + 2, 1, KB_H - 3);
+        ctx.fillRect(x, y0, COL_W, kH);
+        // 1-px separator only between adjacent white keys (E|F, B|C — no black between them)
+        if ((k + 1 < N_KEYS) && !isBlack(k + 1)) {
+            ctx.fillStyle = lit ? `hsl(${hue},60%,52%)` : '#aab0c4';
+            ctx.fillRect(x + COL_W - 1, y0, 1, kH);
         }
-        // note name on C
+        // Note label on every C
         if ((MIDI_A0 + k) % 12 === 0) {
             ctx.fillStyle = lit ? '#fff' : '#778899';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
             ctx.font = 'bold 8px sans-serif';
-            ctx.fillText(midi2name(MIDI_A0 + k), x + COL_W / 2, top + KB_H - 4);
+            ctx.fillText(midi2name(MIDI_A0 + k), x + COL_W / 2, top + KB_H - 3);
         }
     }
 
-    // Black keys (overlay)
-    const BK_H = Math.round(KB_H * 0.6);
-    const BK_W = Math.round(COL_W * 0.65);
-    const BK_OX = Math.floor((COL_W - BK_W) / 2);
+    // Pass 2 – black keys on top
     for (let k = 0; k < N_KEYS; k++) {
         if (!isBlack(k)) continue;
-        const x = k * COL_W + BK_OX, y = top + 2;
+        const x   = k * COL_W + BK_OX;
         const lit = pm[k];
         const hue = rainbow ? NOTE_HUE[(MIDI_A0 + k) % 12] : 210;
-        const g = ctx.createLinearGradient(0, y, 0, y + BK_H);
+        const g = ctx.createLinearGradient(0, y0, 0, y0 + BK_H);
         if (lit) {
-            g.addColorStop(0, `hsl(${hue},100%,40%)`);
-            g.addColorStop(1, `hsl(${hue},100%,38%)`);
+            g.addColorStop(0, `hsl(${hue},100%,45%)`);
+            g.addColorStop(1, `hsl(${hue},100%,35%)`);
         } else {
             g.addColorStop(0, '#3a3c4c');
             g.addColorStop(1, '#12131c');
         }
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.roundRect(x, y, BK_W, BK_H, [0, 0, 3, 3]);
+        ctx.roundRect(x, y0, BK_W, BK_H, [0, 0, 3, 3]);
         ctx.fill();
         if (!lit) {
-            ctx.fillStyle = 'rgba(255,255,255,0.08)';
-            ctx.fillRect(x + 1, y, BK_W - 2, BK_H * 0.85);
+            ctx.fillStyle = 'rgba(255,255,255,0.10)';
+            ctx.fillRect(x + 1, y0, BK_W - 2, BK_H * 0.70);
         }
     }
 }
@@ -678,12 +687,48 @@ function midiOnlyFrame(ts) {
     drawKeyboard(peakMask);
 }
 
-// Wall-clock reference: set at the moment audioEl fires 'playing'
-let midiPlaybackWallStart = null;
-
-// Dispatches recorded MIDI events in sync with wall-clock from play start
+// ─── MIDI-event playback ──────────────────────────────────────────
+// In midiPlaybackMode we replay recorded events through the SF2 engine directly —
+// no audio blob, no <audio> element, perfect sync by construction.
+// In non-MIDI mode (mic recording) we keep the old audioEl approach.
 function dispatchMidiPlaybackEvents() {
     if (!midiPlaybackActive) { midiPlaybackRaf = null; return; }
+
+    if (midiPlaybackMode) {
+        // ── Pure MIDI replay ──────────────────────────────────
+        if (playbackWallStart === null) { midiPlaybackRaf = null; return; }
+        const currentMs = performance.now() - playbackWallStart;
+
+        while (midiPlaybackIndex < midiPlaybackEvents.length &&
+               midiPlaybackEvents[midiPlaybackIndex].t <= currentMs) {
+            const ev = midiPlaybackEvents[midiPlaybackIndex++];
+            const midiNote = MIDI_A0 + ev.k;
+            if (ev.type === 'on') {
+                handleSF2NoteOn(0, midiNote, ev.vel);
+                midiActiveNotes.add(ev.k);
+                midiNoteVelocity[ev.k] = ev.vel;
+            } else {
+                handleSF2NoteOff(0, midiNote);
+                midiActiveNotes.delete(ev.k);
+                midiNoteVelocity[ev.k] = 0;
+            }
+        }
+
+        // Finish when all events dispatched
+        if (midiPlaybackIndex >= midiPlaybackEvents.length) {
+            midiPlaybackActive = false;
+            midiPlaybackMode = false;
+            playbackWallStart = null;
+            midiPlaybackRaf = null;
+            document.getElementById('playBtn').textContent = '▶ Play';
+            return;
+        }
+
+        midiPlaybackRaf = requestAnimationFrame(dispatchMidiPlaybackEvents);
+        return;
+    }
+
+    // ── audioEl mode (mic recording) ─────────────────────────
     if (audioEl.ended) {
         midiActiveNotes.clear();
         midiNoteVelocity.fill(0);
@@ -691,8 +736,8 @@ function dispatchMidiPlaybackEvents() {
         midiPlaybackRaf = null;
         return;
     }
-    if (!audioEl.paused && midiPlaybackWallStart !== null) {
-        const currentMs = performance.now() - midiPlaybackWallStart;
+    if (!audioEl.paused && playbackWallStart !== null) {
+        const currentMs = performance.now() - playbackWallStart;
         while (midiPlaybackIndex < midiPlaybackEvents.length &&
                midiPlaybackEvents[midiPlaybackIndex].t <= currentMs) {
             const ev = midiPlaybackEvents[midiPlaybackIndex++];
@@ -1240,78 +1285,52 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     const cents = isPerc
         ? zone.ct*100 + zone.ft
         : (note-zone.rk)*zone.sc + zone.ct*100 + zone.ft;
-    const rate=Math.pow(2,cents/1200);
-    const src=ctx.createBufferSource();
-    src.buffer=ab; src.playbackRate.value=rate;
+    const rate = Math.pow(2, cents / 1200);
 
-    // SF2 envelope timecents to seconds
-    const tc2s = tc => Math.pow(2, Math.max(-12000, Math.min(8000, tc)) / 1200);
-    const atkT = tc2s(zone.atk ?? -12000);
-    const decT = tc2s(zone.dec ?? -12000);
-    const susL = Math.pow(10, -Math.min(zone.sus ?? 0, 1440) / 200);
-    const relT = Math.max(0.015, tc2s(zone.rel ?? -12000));
+    const src = ctx.createBufferSource();
+    src.buffer = ab;
+    src.playbackRate.value = rate;
 
-    // Looping: disable for percussive samples that SF2 mistakenly marks as looping
-    // (short sample + no attenuation + no decay = xylophone, kalimba, etc.)
-    let willLoop = zone.hasLoop && zone.lE > zone.lS && zone.lE <= ab.length;
-    const naturalDurSec = ab.duration / Math.max(0.01, rate);
-    const percussive = naturalDurSec < 2.0 && susL > 0.97 && decT < 0.05;
-    if (willLoop && percussive) willLoop = false;
-
-    if (willLoop) {
-        src.loop = true;
+    // ── Loop: enable exactly as in the SF2 zone (WebScore approach) ──────────
+    // Let the sample's own loop control sustain: looping = sustained instrument
+    // (piano, organ, strings…); non-looping = percussive (xylophone, marimba…).
+    if (zone.hasLoop && zone.lE > zone.lS && zone.lE <= ab.length) {
+        src.loop      = true;
         src.loopStart = zone.lS / ab.sampleRate;
         src.loopEnd   = zone.lE / ab.sampleRate;
     }
 
-    const gn  = ctx.createGain();
-    const sg  = Math.max(0.001, Math.min(2, gain));
-    const susGain = Math.max(0.0001, sg * susL);
-
-    // Attack
-    if (atkT > 0.008) {
-        gn.gain.setValueAtTime(0.0001, t0);
-        gn.gain.linearRampToValueAtTime(sg, t0 + atkT);
-    } else {
-        gn.gain.setValueAtTime(sg, t0);
-    }
-    // Decay to sustain (only for looping/sustaining instruments)
-    if (willLoop && decT > 0.008 && susL < 0.97) {
-        gn.gain.setTargetAtTime(susGain, t0 + atkT, Math.max(0.005, decT / 5));
-    }
+    const gn = ctx.createGain();
+    const sg = Math.max(0.001, Math.min(2, gain));
+    gn.gain.setValueAtTime(sg, t0);   // full gain from the start — no artificial ADSR
 
     src.connect(gn);
     gn.connect(dest || ctx.destination);
     src.start(t0);
-    // Non-looping samples stop themselves; we must NOT call stop() here
-    // so that stopAt() can call it once on early key-off.
 
-    let stopped = false;
+    // Non-looping: play to natural sample end (natural decay built into sample)
+    if (!src.loop) {
+        const naturalDur = ab.duration / rate;
+        src.stop(t0 + Math.min(naturalDur + 0.05, 30));
+    }
 
     return {
-        src, gn, sg, relT,
-        stop() {
-            if (stopped) return; stopped = true;
-            try { gn.gain.cancelScheduledValues(ctx.currentTime); src.stop(0); } catch(e) {}
-        },
+        src, gn,
+        stop() { try { gn.gain.cancelScheduledValues(0); src.stop(0); } catch(e){} },
+        // stopAt: called on note-off or sustain-pedal release.
+        // 50 ms fade mirrors WebScore's "short click-prevention fade".
         stopAt(t) {
-            if (stopped) return; stopped = true;
             try {
-                const rt  = Math.max(ctx.currentTime, t);
-                const rel = relT;
-                // cancelAndHoldAtTime correctly freezes the in-progress ramp value
+                const rt = Math.max(t0 + 0.001, t);
+                const rel = 0.05; // 50 ms — long enough to avoid clicks, short enough for staccato
                 if (gn.gain.cancelAndHoldAtTime) {
                     gn.gain.cancelAndHoldAtTime(rt);
                 } else {
-                    const elapsed = rt - t0;
-                    const approx = elapsed < atkT
-                        ? sg * (elapsed / Math.max(0.001, atkT))
-                        : susGain;
                     gn.gain.cancelScheduledValues(rt);
-                    gn.gain.setValueAtTime(Math.max(0.0001, approx), rt);
+                    gn.gain.setValueAtTime(gn.gain.value, rt);
                 }
                 gn.gain.linearRampToValueAtTime(0.0001, rt + rel);
-                src.stop(rt + rel + 0.04);
+                src.stop(rt + rel + 0.01);
             } catch(e) {}
         }
     };
@@ -1718,74 +1737,82 @@ document.getElementById('recBtn').addEventListener('click', () => {
     }
 });
 
-// Helper: start MIDI roll playback in sync with audio
-function startMidiRollPlayback(seekMs) {
-    if (midiPlaybackEvents.length === 0) return;
-    midiPlaybackActive = true;
-    midiActiveNotes.clear();
-    midiNoteVelocity.fill(0);
-    // Find index of first event at/after seekMs
-    midiPlaybackIndex = 0;
-    if (seekMs > 0) {
-        while (midiPlaybackIndex < midiPlaybackEvents.length &&
-               midiPlaybackEvents[midiPlaybackIndex].t < seekMs)
-            midiPlaybackIndex++;
-    }
-    if (!running && !midiFrameId) { lastRowTs = 0; midiFrameId = requestAnimationFrame(midiOnlyFrame); }
-    cancelAnimationFrame(midiPlaybackRaf);
-    midiPlaybackRaf = requestAnimationFrame(dispatchMidiPlaybackEvents);
-}
-
 document.getElementById('playBtn').addEventListener('click', () => {
+    // ── MIDI recording exists → replay via SF2 engine (perfect sync, no blob) ──
+    if (midiPlaybackEvents.length > 0) {
+        if (midiPlaybackActive && midiPlaybackMode) {
+            // Pause: stop dispatching and silence all audio
+            midiPlaybackActive = false;
+            midiPlaybackMode = false;
+            playbackWallStart = null;
+            sf2AllNotesOff();
+            midiActiveNotes.clear();
+            midiNoteVelocity.fill(0);
+            document.getElementById('playBtn').textContent = '▶ Play';
+        } else {
+            startMidiEventPlayback();
+        }
+        return;
+    }
+
+    // ── Mic recording → audioEl playback ──
     if (!audioEl.src) return;
     if (audioEl.paused) {
         audioEl.play();
+        playbackWallStart = performance.now();
         document.getElementById('playBtn').textContent = '⏸ Play';
     } else {
         audioEl.pause();
+        playbackWallStart = null;
         document.getElementById('playBtn').textContent = '▶ Play';
     }
 });
 
-// Double-click: restart from beginning
-document.getElementById('playBtn').addEventListener('dblclick', (e) => {
-    e.preventDefault();
+// Double-click on Play → restart from the very beginning
+document.getElementById('playBtn').addEventListener('dblclick', () => {
+    if (midiPlaybackEvents.length > 0) {
+        startMidiEventPlayback();
+        return;
+    }
     if (!audioEl.src) return;
+    audioEl.pause();
+    audioEl.currentTime = 0;
     midiPlaybackActive = false;
     midiActiveNotes.clear();
     midiNoteVelocity.fill(0);
-    midiPlaybackWallStart = null;
-    audioEl.currentTime = 0;
+    midiPlaybackIndex = 0;
+    cancelAnimationFrame(midiPlaybackRaf);
+    midiPlaybackRaf = null;
     audioEl.play();
+    playbackWallStart = performance.now();
     document.getElementById('playBtn').textContent = '⏸ Play';
-    startMidiRollPlayback(0);
 });
 
-// 'playing' fires when audio actually starts outputting (after buffering/seeking).
-// This is our wall-clock sync reference — always recalibrate here.
-audioEl.addEventListener('playing', () => {
-    const seekMs = audioEl.currentTime * 1000;
-    // Recalibrate wall-clock reference to current audio position
-    midiPlaybackWallStart = performance.now() - seekMs;
-    if (!midiPlaybackActive) {
-        startMidiRollPlayback(seekMs);
-    } else {
-        // Resume after pause: resync index to current time
-        midiPlaybackIndex = 0;
-        while (midiPlaybackIndex < midiPlaybackEvents.length &&
-               midiPlaybackEvents[midiPlaybackIndex].t < seekMs)
-            midiPlaybackIndex++;
-    }
+// Helper: start MIDI-event replay via SF2 from the beginning
+function startMidiEventPlayback() {
+    if (midiPlaybackRaf) { cancelAnimationFrame(midiPlaybackRaf); midiPlaybackRaf = null; }
+    sf2AllNotesOff();
+    midiActiveNotes.clear();
+    midiNoteVelocity.fill(0);
+    midiPlaybackIndex = 0;
+    midiPlaybackActive = true;
+    midiPlaybackMode = true;
+    playbackWallStart = performance.now();
+    lastRowTs = 0;
+    if (!running && !midiFrameId) midiFrameId = requestAnimationFrame(midiOnlyFrame);
+    midiPlaybackRaf = requestAnimationFrame(dispatchMidiPlaybackEvents);
     document.getElementById('playBtn').textContent = '⏸ Play';
-});
+}
 
 audioEl.addEventListener('ended', () => {
     midiActiveNotes.clear();
     midiNoteVelocity.fill(0);
     midiPlaybackActive = false;
+    playbackWallStart = null;
     document.getElementById('playBtn').textContent = '▶ Play';
 });
 audioEl.addEventListener('pause', () => {
+    playbackWallStart = null;
     document.getElementById('playBtn').textContent = '▶ Play';
 });
 
