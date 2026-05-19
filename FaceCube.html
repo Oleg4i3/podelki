@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Аморфное окно — Off-Axis проекция</title>
+    <title>Amorphic Window — Off-Axis Projection</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #050510; }
@@ -47,37 +47,48 @@
         .settings-btn { background: #374151; }
         .settings-btn:hover { background: #4b5563; }
 
-        /* MODAL */
+        /* MODAL — semi-transparent and compact */
         .modal {
             display: none; position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(5,5,20,0.96); border: 1px solid rgba(100,160,255,0.25);
-            padding: 22px; border-radius: 18px; z-index: 10; color: #c8d8f0;
-            width: 340px; backdrop-filter: blur(14px);
-            box-shadow: 0 12px 40px rgba(0,0,50,0.6);
+            background: rgba(10, 10, 30, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(100,160,255,0.35);
+            padding: 18px 20px;
+            border-radius: 20px;
+            z-index: 10;
+            color: #e2e8f0;
+            width: 340px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            font-size: 12px;
         }
         .modal.active { display: block; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .modal-header h3 { margin: 0; font-size: 16px; color: #88ccff; }
-        .close-btn { background: none; border: none; color: #ef4444; font-size: 22px; cursor: pointer; padding: 0; }
-        .section-label {
-            font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
-            color: #5577aa; margin: 14px 0 8px; padding-bottom: 4px;
-            border-bottom: 1px solid rgba(100,160,255,0.12);
-        }
-        .setting-row { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .close-btn { background: none; border: none; color: #ef4444; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
+        
+        /* Compact rows without extra headers */
+        .setting-row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
         .setting-row label {
-            font-size: 12px; color: #8aa8cc;
+            font-size: 11px; color: #b8d0ff;
             display: flex; justify-content: space-between;
+            align-items: center;
         }
-        .setting-row label span { color: #e2e8f0; font-family: monospace; }
-        .setting-row input[type="range"] { width: 100%; cursor: pointer; accent-color: #3b82f6; }
-        .hint { font-size: 10px; color: #4466aa; margin-top: -6px; }
+        .setting-row label span { color: #ffffff; font-family: monospace; }
+        .setting-row input[type="range"] { width: 100%; cursor: pointer; accent-color: #3b82f6; margin: 2px 0; }
+        .setting-row input[type="checkbox"] { width: 18px; height: 18px; margin-left: 10px; cursor: pointer; accent-color: #3b82f6; }
+        .hint { font-size: 9px; color: #88aadd; margin-top: -4px; margin-bottom: 6px; }
+        .config-buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .config-buttons button { flex: 1; background: #2c3e66; font-size: 10px; padding: 6px 0; }
+        .reset-default-btn { background: #5a3e2b; }
+        .reset-default-btn:hover { background: #7a5536; }
 
         @media (max-width: 600px) {
             .controls { flex-direction: column; align-items: stretch; bottom: 10px; left: 10px; right: 10px; }
             .video-preview { width: 110px; bottom: 10px; right: 10px; }
-            .modal { width: 90vw; }
+            .modal { width: 90vw; padding: 14px; }
         }
     </style>
 </head>
@@ -85,13 +96,13 @@
 <div id="canvas-container"></div>
 
 <div class="controls">
-    <div class="status" id="face-status">🔍 Загрузка...</div>
+    <div class="status" id="face-status">🔍 Loading...</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="calibrate-btn" class="calibrate-btn" disabled>🎯 Калибровка</button>
-        <button id="reset-calib">↺ Сброс</button>
-        <button id="settings-btn" class="settings-btn">⚙️ Настройки</button>
+        <button id="calibrate-btn" class="calibrate-btn" disabled>🎯 Calibrate</button>
+        <button id="reset-calib">↺ Reset</button>
+        <button id="settings-btn" class="settings-btn">⚙️ Settings</button>
     </div>
-    <div style="opacity:0.6">👁 Двигайтесь — мир не поворачивается, а открывается</div>
+    <div style="opacity:0.6">👁 Move your head — the world reveals itself</div>
 </div>
 
 <div class="video-preview">
@@ -99,46 +110,63 @@
     <canvas id="debug-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
 </div>
 
-<div class="info" id="debug-info">Ожидание...</div>
+<div class="info" id="debug-info">Waiting...</div>
 
-<!-- SETTINGS MODAL -->
+<!-- SETTINGS MODAL (compact, English, semi-transparent) -->
 <div id="settings-modal" class="modal">
     <div class="modal-header">
-        <h3>⚙️ Физические параметры</h3>
+        <h3>⚙️ Display & Motion</h3>
         <button id="close-settings" class="close-btn">&times;</button>
     </div>
 
-    <div class="section-label">📐 Размер вашего экрана</div>
+    <!-- Screen dimensions (no labels removed but we keep short names) -->
     <div class="setting-row">
-        <label>Ширина экрана: <span id="val-sw">34</span> см</label>
+        <label>Screen width: <span id="val-sw">34</span> cm</label>
         <input type="range" id="range-sw" min="10" max="80" step="1" value="34">
     </div>
     <div class="setting-row">
-        <label>Высота экрана: <span id="val-sh">21</span> см</label>
+        <label>Screen height: <span id="val-sh">21</span> cm</label>
         <input type="range" id="range-sh" min="6" max="50" step="1" value="21">
     </div>
-    <p class="hint">Измерьте рулеткой активную область дисплея.</p>
+    <div class="hint">📏 Measure active display area.</div>
 
-    <div class="section-label">👁 Расстояние до экрана</div>
     <div class="setting-row">
-        <label>Расстояние при калибровке: <span id="val-ed">60</span> см</label>
+        <label>Calibration distance: <span id="val-ed">60</span> cm</label>
         <input type="range" id="range-ed" min="20" max="150" step="5" value="60">
     </div>
-    <p class="hint">Встаньте на удобное расстояние, нажмите «Калибровка».</p>
+    <div class="hint">👁 Stand at your preferred distance, then click "Calibrate".</div>
 
-    <div class="section-label">🎛 Фильтр движения</div>
     <div class="setting-row">
-        <label>Плавность (инерция): <span id="val-sm">8</span></label>
+        <label>Smoothing inertia: <span id="val-sm">8</span></label>
         <input type="range" id="range-sm" min="2" max="30" step="1" value="8">
     </div>
     <div class="setting-row">
-        <label>Мёртвая зона XY: <span id="val-dz">0.3</span> см</label>
+        <label>Deadzone XY: <span id="val-dz">0.3</span> cm</label>
         <input type="range" id="range-dz" min="0" max="3" step="0.1" value="0.3">
     </div>
     <div class="setting-row">
-        <label>Чувствительность XY: <span id="val-xs">1.0</span>×</label>
+        <label>Sensitivity XY: <span id="val-xs">1.0</span>×</label>
         <input type="range" id="range-xs" min="0.3" max="3.0" step="0.1" value="1.0">
     </div>
+
+    <div class="setting-row">
+        <label>✨ Animation (teapot spin + mouse ear wiggle) 
+            <input type="checkbox" id="anim-checkbox">
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>☀️ Light theme (sky + grass) 
+            <input type="checkbox" id="bg-checkbox">
+        </label>
+    </div>
+    <div class="hint">🎨 Light theme changes background to sky blue and floor to green grass.</div>
+
+    <div class="config-buttons">
+        <button id="save-config-btn">💾 Save to file</button>
+        <button id="load-config-btn">📂 Load from file</button>
+        <button id="reset-defaults-btn">↺ Reset settings</button>
+    </div>
+    <div class="hint" style="margin-top: 8px;">⚡ Settings auto‑save in browser. Use JSON file to transfer.</div>
 </div>
 
 <script type="importmap">
@@ -157,126 +185,101 @@ import * as THREE from 'three';
 import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
 
 // ═══════════════════════════════════════════════════════
-// ФИЗИЧЕСКИЕ ПАРАМЕТРЫ ЭКРАНА
-// 1 мировая единица = 10 см (S = world_units / cm)
+// PHYSICAL PARAMETERS (1 world unit = 10 cm)
 // ═══════════════════════════════════════════════════════
-const S = 0.1; // масштаб: 1см = 0.1wu
+const S = 0.1;
+let SCREEN_W_CM = 34;
+let SCREEN_H_CM = 21;
+let EYE_DIST_CM = 60;
+let SMOOTH_N    = 8;
+let DEADZONE_CM = 0.3;
+let XY_SENS     = 1.0;
 
-let SCREEN_W_CM = 34;   // физическая ширина экрана
-let SCREEN_H_CM = 21;   // физическая высота экрана
-let EYE_DIST_CM = 60;   // расстояние глаза при калибровке
-let SMOOTH_N    = 8;    // знаменатель инерции (большее = плавнее)
-let DEADZONE_CM = 0.3;  // мёртвая зона в см
-let XY_SENS     = 1.0;  // множитель чувствительности XY
+let animationEnabled = false;
+let lightBackground  = false;
 
-// ═══════════════════════════════════════════════════════
-// СОСТОЯНИЕ ТРЕКЕРА
-// ═══════════════════════════════════════════════════════
-const video       = document.getElementById('video');
-const debugCanvas = document.getElementById('debug-canvas');
-const ctx         = debugCanvas.getContext('2d');
-const statusSpan  = document.getElementById('face-status');
-const calibBtn    = document.getElementById('calibrate-btn');
-const debugInfo   = document.getElementById('debug-info');
-
+// Face tracking state
 let currentFaceNorm = null;
-let videoReady      = false;
-let faceDetection   = null;
-let camera_mp       = null;
-
-// Калибровка
-let calibCX    = 0.5;   // нормированная позиция лица при калибровке
-let calibCY    = 0.5;
-let calibW     = 0.25;  // ширина bbox лица при калибровке
+let videoReady = false;
+let faceDetection = null;
+let camera_mp = null;
 let calibrated = false;
+let calibCX = 0.5, calibCY = 0.5, calibW = 0.25;
 
-// Текущая позиция глаза в мировых единицах (сглаженная)
-let eyeX = 0;
-let eyeY = 0;
-let eyeZ = EYE_DIST_CM * S;
+let eyeX = 0, eyeY = 0, eyeZ = EYE_DIST_CM * S;
 
 // ═══════════════════════════════════════════════════════
-// THREE.JS СЦЕНА
+// THREE.JS SCENE
 // ═══════════════════════════════════════════════════════
 const container = document.getElementById('canvas-container');
-const scene     = new THREE.Scene();
+const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050510);
-scene.fog        = new THREE.Fog(0x050510, 25, 100);
+scene.fog = new THREE.Fog(0x050510, 25, 100);
 
-// Камера — инициализируем как PerspectiveCamera, но будем
-// полностью переопределять projectionMatrix каждый кадр.
-const cam3d = new THREE.PerspectiveCamera(
-    45, window.innerWidth / window.innerHeight, 0.05, 500
-);
+const cam3d = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 500);
 cam3d.position.set(0, 0, EYE_DIST_CM * S);
-
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 container.appendChild(renderer.domElement);
 
-// ── ОСВЕЩЕНИЕ ────────────────────────────────────────
+// Lighting (unchanged)
 scene.add(new THREE.AmbientLight(0x202840, 2.0));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
 dirLight.position.set(20, 50, 30);
 scene.add(dirLight);
-
 const ptBlue = new THREE.PointLight(0x4466ff, 80, 80);
 ptBlue.position.set(-10, 15, -20);
 scene.add(ptBlue);
-
 const ptOrange = new THREE.PointLight(0xff8844, 60, 60);
 ptOrange.position.set(12, 10, -8);
 scene.add(ptOrange);
-
 const ptPurple = new THREE.PointLight(0xaa44ff, 40, 50);
 ptPurple.position.set(0, 5, -35);
 scene.add(ptPurple);
 
-// ── ПОЛ / СЕТКА ──────────────────────────────────────
-const floorMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(120, 120),
-    new THREE.MeshStandardMaterial({ color: 0x0d1a2e, roughness: 0.95 })
-);
-floorMesh.rotation.x = -Math.PI / 2;
-floorMesh.position.set(0, -3.5, -20);
-scene.add(floorMesh);
+// Floor & grid (will be updated on theme change)
+let floorMesh, gridHelper;
+function createFloorAndGrid() {
+    if (floorMesh) scene.remove(floorMesh);
+    if (gridHelper) scene.remove(gridHelper);
+    
+    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;   // grass green vs dark blue
+    floorMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(120, 120),
+        new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95 })
+    );
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.set(0, -3.5, -20);
+    scene.add(floorMesh);
+    
+    const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
+    const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
+    gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
+    gridHelper.position.set(0, -3.5, -20);
+    scene.add(gridHelper);
+}
+createFloorAndGrid();
 
-const gridHelper = new THREE.GridHelper(120, 80, 0x1a3a5c, 0x0d1f33);
-gridHelper.position.set(0, -3.5, -20);
-scene.add(gridHelper);
-
-// ── КАДР ОКНА НА ПЛОСКОСТИ z=0 ───────────────────────
-// Визуализирует реальную границу физического экрана в сцене.
+// Screen frame (z=0)
 let windowFrameLine = null;
-
 function makeWindowFrame() {
     if (windowFrameLine) scene.remove(windowFrameLine);
     const hw = (SCREEN_W_CM * S) / 2;
     const hh = (SCREEN_H_CM * S) / 2;
     const pts = [
-        new THREE.Vector3(-hw, -hh, 0),
-        new THREE.Vector3( hw, -hh, 0),
-        new THREE.Vector3( hw,  hh, 0),
-        new THREE.Vector3(-hw,  hh, 0),
-        new THREE.Vector3(-hw, -hh, 0),
+        new THREE.Vector3(-hw, -hh, 0), new THREE.Vector3( hw, -hh, 0),
+        new THREE.Vector3( hw,  hh, 0), new THREE.Vector3(-hw,  hh, 0),
+        new THREE.Vector3(-hw, -hh, 0)
     ];
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({
-        color: 0x44aaff, transparent: true, opacity: 0.5
-    });
+    const mat = new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.6 });
     windowFrameLine = new THREE.Line(geo, mat);
     scene.add(windowFrameLine);
 }
 makeWindowFrame();
 
-// ── ОБЪЕКТЫ СЦЕНЫ ─────────────────────────────────────
-// Мировые координаты: z<0 — за экраном, z>0 — перед ним.
-// При EYE_DIST=60см=6wu: объект на z=-6wu на расстоянии 12wu
-// от глаза (2× дальше экрана).
-
-// Разноцветный куб + мышь в центре (на z=-5)
+// ---- Objects creation (cube, mouse, snowman, teapot, gem, random cubes) ----
 const CUBE_SIZE = 1.2;
 const materialsCube = [
     new THREE.MeshStandardMaterial({ color: 0xff4040 }),
@@ -286,9 +289,7 @@ const materialsCube = [
     new THREE.MeshStandardMaterial({ color: 0xff66dd }),
     new THREE.MeshStandardMaterial({ color: 0xaaaaaa }),
 ];
-const mainCube = new THREE.Mesh(
-    new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), materialsCube
-);
+const mainCube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), materialsCube);
 
 function createMouse() {
     const group = new THREE.Group();
@@ -296,26 +297,18 @@ function createMouse() {
     const eyeMat    = new THREE.MeshStandardMaterial({ color: 0xaa3333 });
     const noseMat   = new THREE.MeshStandardMaterial({ color: 0xffb6c1, metalness: 0.2 });
     const whiskMat  = new THREE.MeshStandardMaterial({ color: 0x222222 });
-
-    const body = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 32, 16, 0, Math.PI*2, 0, Math.PI/2), bodyMat
-    );
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI*2, 0, Math.PI/2), bodyMat);
     group.add(body);
-
     [[-0.7,0,0.5],[0.7,0,0.5],[-0.7,0,-0.5],[0.7,0,-0.5]].forEach(([x,y,z]) => {
-        const leg = new THREE.Mesh(
-            new THREE.SphereGeometry(0.3,16,8,0,Math.PI*2,0,Math.PI/2), bodyMat
-        );
+        const leg = new THREE.Mesh(new THREE.SphereGeometry(0.3,16,8,0,Math.PI*2,0,Math.PI/2), bodyMat);
         leg.position.set(x,y,z);
         group.add(leg);
     });
-
     const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.6,32,16), bodyMat);
     headSphere.position.set(0,0.3,0.8);
     const headCone = new THREE.Mesh(new THREE.ConeGeometry(0.4,0.7,32), bodyMat);
     headCone.position.set(0,0.3,1.45); headCone.rotation.x = Math.PI/2;
     group.add(headSphere, headCone);
-
     const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,8), noseMat);
     nose.position.set(0,0.3,1.8);
     const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,8), eyeMat);
@@ -327,345 +320,377 @@ function createMouse() {
     const earR = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,20), noseMat);
     earR.position.set(0.5,0.8,0.8); earR.rotation.set(Math.PI/2.2,0,Math.PI/10);
     group.add(nose,eyeL,eyeR,earL,earR);
-
-    // Усы
+    // Whiskers
     const wDef = { r: 0.007, l: 1.0 };
     const wPositions = [
-        [-0.5,0.4,1.7,Math.PI/20,0.4,Math.PI/2.3],
-        [-0.5,0.3,1.7,0,0.4,Math.PI/2],
-        [-0.5,0.2,1.7,-Math.PI/20,0.4,Math.PI/1.9],
-        [0.5,0.4,1.7,Math.PI/20,-0.4,-Math.PI/2.3],
-        [0.5,0.3,1.7,0,-0.4,-Math.PI/2],
-        [0.5,0.2,1.7,-Math.PI/20,-0.4,-Math.PI/1.9],
+        [-0.5,0.4,1.7,Math.PI/20,0.4,Math.PI/2.3], [-0.5,0.3,1.7,0,0.4,Math.PI/2],
+        [-0.5,0.2,1.7,-Math.PI/20,0.4,Math.PI/1.9], [0.5,0.4,1.7,Math.PI/20,-0.4,-Math.PI/2.3],
+        [0.5,0.3,1.7,0,-0.4,-Math.PI/2], [0.5,0.2,1.7,-Math.PI/20,-0.4,-Math.PI/1.9],
     ];
     wPositions.forEach(([px,py,pz,rx,ry,rz]) => {
-        const w = new THREE.Mesh(
-            new THREE.CylinderGeometry(wDef.r,wDef.r,wDef.l,8), whiskMat
-        );
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(wDef.r,wDef.r,wDef.l,8), whiskMat);
         w.position.set(px,py,pz); w.rotation.set(rx,ry,rz);
         group.add(w);
     });
-
-    // Хвост
+    // Tail
     const tailPath = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0,0.2,-1.0),
-        new THREE.Vector3(0,0.6,-2.5),
-        new THREE.Vector3(-0.9,0.4,-3.5)
+        new THREE.Vector3(0,0.2,-1.0), new THREE.Vector3(0,0.6,-2.5), new THREE.Vector3(-0.9,0.4,-3.5)
     ]);
     group.add(new THREE.Mesh(new THREE.TubeGeometry(tailPath,30,0.05,8,false), noseMat));
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.6,8), noseMat);
     tip.position.copy(tailPath.getPointAt(1.0));
     tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), tailPath.getTangentAt(1.0).normalize());
     group.add(tip);
-
     group.scale.setScalar(0.4);
+    group.earLeft = earL;
+    group.earRight = earR;
     return group;
 }
 
 function createSnowman() {
     const group = new THREE.Group();
-    const snowMat   = new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.85 });
-    const eyeMat    = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-    const noseMat   = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.6 });
-    const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.3 });
-
-    const body   = new THREE.Mesh(new THREE.SphereGeometry(1), snowMat);   body.position.y = -0.3;
-    const head   = new THREE.Mesh(new THREE.SphereGeometry(0.7), snowMat); head.position.y = 1.1;
-    const armL   = new THREE.Mesh(new THREE.SphereGeometry(0.3), snowMat); armL.position.set(-1.1,-0.1, 0.1);
-    const armR   = new THREE.Mesh(new THREE.SphereGeometry(0.2), snowMat); armR.position.set( 1.1,-0.1,-0.1);
-    const eyeL   = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat);  eyeL.position.set(-0.25,1.3,0.6);
-    const eyeR   = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat);  eyeR.position.set( 0.25,1.3,0.6);
-    const nose   = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.5,16), noseMat);
-    nose.position.set(0,1.1,0.95); nose.rotation.x = Math.PI/2;
-    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,0.65,32), bucketMat);
-    bucket.position.y = 1.9;
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.85 });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff8c00 });
+    const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1), snowMat); body.position.y = -0.3;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.7), snowMat); head.position.y = 1.1;
+    const armL = new THREE.Mesh(new THREE.SphereGeometry(0.3), snowMat); armL.position.set(-1.1,-0.1,0.1);
+    const armR = new THREE.Mesh(new THREE.SphereGeometry(0.2), snowMat); armR.position.set(1.1,-0.1,-0.1);
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeL.position.set(-0.25,1.3,0.6);
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeR.position.set(0.25,1.3,0.6);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.5,16), noseMat); nose.position.set(0,1.1,0.95); nose.rotation.x = Math.PI/2;
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,0.65,32), bucketMat); bucket.position.y = 1.9;
     group.add(body,head,armL,armR,eyeL,eyeR,nose,bucket);
     group.scale.setScalar(0.6);
     return group;
 }
 
-// Основная группа (куб + мышь), z=-5 (50см за экраном)
 const centerGroup = new THREE.Group();
 centerGroup.add(mainCube);
-const mouse = createMouse();
-mouse.position.set(0, CUBE_SIZE/2 + 0.02, 0);
-centerGroup.add(mouse);
+const mouseGroup = createMouse();
+mouseGroup.position.set(0, CUBE_SIZE/2 + 0.02, 0);
+centerGroup.add(mouseGroup);
 centerGroup.position.set(0.3, -0.5, -5);
 scene.add(centerGroup);
 
-// Снеговик, z=-9 (90см за экраном)
 const snowman = createSnowman();
 snowman.position.set(3.2, -1.0, -9);
 scene.add(snowman);
 
-// Чайник, z=-7
-const teapotMat = new THREE.MeshStandardMaterial({
-    color: 0x00c0ff, metalness: 0.55, roughness: 0.35
-});
+const teapotMat = new THREE.MeshStandardMaterial({ color: 0x00c0ff, metalness: 0.55, roughness: 0.35 });
 const teapot = new THREE.Mesh(new TeapotGeometry(0.55, 10), teapotMat);
 teapot.position.set(-3.0, -0.7, -7);
 scene.add(teapot);
 
-// Случайные кубики на разной глубине
-for (let i = 0; i < 24; i++) {
-    const size = 0.18 + Math.random() * 0.35;
-    const m = new THREE.Mesh(
-        new THREE.BoxGeometry(size, size, size),
-        new THREE.MeshStandardMaterial({
-            color: new THREE.Color().setHSL(Math.random(), 0.7, 0.55),
-            roughness: 0.4, metalness: 0.2
-        })
-    );
-    m.position.set(
-        (Math.random() - 0.5) * 14,
-        (Math.random() - 0.5) * 6,
-        -1.5 - Math.random() * 22
-    );
-    m.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
-    scene.add(m);
-}
-
-// ★ КРИСТАЛЛ ПЕРЕД ЭКРАНОМ (z > 0 — «выпрыгивает» из экрана!)
-const gemMat = new THREE.MeshStandardMaterial({
-    color: 0xee44ff, metalness: 0.92, roughness: 0.05,
-    emissive: 0x550044, emissiveIntensity: 0.4
-});
+const gemMat = new THREE.MeshStandardMaterial({ color: 0xee44ff, metalness: 0.92, roughness: 0.05, emissive: 0x550044, emissiveIntensity: 0.4 });
 const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.25, 0), gemMat);
-gem.position.set(0, 0.2, 1.8);  // 18см ПЕРЕД экраном
+gem.position.set(0, 0.2, 1.8);
 scene.add(gem);
 
-// ── ВСПОМОГАТЕЛЬНЫЕ ОБЪЕКТЫ для depth perception ──────
-// Дальняя арка (z=-25)
+// decorative arch and columns
 const archGeo = new THREE.TorusGeometry(3.5, 0.15, 12, 48, Math.PI);
-const archMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, metalness: 0.7, roughness: 0.3 });
+const archMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, metalness: 0.7 });
 const arch = new THREE.Mesh(archGeo, archMat);
-arch.position.set(0, 3.5-3.5, -25);
+arch.position.set(0, 0, -25);
 scene.add(arch);
-
-// Дальние колонны
 [-6, 6].forEach(x => {
-    const col = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.25, 0.3, 10, 16),
-        new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.8 })
-    );
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 10, 16), new THREE.MeshStandardMaterial({ color: 0x1a2a3a }));
     col.position.set(x, 1.5, -25);
     scene.add(col);
 });
+// random floating cubes
+for (let i = 0; i < 24; i++) {
+    const size = 0.18 + Math.random() * 0.35;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.55), roughness: 0.4 }));
+    m.position.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, -1.5 - Math.random() * 22);
+    scene.add(m);
+}
+
+// Animation handles
+const earLeftRef = mouseGroup.earLeft;
+const earRightRef = mouseGroup.earRight;
+const earBaseRotLeftZ = -Math.PI / 10;
+const earBaseRotRightZ = Math.PI / 10;
 
 // ═══════════════════════════════════════════════════════
-// OFF-AXIS (ASYMMETRIC FRUSTUM) ПРОЕКЦИЯ
+// THEME: Light background (sky + green grass)
 // ═══════════════════════════════════════════════════════
-// Экран находится на плоскости z=0 мирового пространства.
-// Глаз в точке (eyeX, eyeY, eyeZ), eyeZ > 0.
-// Frustum строится через физические углы экрана.
+function updateBackground() {
+    if (lightBackground) {
+        scene.background = new THREE.Color(0x87CEEB); // sky blue
+        scene.fog = new THREE.Fog(0x87CEEB, 25, 100);
+    } else {
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.Fog(0x050510, 25, 100);
+    }
+    // Recreate floor and grid with correct colors
+    if (floorMesh) scene.remove(floorMesh);
+    if (gridHelper) scene.remove(gridHelper);
+    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;
+    floorMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(120, 120),
+        new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95 })
+    );
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.set(0, -3.5, -20);
+    scene.add(floorMesh);
+    
+    const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
+    const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
+    gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
+    gridHelper.position.set(0, -3.5, -20);
+    scene.add(gridHelper);
+}
 // ═══════════════════════════════════════════════════════
-
+// OFF-AXIS PROJECTION
+// ═══════════════════════════════════════════════════════
 function computeOffAxisProjection() {
-    // Физические полуразмеры экрана → мировые единицы
-    const hw = (SCREEN_W_CM * S) / 2;   // half-width
-    const hh = (SCREEN_H_CM * S) / 2;   // half-height
-
-    const near = 0.05;
-    const far  = 500;
-
-    // Масштаб проекции: как далеко near-plane от глаза
-    // (near-plane совпадает с пространством z=eyeZ-near)
+    const hw = (SCREEN_W_CM * S) / 2;
+    const hh = (SCREEN_H_CM * S) / 2;
+    const near = 0.05, far = 500;
     const pS = near / eyeZ;
-
-    // Лучи из глаза через углы физического экрана (z=0)
-    // → пересечение с near-plane
-    const l = (-hw - eyeX) * pS;   // левый край
-    const r = ( hw - eyeX) * pS;   // правый край
-    const t = ( hh - eyeY) * pS;   // верхний край
-    const b = (-hh - eyeY) * pS;   // нижний край
-
-    // Переопределяем матрицу проекции напрямую
+    const l = (-hw - eyeX) * pS;
+    const r = ( hw - eyeX) * pS;
+    const t = ( hh - eyeY) * pS;
+    const b = (-hh - eyeY) * pS;
     cam3d.projectionMatrix.makePerspective(l, r, t, b, near, far);
     cam3d.projectionMatrixInverse.copy(cam3d.projectionMatrix).invert();
-
-    // Камера смотрит строго в -Z (перпендикулярно экрану), позиция = позиция глаза
     cam3d.position.set(eyeX, eyeY, eyeZ);
-    cam3d.quaternion.set(0, 0, 0, 1);   // нет поворота = смотрит в -Z
+    cam3d.quaternion.set(0, 0, 0, 1);
     cam3d.updateMatrixWorld(true);
 }
 
 // ═══════════════════════════════════════════════════════
-// ОБНОВЛЕНИЕ ПОЗИЦИИ ГЛАЗА ИЗ ТРЕКЕРА
+// FACE TRACKING
 // ═══════════════════════════════════════════════════════
 function updateEyeFromFace() {
     if (!currentFaceNorm) {
-        statusSpan.innerHTML = '⏸️ Лицо потеряно';
+        document.getElementById('face-status').innerHTML = '⏸️ Face lost';
         return;
     }
-
-    // Центр bounding box лица (нормированный, 0–1)
     const cx = currentFaceNorm.x + currentFaceNorm.w / 2;
     const cy = currentFaceNorm.y + currentFaceNorm.h / 2;
     const fw = currentFaceNorm.w;
-
-    // === ГЛУБИНА (Z) из размера лица ===
-    // Крупнее лицо → ближе к камере → eye.z больше
-    const targetZ_cm = (calibrated && calibW > 0)
-        ? EYE_DIST_CM * calibW / fw
-        : EYE_DIST_CM;
-
-    // === ГОРИЗОНТАЛЬ/ВЕРТИКАЛЬ (XY) из смещения лица ===
-    // Камера зеркалит изображение: лицо влево → пользователь вправо
-    // Смещение нормировано относительно размера экрана (1.0 = 1 ширина экрана)
+    const targetZ_cm = (calibrated && calibW > 0) ? EYE_DIST_CM * calibW / fw : EYE_DIST_CM;
     const rawX_cm = (calibCX - cx) * SCREEN_W_CM * XY_SENS;
     const rawY_cm = -(cy - calibCY) * SCREEN_H_CM * XY_SENS;
-
-    // Конвертация в мировые единицы
     const targetX = rawX_cm * S;
     const targetY = rawY_cm * S;
     const targetZ = Math.max(0.3, targetZ_cm * S);
-
-    // Мёртвая зона
     const dz_wu = DEADZONE_CM * S;
-    const alpha  = 1 / SMOOTH_N;    // плавность: 1 = мгновенно
-
+    const alpha = 1 / SMOOTH_N;
     if (Math.abs(targetX - eyeX) > dz_wu) eyeX += (targetX - eyeX) * alpha;
     if (Math.abs(targetY - eyeY) > dz_wu) eyeY += (targetY - eyeY) * alpha;
-    eyeZ += (targetZ - eyeZ) * alpha * 0.4;   // Z тормозит сильнее
-
-    // Отладочная информация
-    const camX_cm = (eyeX / S).toFixed(1);
-    const camY_cm = (eyeY / S).toFixed(1);
-    const camZ_cm = (eyeZ / S).toFixed(1);
-    debugInfo.innerHTML =
-        `Eye XYZ: ${camX_cm} | ${camY_cm} | ${camZ_cm} см<br>` +
-        (calibrated
-            ? `✓ Калибровано (ref ${EYE_DIST_CM} см)`
-            : `⚠ Нажмите «Калибровка»`);
-
-    statusSpan.innerHTML = calibrated ? '🎯 Off-axis активна' : '🔄 Нужна калибровка';
+    eyeZ += (targetZ - eyeZ) * alpha * 0.4;
+    
+    document.getElementById('debug-info').innerHTML = `Eye XYZ: ${(eyeX/S).toFixed(1)} | ${(eyeY/S).toFixed(1)} | ${(eyeZ/S).toFixed(1)} cm<br>${calibrated ? '✓ Calibrated' : '⚠ Need calibration'}`;
+    document.getElementById('face-status').innerHTML = calibrated ? '🎯 Off-axis active' : '🔄 Need calibration';
 }
 
-// ═══════════════════════════════════════════════════════
-// КАЛИБРОВКА
-// ═══════════════════════════════════════════════════════
+// Calibration
 function calibrate() {
     if (!currentFaceNorm) return;
-    calibCX    = currentFaceNorm.x + currentFaceNorm.w / 2;
-    calibCY    = currentFaceNorm.y + currentFaceNorm.h / 2;
-    calibW     = currentFaceNorm.w;
+    calibCX = currentFaceNorm.x + currentFaceNorm.w / 2;
+    calibCY = currentFaceNorm.y + currentFaceNorm.h / 2;
+    calibW = currentFaceNorm.w;
     eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
     calibrated = true;
-    statusSpan.innerHTML = '✅ Калибровано!';
-    setTimeout(() => { statusSpan.innerHTML = '🎯 Off-axis активна'; }, 1400);
+    const statusSpan = document.getElementById('face-status');
+    statusSpan.innerHTML = '✅ Calibrated!';
+    setTimeout(() => { statusSpan.innerHTML = '🎯 Off-axis active'; }, 1400);
 }
-
 function resetCalib() {
     calibCX = 0.5; calibCY = 0.5; calibW = 0.25;
     eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
     calibrated = false;
-    statusSpan.innerHTML = '↺ Сброшено';
+    document.getElementById('face-status').innerHTML = '↺ Reset';
+}
+
+// Animation logic
+function updateAnimation() {
+    if (!animationEnabled) {
+        teapot.rotation.y = 0;
+        if (earLeftRef) earLeftRef.rotation.z = earBaseRotLeftZ;
+        if (earRightRef) earRightRef.rotation.z = earBaseRotRightZ;
+        return;
+    }
+    teapot.rotation.y += 0.012;
+    const wiggle = Math.sin(Date.now() * 0.008) * 0.18;
+    if (earLeftRef) earLeftRef.rotation.z = earBaseRotLeftZ + wiggle;
+    if (earRightRef) earRightRef.rotation.z = earBaseRotRightZ - wiggle * 0.8;
 }
 
 // ═══════════════════════════════════════════════════════
-// АНИМАЦИЯ
+// CONFIG MANAGEMENT (localStorage + JSON)
 // ═══════════════════════════════════════════════════════
-function animate() {
-    requestAnimationFrame(animate);
-
-    // Сцена неподвижна
-
-    updateEyeFromFace();
-    computeOffAxisProjection();
-    renderer.render(scene, cam3d);
+function getCurrentConfig() {
+    return {
+        screenW: SCREEN_W_CM, screenH: SCREEN_H_CM, eyeDist: EYE_DIST_CM,
+        smooth: SMOOTH_N, deadzone: DEADZONE_CM, xySens: XY_SENS,
+        animation: animationEnabled, lightBg: lightBackground
+    };
 }
-animate();
 
-// ═══════════════════════════════════════════════════════
-// MEDIAPIPE FACE DETECTION
-// ═══════════════════════════════════════════════════════
-function onResults(results) {
-    if (!videoReady) return;
-    ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+function applyConfig(cfg) {
+    if (cfg.screenW !== undefined) SCREEN_W_CM = cfg.screenW;
+    if (cfg.screenH !== undefined) SCREEN_H_CM = cfg.screenH;
+    if (cfg.eyeDist !== undefined) EYE_DIST_CM = cfg.eyeDist;
+    if (cfg.smooth !== undefined) SMOOTH_N = cfg.smooth;
+    if (cfg.deadzone !== undefined) DEADZONE_CM = cfg.deadzone;
+    if (cfg.xySens !== undefined) XY_SENS = cfg.xySens;
+    if (cfg.animation !== undefined) animationEnabled = cfg.animation;
+    if (cfg.lightBg !== undefined) lightBackground = cfg.lightBg;
+    
+    // sync UI
+    document.getElementById('range-sw').value = SCREEN_W_CM;
+    document.getElementById('val-sw').innerText = SCREEN_W_CM;
+    document.getElementById('range-sh').value = SCREEN_H_CM;
+    document.getElementById('val-sh').innerText = SCREEN_H_CM;
+    document.getElementById('range-ed').value = EYE_DIST_CM;
+    document.getElementById('val-ed').innerText = EYE_DIST_CM;
+    document.getElementById('range-sm').value = SMOOTH_N;
+    document.getElementById('val-sm').innerText = SMOOTH_N;
+    document.getElementById('range-dz').value = DEADZONE_CM;
+    document.getElementById('val-dz').innerText = DEADZONE_CM.toFixed(1);
+    document.getElementById('range-xs').value = XY_SENS;
+    document.getElementById('val-xs').innerText = XY_SENS.toFixed(1);
+    document.getElementById('anim-checkbox').checked = animationEnabled;
+    document.getElementById('bg-checkbox').checked = lightBackground;
+    
+    makeWindowFrame();
+    updateBackground();
+    saveToLocalStorage();
+}
 
-    if (results.detections && results.detections.length > 0) {
-        const bbox = results.detections[0].boundingBox;
-        currentFaceNorm = {
-            x: bbox.xCenter - bbox.width  / 2,
-            y: bbox.yCenter - bbox.height / 2,
-            w: bbox.width,
-            h: bbox.height
-        };
-        ctx.strokeStyle = '#44ff88'; ctx.lineWidth = 2;
-        ctx.strokeRect(
-            currentFaceNorm.x * debugCanvas.width,
-            currentFaceNorm.y * debugCanvas.height,
-            bbox.width  * debugCanvas.width,
-            bbox.height * debugCanvas.height
-        );
-    } else {
-        currentFaceNorm = null;
+function saveToLocalStorage() {
+    localStorage.setItem('offaxis_config', JSON.stringify(getCurrentConfig()));
+}
+
+function loadFromLocalStorage() {
+    const raw = localStorage.getItem('offaxis_config');
+    if (raw) {
+        try { applyConfig(JSON.parse(raw)); } catch(e) {}
     }
 }
 
-async function init() {
-    statusSpan.innerHTML = 'Запуск камеры...';
-    try {
-        faceDetection = new FaceDetection({
-            locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}`
-        });
-        faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
-        faceDetection.onResults(onResults);
-
-        camera_mp = new Camera(video, {
-            onFrame: async () => { await faceDetection.send({ image: video }); },
-            width: 640, height: 480
-        });
-        await camera_mp.start();
-        await new Promise(r => setTimeout(r, 500));
-
-        debugCanvas.width  = video.videoWidth;
-        debugCanvas.height = video.videoHeight;
-        videoReady = true;
-        statusSpan.innerHTML = '✅ Ищем лицо...';
-        calibBtn.disabled = false;
-
-        window.addEventListener('resize', () => {
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            // Аспект игнорируется — у нас своя матрица,
-            // но на случай fallback до первого кадра с лицом:
-            cam3d.aspect = window.innerWidth / window.innerHeight;
-        });
-
-        calibBtn.addEventListener('click', calibrate);
-        document.getElementById('reset-calib').addEventListener('click', resetCalib);
-
-    } catch (err) {
-        statusSpan.innerHTML = '❌ ' + err.message;
-    }
+function exportToJsonFile() {
+    const data = getCurrentConfig();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = `offaxis_config_${new Date().toISOString().slice(0,19)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
-init();
 
-// ═══════════════════════════════════════════════════════
-// НАСТРОЙКИ (MODAL)
-// ═══════════════════════════════════════════════════════
-const modal        = document.getElementById('settings-modal');
-const settingsBtn  = document.getElementById('settings-btn');
-const closeBtn     = document.getElementById('close-settings');
-settingsBtn.addEventListener('click', () => modal.classList.add('active'));
-closeBtn.addEventListener('click', ()    => modal.classList.remove('active'));
+function importFromJsonFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try { applyConfig(JSON.parse(e.target.result)); } catch (err) { alert('Invalid JSON file'); }
+    };
+    reader.readAsText(file);
+}
 
-function bindRange(id, valId, setter, decimals = 0) {
-    const el  = document.getElementById(id);
-    const val = document.getElementById(valId);
-    el.addEventListener('input', () => {
-        const v = parseFloat(el.value);
-        val.textContent = decimals ? v.toFixed(decimals) : v;
-        setter(v);
+function resetToDefaults() {
+    applyConfig({
+        screenW: 34, screenH: 21, eyeDist: 60, smooth: 8,
+        deadzone: 0.3, xySens: 1.0, animation: false, lightBg: false
     });
 }
 
-bindRange('range-sw', 'val-sw', v => { SCREEN_W_CM = v; makeWindowFrame(); });
-bindRange('range-sh', 'val-sh', v => { SCREEN_H_CM = v; makeWindowFrame(); });
-bindRange('range-ed', 'val-ed', v => { EYE_DIST_CM = v; });
-bindRange('range-sm', 'val-sm', v => { SMOOTH_N    = v; });
-bindRange('range-dz', 'val-dz', v => { DEADZONE_CM = v; }, 1);
-bindRange('range-xs', 'val-xs', v => { XY_SENS     = v; }, 1);
+// ═══════════════════════════════════════════════════════
+// MEDIAPIPE SETUP
+// ═══════════════════════════════════════════════════════
+const video = document.getElementById('video');
+const debugCanvas = document.getElementById('debug-canvas');
+const ctx = debugCanvas.getContext('2d');
+
+function onResults(results) {
+    if (!videoReady) return;
+    ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+    if (results.detections && results.detections.length > 0) {
+        const bbox = results.detections[0].boundingBox;
+        currentFaceNorm = { x: bbox.xCenter - bbox.width/2, y: bbox.yCenter - bbox.height/2, w: bbox.width, h: bbox.height };
+        ctx.strokeStyle = '#44ff88'; ctx.lineWidth = 2;
+        ctx.strokeRect(currentFaceNorm.x * debugCanvas.width, currentFaceNorm.y * debugCanvas.height, bbox.width * debugCanvas.width, bbox.height * debugCanvas.height);
+    } else { currentFaceNorm = null; }
+}
+
+async function initMediapipe() {
+    const statusSpan = document.getElementById('face-status');
+    statusSpan.innerHTML = 'Starting camera...';
+    try {
+        faceDetection = new FaceDetection({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}` });
+        faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
+        faceDetection.onResults(onResults);
+        camera_mp = new Camera(video, { onFrame: async () => { await faceDetection.send({ image: video }); }, width: 640, height: 480 });
+        await camera_mp.start();
+        await new Promise(r => setTimeout(r, 500));
+        debugCanvas.width = video.videoWidth; debugCanvas.height = video.videoHeight;
+        videoReady = true;
+        statusSpan.innerHTML = '✅ Looking for face...';
+        document.getElementById('calibrate-btn').disabled = false;
+        window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
+        document.getElementById('calibrate-btn').addEventListener('click', calibrate);
+        document.getElementById('reset-calib').addEventListener('click', resetCalib);
+    } catch(err) { statusSpan.innerHTML = '❌ ' + err.message; }
+}
+
+// UI bindings
+function bindSettingsUI() {
+    const bind = (id, valId, setter) => {
+        const el = document.getElementById(id), span = document.getElementById(valId);
+        el.addEventListener('input', () => {
+            const v = parseFloat(el.value);
+            span.innerText = (id.includes('dz')||id.includes('xs')) ? v.toFixed(1) : (id.includes('ed')?v:v);
+            setter(v);
+            saveToLocalStorage();
+        });
+    };
+    bind('range-sw', 'val-sw', v => { SCREEN_W_CM = v; makeWindowFrame(); });
+    bind('range-sh', 'val-sh', v => { SCREEN_H_CM = v; makeWindowFrame(); });
+    bind('range-ed', 'val-ed', v => { EYE_DIST_CM = v; });
+    bind('range-sm', 'val-sm', v => { SMOOTH_N = v; });
+    bind('range-dz', 'val-dz', v => { DEADZONE_CM = v; });
+    bind('range-xs', 'val-xs', v => { XY_SENS = v; });
+    
+    const animCh = document.getElementById('anim-checkbox');
+    const bgCh = document.getElementById('bg-checkbox');
+    animCh.addEventListener('change', e => { animationEnabled = e.target.checked; saveToLocalStorage(); });
+    bgCh.addEventListener('change', e => { lightBackground = e.target.checked; updateBackground(); saveToLocalStorage(); });
+    
+    document.getElementById('save-config-btn').addEventListener('click', () => exportToJsonFile());
+    document.getElementById('load-config-btn').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.json';
+        input.onchange = e => { if(e.target.files[0]) importFromJsonFile(e.target.files[0]); };
+        input.click();
+    });
+    document.getElementById('reset-defaults-btn').addEventListener('click', () => resetToDefaults());
+}
+
+// Animation loop
+function animate() {
+    requestAnimationFrame(animate);
+    updateEyeFromFace();
+    updateAnimation();
+    computeOffAxisProjection();
+    renderer.render(scene, cam3d);
+}
+
+// Start everything
+initMediapipe();
+loadFromLocalStorage();
+bindSettingsUI();
+updateBackground(); // initial theme
+animate();
+
+// Modal controls
+const modal = document.getElementById('settings-modal');
+document.getElementById('settings-btn').addEventListener('click', () => modal.classList.add('active'));
+document.getElementById('close-settings').addEventListener('click', () => modal.classList.remove('active'));
 </script>
 </body>
 </html>
