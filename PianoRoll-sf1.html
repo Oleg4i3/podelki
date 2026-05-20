@@ -462,6 +462,30 @@ const canvas = document.getElementById('cv'), ctx = canvas.getContext('2d', { al
 let wfH = 0, wfBuf = null, CANVAS_W = N_KEYS * COL_W;
 let COL_W_DYN = COL_W;   // dynamic column width (pixels per semitone for current range)
 let EQ_H = 100;
+// Per-key pixel bounds for the waterfall — matches drawKeyboard geometry exactly.
+// Indexed by ki = k - rMin. Built once per resizeCanvas(), shared by addRow().
+let keyXBounds = null; // [{x0, x1}]
+
+function buildKeyXBounds() {
+    const rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
+    const rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
+    const NUM_WHITE = countWhite(rMin, rMax);
+    const WKW = CANVAS_W / Math.max(1, NUM_WHITE);
+    const BKW = Math.max(2, WKW * 0.58);
+    const bounds = [];
+    let wi = 0;
+    for (let k = rMin; k <= rMax; k++) {
+        if (!isBlack(k)) {
+            bounds.push({ x0: Math.round(wi * WKW), x1: Math.round((wi + 1) * WKW) });
+            wi++;
+        } else {
+            const cx = wi * WKW;
+            bounds.push({ x0: Math.round(cx - BKW / 2), x1: Math.round(cx + BKW / 2) });
+        }
+    }
+    keyXBounds = bounds;
+    return bounds;
+}
 
 // Count white keys in [a, b] (inclusive semitone indices)
 function countWhite(a, b) {
@@ -486,18 +510,23 @@ function resizeCanvas() {
     const usedForEQ = showEQCurve ? EQ_H : 0;
     wfH = Math.max(20, h - KB_H - usedForEQ);
     wfBuf = new ImageData(CANVAS_W, wfH);
-    // fill waterfall background
+    // Build per-key pixel bounds using the same geometry as drawKeyboard,
+    // so waterfall strips are perfectly aligned with keyboard keys.
+    const bounds = buildKeyXBounds();
+    // fill waterfall background — two passes matching drawKeyboard order:
+    // pass 1: white key columns (background grey), pass 2: black key columns on top
     const d = wfBuf.data;
-    const cw = Math.round(COL_W_DYN);
-    for (let y = 0; y < wfH; y++) {
-        for (let ki = 0; ki < numKeys; ki++) {
-            const k = rMin + ki;
-            const c = isBlack(k) ? 0 : 25;
-            const x0 = Math.round(ki * COL_W_DYN);
-            const x1 = Math.round((ki + 1) * COL_W_DYN);
+    // Initialise all pixels to white-key colour first
+    for (let i = 0; i < d.length; i += 4) { d[i] = 25; d[i+1] = 25; d[i+2] = 25; d[i+3] = 255; }
+    // Overwrite black-key columns
+    for (let ki = 0; ki < numKeys; ki++) {
+        const k = rMin + ki;
+        if (!isBlack(k)) continue;
+        const { x0, x1 } = bounds[ki];
+        for (let y = 0; y < wfH; y++) {
             for (let px = x0; px < x1 && px < CANVAS_W; px++) {
                 const i = (y * CANVAS_W + px) * 4;
-                d[i] = c; d[i+1] = c; d[i+2] = c; d[i+3] = 255;
+                d[i] = 0; d[i+1] = 0; d[i+2] = 0; // d[i+3] already 255
             }
         }
     }
@@ -567,10 +596,31 @@ let eqCalcCtx = null; // minimal OfflineAudioContext for getFrequencyResponse wi
 
 function drawEQCurve() {
     if (!showEQCurve) return;
-    if (eqBands.length === 0) return;
 
     const top = wfH;
     const h = EQ_H;
+
+    // Always draw background and grid — even with no EQ bands
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = top + h / 2 - (db / 12) * (h * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+    }
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
+    const y0 = top + h / 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
+
+    if (eqBands.length === 0) return;  // no curve to draw, but background is already painted
+
     const freqs = new Float32Array(N_KEYS);
     for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
 
@@ -597,25 +647,6 @@ function drawEQCurve() {
         for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
     });
 
-    // draw background
-    ctx.fillStyle = '#1e1e2f';
-    ctx.fillRect(0, top, CANVAS_W, h);
-    // grid
-    ctx.strokeStyle = '#3a3a4a';
-    ctx.lineWidth = 0.5;
-    for (let db = -12; db <= 12; db += 3) {
-        const y = top + h / 2 - (db / 12) * (h * 0.8);
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(CANVAS_W, y);
-        ctx.stroke();
-    }
-    // 0 dB line thicker
-    ctx.strokeStyle = '#5a5a6a';
-    ctx.lineWidth = 1;
-    const y0 = top + h / 2;
-    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
-
     // frequency labels (on bottom of EQ area)
     ctx.fillStyle = '#aaa';
     ctx.font = '8px sans-serif';
@@ -629,15 +660,21 @@ function drawEQCurve() {
         }
     } }
 
-    // draw curve
+    // draw curve — x positions use keyboard bounds (same as waterfall)
+    const _bounds = keyXBounds || buildKeyXBounds();
+    const _rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
+    const _rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
     ctx.beginPath();
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 2;
     let first = true;
     for (let k = 0; k < N_KEYS; k++) {
+        const ki = k - _rMin;
+        if (ki < 0 || ki >= _bounds.length) continue;
         const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
         const y = y0 - (db / 12) * (h * 0.8);
-        const x = k * COL_W + COL_W / 2;
+        const b2 = _bounds[ki];
+        const x = (b2.x0 + b2.x1) / 2;
         if (first) { ctx.moveTo(x, y); first = false; }
         else ctx.lineTo(x, y);
     }
@@ -646,23 +683,25 @@ function drawEQCurve() {
 
 // ─── Waterfall Row ───────────────────────────────────────────────
 function addRow(sv, pm, beatLineType) {
+    const rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
+    const rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
+    const numKeys = rMax - rMin + 1;
+    const bounds = keyXBounds || buildKeyXBounds();
     const d = wfBuf.data;
     const rowB = CANVAS_W * 4;
     const base = (wfH - 1) * rowB;
     d.copyWithin(0, rowB); // scroll up
 
-    for (let k = 0; k < N_KEYS; k++) {
+    // Helper: compute colour for key ki
+    function keyColor(ki) {
+        const k = rMin + ki;
         const isBlk = isBlack(k);
         let r = isBlk ? 0 : 25;
         let g = isBlk ? 0 : 25;
         let b = isBlk ? 0 : 25;
-
-        // metronome line brightness
         if (beatLineType === 1) { r += 60; g += 60; b += 60; }
         else if (beatLineType === 2) { r += 30; g += 30; b += 30; }
-
         if (pm[k]) {
-            // MIDI mode: brightness proportional to velocity
             const isMidiActive = (midiEnabled || midiPlaybackActive) && midiActiveNotes.has(k);
             const displayVal = isMidiActive
                 ? (midiNoteVelocity[k] / 127) * 0.85 + 0.10
@@ -673,9 +712,27 @@ function addRow(sv, pm, beatLineType) {
             g = Math.max(g, lut[v * 3 + 1]);
             b = Math.max(b, lut[v * 3 + 2]);
         }
-        for (let px = 0; px < COL_W; px++) {
-            const i = base + (k * COL_W + px) * 4;
-            d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        return [r, g, b];
+    }
+
+    // Pass 1 — white keys (drawn first so black keys render on top, matching keyboard)
+    for (let ki = 0; ki < numKeys; ki++) {
+        if (isBlack(rMin + ki)) continue;
+        const [r, g, b] = keyColor(ki);
+        const { x0, x1 } = bounds[ki];
+        for (let px = x0; px < x1 && px < CANVAS_W; px++) {
+            const i = base + px * 4;
+            d[i] = r; d[i+1] = g; d[i+2] = b;
+        }
+    }
+    // Pass 2 — black keys on top (covers edges of adjacent white keys, matching keyboard)
+    for (let ki = 0; ki < numKeys; ki++) {
+        if (!isBlack(rMin + ki)) continue;
+        const [r, g, b] = keyColor(ki);
+        const { x0, x1 } = bounds[ki];
+        for (let px = x0; px < x1 && px < CANVAS_W; px++) {
+            const i = base + px * 4;
+            d[i] = r; d[i+1] = g; d[i+2] = b;
         }
     }
 }
@@ -723,13 +780,7 @@ function frame(ts) {
     requestAnimationFrame(frame);
 
     // ── Smooth audio energy ──
-    // Asymmetric envelope: fast attack, slow decay (~280ms half-life at 60fps)
-    for (let k = 0; k < N_KEYS; k++) {
-        const t = targetVals[k];
-        semVals[k] = t > semVals[k]
-            ? semVals[k] * 0.4 + t * 0.6    // attack ~2 frames
-            : semVals[k] * 0.96 + t * 0.04; // decay  ~17 frames ≈ 280ms
-    }
+    for (let k = 0; k < N_KEYS; k++) semVals[k] = semVals[k] * 0.7 + targetVals[k] * 0.3;
 
     // ── Calibration accumulation ──
     if (calibOpen && calibRecording) {
@@ -806,9 +857,7 @@ function frame(ts) {
             if (noteState[k] && useVals[k] < closeThresh) noteState[k] = 0;
         }
         for (const k of confirmed) noteState[k] = 1;
-        for (let k = 0; k < N_KEYS; k++) {
-            if (noteState[k] || semVals[k] > 0.005) peakMask[k] = 1;
-        }
+        for (let k = 0; k < N_KEYS; k++) if (noteState[k]) peakMask[k] = 1;
     }
 
     if (ts - lastRowTs >= rowMs) {
@@ -1334,7 +1383,7 @@ function parseSF2(ab) {
     // Parse a generator block into a plain object {kl,kh,...,atk,dec,sus,rel}
     function readGens(gs, ge) {
         const r = {kl:0,kh:127,vl:0,vh:127,sid:-1,rk:-1,ct:0,ft:0,sc:100,
-                   atk:null,dec:null,sus:null,rel:null};
+                   atk:null,dec:null,sus:null,rel:null,sm:0};
         for (let g=gs; g<ge; g++) {
             const op=iOp[g], am=iAm[g];
             const sam = (am>32767) ? am-65536 : am;
@@ -1343,6 +1392,7 @@ function parseSF2(ab) {
             if(op===51){r.ct=am&0xFF; if(r.ct>127)r.ct-=256;}
             if(op===52){r.ft=am&0xFF; if(r.ft>127)r.ft-=256;}
             if(op===53) r.sid=am;
+            if(op===54) r.sm=am&0x03; // sampleModes: 0=no loop, 1=loop, 3=loop+tail
             if(op===56) r.sc=am&0xFFFF;
             if(op===58){const rr=am&0xFF; if(rr<=127)r.rk=rr;}
             if(op===33) r.atk=sam;   // attackVolEnv  (timecents)
@@ -1388,7 +1438,7 @@ function parseSF2(ab) {
                 zones.push({kl:z.kl,kh:z.kh,vl:z.vl,vh:z.vh,sid:z.sid,
                     rk:z.rk>=0?z.rk:sh.pitch, ct, ft:ft+sf, sc,
                     lS:sh.dSl-sh.dS, lE:sh.dEl-sh.dS,
-                    hasLoop:sh.dEl>sh.dSl&&sh.dSl>=sh.dS,
+                    sm: z.sm,  // sampleModes from SF2 gen op 54 (0=no loop,1=loop,3=loop+tail)
                     atk, dec, sus, rel});
             }
         }
@@ -1490,52 +1540,50 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     const cents = isPerc
         ? zone.ct*100 + zone.ft
         : (note-zone.rk)*zone.sc + zone.ct*100 + zone.ft;
-    const rate = Math.pow(2, cents/1200);
-    const src  = ctx.createBufferSource();
-    src.buffer = ab; src.playbackRate.value = rate;
+    const rate=Math.pow(2,cents/1200);
+    const src=ctx.createBufferSource();
+    src.buffer=ab; src.playbackRate.value=rate;
 
-    // SF2 timecents → seconds
+    // SF2 envelope timecents to seconds (null = not specified by SF2 → use musical defaults)
     const tc2s = tc => Math.pow(2, Math.max(-12000, Math.min(8000, tc)) / 1200);
+    const atkT = zone.atk !== null ? tc2s(zone.atk) : 0.002;     // instant attack
+    const decT = zone.dec !== null ? tc2s(zone.dec) : 0.0;        // no explicit decay
+    const susL = zone.sus !== null ? Math.pow(10, -Math.min(zone.sus, 1440) / 200) : 1.0;
+    // Release: if SF2 specifies it use that, else 0.35 s (natural-sounding default)
+    // Three release modes (computed after naturalDecay/willLoop/letRing below)
+    // Placeholder — real relT set after letRing is determined.
 
-    // Raw SF2 envelope parameters (null = not set in SF2)
-    const atkT = zone.atk !== null ? tc2s(zone.atk)    : 0.002;
-    const decT = zone.dec !== null ? tc2s(zone.dec)    : 0.0;
-    const susL = zone.sus !== null
-        ? Math.pow(10, -Math.min(zone.sus, 1440) / 200)  // cB attenuation → linear
-        : 1.0;
-    const relT = zone.rel !== null ? Math.max(0.025, tc2s(zone.rel)) : 0.3;
+    // ── Instrument type classification (must precede relT) ──────────────
+    // sampleModes (SF2 gen op 54): 0=no loop, 1=loop continuously, 3=loop+play tail on noteoff
+    // naturalDecay: sus > 1000 cB (≈50 dB att.) = piano, vibraphone, marimba, harp …
+    // Looping, !naturalDecay: organ, strings, brass — loop while key held.
+    const sampleModes = zone.sm ?? 0;
+    const naturalDecay = (zone.sus !== null && zone.sus > 1000);
+    let willLoop = (sampleModes & 1) !== 0 && zone.lE > zone.lS && zone.lE <= ab.length;
 
-    // ── Instrument mode classification ──────────────────────────
-    //
-    // MODE A — "sample-decay" (piano, vibraphone, marimba, harp, bells…)
-    //   sus > 500 cB means SF2 says sustain level is nearly silent.
-    //   The sample ITSELF contains the full natural decay curve.
-    //   Behaviour: play sample without looping; gain stays at sg throughout.
-    //   Key released early (staccato): stopAt() applies relT fade-out.
-    //   Key held longer than sample: sound simply ends naturally.
-    //   → Piano and vibraphone behave DIFFERENTLY because their SF2 samples
-    //     have different durations — piano loops are typically cut shorter
-    //     or the sample itself is shorter at high notes (hence pitch-dependent
-    //     cutoff in other implementations). Both are handled identically here.
-    //
-    // MODE B — "looping sustain" (organ, strings, brass, pad…)
-    //   sus ≤ 500 cB: sustain level is significant.
-    //   Loop the sample, hold gain at sus level while key is down.
-    //   Key released → relT release ramp.
-    //
-    // The key insight: NEVER apply an artificial gain decay curve on top of
-    // a sample that already has its own decay baked in (Mode A).
-    // That's what was causing the premature cutoff before.
+    // Percussive heuristic: very short samples wrongly marked as looping
+    const naturalDurSec = ab.duration / Math.max(0.01, rate);
+    const percussive = naturalDurSec < 2.0 && susL > 0.97 && decT < 0.05;
 
-    const sampleDecay = (zone.sus !== null && zone.sus > 500);
-    let willLoop = zone.hasLoop && zone.lE > zone.lS && zone.lE <= ab.length;
+    if (willLoop && (naturalDecay || percussive)) willLoop = false;
 
-    // Short samples wrongly flagged as looping (some SF2 editors do this)
-    const natDur = ab.duration / Math.max(0.01, rate);
-    if (willLoop && natDur < 0.5) willLoop = false;
-
-    // Mode A: disable loop so sample plays to natural end
-    if (willLoop && sampleDecay) willLoop = false;
+    // ── Release time & letRing mode ───────────────────────────────────
+    // letRing (vibraphone, bell, marimba…): SF2 has no release AND sample ≥2 s.
+    //   Key-off is a no-op — sample plays to natural end.
+    // piano/damper: SF2 specifies release OR short sample.
+    //   Key-off = exponential fade (min 0.3 s so even a −12000-tc SF2 value
+    //   like −7967 tc → 10 ms becomes a musical damper fade, not a click).
+    // looping (organ, strings…): standard SF2 release, min 0.05 s.
+    const letRing = !willLoop && naturalDecay && zone.rel === null && naturalDurSec >= 2.0;
+    let relT;
+    if (letRing) {
+        relT = naturalDurSec + 2.0;
+    } else if (!willLoop && naturalDecay) {
+        const sf2Rel = zone.rel !== null ? tc2s(zone.rel) : 0.4;
+        relT = Math.max(0.3, sf2Rel);
+    } else {
+        relT = zone.rel !== null ? Math.max(0.05, tc2s(zone.rel)) : 0.35;
+    }
 
     if (willLoop) {
         src.loop = true;
@@ -1543,55 +1591,93 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
         src.loopEnd   = zone.lE / ab.sampleRate;
     }
 
-    const gn     = ctx.createGain();
-    const sg     = Math.max(0.001, Math.min(2, gain));
+    const gn  = ctx.createGain();
+    const sg  = Math.max(0.001, Math.min(2, gain));
     const susGain = Math.max(0.0001, sg * susL);
 
-    // ── Attack ───────────────────────────────────────────────────
+    // Attack
     if (atkT > 0.008) {
         gn.gain.setValueAtTime(0.0001, t0);
         gn.gain.linearRampToValueAtTime(sg, t0 + atkT);
     } else {
         gn.gain.setValueAtTime(sg, t0);
     }
-
-    // ── Decay→Sustain: only for Mode B (looping sustain instruments) ──
-    if (!sampleDecay && willLoop && decT > 0.008 && susL < 0.98) {
+    // Decay to sustain: only for looping/sustaining instruments
+    if (willLoop && !naturalDecay && decT > 0.008 && susL < 0.97) {
         gn.gain.setTargetAtTime(susGain, t0 + atkT, Math.max(0.005, decT / 5));
     }
 
     src.connect(gn);
     gn.connect(dest || ctx.destination);
     src.start(t0);
+    // Non-looping samples stop themselves; we must NOT call stop() here
+    // so that stopAt() can call it once on early key-off.
 
     let stopped = false;
-    // For Mode A: src stops naturally at end of sample — do NOT pre-schedule stop().
-    // stopAt() will stop it early (staccato) with a relT fade.
-    // For Mode B: stopAt() must be called on note-off to stop the loop.
 
     return {
-        src, gn, sg, relT, sampleDecay,
+        src, gn, sg, relT, letRing,
+
+        // Quick anti-click stop — used when the same key is pressed again (note-on replace).
+        // Always interrupts regardless of letRing: pressing the same note restarts the sound.
         stop() {
-            if (stopped) return; stopped = true;
-            try { gn.gain.cancelScheduledValues(ctx.currentTime); src.stop(0); } catch(e) {}
-        },
-        stopAt(t) {
             if (stopped) return; stopped = true;
             try {
                 const now = ctx.currentTime;
-                const rt  = Math.max(now, t);
+                if (gn.gain.cancelAndHoldAtTime) {
+                    gn.gain.cancelAndHoldAtTime(now);
+                } else {
+                    gn.gain.cancelScheduledValues(now);
+                    gn.gain.setValueAtTime(sg, now);
+                }
+                gn.gain.linearRampToValueAtTime(0.0001, now + 0.012);
+                src.stop(now + 0.015);
+            } catch(e) {}
+        },
+
+        // Key-off release — called by note-off events.
+        // letRing instruments (vibraphone, bells…): no-op, sample decays naturally.
+        // piano/damper: exponential fade over relT (min 0.3 s).
+        // looping (organ, strings…): exponential fade over relT.
+        stopAt(t) {
+            if (stopped) return; stopped = true;
+            // letRing: key-off does not interrupt; sample plays to natural end.
+            if (letRing) return;
+            try {
+                const rt = Math.max(ctx.currentTime + 0.001, t);
+                // sampleModes=3: loop until noteoff, then play sample tail.
+                // Disable looping so the AudioBufferSource plays through to buffer end.
+                if (sampleModes === 3 && willLoop) src.loop = false;
+                // Freeze gain at its current in-progress value
                 if (gn.gain.cancelAndHoldAtTime) {
                     gn.gain.cancelAndHoldAtTime(rt);
                 } else {
+                    // cancelAndHoldAtTime not available (some browsers) — compute manually.
+                    // For naturalDecay instruments (piano, vibraphone): no gain envelope was
+                    // scheduled after attack, so the gain is still at sg.
+                    // For sustaining looping instruments: gain has decayed toward susGain.
                     const elapsed = rt - t0;
-                    const cur = elapsed < atkT
-                        ? sg * (elapsed / Math.max(0.001, atkT))
-                        : sampleDecay ? sg : susGain;
+                    let approx;
+                    if (elapsed < atkT) {
+                        approx = sg * (elapsed / Math.max(0.001, atkT));
+                    } else if (willLoop && !naturalDecay && decT > 0.008 && susL < 0.97) {
+                        // Organ/synth with scheduled decay: estimate current gain
+                        const tauDec = Math.max(0.005, decT / 5);
+                        approx = susGain + (sg - susGain) * Math.exp(-(elapsed - atkT) / tauDec);
+                    } else {
+                        // naturalDecay (piano, vibraphone) or no decay: gain is still at sg
+                        approx = sg;
+                    }
                     gn.gain.cancelScheduledValues(rt);
-                    gn.gain.setValueAtTime(Math.max(0.0001, cur), rt);
+                    gn.gain.setValueAtTime(Math.max(0.0001, approx), rt);
                 }
-                gn.gain.linearRampToValueAtTime(0.0001, rt + relT);
-                src.stop(rt + relT + 0.04);
+                // Exponential decay (setTargetAtTime) sounds far more musical than linear.
+                // tau = relT/5 means gain reaches ~1% after 5*tau = relT  (natural "e^-5").
+                const tau = Math.max(0.012, relT / 5);
+                gn.gain.setTargetAtTime(0.0001, rt, tau);
+                // Looping instruments must be explicitly stopped; non-looping buffers
+                // stop themselves, but we still schedule a generous timeout to free resources.
+                src.stop(rt + relT * 2.5 + 0.1);
             } catch(e) {}
         }
     };
@@ -1613,7 +1699,7 @@ function handleSF2NoteOn(channel, note, velocity) {
     if (!sf2) return;
     const ctx = getSF2AC();
     const key = channel * 128 + note;
-    if (activeNoteNodes.has(key)) { activeNoteNodes.get(key).stopAt(ctx.currentTime); activeNoteNodes.delete(key); }
+    if (activeNoteNodes.has(key)) { activeNoteNodes.get(key).stop(); activeNoteNodes.delete(key); }
     const prog = channelPrograms[channel];
     const isPerc = (channel === 9);
     // Route to master gain so volume slider and recording destination both work
@@ -2188,34 +2274,39 @@ function buildKbMap() {
     if (_kbMap) return _kbMap;
     const rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
     const rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
-    const CW  = COL_W_DYN;            // pixels per semitone — same as roll & drawKeyboard
-    const BKW = CW * 0.65;
-    const BKX = (CW - BKW) / 2;
-    const whites = [], blacks = [];
-    for (let k = rMin; k <= rMax; k++) {
-        const ki = k - rMin;
-        if (!isBlack(k)) whites.push({ k, x: ki * CW, w: CW });
-        else              blacks.push({ k, x: ki * CW + BKX, w: BKW });
+    const NUM_WHITE = countWhite(rMin, rMax);
+    const WKW = CANVAS_W / Math.max(1, NUM_WHITE);
+    const BKW = WKW * 0.58;
+    // whites[wi] = semitone k
+    const whites = [];
+    let wi = 0;
+    for (let k = 0; k < N_KEYS; k++) if (!isBlack(k)) whites[wi++] = k;
+    // blacks[i] = {k, x, w}  where x is left edge, w=BKW
+    // Black key is centred at wi*WKW (wi = number of white keys to its right)
+    const blacks = [];
+    wi = 0;
+    for (let k = 0; k < N_KEYS; k++) {
+        if (!isBlack(k)) { wi++; continue; }
+        blacks.push({ k, x: wi * WKW - BKW / 2, w: BKW });
     }
-    return (_kbMap = { whites, blacks, CW, rMin });
+    return (_kbMap = { whites, WKW, BKW, blacks });
 }
 
 function keyAtPoint(canvasX, canvasY) {
     const kbTop = wfH + (showEQCurve ? EQ_H : 0);
     if (canvasY < kbTop || canvasY > kbTop + KB_H) return -1;
     const relY = canvasY - kbTop;
-    const { whites, blacks, CW, rMin } = buildKbMap();
+    const { whites, WKW, BKW, blacks } = buildKbMap();
     const BK_H = Math.round(KB_H * 0.62);
-    // Black keys on top — priority in upper zone
+    // Black keys on top — check first if in upper zone
     if (relY <= BK_H) {
         for (const b of blacks) {
             if (canvasX >= b.x && canvasX < b.x + b.w) return b.k;
         }
     }
-    // White key: direct semitone column lookup
-    const ki = Math.floor(canvasX / CW);
-    const k  = rMin + ki;
-    return (k >= 0 && k < N_KEYS && !isBlack(k)) ? k : -1;
+    // White key: integer white-key index from x
+    const wi = Math.floor(canvasX / WKW);
+    return (wi >= 0 && wi < whites.length) ? whites[wi] : -1;
 }
 
 function canvasXY(e) {
@@ -2260,8 +2351,19 @@ canvas.addEventListener('mousemove', e => {
 
     // Tooltip (only over waterfall area)
     if (!overKb) {
-        const k = Math.floor(cx / COL_W);
-        if (k >= 0 && k < N_KEYS) {
+        const rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
+        const bounds = keyXBounds || buildKeyXBounds();
+        // Black keys sit on top visually, so check them first
+        let k = -1;
+        for (let ki = 0; ki < bounds.length && k < 0; ki++) {
+            if (isBlack(rMin + ki) && cx >= bounds[ki].x0 && cx < bounds[ki].x1) k = rMin + ki;
+        }
+        if (k < 0) {
+            for (let ki = 0; ki < bounds.length && k < 0; ki++) {
+                if (!isBlack(rMin + ki) && cx >= bounds[ki].x0 && cx < bounds[ki].x1) k = rMin + ki;
+            }
+        }
+        if (k >= 0) {
             const midi = MIDI_A0 + k;
             tip.style.cssText = `display:block;left:${e.clientX+14}px;top:${e.clientY-6}px`;
             tip.textContent = `${midi2name(midi)}  ${midi2freq(midi).toFixed(1)} Hz`;
