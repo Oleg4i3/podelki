@@ -658,24 +658,22 @@ function drawEQCurve() {
         }
     } }
 
-    // draw curve — x positions use keyboard bounds (same as waterfall)
-    const _bounds = keyXBounds || buildKeyXBounds();
-    const _rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
-    const _rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
+    // draw curve (x uses same equal-semitone spacing as the frequency-label row above)
     ctx.beginPath();
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 2;
-    let first = true;
+    { const rMin2 = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0,
+               rMax2 = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
+    let first2 = true;
     for (let k = 0; k < N_KEYS; k++) {
-        const ki = k - _rMin;
-        if (ki < 0 || ki >= _bounds.length) continue;
+        const ki = k - rMin2;
+        if (ki < 0 || ki > rMax2 - rMin2) continue;
         const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
         const y = y0 - (db / 12) * (h * 0.8);
-        const b2 = _bounds[ki];
-        const x = (b2.x0 + b2.x1) / 2;
-        if (first) { ctx.moveTo(x, y); first = false; }
+        const x = ki * COL_W_DYN + COL_W_DYN * 0.5;
+        if (first2) { ctx.moveTo(x, y); first2 = false; }
         else ctx.lineTo(x, y);
-    }
+    } }
     ctx.stroke();
 }
 
@@ -1547,37 +1545,44 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     const decT = zone.dec !== null ? tc2s(zone.dec) : 0.0;        // no explicit decay
     const susL = zone.sus !== null ? Math.pow(10, -Math.min(zone.sus, 1440) / 200) : 1.0;
     // Release: if SF2 specifies it use that, else 0.35 s (natural-sounding default)
-    // Three release modes (computed after naturalDecay/willLoop/letRing below)
-    // Placeholder — real relT set after letRing is determined.
-
     // ── Instrument type classification (must precede relT) ──────────────
     // naturalDecay: sus > 1000 cB (≈50 dB att.) = piano, vibraphone, marimba, harp …
     // Looping, !naturalDecay: organ, strings, brass — loop while key held.
     const naturalDecay = (zone.sus !== null && zone.sus > 1000);
     let willLoop = zone.hasLoop && zone.lE > zone.lS && zone.lE <= ab.length;
 
-    // Percussive heuristic: very short samples wrongly marked as looping
+    // Percussive heuristic: very short samples wrongly marked as looping.
+    // NOTE: we NO longer force willLoop=false for naturalDecay — many quality SF2
+    // files use *looping* piano/vibraphone samples where the loop + decay-envelope
+    // provides the amplitude shaping. Disabling the loop was causing piano notes to
+    // cut off when the (short) loop-region buffer ran out.
     const naturalDurSec = ab.duration / Math.max(0.01, rate);
     const percussive = naturalDurSec < 2.0 && susL > 0.97 && decT < 0.05;
+    if (willLoop && percussive) willLoop = false;  // drums/perc only
 
-    if (willLoop && (naturalDecay || percussive)) willLoop = false;
-
-    // ── Release time & letRing mode ───────────────────────────────────
-    // letRing (vibraphone, bell, marimba…): SF2 has no release AND sample ≥2 s.
-    //   Key-off is a no-op — sample plays to natural end.
-    // piano/damper: SF2 specifies release OR short sample.
-    //   Key-off = exponential fade (min 0.3 s so even a −12000-tc SF2 value
-    //   like −7967 tc → 10 ms becomes a musical damper fade, not a click).
-    // looping (organ, strings…): standard SF2 release, min 0.05 s.
-    const letRing = !willLoop && naturalDecay && zone.rel === null && naturalDurSec >= 2.0;
+    // ── Release time (open-source SF2 player convention) ────────────────
+    //
+    // Key rule (FluidSynth / soundfont-player approach):
+    //   src.stop() is called ONLY for LOOPING sources.
+    //   Non-looping AudioBufferSources stop themselves when the buffer ends.
+    //   Calling src.stop() early on non-looping samples causes the
+    //   "artificial cutoff at different times for different notes" bug because
+    //   different zones have different relT → different premature stop times.
+    //
+    // relT controls the gain fade on key-off:
+    //   • looping (organ, strings…)  : use SF2 release, min 0.05 s
+    //   • non-looping naturalDecay   : min 0.25 s so even a very short SF2
+    //     value (-7967 tc → ~10 ms) produces a musical damper fade, not a click
+    //   • non-looping percussive     : use SF2 release, min 0.05 s
     let relT;
-    if (letRing) {
-        relT = naturalDurSec + 2.0;
-    } else if (!willLoop && naturalDecay) {
-        const sf2Rel = zone.rel !== null ? tc2s(zone.rel) : 0.4;
-        relT = Math.max(0.3, sf2Rel);
-    } else {
+    if (willLoop) {
         relT = zone.rel !== null ? Math.max(0.05, tc2s(zone.rel)) : 0.35;
+    } else if (naturalDecay) {
+        // Piano / vibraphone / harp: respect SF2 but enforce damper-feel minimum
+        const sf2Rel = zone.rel !== null ? tc2s(zone.rel) : 0.5;
+        relT = Math.max(0.25, sf2Rel);
+    } else {
+        relT = zone.rel !== null ? Math.max(0.05, tc2s(zone.rel)) : 0.3;
     }
 
     if (willLoop) {
@@ -1597,8 +1602,10 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     } else {
         gn.gain.setValueAtTime(sg, t0);
     }
-    // Decay to sustain: only for looping/sustaining instruments
-    if (willLoop && !naturalDecay && decT > 0.008 && susL < 0.97) {
+    // Decay to sustain: apply for all looping instruments (including naturalDecay).
+    // For non-looping: the sample waveform itself carries the amplitude envelope;
+    // applying SF2 decay on top would double-decay and cut notes off too early.
+    if (willLoop && decT > 0.008 && susL < 0.97) {
         gn.gain.setTargetAtTime(susGain, t0 + atkT, Math.max(0.005, decT / 5));
     }
 
@@ -1611,10 +1618,10 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     let stopped = false;
 
     return {
-        src, gn, sg, relT, letRing,
+        src, gn, sg, relT,
 
-        // Quick anti-click stop — used when the same key is pressed again (note-on replace).
-        // Always interrupts regardless of letRing: pressing the same note restarts the sound.
+        // Quick anti-click stop — used when the same key is pressed again (note-on replace)
+        // or panic (AllNotesOff). Always works regardless of instrument type.
         stop() {
             if (stopped) return; stopped = true;
             try {
@@ -1631,14 +1638,15 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
         },
 
         // Key-off release — called by note-off events.
-        // letRing instruments (vibraphone, bells…): no-op, sample decays naturally.
-        // piano/damper: exponential fade over relT (min 0.3 s).
-        // looping (organ, strings…): exponential fade over relT.
+        // CRITICAL open-source SF2 rule (FluidSynth / soundfont-player):
+        //   • Looping sources MUST be stopped explicitly (otherwise they loop forever).
+        //   • Non-looping sources stop themselves when the buffer ends — do NOT call
+        //     src.stop() here. Doing so causes different notes to cut off at different
+        //     times (proportional to relT * 2.2) which is the "artificial cutoff" bug.
+        // The gain fade below makes the note *sound* like it ended; the buffer just
+        // continues inaudibly until the AudioBufferSource naturally terminates.
         stopAt(t) {
             if (stopped) return; stopped = true;
-            // letRing: key-off does not interrupt; sample plays to natural end.
-            // The AudioBufferSourceNode will stop itself; no explicit src.stop() needed.
-            if (letRing) return;
             try {
                 const rt = Math.max(ctx.currentTime + 0.001, t);
                 // Freeze gain at its current in-progress value
@@ -1652,12 +1660,14 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
                     gn.gain.cancelScheduledValues(rt);
                     gn.gain.setValueAtTime(Math.max(0.0001, approx), rt);
                 }
-                // Exponential decay (setTargetAtTime) sounds far more musical than linear.
-                // tau = relT/5 means gain reaches ~1% after 5*tau = relT  (natural "e^-5").
+                // Exponential release — sounds far more musical than linear ramp
+                // tau = relT/5 → gain reaches ≈1% after 5τ = relT
                 const tau = Math.max(0.012, relT / 5);
                 gn.gain.setTargetAtTime(0.0001, rt, tau);
-                // Schedule hard stop after the tail has fully decayed
-                src.stop(rt + relT * 2.2 + 0.05);
+                // Stop looping sources only — non-looping stop themselves naturally
+                if (willLoop) {
+                    src.stop(rt + relT * 2.2 + 0.05);
+                }
             } catch(e) {}
         }
     };
