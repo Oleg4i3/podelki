@@ -3590,6 +3590,37 @@ function generateMIDIWithBend() {
             playQ += mDur;
         }
 
+        // Merge tied notes: note.tie===true means this note ties into the next one
+        // with the same pitches → combine durations into a single MIDI note.
+        // This is essential for ties across barlines (the only way to write them).
+        (function mergeTies() {
+            let result = [];
+            let i = 0;
+            while (i < unrolled.length) {
+                // Deep-copy so we don't mutate the original objects
+                let note = Object.assign({}, unrolled[i],
+                    { pitches: unrolled[i].pitches.map(p => Object.assign({}, p)) });
+                // Keep consuming the chain as long as this note is tied and
+                // the next note has matching pitches
+                while (note.tie && i + 1 < unrolled.length) {
+                    let next = unrolled[i + 1];
+                    let samePitches =
+                        note.pitches.length === next.pitches.length &&
+                        note.pitches.every((p, k) =>
+                            p.pitch  === next.pitches[k].pitch &&
+                            p.octave === next.pitches[k].octave
+                        );
+                    if (!samePitches) break;
+                    note.durationInQuarters += next.durationInQuarters;
+                    note.tie = next.tie;   // carry tie flag forward in chain
+                    i++;
+                }
+                result.push(note);
+                i++;
+            }
+            unrolled = result;
+        })();
+
         // Build absolute-tick events
         let absEvents = [
             { tick: 0, priority: 0, bytes: [0xC0 + channel, voice.program] }
