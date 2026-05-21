@@ -596,53 +596,18 @@ let eqCalcCtx = null; // minimal OfflineAudioContext for getFrequencyResponse wi
 
 function drawEQCurve() {
     if (!showEQCurve) return;
+    if (eqBands.length === 0) return;
 
     const top = wfH;
     const h = EQ_H;
-    const _bounds = keyXBounds || buildKeyXBounds();
-    const _rMin = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0;
-    const _rMax = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
-
-    // Always draw background and grid (even with no bands)
-    ctx.fillStyle = '#1e1e2f';
-    ctx.fillRect(0, top, CANVAS_W, h);
-    // grid lines
-    ctx.strokeStyle = '#3a3a4a';
-    ctx.lineWidth = 0.5;
-    for (let db = -12; db <= 12; db += 3) {
-        const y = top + h / 2 - (db / 12) * (h * 0.8);
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
-    }
-    // 0 dB line
-    ctx.strokeStyle = '#5a5a6a';
-    ctx.lineWidth = 1;
-    const y0 = top + h / 2;
-    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
-
-    // frequency labels — use keyboard bounds for x (matches waterfall alignment)
-    ctx.fillStyle = '#888';
-    ctx.font = '8px sans-serif';
-    ctx.textAlign = 'center';
-    for (let k = _rMin; k <= _rMax; k++) {
-        if ((MIDI_A0 + k) % 12 === 0) {
-            const ki = k - _rMin;
-            if (ki < 0 || ki >= _bounds.length) continue;
-            const x = (_bounds[ki].x0 + _bounds[ki].x1) / 2;
-            ctx.fillText(midi2freq(MIDI_A0 + k).toFixed(0) + 'Hz', x, top + h - 2);
-        }
-    }
-
-    if (eqBands.length === 0) return; // background drawn; nothing to plot
-
-    // Build frequency array for all 88 keys
     const freqs = new Float32Array(N_KEYS);
     for (let k = 0; k < N_KEYS; k++) freqs[k] = midi2freq(MIDI_A0 + k);
 
     const magLinear = new Float32Array(N_KEYS);
-    const phase     = new Float32Array(N_KEYS);
+    const phase = new Float32Array(N_KEYS);
     for (let k = 0; k < N_KEYS; k++) magLinear[k] = 1;
 
-    // Use live EQ nodes when audio is running; create temp filters otherwise
+    // Use live eqNodes when audio is running; otherwise spin up temp filters
     let filterSrc;
     if (audioCtx && eqNodes.length === eqBands.length) {
         filterSrc = eqNodes;
@@ -654,26 +619,61 @@ function drawEQCurve() {
             return f;
         });
     }
+
     filterSrc.forEach(node => {
         const singleMag = new Float32Array(N_KEYS);
         node.getFrequencyResponse(freqs, singleMag, phase);
         for (let k = 0; k < N_KEYS; k++) magLinear[k] *= singleMag[k];
     });
 
-    // Draw curve — x positions from keyboard bounds (aligned with waterfall)
+    // draw background
+    ctx.fillStyle = '#1e1e2f';
+    ctx.fillRect(0, top, CANVAS_W, h);
+    // grid
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 0.5;
+    for (let db = -12; db <= 12; db += 3) {
+        const y = top + h / 2 - (db / 12) * (h * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+    }
+    // 0 dB line thicker
+    ctx.strokeStyle = '#5a5a6a';
+    ctx.lineWidth = 1;
+    const y0 = top + h / 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CANVAS_W, y0); ctx.stroke();
+
+    // frequency labels (on bottom of EQ area)
+    ctx.fillStyle = '#aaa';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    { const _rMin=typeof keyRangeMin!=='undefined'?keyRangeMin:0, _rMax=typeof keyRangeMax!=='undefined'?keyRangeMax:N_KEYS-1;
+    for (let k = _rMin; k <= _rMax; k++) {
+        if ((MIDI_A0 + k) % 12 === 0) { // C notes
+            const x = (k-_rMin)*COL_W_DYN + COL_W_DYN/2;
+            const freq = midi2freq(MIDI_A0 + k);
+            ctx.fillText(freq.toFixed(0) + ' Hz', x, top + h - 4);
+        }
+    } }
+
+    // draw curve (x uses same equal-semitone spacing as the frequency-label row above)
     ctx.beginPath();
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 2;
-    let first = true;
+    { const rMin2 = typeof keyRangeMin !== 'undefined' ? keyRangeMin : 0,
+               rMax2 = typeof keyRangeMax !== 'undefined' ? keyRangeMax : N_KEYS - 1;
+    let first2 = true;
     for (let k = 0; k < N_KEYS; k++) {
-        const ki = k - _rMin;
-        if (ki < 0 || ki >= _bounds.length) continue;
+        const ki = k - rMin2;
+        if (ki < 0 || ki > rMax2 - rMin2) continue;
         const db = 20 * Math.log10(Math.max(magLinear[k], 1e-6));
-        const y  = top + h / 2 - (db / 12) * (h * 0.8);
-        const x  = (_bounds[ki].x0 + _bounds[ki].x1) / 2;
-        if (first) { ctx.moveTo(x, y); first = false; }
+        const y = y0 - (db / 12) * (h * 0.8);
+        const x = ki * COL_W_DYN + COL_W_DYN * 0.5;
+        if (first2) { ctx.moveTo(x, y); first2 = false; }
         else ctx.lineTo(x, y);
-    }
+    } }
     ctx.stroke();
 }
 
@@ -1379,7 +1379,7 @@ function parseSF2(ab) {
     // Parse a generator block into a plain object {kl,kh,...,atk,dec,sus,rel,sm}
     function readGens(gs, ge) {
         const r = {kl:0,kh:127,vl:0,vh:127,sid:-1,rk:-1,ct:0,ft:0,sc:100,
-                   atk:null,dec:null,sus:null,rel:null,sm:-1};  // sm=-1 = not set
+                   atk:null,dec:null,sus:null,rel:null,sm:0};
         for (let g=gs; g<ge; g++) {
             const op=iOp[g], am=iAm[g];
             const sam = (am>32767) ? am-65536 : am;
@@ -1388,7 +1388,7 @@ function parseSF2(ab) {
             if(op===51){r.ct=am&0xFF; if(r.ct>127)r.ct-=256;}
             if(op===52){r.ft=am&0xFF; if(r.ft>127)r.ft-=256;}
             if(op===53) r.sid=am;
-            if(op===54) r.sm=am&0x3;  // sampleModes: 0=no loop,1=loop,2=no loop,3=loop+release
+            if(op===54) r.sm=am&3;   // sampleModes: bit0=loop-while-held, bit1=loop-during-release
             if(op===56) r.sc=am&0xFFFF;
             if(op===58){const rr=am&0xFF; if(rr<=127)r.rk=rr;}
             if(op===33) r.atk=sam;   // attackVolEnv  (timecents)
@@ -1399,13 +1399,13 @@ function parseSF2(ab) {
         return r;
     }
 
-        function buildZones(ii) {
+    function buildZones(ii) {
         if (ii>=instN-1) return [];
         const bs=instB[ii], be=instB[ii+1], zones=[];
 
         // SF2 spec §7.6: first bag is the global zone IF it has no sampleID generator.
         // Global zone generators are defaults for every zone in this instrument.
-        let glob = {atk:null,dec:null,sus:null,rel:null,ct:0,ft:0,sc:100,sm:-1};
+        let glob = {atk:null,dec:null,sus:null,rel:null,ct:0,ft:0,sc:100,sm:0};
         if (bs < be) {
             const gs0=ibagG[bs], ge0=(bs+1<ibagN)?ibagG[bs+1]:igenN;
             const g0 = readGens(gs0, ge0);
@@ -1427,21 +1427,17 @@ function parseSF2(ab) {
             const ct  = z.ct  || glob.ct;
             const ft  = z.ft  || glob.ft;
             const sc  = z.sc  > 0 ? z.sc : (glob.sc > 0 ? glob.sc : 100);
-            // sampleModes: local wins; fall back to global; default = 0 (no loop)
-            const sm  = z.sm >= 0 ? z.sm : (glob.sm >= 0 ? glob.sm : 0);
+            // sampleModes: zone overrides global (0 = not set → inherit global)
+            const sm  = z.sm  || glob.sm;
 
             if (z.sid<shdrs.length && shdrs[z.sid]) {
                 const sh=shdrs[z.sid];
                 const sf=sh.fine>127?sh.fine-256:sh.fine;
-                // SF2 §8.1.2: sampleModes bit 0 = loop enable; bit 1 = loop+release (sm===3)
-                // Loop points in shdr exist even for piano/non-looping — sm is authoritative.
-                const validLoop = sh.dSl >= sh.dS && sh.dEl > sh.dSl;
-                const hasLoop   = (sm & 1) !== 0 && validLoop;
-                const loopRelease = sm === 3; // loop while held; play tail on key-off
                 zones.push({kl:z.kl,kh:z.kh,vl:z.vl,vh:z.vh,sid:z.sid,
-                    rk:z.rk>=0?z.rk:sh.pitch, ct, ft:ft+sf, sc, sm,
+                    rk:z.rk>=0?z.rk:sh.pitch, ct, ft:ft+sf, sc,
                     lS:sh.dSl-sh.dS, lE:sh.dEl-sh.dS,
-                    hasLoop, loopRelease,
+                    hasLoop:sh.dEl>sh.dSl&&sh.dSl>=sh.dS,
+                    sm,   // sampleModes from gen54 — authoritative loop control
                     atk, dec, sus, rel});
             }
         }
@@ -1547,37 +1543,68 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     const src=ctx.createBufferSource();
     src.buffer=ab; src.playbackRate.value=rate;
 
-    // SF2 envelope timecents → seconds. tc2s range clamped to SF2 spec [-12000..8000].
+    // SF2 envelope timecents to seconds (null = not specified by SF2 → use musical defaults)
     const tc2s = tc => Math.pow(2, Math.max(-12000, Math.min(8000, tc)) / 1200);
-    const atkT = zone.atk !== null ? tc2s(zone.atk) : 0.002;
-    const decT = zone.dec !== null ? tc2s(zone.dec) : 0.0;
-    // sus: centibels attenuation from peak. 0 cB = full sustain, 960 cB ≈ piano (near silence).
+    const atkT = zone.atk !== null ? tc2s(zone.atk) : 0.002;     // instant attack
+    const decT = zone.dec !== null ? tc2s(zone.dec) : 0.0;        // no explicit decay
     const susL = zone.sus !== null ? Math.pow(10, -Math.min(zone.sus, 1440) / 200) : 1.0;
+    // Release: if SF2 specifies it use that, else 0.35 s (natural-sounding default)
+    // ── Instrument type classification ──────────────────────────────────
+    //
+    // sampleModes (gen 54) is the AUTHORITATIVE loop flag per SF2 spec §8.1.1.
+    //   bit 0 = 1 → sample loops while key held
+    //   bit 1 = 1 → sample continues looping after key-off (play to end)
+    // The old code derived hasLoop from sample-header loop points only, which is
+    // wrong: many samples have loop points in their header but sampleModes=0.
+    const loopMode    = zone.sm || 0;
+    const loopsWhileHeld    = (loopMode & 1) !== 0;   // bit 0
+    const loopsDuringRelease = (loopMode & 2) !== 0;  // bit 1 (loop to end after key-off)
 
-    // ── sampleModes (gen 54): loop authority (resolved in buildZones) ────
-    const willLoop    = zone.hasLoop;      // (sm&1)===1 && valid loop points in shdr
-    const loopRelease = zone.loopRelease;  // sm===3: loop while held, play tail on key-off
+    // naturalDecay: sus > 1000 cB ≈ the SF2 decay envelope decays to near-silence.
+    // This is typical for piano, vibraphone, marimba — instruments where the sample
+    // provides the primary amplitude shaping when non-looping.
+    const naturalDecay = (zone.sus !== null && zone.sus > 1000);
 
-    // ── WebAudioFont rule: ahdsr ↔ willLoop ──────────────────────────────
-    // sm=1 or sm=3 (loop on): apply full SF2 ADSR gain envelope.
-    //   Piano (sus≈960 cB): gain decays to ~0 → piano attack/decay character.
-    //   Strings (sus≈0 cB): susL≈1 → no decay applied → sustained.
-    // sm=0 or sm=2 (no loop): sample plays to natural end; no gain envelope.
-    //   Vibraphone/bells with sm=0: play full sample content with its own decay.
-    const letRing = !willLoop;
+    // willLoop: only if sampleModes says so AND valid loop points exist
+    const naturalDurSec = ab.duration / Math.max(0.01, rate);
+    let willLoop = loopsWhileHeld && zone.lE > zone.lS && zone.lE <= ab.length;
 
-    // Release time: SF2 value if present, sensible defaults otherwise.
-    const sf2RelT = zone.rel !== null ? tc2s(zone.rel) : null;
-    const relT    = willLoop ? Math.max(0.05, sf2RelT ?? 0.35) : 0;
+    // ── Release time ────────────────────────────────────────────────────
+    //
+    // Non-looping with zone.rel === null (SF2 default = instant release):
+    //   Per SF2 spec, no release means "play sample to natural end."
+    //   These are "let-ring" instruments (vibraphone, bell, marimba…).
+    //   Key-off must NOT apply a musical fade — the sample's own amplitude
+    //   decay determines when the sound ends. We only apply a 10 ms anti-click
+    //   fade to prevent discontinuity on very short notes.
+    //
+    // Non-looping with zone.rel specified (piano damper, harp, etc.):
+    //   Apply exponential fade over relT on key-off.  Minimum 0.2 s so that
+    //   extreme SF2 values like -7967 tc (≈10 ms) produce a musical damper fade.
+    //
+    // Looping (organ, strings, looping piano…):
+    //   Apply SF2 release on key-off; src.stop() called after release tail.
+    const letRing = !willLoop && naturalDecay && zone.rel === null;
+    let relT;
+    if (willLoop) {
+        relT = zone.rel !== null ? Math.max(0.05, tc2s(zone.rel)) : 0.35;
+    } else if (letRing) {
+        relT = 0;   // unused — stopAt() returns early for let-ring
+    } else if (naturalDecay) {
+        // Non-looping, release specified → piano/harp damper fade
+        relT = Math.max(0.2, tc2s(zone.rel));
+    } else {
+        relT = zone.rel !== null ? Math.max(0.05, tc2s(zone.rel)) : 0.3;
+    }
 
     if (willLoop) {
-        src.loop      = true;
+        src.loop = true;
         src.loopStart = zone.lS / ab.sampleRate;
         src.loopEnd   = zone.lE / ab.sampleRate;
     }
 
-    const gn      = ctx.createGain();
-    const sg      = Math.max(0.001, Math.min(2, gain));
+    const gn  = ctx.createGain();
+    const sg  = Math.max(0.001, Math.min(2, gain));
     const susGain = Math.max(0.0001, sg * susL);
 
     // Attack
@@ -1587,9 +1614,9 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     } else {
         gn.gain.setValueAtTime(sg, t0);
     }
-    // Decay to sustain level: all looping instruments, when decay is significant.
-    // Piano (sus≈960cB, susL≈0): gain decays to near-zero — this IS the piano envelope.
-    // Strings/organ (sus≈0cB, susL≈1): susL<0.97 false → no decay → full sustain.
+    // Decay to sustain: apply for all looping instruments (including naturalDecay).
+    // For non-looping: the sample waveform itself carries the amplitude envelope;
+    // applying SF2 decay on top would double-decay and cut notes off too early.
     if (willLoop && decT > 0.008 && susL < 0.97) {
         gn.gain.setTargetAtTime(susGain, t0 + atkT, Math.max(0.005, decT / 5));
     }
@@ -1597,13 +1624,16 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
     src.connect(gn);
     gn.connect(dest || ctx.destination);
     src.start(t0);
+    // Non-looping samples stop themselves; we must NOT call stop() here
+    // so that stopAt() can call it once on early key-off.
 
     let stopped = false;
 
     return {
-        src, gn, sg, relT, letRing,
+        src, gn, sg, relT,
 
-        // Quick anti-click stop — same key pressed again.
+        // Quick anti-click stop — used when the same key is pressed again (note-on replace)
+        // or panic (AllNotesOff). Always works regardless of instrument type.
         stop() {
             if (stopped) return; stopped = true;
             try {
@@ -1619,52 +1649,53 @@ function sf2Play(ctx, sf2d, cache, note, prog, t0, gain, vel, dest, isPerc) {
             } catch(e) {}
         },
 
-        // Key-off: release the note.
-        // letRing (sm=0/2, no loop): sample plays to its natural end — no action needed.
-        // loopRelease (sm=3): stop loop, play tail, fade at end.
-        // looping (sm=1): exponential release envelope from current gain level.
+        // Key-off release.
+        //
+        // let-ring (vibraphone, bell — no SF2 release specified):
+        //   Key-off must NOT apply a musical fade. The sample decays naturally on
+        //   its own. We only apply a silent 2-second time-constant so that a note
+        //   pressed and released VERY quickly doesn't produce an audible click if
+        //   the gain node had just started ramping. The sample continues until the
+        //   buffer ends; WebAudio GCs the node automatically.
+        //
+        // Looping (organ, strings, looping piano):
+        //   Apply exponential fade, then call src.stop() — mandatory because looping
+        //   sources play forever without an explicit stop().
+        //
+        // Non-looping naturalDecay with release (piano damper):
+        //   Apply exponential fade over relT. Do NOT call src.stop() — the buffer
+        //   plays to its natural end. This prevents "artificial cutoff at variable
+        //   times" (the bug caused by calling src.stop(rt + relT*2.2) where relT
+        //   differs per zone and cuts notes at different times).
         stopAt(t) {
             if (stopped) return; stopped = true;
-            if (letRing) return;   // sm=0/2: sample stops itself naturally
             try {
                 const rt = Math.max(ctx.currentTime + 0.001, t);
-
-                if (loopRelease) {
-                    // sm=3: disable loop, let sample tail play naturally, then fade
-                    src.loop = false;
-                    const tailSec = (ab.duration - zone.lE / ab.sampleRate) / Math.max(0.01, rate);
-                    const tail = Math.max(0.1, Math.min(tailSec, 8));
-                    gn.gain.setValueAtTime(sg, rt + tail * 0.8);
-                    gn.gain.linearRampToValueAtTime(0.0001, rt + tail);
-                    src.stop(rt + tail + 0.02);
-                    return;
-                }
-
-                // Standard release: freeze gain at its current value, then exponential fade.
-                // Chrome/Safari: cancelAndHoldAtTime reads the exact current gain value.
-                // Firefox fallback: compute approximate value from scheduled decay curve.
                 if (gn.gain.cancelAndHoldAtTime) {
                     gn.gain.cancelAndHoldAtTime(rt);
                 } else {
-                    let approx;
-                    const elapsed = rt - t0;
-                    if (elapsed < atkT) {
-                        approx = sg * (elapsed / Math.max(0.001, atkT));
-                    } else if (decT > 0.008 && susL < 0.97) {
-                        // setTargetAtTime(susGain, t0+atkT, tau) → current ≈ susGain + (sg-susGain)*e^(-Δt/tau)
-                        const tau = Math.max(0.005, decT / 5);
-                        const dt  = elapsed - atkT;
-                        approx = susGain + (sg - susGain) * Math.exp(-dt / tau);
-                    } else {
-                        approx = sg;
-                    }
                     gn.gain.cancelScheduledValues(rt);
-                    gn.gain.setValueAtTime(Math.max(0.0001, approx), rt);
+                    gn.gain.setValueAtTime(sg, rt);
                 }
-                // Exponential release: tau = relT/5 → ~0.7% after relT seconds (e^-5)
+
+                if (letRing) {
+                    // Anti-click only: 2 s time constant → gain barely moves
+                    gn.gain.setTargetAtTime(0.0001, rt, 2.0);
+                    // No src.stop() — buffer ends by itself
+                    return;
+                }
+
+                // Exponential release (setTargetAtTime sounds more musical than
+                // linearRamp because our hearing is logarithmic).
+                // tau = relT/5 → gain reaches ≈1% after 5τ = relT.
                 const tau = Math.max(0.012, relT / 5);
                 gn.gain.setTargetAtTime(0.0001, rt, tau);
-                src.stop(rt + relT * 2.2 + 0.05);
+
+                // Only looping sources need an explicit stop.
+                if (willLoop) {
+                    src.stop(rt + relT * 2.2 + 0.05);
+                }
+                // Non-looping: buffer ends naturally. Do NOT call src.stop() here.
             } catch(e) {}
         }
     };
