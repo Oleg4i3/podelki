@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Amorphic Window — Off-Axis Projection</title>
+    <title>Amorphic Window — Solid Cheese & Ruby Crystal</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #050510; }
@@ -47,7 +47,6 @@
         .settings-btn { background: #374151; }
         .settings-btn:hover { background: #4b5563; }
 
-        /* MODAL — semi-transparent and compact */
         .modal {
             display: none; position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
@@ -58,7 +57,7 @@
             border-radius: 20px;
             z-index: 10;
             color: #e2e8f0;
-            width: 340px;
+            width: 360px;
             max-height: 85vh;
             overflow-y: auto;
             box-shadow: 0 12px 40px rgba(0,0,0,0.5);
@@ -69,7 +68,6 @@
         .modal-header h3 { margin: 0; font-size: 16px; color: #88ccff; }
         .close-btn { background: none; border: none; color: #ef4444; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
         
-        /* Compact rows without extra headers */
         .setting-row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
         .setting-row label {
             font-size: 11px; color: #b8d0ff;
@@ -102,7 +100,7 @@
         <button id="reset-calib">↺ Reset</button>
         <button id="settings-btn" class="settings-btn">⚙️ Settings</button>
     </div>
-    <div style="opacity:0.6">👁 Move your head — the world reveals itself</div>
+    <div style="opacity:0.6">👁 Move your head — fog changes, objects emerge</div>
 </div>
 
 <div class="video-preview">
@@ -112,14 +110,12 @@
 
 <div class="info" id="debug-info">Waiting...</div>
 
-<!-- SETTINGS MODAL (compact, English, semi-transparent) -->
 <div id="settings-modal" class="modal">
     <div class="modal-header">
         <h3>⚙️ Display & Motion</h3>
         <button id="close-settings" class="close-btn">&times;</button>
     </div>
 
-    <!-- Screen dimensions (no labels removed but we keep short names) -->
     <div class="setting-row">
         <label>Screen width: <span id="val-sw">34</span> cm</label>
         <input type="range" id="range-sw" min="10" max="80" step="1" value="34">
@@ -134,7 +130,7 @@
         <label>Calibration distance: <span id="val-ed">60</span> cm</label>
         <input type="range" id="range-ed" min="20" max="150" step="5" value="60">
     </div>
-    <div class="hint">👁 Stand at your preferred distance, then click "Calibrate".</div>
+    <div class="hint">👁 Stand at preferred distance, click "Calibrate".</div>
 
     <div class="setting-row">
         <label>Smoothing inertia: <span id="val-sm">8</span></label>
@@ -150,7 +146,7 @@
     </div>
 
     <div class="setting-row">
-        <label>✨ Animation (teapot spin + mouse ear wiggle) 
+        <label>✨ Animation (teapot spin + mouse ears) 
             <input type="checkbox" id="anim-checkbox">
         </label>
     </div>
@@ -159,14 +155,24 @@
             <input type="checkbox" id="bg-checkbox">
         </label>
     </div>
-    <div class="hint">🎨 Light theme changes background to sky blue and floor to green grass.</div>
+
+    <div class="setting-row">
+        <label>🌫️ Adaptive Fog (clarity near screen)
+            <input type="checkbox" id="adaptive-fog-checkbox" checked>
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>Fog density base range: <span id="val-fogRange">80</span> cm</label>
+        <input type="range" id="range-fogRange" min="30" max="250" step="5" value="80">
+    </div>
+    <div class="hint">💨 Lower value = thicker fog. Move face closer → objects emerge.</div>
 
     <div class="config-buttons">
         <button id="save-config-btn">💾 Save to file</button>
         <button id="load-config-btn">📂 Load from file</button>
         <button id="reset-defaults-btn">↺ Reset settings</button>
     </div>
-    <div class="hint" style="margin-top: 8px;">⚡ Settings auto‑save in browser. Use JSON file to transfer.</div>
+    <div class="hint" style="margin-top: 8px;">⚡ Settings auto‑save in browser.</div>
 </div>
 
 <script type="importmap">
@@ -185,7 +191,7 @@ import * as THREE from 'three';
 import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
 
 // ═══════════════════════════════════════════════════════
-// PHYSICAL PARAMETERS (1 world unit = 10 cm)
+// PHYSICAL PARAMETERS (1 unit = 10 cm)
 // ═══════════════════════════════════════════════════════
 const S = 0.1;
 let SCREEN_W_CM = 34;
@@ -198,13 +204,16 @@ let XY_SENS     = 1.0;
 let animationEnabled = false;
 let lightBackground  = false;
 
-// Face tracking state
+let adaptiveFogEnabled = true;
+let fogBaseRangeCM = 80;
+
 let currentFaceNorm = null;
 let videoReady = false;
 let faceDetection = null;
 let camera_mp = null;
 let calibrated = false;
 let calibCX = 0.5, calibCY = 0.5, calibW = 0.25;
+let REF_FACE_WIDTH = 0.25;
 
 let eyeX = 0, eyeY = 0, eyeZ = EYE_DIST_CM * S;
 
@@ -214,20 +223,27 @@ let eyeX = 0, eyeY = 0, eyeZ = EYE_DIST_CM * S;
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050510);
-scene.fog = new THREE.Fog(0x050510, 25, 100);
+scene.fog = new THREE.FogExp2(0x050510, 0.08);
 
 const cam3d = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 500);
 cam3d.position.set(0, 0, EYE_DIST_CM * S);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.localClippingEnabled = true; // Включаем поддержку локального отсечения
 container.appendChild(renderer.domElement);
 
-// Lighting (unchanged)
-scene.add(new THREE.AmbientLight(0x202840, 2.0));
-const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+// Lighting
+scene.add(new THREE.AmbientLight(0x404060, 1.8));
+const dirLight = new THREE.DirectionalLight(0xfff5e0, 2.8);
 dirLight.position.set(20, 50, 30);
 scene.add(dirLight);
+const backLight = new THREE.DirectionalLight(0x88aaff, 1.2);
+backLight.position.set(-5, 10, -15);
+scene.add(backLight);
+const fillLight = new THREE.PointLight(0xffaa66, 0.7);
+fillLight.position.set(5, 3, 2);
+scene.add(fillLight);
 const ptBlue = new THREE.PointLight(0x4466ff, 80, 80);
 ptBlue.position.set(-10, 15, -20);
 scene.add(ptBlue);
@@ -238,21 +254,16 @@ const ptPurple = new THREE.PointLight(0xaa44ff, 40, 50);
 ptPurple.position.set(0, 5, -35);
 scene.add(ptPurple);
 
-// Floor & grid (will be updated on theme change)
+// Floor & grid
 let floorMesh, gridHelper;
 function createFloorAndGrid() {
     if (floorMesh) scene.remove(floorMesh);
     if (gridHelper) scene.remove(gridHelper);
-    
-    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;   // grass green vs dark blue
-    floorMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(120, 120),
-        new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95 })
-    );
+    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;
+    floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95, fog: true }));
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, -3.5, -20);
     scene.add(floorMesh);
-    
     const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
     const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
     gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
@@ -261,7 +272,7 @@ function createFloorAndGrid() {
 }
 createFloorAndGrid();
 
-// Screen frame (z=0)
+// Screen frame
 let windowFrameLine = null;
 function makeWindowFrame() {
     if (windowFrameLine) scene.remove(windowFrameLine);
@@ -279,24 +290,134 @@ function makeWindowFrame() {
 }
 makeWindowFrame();
 
-// ---- Objects creation (cube, mouse, snowman, teapot, gem, random cubes) ----
+// ---------- НОВЫЙ ТВЁРДЫЙ СЫР: геометрические отверстия и внутренние полости (из FaceCube_1) ----------
 const CUBE_SIZE = 1.2;
-const materialsCube = [
-    new THREE.MeshStandardMaterial({ color: 0xff4040 }),
-    new THREE.MeshStandardMaterial({ color: 0x40ff80 }),
-    new THREE.MeshStandardMaterial({ color: 0x4080ff }),
-    new THREE.MeshStandardMaterial({ color: 0xffcc44 }),
-    new THREE.MeshStandardMaterial({ color: 0xff66dd }),
-    new THREE.MeshStandardMaterial({ color: 0xaaaaaa }),
-];
-const mainCube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), materialsCube);
 
+function createCheeseCube(size) {
+    const group = new THREE.Group();
+    const h = size / 2;
+
+    // Позиции и радиусы "пузырей" — сквозных отверстий
+    const bubbles = [
+        // передняя грань (z+)
+        [ 0.05,  0.15,  0.50, 0.18],
+        [-0.22, -0.12,  0.52, 0.14],
+        [ 0.30, -0.25,  0.54, 0.11],
+        [-0.35,  0.30,  0.51, 0.10],
+        // задняя грань (z-)
+        [-0.10,  0.28, -0.50, 0.13],
+        [ 0.20, -0.18, -0.53, 0.12],
+        [-0.28, -0.22, -0.52, 0.09],
+        // правая грань (x+)
+        [ 0.50,  0.18,  0.05, 0.15],
+        [ 0.53, -0.22, -0.10, 0.12],
+        // левая грань (x-)
+        [-0.50,  0.15,  0.15, 0.13],
+        [-0.54, -0.20, -0.05, 0.11],
+        // верхняя грань (y+)
+        [ 0.10,  0.52,  0.08, 0.14],
+        [-0.25,  0.54, -0.15, 0.12],
+        [ 0.22,  0.53,  0.20, 0.10],
+        // нижняя грань (y-)
+        [ 0.15, -0.50,  0.10, 0.13],
+        [-0.12, -0.52, -0.08, 0.11],
+        // рёберные отверстия
+        [ 0.52,  0.10,  0.50, 0.15],
+        [-0.10,  0.52,  0.49, 0.12],
+        [ 0.49, -0.08, -0.51, 0.13],
+        [-0.51,  0.12,  0.48, 0.10],
+    ];
+
+    const yellowMat = new THREE.MeshStandardMaterial({
+        color: 0xf0bc00, roughness: 0.62, metalness: 0.0, side: THREE.FrontSide, fog: true
+    });
+
+    // Локальные плоскости отсечения (границы куба)
+    const localPlanes = [
+        new THREE.Plane(new THREE.Vector3(-1, 0, 0), h), // Отрезает всё, что правее X = h
+        new THREE.Plane(new THREE.Vector3(1, 0, 0), h),  // Отрезает всё, что левее X = -h
+        new THREE.Plane(new THREE.Vector3(0, -1, 0), h), // Отрезает всё, что выше Y = h
+        new THREE.Plane(new THREE.Vector3(0, 1, 0), h),  // Отрезает всё, что ниже Y = -h
+        new THREE.Plane(new THREE.Vector3(0, 0, -1), h), // Отрезает всё, что глубже Z = h
+        new THREE.Plane(new THREE.Vector3(0, 0, 1), h)   // Отрезает всё, что ближе Z = -h
+    ];
+
+    // Динамические мировые плоскости, которые будут следовать за трансформациями куба
+    const worldPlanes = localPlanes.map(p => p.clone());
+
+    const cavityMat = new THREE.MeshStandardMaterial({
+        color: 0xc89a00, roughness: 0.48, metalness: 0.0, side: THREE.BackSide, fog: true,
+        clippingPlanes: worldPlanes // Применяем маску отсечения к материалу внутренних полостей
+    });
+
+    const PI = Math.PI;
+    // Конфигурация шести граней: нормаль, оси UV, центр, углы Эйлера для поворота меша
+    const faceConfigs = [
+        { n: new THREE.Vector3(0,0,1),  uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(0,0,h),   euler: [0,0,0]    },
+        { n: new THREE.Vector3(0,0,-1), uvAxes:[new THREE.Vector3(-1,0,0),new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(0,0,-h),  euler: [0,PI,0]   },
+        { n: new THREE.Vector3(1,0,0),  uvAxes:[new THREE.Vector3(0,0,-1),new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(h,0,0),   euler: [0,PI/2,0] },
+        { n: new THREE.Vector3(-1,0,0), uvAxes:[new THREE.Vector3(0,0,1), new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(-h,0,0),  euler: [0,-PI/2,0]},
+        { n: new THREE.Vector3(0,1,0),  uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,-1)], c: new THREE.Vector3(0,h,0),   euler: [-PI/2,0,0]},
+        { n: new THREE.Vector3(0,-1,0), uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,1)],  c: new THREE.Vector3(0,-h,0),  euler: [PI/2,0,0] },
+    ];
+
+    faceConfigs.forEach(fc => {
+        const faceHolesList = [];
+        const cDot = fc.c.dot(fc.n);
+
+        bubbles.forEach(([bx, by, bz, br]) => {
+            const bPos = new THREE.Vector3(bx, by, bz);
+            const dist = bPos.dot(fc.n) - cDot;   // знаковое расстояние до плоскости грани
+            const depth = -dist;                    // глубина проникновения внутрь
+            if (depth >= 0 && depth < br) {
+                const rHole = Math.sqrt(br * br - depth * depth); // радиус отверстия на грани
+                // Проекция центра пузыря на плоскость грани → локальные UV
+                const proj = bPos.clone().addScaledVector(fc.n, -dist);
+                const rel  = proj.sub(fc.c);
+                faceHolesList.push([rel.dot(fc.uvAxes[0]), rel.dot(fc.uvAxes[1]), rHole]);
+            }
+        });
+
+        const shape = new THREE.Shape();
+        shape.moveTo(-h, -h); shape.lineTo(h, -h);
+        shape.lineTo(h,  h);  shape.lineTo(-h, h); shape.closePath();
+        faceHolesList.forEach(([u, v, r]) => {
+            const hole = new THREE.Path();
+            hole.absarc(u, v, r, 0, Math.PI * 2, true);
+            shape.holes.push(hole);
+        });
+
+        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 32), yellowMat);
+        mesh.position.copy(fc.c);
+        mesh.rotation.set(...fc.euler);
+        group.add(mesh);
+    });
+
+    // Внутренние сферы (видны через отверстия)
+    bubbles.forEach(([bx, by, bz, br]) => {
+        const sMesh = new THREE.Mesh(new THREE.SphereGeometry(br, 22, 15), cavityMat);
+        sMesh.position.set(bx, by, bz);
+        group.add(sMesh);
+    });
+
+    // Метод для обновления плоскостей отсечения с учетом положения куба в мировом пространстве
+    group.updatePlanes = () => {
+        group.updateMatrixWorld(true);
+        localPlanes.forEach((p, i) => {
+            worldPlanes[i].copy(p).applyMatrix4(group.matrixWorld);
+        });
+    };
+
+    return group;
+}
+
+// ----- МЫШЬ (остаётся без изменений) -----
 function createMouse() {
     const group = new THREE.Group();
-    const bodyMat   = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8 });
-    const eyeMat    = new THREE.MeshStandardMaterial({ color: 0xaa3333 });
-    const noseMat   = new THREE.MeshStandardMaterial({ color: 0xffb6c1, metalness: 0.2 });
-    const whiskMat  = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    const bodyMat   = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8, fog: true });
+    const eyeMat    = new THREE.MeshStandardMaterial({ color: 0xaa3333, fog: true });
+    const noseMat   = new THREE.MeshStandardMaterial({ color: 0xffb6c1, metalness: 0.2, fog: true });
+    const whiskMat  = new THREE.MeshStandardMaterial({ color: 0x222222, fog: true });
     const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI*2, 0, Math.PI/2), bodyMat);
     group.add(body);
     [[-0.7,0,0.5],[0.7,0,0.5],[-0.7,0,-0.5],[0.7,0,-0.5]].forEach(([x,y,z]) => {
@@ -320,7 +441,6 @@ function createMouse() {
     const earR = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,20), noseMat);
     earR.position.set(0.5,0.8,0.8); earR.rotation.set(Math.PI/2.2,0,Math.PI/10);
     group.add(nose,eyeL,eyeR,earL,earR);
-    // Whiskers
     const wDef = { r: 0.007, l: 1.0 };
     const wPositions = [
         [-0.5,0.4,1.7,Math.PI/20,0.4,Math.PI/2.3], [-0.5,0.3,1.7,0,0.4,Math.PI/2],
@@ -332,7 +452,6 @@ function createMouse() {
         w.position.set(px,py,pz); w.rotation.set(rx,ry,rz);
         group.add(w);
     });
-    // Tail
     const tailPath = new THREE.CatmullRomCurve3([
         new THREE.Vector3(0,0.2,-1.0), new THREE.Vector3(0,0.6,-2.5), new THREE.Vector3(-0.9,0.4,-3.5)
     ]);
@@ -347,12 +466,13 @@ function createMouse() {
     return group;
 }
 
+// ----- СНЕГОВИК -----
 function createSnowman() {
     const group = new THREE.Group();
-    const snowMat = new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.85 });
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff8c00 });
-    const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.85, fog: true });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, fog: true });
+    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, fog: true });
+    const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777, fog: true });
     const body = new THREE.Mesh(new THREE.SphereGeometry(1), snowMat); body.position.y = -0.3;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.7), snowMat); head.position.y = 1.1;
     const armL = new THREE.Mesh(new THREE.SphereGeometry(0.3), snowMat); armL.position.set(-1.1,-0.1,0.1);
@@ -366,8 +486,10 @@ function createSnowman() {
     return group;
 }
 
+// ----- ЦЕНТРАЛЬНАЯ ГРУППА: сыр + мышь -----
 const centerGroup = new THREE.Group();
-centerGroup.add(mainCube);
+const cheeseCube = createCheeseCube(CUBE_SIZE);
+centerGroup.add(cheeseCube);
 const mouseGroup = createMouse();
 mouseGroup.position.set(0, CUBE_SIZE/2 + 0.02, 0);
 centerGroup.add(mouseGroup);
@@ -378,73 +500,97 @@ const snowman = createSnowman();
 snowman.position.set(3.2, -1.0, -9);
 scene.add(snowman);
 
-const teapotMat = new THREE.MeshStandardMaterial({ color: 0x00c0ff, metalness: 0.55, roughness: 0.35 });
+const teapotMat = new THREE.MeshStandardMaterial({ color: 0x00c0ff, metalness: 0.55, roughness: 0.35, fog: true });
 const teapot = new THREE.Mesh(new TeapotGeometry(0.55, 10), teapotMat);
 teapot.position.set(-3.0, -0.7, -7);
 scene.add(teapot);
 
-const gemMat = new THREE.MeshStandardMaterial({ color: 0xee44ff, metalness: 0.92, roughness: 0.05, emissive: 0x550044, emissiveIntensity: 0.4 });
-const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.25, 0), gemMat);
-gem.position.set(0, 0.2, 1.8);
-scene.add(gem);
+// РУБИНОВЫЙ КРИСТАЛЛ
+const gemMat = new THREE.MeshPhysicalMaterial({
+    color: 0xdd2255,
+    emissive: 0x441122,
+    emissiveIntensity: 0.25,
+    metalness: 0.92,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.72,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.15,
+    reflectivity: 0.45,
+    ior: 2.2,
+    fog: true
+});
+const rubyGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), gemMat);
+rubyGem.position.set(0, 0.2, 1.8);
+scene.add(rubyGem);
 
-// decorative arch and columns
+// Декоративные элементы
 const archGeo = new THREE.TorusGeometry(3.5, 0.15, 12, 48, Math.PI);
-const archMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, metalness: 0.7 });
+const archMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, metalness: 0.7, fog: true });
 const arch = new THREE.Mesh(archGeo, archMat);
 arch.position.set(0, 0, -25);
 scene.add(arch);
 [-6, 6].forEach(x => {
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 10, 16), new THREE.MeshStandardMaterial({ color: 0x1a2a3a }));
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 10, 16), new THREE.MeshStandardMaterial({ color: 0x1a2a3a, fog: true }));
     col.position.set(x, 1.5, -25);
     scene.add(col);
 });
-// random floating cubes
 for (let i = 0; i < 24; i++) {
     const size = 0.18 + Math.random() * 0.35;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.55), roughness: 0.4 }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.55), roughness: 0.4, fog: true }));
     m.position.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, -1.5 - Math.random() * 22);
     scene.add(m);
 }
 
-// Animation handles
+// Анимация ушей
 const earLeftRef = mouseGroup.earLeft;
 const earRightRef = mouseGroup.earRight;
 const earBaseRotLeftZ = -Math.PI / 10;
 const earBaseRotRightZ = Math.PI / 10;
 
 // ═══════════════════════════════════════════════════════
-// THEME: Light background (sky + green grass)
+// АДАПТИВНЫЙ ТУМАН (без привязки к сырному шейдеру)
 // ═══════════════════════════════════════════════════════
-function updateBackground() {
-    if (lightBackground) {
-        scene.background = new THREE.Color(0x87CEEB); // sky blue
-        scene.fog = new THREE.Fog(0x87CEEB, 25, 100);
+function updateFog() {
+    let effectiveRangeCm = fogBaseRangeCM;
+    const eyeDistCm = eyeZ / S;
+    const referenceDistCm = EYE_DIST_CM;
+    
+    if (adaptiveFogEnabled) {
+        let factor = referenceDistCm / Math.max(20, eyeDistCm);
+        factor = Math.min(3.5, Math.max(0.25, factor));
+        effectiveRangeCm = fogBaseRangeCM * factor;
+        effectiveRangeCm = Math.min(350, Math.max(25, effectiveRangeCm));
     } else {
-        scene.background = new THREE.Color(0x050510);
-        scene.fog = new THREE.Fog(0x050510, 25, 100);
+        effectiveRangeCm = fogBaseRangeCM;
     }
-    // Recreate floor and grid with correct colors
+    
+    const effectiveRangeUnits = effectiveRangeCm / 10;
+    const density = 1.0 / effectiveRangeUnits;
+    const fogColor = lightBackground ? 0x87CEEB : 0x050510;
+    scene.fog = new THREE.FogExp2(fogColor, density * 0.9);
+    scene.background = new THREE.Color(fogColor);
+}
+
+function updateBackground() {
+    const fogColor = lightBackground ? 0x87CEEB : 0x050510;
+    scene.background = new THREE.Color(fogColor);
     if (floorMesh) scene.remove(floorMesh);
     if (gridHelper) scene.remove(gridHelper);
     const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;
-    floorMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(120, 120),
-        new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95 })
-    );
+    floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95, fog: true }));
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, -3.5, -20);
     scene.add(floorMesh);
-    
     const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
     const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
     gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
     gridHelper.position.set(0, -3.5, -20);
     scene.add(gridHelper);
+    updateFog();
 }
-// ═══════════════════════════════════════════════════════
-// OFF-AXIS PROJECTION
-// ═══════════════════════════════════════════════════════
+
+// Off-axis projection
 function computeOffAxisProjection() {
     const hw = (SCREEN_W_CM * S) / 2;
     const hh = (SCREEN_H_CM * S) / 2;
@@ -461,9 +607,7 @@ function computeOffAxisProjection() {
     cam3d.updateMatrixWorld(true);
 }
 
-// ═══════════════════════════════════════════════════════
-// FACE TRACKING
-// ═══════════════════════════════════════════════════════
+// Face tracking
 function updateEyeFromFace() {
     if (!currentFaceNorm) {
         document.getElementById('face-status').innerHTML = '⏸️ Face lost';
@@ -472,42 +616,50 @@ function updateEyeFromFace() {
     const cx = currentFaceNorm.x + currentFaceNorm.w / 2;
     const cy = currentFaceNorm.y + currentFaceNorm.h / 2;
     const fw = currentFaceNorm.w;
-    const targetZ_cm = (calibrated && calibW > 0) ? EYE_DIST_CM * calibW / fw : EYE_DIST_CM;
+    
+    let targetZ_cm;
+    if (calibrated && calibW > 0) {
+        targetZ_cm = EYE_DIST_CM * calibW / fw;
+    } else {
+        targetZ_cm = EYE_DIST_CM * REF_FACE_WIDTH / fw;
+    }
+    targetZ_cm = Math.min(150, Math.max(20, targetZ_cm));
+    
     const rawX_cm = (calibCX - cx) * SCREEN_W_CM * XY_SENS;
     const rawY_cm = -(cy - calibCY) * SCREEN_H_CM * XY_SENS;
     const targetX = rawX_cm * S;
     const targetY = rawY_cm * S;
-    const targetZ = Math.max(0.3, targetZ_cm * S);
+    const targetZ = targetZ_cm * S;
     const dz_wu = DEADZONE_CM * S;
     const alpha = 1 / SMOOTH_N;
     if (Math.abs(targetX - eyeX) > dz_wu) eyeX += (targetX - eyeX) * alpha;
     if (Math.abs(targetY - eyeY) > dz_wu) eyeY += (targetY - eyeY) * alpha;
-    eyeZ += (targetZ - eyeZ) * alpha * 0.4;
+    eyeZ += (targetZ - eyeZ) * alpha * 0.5;
     
-    document.getElementById('debug-info').innerHTML = `Eye XYZ: ${(eyeX/S).toFixed(1)} | ${(eyeY/S).toFixed(1)} | ${(eyeZ/S).toFixed(1)} cm<br>${calibrated ? '✓ Calibrated' : '⚠ Need calibration'}`;
-    document.getElementById('face-status').innerHTML = calibrated ? '🎯 Off-axis active' : '🔄 Need calibration';
+    document.getElementById('debug-info').innerHTML = `Distance: ${(eyeZ/S).toFixed(0)} cm | Fog: ${adaptiveFogEnabled ? 'adaptive' : 'fixed'}<br>${calibrated ? '✓ Calibrated' : '⚠ Not calibrated'}`;
+    document.getElementById('face-status').innerHTML = calibrated ? '🎯 Active' : '🔍 Move closer/farther → fog changes';
+    updateFog();
 }
 
-// Calibration
 function calibrate() {
     if (!currentFaceNorm) return;
     calibCX = currentFaceNorm.x + currentFaceNorm.w / 2;
     calibCY = currentFaceNorm.y + currentFaceNorm.h / 2;
     calibW = currentFaceNorm.w;
+    REF_FACE_WIDTH = calibW;
     eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
     calibrated = true;
-    const statusSpan = document.getElementById('face-status');
-    statusSpan.innerHTML = '✅ Calibrated!';
-    setTimeout(() => { statusSpan.innerHTML = '🎯 Off-axis active'; }, 1400);
+    document.getElementById('face-status').innerHTML = '✅ Calibrated!';
+    setTimeout(() => { document.getElementById('face-status').innerHTML = '🎯 Active'; }, 1400);
 }
 function resetCalib() {
     calibCX = 0.5; calibCY = 0.5; calibW = 0.25;
+    REF_FACE_WIDTH = 0.25;
     eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
     calibrated = false;
     document.getElementById('face-status').innerHTML = '↺ Reset';
 }
 
-// Animation logic
 function updateAnimation() {
     if (!animationEnabled) {
         teapot.rotation.y = 0;
@@ -521,14 +673,13 @@ function updateAnimation() {
     if (earRightRef) earRightRef.rotation.z = earBaseRotRightZ - wiggle * 0.8;
 }
 
-// ═══════════════════════════════════════════════════════
-// CONFIG MANAGEMENT (localStorage + JSON)
-// ═══════════════════════════════════════════════════════
+// Config
 function getCurrentConfig() {
     return {
         screenW: SCREEN_W_CM, screenH: SCREEN_H_CM, eyeDist: EYE_DIST_CM,
         smooth: SMOOTH_N, deadzone: DEADZONE_CM, xySens: XY_SENS,
-        animation: animationEnabled, lightBg: lightBackground
+        animation: animationEnabled, lightBg: lightBackground,
+        adaptiveFog: adaptiveFogEnabled, fogRange: fogBaseRangeCM
     };
 }
 
@@ -541,8 +692,9 @@ function applyConfig(cfg) {
     if (cfg.xySens !== undefined) XY_SENS = cfg.xySens;
     if (cfg.animation !== undefined) animationEnabled = cfg.animation;
     if (cfg.lightBg !== undefined) lightBackground = cfg.lightBg;
+    if (cfg.adaptiveFog !== undefined) adaptiveFogEnabled = cfg.adaptiveFog;
+    if (cfg.fogRange !== undefined) fogBaseRangeCM = cfg.fogRange;
     
-    // sync UI
     document.getElementById('range-sw').value = SCREEN_W_CM;
     document.getElementById('val-sw').innerText = SCREEN_W_CM;
     document.getElementById('range-sh').value = SCREEN_H_CM;
@@ -557,52 +709,29 @@ function applyConfig(cfg) {
     document.getElementById('val-xs').innerText = XY_SENS.toFixed(1);
     document.getElementById('anim-checkbox').checked = animationEnabled;
     document.getElementById('bg-checkbox').checked = lightBackground;
+    document.getElementById('adaptive-fog-checkbox').checked = adaptiveFogEnabled;
+    document.getElementById('range-fogRange').value = fogBaseRangeCM;
+    document.getElementById('val-fogRange').innerText = fogBaseRangeCM;
     
     makeWindowFrame();
     updateBackground();
+    updateFog();
     saveToLocalStorage();
 }
 
-function saveToLocalStorage() {
-    localStorage.setItem('offaxis_config', JSON.stringify(getCurrentConfig()));
-}
-
-function loadFromLocalStorage() {
-    const raw = localStorage.getItem('offaxis_config');
-    if (raw) {
-        try { applyConfig(JSON.parse(raw)); } catch(e) {}
-    }
-}
-
+function saveToLocalStorage() { localStorage.setItem('offaxis_config', JSON.stringify(getCurrentConfig())); }
+function loadFromLocalStorage() { const raw = localStorage.getItem('offaxis_config'); if (raw) { try { applyConfig(JSON.parse(raw)); } catch(e) {} } }
 function exportToJsonFile() {
     const data = getCurrentConfig();
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-    const a = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    a.href = url;
-    a.download = `offaxis_config_${new Date().toISOString().slice(0,19)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a'); const url = URL.createObjectURL(blob);
+    a.href = url; a.download = `offaxis_config_${new Date().toISOString().slice(0,19)}.json`;
+    a.click(); URL.revokeObjectURL(url);
 }
+function importFromJsonFile(file) { const reader = new FileReader(); reader.onload = (e) => { try { applyConfig(JSON.parse(e.target.result)); } catch (err) { alert('Invalid JSON file'); } }; reader.readAsText(file); }
+function resetToDefaults() { applyConfig({ screenW: 34, screenH: 21, eyeDist: 60, smooth: 8, deadzone: 0.3, xySens: 1.0, animation: false, lightBg: false, adaptiveFog: true, fogRange: 80 }); }
 
-function importFromJsonFile(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try { applyConfig(JSON.parse(e.target.result)); } catch (err) { alert('Invalid JSON file'); }
-    };
-    reader.readAsText(file);
-}
-
-function resetToDefaults() {
-    applyConfig({
-        screenW: 34, screenH: 21, eyeDist: 60, smooth: 8,
-        deadzone: 0.3, xySens: 1.0, animation: false, lightBg: false
-    });
-}
-
-// ═══════════════════════════════════════════════════════
-// MEDIAPIPE SETUP
-// ═══════════════════════════════════════════════════════
+// Mediapipe
 const video = document.getElementById('video');
 const debugCanvas = document.getElementById('debug-canvas');
 const ctx = debugCanvas.getContext('2d');
@@ -632,22 +761,15 @@ async function initMediapipe() {
         videoReady = true;
         statusSpan.innerHTML = '✅ Looking for face...';
         document.getElementById('calibrate-btn').disabled = false;
-        window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
         document.getElementById('calibrate-btn').addEventListener('click', calibrate);
         document.getElementById('reset-calib').addEventListener('click', resetCalib);
     } catch(err) { statusSpan.innerHTML = '❌ ' + err.message; }
 }
 
-// UI bindings
 function bindSettingsUI() {
     const bind = (id, valId, setter) => {
         const el = document.getElementById(id), span = document.getElementById(valId);
-        el.addEventListener('input', () => {
-            const v = parseFloat(el.value);
-            span.innerText = (id.includes('dz')||id.includes('xs')) ? v.toFixed(1) : (id.includes('ed')?v:v);
-            setter(v);
-            saveToLocalStorage();
-        });
+        el.addEventListener('input', () => { const v = parseFloat(el.value); span.innerText = (id.includes('dz')||id.includes('xs')) ? v.toFixed(1) : (id.includes('ed')?v:v); setter(v); saveToLocalStorage(); });
     };
     bind('range-sw', 'val-sw', v => { SCREEN_W_CM = v; makeWindowFrame(); });
     bind('range-sh', 'val-sh', v => { SCREEN_H_CM = v; makeWindowFrame(); });
@@ -655,39 +777,38 @@ function bindSettingsUI() {
     bind('range-sm', 'val-sm', v => { SMOOTH_N = v; });
     bind('range-dz', 'val-dz', v => { DEADZONE_CM = v; });
     bind('range-xs', 'val-xs', v => { XY_SENS = v; });
+    bind('range-fogRange', 'val-fogRange', v => { fogBaseRangeCM = v; updateFog(); saveToLocalStorage(); });
     
     const animCh = document.getElementById('anim-checkbox');
     const bgCh = document.getElementById('bg-checkbox');
+    const fogCh = document.getElementById('adaptive-fog-checkbox');
     animCh.addEventListener('change', e => { animationEnabled = e.target.checked; saveToLocalStorage(); });
     bgCh.addEventListener('change', e => { lightBackground = e.target.checked; updateBackground(); saveToLocalStorage(); });
+    fogCh.addEventListener('change', e => { adaptiveFogEnabled = e.target.checked; updateFog(); saveToLocalStorage(); });
     
     document.getElementById('save-config-btn').addEventListener('click', () => exportToJsonFile());
-    document.getElementById('load-config-btn').addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file'; input.accept = '.json';
-        input.onchange = e => { if(e.target.files[0]) importFromJsonFile(e.target.files[0]); };
-        input.click();
-    });
+    document.getElementById('load-config-btn').addEventListener('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = e => { if(e.target.files[0]) importFromJsonFile(e.target.files[0]); }; input.click(); });
     document.getElementById('reset-defaults-btn').addEventListener('click', () => resetToDefaults());
 }
 
-// Animation loop
 function animate() {
     requestAnimationFrame(animate);
+    if (cheeseCube && cheeseCube.updatePlanes) {
+        cheeseCube.updatePlanes(); // Постоянно обновляем плоскости в зависимости от мировой матрицы куба
+    }
     updateEyeFromFace();
     updateAnimation();
     computeOffAxisProjection();
     renderer.render(scene, cam3d);
 }
 
-// Start everything
 initMediapipe();
 loadFromLocalStorage();
 bindSettingsUI();
-updateBackground(); // initial theme
+updateBackground();
+window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
 animate();
 
-// Modal controls
 const modal = document.getElementById('settings-modal');
 document.getElementById('settings-btn').addEventListener('click', () => modal.classList.add('active'));
 document.getElementById('close-settings').addEventListener('click', () => modal.classList.remove('active'));
