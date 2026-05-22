@@ -3699,6 +3699,9 @@ function generateMIDIWithBend() {
                         let pb = Math.max(0, Math.min(16383, 8192 + Math.round((co/(sem*100))*8191)));
                         absEvents.push({ tick: t0+prog*dur, priority:3, bytes:[0xE0+channel, pb&0x7F, (pb>>7)&0x7F] });
                     }
+                    // Reset pitch-wheel to centre so the next note on this channel isn't detuned.
+                    // MIDI pitch bend is channel-wide and persists until explicitly reset.
+                    absEvents.push({ tick: t0 + dur, priority: 4, bytes: [0xE0+channel, 0x00, 0x40] });
                 }
             }
         }
@@ -3988,6 +3991,9 @@ function generateMIDIWithBend() {
                                         const rate = base * Math.pow(2, centsOffset / 1200);
                                         source.playbackRate.linearRampToValueAtTime(rate, time);
                                     }
+                                    // Snap back to unshifted rate at note-end so any off-centre
+                                    // automation doesn't linger beyond the source's stop time.
+                                    source.playbackRate.setValueAtTime(base, playTimeAc + durSec);
                                 }
                             }
                         }
@@ -4023,6 +4029,8 @@ function generateMIDIWithBend() {
                                             let centsOffset = (0.5 - y) * 2 * maxCents;
                                             source.playbackRate.linearRampToValueAtTime(Math.pow(2, centsOffset / 1200), time);
                                         }
+                                        // Snap back to neutral at note-end
+                                        source.playbackRate.setValueAtTime(1.0, playTimeAc + durSeconds);
                                     }
                                 }
                             }
@@ -4431,34 +4439,18 @@ function generateMIDIWithBend() {
 
         function mergeTiedNotes(timeline) {
             if (timeline.length === 0) return timeline;
-            // Group by voice first — the timeline is sorted by playStartQ (all voices
-            // interleaved), so a linear single-current pass would break tie chains
-            // whenever notes from other voices appear between a tied pair.
-            const byVoice = new Map();
+            let merged = [], current = null;
             for (let note of timeline) {
-                if (!byVoice.has(note.voiceId)) byVoice.set(note.voiceId, []);
-                byVoice.get(note.voiceId).push(note);
+                if (current === null) { current = { ...note }; continue; }
+                if (current.voiceId === note.voiceId && current.tie && pitchesEqual(current.pitches[0], note.pitches[0])) {
+                    current.duration += note.duration;
+                    current.articulations = [...new Set([...current.articulations, ...note.articulations])];
+                    current.tie = note.tie;
+                    if (note.bend) current.bend = note.bend;
+                } else { merged.push(current); current = { ...note }; }
             }
-            const result = [];
-            for (let notes of byVoice.values()) {
-                let i = 0;
-                while (i < notes.length) {
-                    let note = { ...notes[i], pitches: notes[i].pitches.map(p => ({ ...p })) };
-                    while (note.tie && i + 1 < notes.length &&
-                           pitchesEqual(note.pitches[0], notes[i + 1].pitches[0])) {
-                        i++;
-                        note.duration += notes[i].duration;
-                        note.articulations = [...new Set([...note.articulations, ...notes[i].articulations])];
-                        note.tie = notes[i].tie;   // carry tie flag forward
-                        if (notes[i].bend) note.bend = notes[i].bend;
-                    }
-                    result.push(note);
-                    i++;
-                }
-            }
-            // Restore chronological order for the scheduler
-            result.sort((a, b) => a.playStartQ - b.playStartQ);
-            return result;
+            if (current) merged.push(current);
+            return merged;
         }
 
         function pitchesEqual(p1, p2) { return p1.pitch === p2.pitch && p1.octave === p2.octave && p1.accidental === p2.accidental; }
