@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Amorphic Window — Solid Cheese & Ruby Crystal</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #050510; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; align-items: center; z-index: 3;
+        }
+        button {
+            background: #1d4ed8; border: none; color: white;
+            padding: 7px 16px; border-radius: 40px; cursor: pointer; font-size: 13px;
+            transition: background 0.15s;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #374151; cursor: default; }
+        .status {
+            background: rgba(0,0,0,0.4); padding: 5px 13px;
+            border-radius: 40px; font-family: monospace; font-size: 12px;
+        }
+        .video-preview {
+            position: absolute; bottom: 80px; right: 20px; width: 160px;
+            border-radius: 10px; overflow: hidden; border: 1.5px solid rgba(100,160,255,0.5);
+            z-index: 3; background: #000; opacity: 0.85; pointer-events: none;
+        }
+        .video-preview video, .video-preview canvas {
+            width: 100%; display: block; transform: scaleX(-1);
+        }
+        .info {
+            position: absolute; top: 16px; left: 16px;
+            background: rgba(5,5,20,0.75); padding: 5px 12px; border-radius: 20px;
+            font-size: 11px; color: #88aacc; z-index: 3; font-family: monospace;
+            border: 1px solid rgba(100,160,255,0.15);
+        }
+        .calibrate-btn { background: #7c3aed; }
+        .calibrate-btn:hover { background: #6d28d9; }
+        .settings-btn { background: #374151; }
+        .settings-btn:hover { background: #4b5563; }
+
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 30, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(100,160,255,0.35);
+            padding: 18px 20px;
+            border-radius: 20px;
+            z-index: 10;
+            color: #e2e8f0;
+            width: 360px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            font-size: 12px;
+        }
+        .modal.active { display: block; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .modal-header h3 { margin: 0; font-size: 16px; color: #88ccff; }
+        .close-btn { background: none; border: none; color: #ef4444; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
+        
+        .setting-row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+        .setting-row label {
+            font-size: 11px; color: #b8d0ff;
+            display: flex; justify-content: space-between;
+            align-items: center;
+        }
+        .setting-row label span { color: #ffffff; font-family: monospace; }
+        .setting-row input[type="range"] { width: 100%; cursor: pointer; accent-color: #3b82f6; margin: 2px 0; }
+        .setting-row input[type="checkbox"] { width: 18px; height: 18px; margin-left: 10px; cursor: pointer; accent-color: #3b82f6; }
+        .hint { font-size: 9px; color: #88aadd; margin-top: -4px; margin-bottom: 6px; }
+        .config-buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .config-buttons button { flex: 1; background: #2c3e66; font-size: 10px; padding: 6px 0; }
+        .reset-default-btn { background: #5a3e2b; }
+        .reset-default-btn:hover { background: #7a5536; }
+
+        @media (max-width: 600px) {
+            .controls { gap: 8px; bottom: 10px; }
+            .video-preview { width: 110px; bottom: 10px; right: 10px; }
+            .modal { width: 90vw; padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="face-status" style="display:none"></div>
+<div class="controls">
+    <button id="calibrate-btn" class="calibrate-btn" disabled>🎯 Calibrate</button>
+    <button id="reset-calib">↺ Reset</button>
+    <button id="settings-btn" class="settings-btn">⚙️ Settings</button>
+</div>
+
+<div class="video-preview">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="debug-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
+</div>
+
+<div class="info" id="debug-info">Waiting...</div>
+
+<div id="settings-modal" class="modal">
+    <div class="modal-header">
+        <h3>⚙️ Display & Motion</h3>
+        <button id="close-settings" class="close-btn">&times;</button>
+    </div>
+
+    <div class="setting-row" style="border-bottom: 1px solid rgba(100,160,255,0.25); padding-bottom: 12px; margin-bottom: 12px;">
+        <label style="font-size: 13px; color: #88ffcc; font-weight: bold; letter-spacing: 0.02em;">
+            🔮 Anamorphism (off-axis)
+            <input type="checkbox" id="anamorphism-checkbox" checked>
+        </label>
+        <div class="hint" style="margin-top: 4px;">OFF — лицо управляет позицией камеры (стандартная перспектива)</div>
+    </div>
+
+    <div class="setting-row">
+        <input type="range" id="range-sw" min="10" max="80" step="1" value="34">
+    </div>
+    <div class="setting-row">
+        <label>Screen height: <span id="val-sh">21</span> cm</label>
+        <input type="range" id="range-sh" min="6" max="50" step="1" value="21">
+    </div>
+    <div class="hint">📏 Measure active display area.</div>
+
+    <div class="setting-row">
+        <label>Calibration distance: <span id="val-ed">60</span> cm</label>
+        <input type="range" id="range-ed" min="20" max="150" step="5" value="60">
+    </div>
+    <div class="hint">👁 Stand at preferred distance, click "Calibrate".</div>
+
+    <div class="setting-row">
+        <label>Smoothing inertia: <span id="val-sm">8</span></label>
+        <input type="range" id="range-sm" min="2" max="30" step="1" value="8">
+    </div>
+    <div class="setting-row">
+        <label>Deadzone XY: <span id="val-dz">0.3</span> cm</label>
+        <input type="range" id="range-dz" min="0" max="3" step="0.1" value="0.3">
+    </div>
+    <div class="setting-row">
+        <label>Sensitivity XY: <span id="val-xs">1.0</span>×</label>
+        <input type="range" id="range-xs" min="0.3" max="3.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="setting-row">
+        <label>✨ Animation (teapot spin + mouse ears) 
+            <input type="checkbox" id="anim-checkbox">
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>☀️ Light theme (sky + grass) 
+            <input type="checkbox" id="bg-checkbox">
+        </label>
+    </div>
+
+    <div class="setting-row">
+        <label>🌫️ Adaptive Fog (clarity near screen)
+            <input type="checkbox" id="adaptive-fog-checkbox" checked>
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>Fog density base range: <span id="val-fogRange">80</span> cm</label>
+        <input type="range" id="range-fogRange" min="30" max="250" step="5" value="80">
+    </div>
+    <div class="hint">💨 Lower value = thicker fog. Move face closer → objects emerge.</div>
+
+    <div class="config-buttons">
+        <button id="save-config-btn">💾 Save to file</button>
+        <button id="load-config-btn">📂 Load from file</button>
+        <button id="reset-defaults-btn">↺ Reset settings</button>
+    </div>
+    <div class="hint" style="margin-top: 8px;">⚡ Settings auto‑save in browser.</div>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js';
+
+// ═══════════════════════════════════════════════════════
+// PHYSICAL PARAMETERS (1 unit = 10 cm)
+// ═══════════════════════════════════════════════════════
+const S = 0.1;
+let SCREEN_W_CM = 34;
+let SCREEN_H_CM = 21;
+let EYE_DIST_CM = 60;
+let SMOOTH_N    = 8;
+let DEADZONE_CM = 0.3;
+let XY_SENS     = 1.0;
+
+let animationEnabled = false;
+let lightBackground  = false;
+let anamorphismEnabled = true;
+
+let adaptiveFogEnabled = true;
+let fogBaseRangeCM = 80;
+
+let currentFaceNorm = null;
+let videoReady = false;
+let faceDetection = null;
+let camera_mp = null;
+let calibrated = false;
+let calibCX = 0.5, calibCY = 0.5, calibW = 0.25;
+let REF_FACE_WIDTH = 0.25;
+
+let eyeX = 0, eyeY = 0, eyeZ = EYE_DIST_CM * S;
+
+// ═══════════════════════════════════════════════════════
+// THREE.JS SCENE
+// ═══════════════════════════════════════════════════════
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+scene.fog = new THREE.FogExp2(0x050510, 0.08);
+
+const cam3d = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.05, 500);
+cam3d.position.set(0, 0, EYE_DIST_CM * S);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.localClippingEnabled = true; // Включаем поддержку локального отсечения
+container.appendChild(renderer.domElement);
+
+// Lighting
+scene.add(new THREE.AmbientLight(0x404060, 1.8));
+const dirLight = new THREE.DirectionalLight(0xfff5e0, 2.8);
+dirLight.position.set(20, 50, 30);
+scene.add(dirLight);
+const backLight = new THREE.DirectionalLight(0x88aaff, 1.2);
+backLight.position.set(-5, 10, -15);
+scene.add(backLight);
+const fillLight = new THREE.PointLight(0xffaa66, 0.7);
+fillLight.position.set(5, 3, 2);
+scene.add(fillLight);
+const ptBlue = new THREE.PointLight(0x4466ff, 80, 80);
+ptBlue.position.set(-10, 15, -20);
+scene.add(ptBlue);
+const ptOrange = new THREE.PointLight(0xff8844, 60, 60);
+ptOrange.position.set(12, 10, -8);
+scene.add(ptOrange);
+const ptPurple = new THREE.PointLight(0xaa44ff, 40, 50);
+ptPurple.position.set(0, 5, -35);
+scene.add(ptPurple);
+
+// Floor & grid
+let floorMesh, gridHelper;
+function createFloorAndGrid() {
+    if (floorMesh) scene.remove(floorMesh);
+    if (gridHelper) scene.remove(gridHelper);
+    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;
+    floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95, fog: true }));
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.set(0, -3.5, -20);
+    scene.add(floorMesh);
+    const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
+    const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
+    gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
+    gridHelper.position.set(0, -3.5, -20);
+    scene.add(gridHelper);
+}
+createFloorAndGrid();
+
+// Screen frame
+let windowFrameLine = null;
+function makeWindowFrame() {
+    if (windowFrameLine) scene.remove(windowFrameLine);
+    const hw = (SCREEN_W_CM * S) / 2;
+    const hh = (SCREEN_H_CM * S) / 2;
+    const pts = [
+        new THREE.Vector3(-hw, -hh, 0), new THREE.Vector3( hw, -hh, 0),
+        new THREE.Vector3( hw,  hh, 0), new THREE.Vector3(-hw,  hh, 0),
+        new THREE.Vector3(-hw, -hh, 0)
+    ];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.6 });
+    windowFrameLine = new THREE.Line(geo, mat);
+    scene.add(windowFrameLine);
+}
+makeWindowFrame();
+
+// ---------- НОВЫЙ ТВЁРДЫЙ СЫР: геометрические отверстия и внутренние полости (из FaceCube_1) ----------
+const CUBE_SIZE = 1.2;
+
+function createCheeseCube(size) {
+    const group = new THREE.Group();
+    const h = size / 2;
+
+    // Позиции и радиусы "пузырей" — сквозных отверстий
+    const bubbles = [
+        // передняя грань (z+)
+        [ 0.05,  0.15,  0.50, 0.18],
+        [-0.22, -0.12,  0.52, 0.14],
+        [ 0.30, -0.25,  0.54, 0.11],
+        [-0.35,  0.30,  0.51, 0.10],
+        // задняя грань (z-)
+        [-0.10,  0.28, -0.50, 0.13],
+        [ 0.20, -0.18, -0.53, 0.12],
+        [-0.28, -0.22, -0.52, 0.09],
+        // правая грань (x+)
+        [ 0.50,  0.18,  0.05, 0.15],
+        [ 0.53, -0.22, -0.10, 0.12],
+        // левая грань (x-)
+        [-0.50,  0.15,  0.15, 0.13],
+        [-0.54, -0.20, -0.05, 0.11],
+        // верхняя грань (y+)
+        [ 0.10,  0.52,  0.08, 0.14],
+        [-0.25,  0.54, -0.15, 0.12],
+        [ 0.22,  0.53,  0.20, 0.10],
+        // нижняя грань (y-)
+        [ 0.15, -0.50,  0.10, 0.13],
+        [-0.12, -0.52, -0.08, 0.11],
+        // рёберные отверстия
+        [ 0.52,  0.10,  0.50, 0.15],
+        [-0.10,  0.52,  0.49, 0.12],
+        [ 0.49, -0.08, -0.51, 0.13],
+        [-0.51,  0.12,  0.48, 0.10],
+    ];
+
+    const yellowMat = new THREE.MeshStandardMaterial({
+        color: 0xf0bc00, roughness: 0.62, metalness: 0.0, side: THREE.FrontSide, fog: true
+    });
+
+    // Локальные плоскости отсечения (границы куба)
+    const localPlanes = [
+        new THREE.Plane(new THREE.Vector3(-1, 0, 0), h), // Отрезает всё, что правее X = h
+        new THREE.Plane(new THREE.Vector3(1, 0, 0), h),  // Отрезает всё, что левее X = -h
+        new THREE.Plane(new THREE.Vector3(0, -1, 0), h), // Отрезает всё, что выше Y = h
+        new THREE.Plane(new THREE.Vector3(0, 1, 0), h),  // Отрезает всё, что ниже Y = -h
+        new THREE.Plane(new THREE.Vector3(0, 0, -1), h), // Отрезает всё, что глубже Z = h
+        new THREE.Plane(new THREE.Vector3(0, 0, 1), h)   // Отрезает всё, что ближе Z = -h
+    ];
+
+    // Динамические мировые плоскости, которые будут следовать за трансформациями куба
+    const worldPlanes = localPlanes.map(p => p.clone());
+
+    const cavityMat = new THREE.MeshStandardMaterial({
+        color: 0xc89a00, roughness: 0.48, metalness: 0.0, side: THREE.BackSide, fog: true,
+        clippingPlanes: worldPlanes // Применяем маску отсечения к материалу внутренних полостей
+    });
+
+    const PI = Math.PI;
+    // Конфигурация шести граней: нормаль, оси UV, центр, углы Эйлера для поворота меша
+    const faceConfigs = [
+        { n: new THREE.Vector3(0,0,1),  uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(0,0,h),   euler: [0,0,0]    },
+        { n: new THREE.Vector3(0,0,-1), uvAxes:[new THREE.Vector3(-1,0,0),new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(0,0,-h),  euler: [0,PI,0]   },
+        { n: new THREE.Vector3(1,0,0),  uvAxes:[new THREE.Vector3(0,0,-1),new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(h,0,0),   euler: [0,PI/2,0] },
+        { n: new THREE.Vector3(-1,0,0), uvAxes:[new THREE.Vector3(0,0,1), new THREE.Vector3(0,1,0)],  c: new THREE.Vector3(-h,0,0),  euler: [0,-PI/2,0]},
+        { n: new THREE.Vector3(0,1,0),  uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,-1)], c: new THREE.Vector3(0,h,0),   euler: [-PI/2,0,0]},
+        { n: new THREE.Vector3(0,-1,0), uvAxes:[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,1)],  c: new THREE.Vector3(0,-h,0),  euler: [PI/2,0,0] },
+    ];
+
+    faceConfigs.forEach(fc => {
+        const faceHolesList = [];
+        const cDot = fc.c.dot(fc.n);
+
+        bubbles.forEach(([bx, by, bz, br]) => {
+            const bPos = new THREE.Vector3(bx, by, bz);
+            const dist = bPos.dot(fc.n) - cDot;   // знаковое расстояние до плоскости грани
+            const depth = -dist;                    // глубина проникновения внутрь
+            if (depth >= 0 && depth < br) {
+                const rHole = Math.sqrt(br * br - depth * depth); // радиус отверстия на грани
+                // Проекция центра пузыря на плоскость грани → локальные UV
+                const proj = bPos.clone().addScaledVector(fc.n, -dist);
+                const rel  = proj.sub(fc.c);
+                faceHolesList.push([rel.dot(fc.uvAxes[0]), rel.dot(fc.uvAxes[1]), rHole]);
+            }
+        });
+
+        const shape = new THREE.Shape();
+        shape.moveTo(-h, -h); shape.lineTo(h, -h);
+        shape.lineTo(h,  h);  shape.lineTo(-h, h); shape.closePath();
+        faceHolesList.forEach(([u, v, r]) => {
+            const hole = new THREE.Path();
+            hole.absarc(u, v, r, 0, Math.PI * 2, true);
+            shape.holes.push(hole);
+        });
+
+        const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 32), yellowMat);
+        mesh.position.copy(fc.c);
+        mesh.rotation.set(...fc.euler);
+        group.add(mesh);
+    });
+
+    // Внутренние сферы (видны через отверстия)
+    bubbles.forEach(([bx, by, bz, br]) => {
+        const sMesh = new THREE.Mesh(new THREE.SphereGeometry(br, 22, 15), cavityMat);
+        sMesh.position.set(bx, by, bz);
+        group.add(sMesh);
+    });
+
+    // Метод для обновления плоскостей отсечения с учетом положения куба в мировом пространстве
+    group.updatePlanes = () => {
+        group.updateMatrixWorld(true);
+        localPlanes.forEach((p, i) => {
+            worldPlanes[i].copy(p).applyMatrix4(group.matrixWorld);
+        });
+    };
+
+    return group;
+}
+
+// ----- МЫШЬ (остаётся без изменений) -----
+function createMouse() {
+    const group = new THREE.Group();
+    const bodyMat   = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8, fog: true });
+    const eyeMat    = new THREE.MeshStandardMaterial({ color: 0xaa3333, fog: true });
+    const noseMat   = new THREE.MeshStandardMaterial({ color: 0xffb6c1, metalness: 0.2, fog: true });
+    const whiskMat  = new THREE.MeshStandardMaterial({ color: 0x222222, fog: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI*2, 0, Math.PI/2), bodyMat);
+    group.add(body);
+    [[-0.7,0,0.5],[0.7,0,0.5],[-0.7,0,-0.5],[0.7,0,-0.5]].forEach(([x,y,z]) => {
+        const leg = new THREE.Mesh(new THREE.SphereGeometry(0.3,16,8,0,Math.PI*2,0,Math.PI/2), bodyMat);
+        leg.position.set(x,y,z);
+        group.add(leg);
+    });
+    const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.6,32,16), bodyMat);
+    headSphere.position.set(0,0.3,0.8);
+    const headCone = new THREE.Mesh(new THREE.ConeGeometry(0.4,0.7,32), bodyMat);
+    headCone.position.set(0,0.3,1.45); headCone.rotation.x = Math.PI/2;
+    group.add(headSphere, headCone);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,8), noseMat);
+    nose.position.set(0,0.3,1.8);
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,8), eyeMat);
+    eyeL.position.set(-0.3,0.6,1.1);
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1,16,8), eyeMat);
+    eyeR.position.set(0.3,0.6,1.1);
+    const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,20), noseMat);
+    earL.position.set(-0.5,0.8,0.8); earL.rotation.set(Math.PI/2.2,0,-Math.PI/10);
+    const earR = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,20), noseMat);
+    earR.position.set(0.5,0.8,0.8); earR.rotation.set(Math.PI/2.2,0,Math.PI/10);
+    group.add(nose,eyeL,eyeR,earL,earR);
+    const wDef = { r: 0.007, l: 1.0 };
+    const wPositions = [
+        [-0.5,0.4,1.7,Math.PI/20,0.4,Math.PI/2.3], [-0.5,0.3,1.7,0,0.4,Math.PI/2],
+        [-0.5,0.2,1.7,-Math.PI/20,0.4,Math.PI/1.9], [0.5,0.4,1.7,Math.PI/20,-0.4,-Math.PI/2.3],
+        [0.5,0.3,1.7,0,-0.4,-Math.PI/2], [0.5,0.2,1.7,-Math.PI/20,-0.4,-Math.PI/1.9],
+    ];
+    wPositions.forEach(([px,py,pz,rx,ry,rz]) => {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(wDef.r,wDef.r,wDef.l,8), whiskMat);
+        w.position.set(px,py,pz); w.rotation.set(rx,ry,rz);
+        group.add(w);
+    });
+    const tailPath = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0,0.2,-1.0), new THREE.Vector3(0,0.6,-2.5), new THREE.Vector3(-0.9,0.4,-3.5)
+    ]);
+    group.add(new THREE.Mesh(new THREE.TubeGeometry(tailPath,30,0.05,8,false), noseMat));
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.6,8), noseMat);
+    tip.position.copy(tailPath.getPointAt(1.0));
+    tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), tailPath.getTangentAt(1.0).normalize());
+    group.add(tip);
+    group.scale.setScalar(0.4);
+    group.earLeft = earL;
+    group.earRight = earR;
+    return group;
+}
+
+// ----- СНЕГОВИК -----
+function createSnowman() {
+    const group = new THREE.Group();
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.85, fog: true });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, fog: true });
+    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, fog: true });
+    const bucketMat = new THREE.MeshStandardMaterial({ color: 0x777777, fog: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1), snowMat); body.position.y = -0.3;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.7), snowMat); head.position.y = 1.1;
+    const armL = new THREE.Mesh(new THREE.SphereGeometry(0.3), snowMat); armL.position.set(-1.1,-0.1,0.1);
+    const armR = new THREE.Mesh(new THREE.SphereGeometry(0.2), snowMat); armR.position.set(1.1,-0.1,-0.1);
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeL.position.set(-0.25,1.3,0.6);
+    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat); eyeR.position.set(0.25,1.3,0.6);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.5,16), noseMat); nose.position.set(0,1.1,0.95); nose.rotation.x = Math.PI/2;
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,0.65,32), bucketMat); bucket.position.y = 1.9;
+    group.add(body,head,armL,armR,eyeL,eyeR,nose,bucket);
+    group.scale.setScalar(0.6);
+    return group;
+}
+
+// ----- ЦЕНТРАЛЬНАЯ ГРУППА: сыр + мышь -----
+const centerGroup = new THREE.Group();
+const cheeseCube = createCheeseCube(CUBE_SIZE);
+centerGroup.add(cheeseCube);
+const mouseGroup = createMouse();
+mouseGroup.position.set(0, CUBE_SIZE/2 + 0.02, 0);
+centerGroup.add(mouseGroup);
+centerGroup.position.set(0.3, -0.5, -5);
+scene.add(centerGroup);
+
+const snowman = createSnowman();
+snowman.position.set(3.2, -1.0, -9);
+scene.add(snowman);
+
+const teapotMat = new THREE.MeshStandardMaterial({ color: 0x00c0ff, metalness: 0.55, roughness: 0.35, fog: true });
+const teapot = new THREE.Mesh(new TeapotGeometry(0.55, 10), teapotMat);
+teapot.position.set(-3.0, -0.7, -7);
+scene.add(teapot);
+
+// РУБИНОВЫЙ КРИСТАЛЛ
+const gemMat = new THREE.MeshPhysicalMaterial({
+    color: 0xdd2255,
+    emissive: 0x441122,
+    emissiveIntensity: 0.25,
+    metalness: 0.92,
+    roughness: 0.18,
+    transparent: true,
+    opacity: 0.72,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.15,
+    reflectivity: 0.45,
+    ior: 2.2,
+    fog: true
+});
+const rubyGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), gemMat);
+rubyGem.position.set(0, 0.2, 1.8);
+scene.add(rubyGem);
+
+// Декоративные элементы
+const archGeo = new THREE.TorusGeometry(3.5, 0.15, 12, 48, Math.PI);
+const archMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, metalness: 0.7, fog: true });
+const arch = new THREE.Mesh(archGeo, archMat);
+arch.position.set(0, 0, -25);
+scene.add(arch);
+[-6, 6].forEach(x => {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 10, 16), new THREE.MeshStandardMaterial({ color: 0x1a2a3a, fog: true }));
+    col.position.set(x, 1.5, -25);
+    scene.add(col);
+});
+for (let i = 0; i < 24; i++) {
+    const size = 0.18 + Math.random() * 0.35;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.55), roughness: 0.4, fog: true }));
+    m.position.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, -1.5 - Math.random() * 22);
+    scene.add(m);
+}
+
+// Анимация ушей
+const earLeftRef = mouseGroup.earLeft;
+const earRightRef = mouseGroup.earRight;
+const earBaseRotLeftZ = -Math.PI / 10;
+const earBaseRotRightZ = Math.PI / 10;
+
+// ═══════════════════════════════════════════════════════
+// АДАПТИВНЫЙ ТУМАН (без привязки к сырному шейдеру)
+// ═══════════════════════════════════════════════════════
+function updateFog() {
+    let effectiveRangeCm = fogBaseRangeCM;
+    const eyeDistCm = eyeZ / S;
+    const referenceDistCm = EYE_DIST_CM;
+    
+    if (adaptiveFogEnabled) {
+        let factor = referenceDistCm / Math.max(20, eyeDistCm);
+        factor = Math.min(3.5, Math.max(0.25, factor));
+        effectiveRangeCm = fogBaseRangeCM * factor;
+        effectiveRangeCm = Math.min(350, Math.max(25, effectiveRangeCm));
+    } else {
+        effectiveRangeCm = fogBaseRangeCM;
+    }
+    
+    const effectiveRangeUnits = effectiveRangeCm / 10;
+    const density = 1.0 / effectiveRangeUnits;
+    const fogColor = lightBackground ? 0x87CEEB : 0x050510;
+    scene.fog = new THREE.FogExp2(fogColor, density * 0.9);
+    scene.background = new THREE.Color(fogColor);
+}
+
+function updateBackground() {
+    const fogColor = lightBackground ? 0x87CEEB : 0x050510;
+    scene.background = new THREE.Color(fogColor);
+    if (floorMesh) scene.remove(floorMesh);
+    if (gridHelper) scene.remove(gridHelper);
+    const floorColor = lightBackground ? 0x6aab5a : 0x0d1a2e;
+    floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.95, fog: true }));
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.set(0, -3.5, -20);
+    scene.add(floorMesh);
+    const gridColor1 = lightBackground ? 0x9fd87f : 0x1a3a5c;
+    const gridColor2 = lightBackground ? 0x8fbf6a : 0x0d1f33;
+    gridHelper = new THREE.GridHelper(120, 80, gridColor1, gridColor2);
+    gridHelper.position.set(0, -3.5, -20);
+    scene.add(gridHelper);
+    updateFog();
+}
+
+// Off-axis projection
+function computeOffAxisProjection() {
+    cam3d.position.set(eyeX, eyeY, eyeZ);
+    cam3d.quaternion.set(0, 0, 0, 1);
+    cam3d.updateMatrixWorld(true);
+
+    if (!anamorphismEnabled) {
+        // Простая перспектива — лицо двигает камеру, eyeZ = дистанция/зум
+        cam3d.fov = 45;
+        cam3d.aspect = window.innerWidth / window.innerHeight;
+        cam3d.near = 0.05;
+        cam3d.far = 500;
+        cam3d.updateProjectionMatrix();
+        return;
+    }
+
+    // Off-axis проекция (анаморфный эффект «окна»)
+    const hw = (SCREEN_W_CM * S) / 2;
+    const hh = (SCREEN_H_CM * S) / 2;
+    const near = 0.05, far = 500;
+    const pS = near / eyeZ;
+    const l = (-hw - eyeX) * pS;
+    const r = ( hw - eyeX) * pS;
+    const t = ( hh - eyeY) * pS;
+    const b = (-hh - eyeY) * pS;
+    cam3d.projectionMatrix.makePerspective(l, r, t, b, near, far);
+    cam3d.projectionMatrixInverse.copy(cam3d.projectionMatrix).invert();
+}
+
+// Face tracking
+function updateEyeFromFace() {
+    if (!currentFaceNorm) {
+        document.getElementById('face-status').innerHTML = '⏸️ Face lost';
+        return;
+    }
+    const cx = currentFaceNorm.x + currentFaceNorm.w / 2;
+    const cy = currentFaceNorm.y + currentFaceNorm.h / 2;
+    const fw = currentFaceNorm.w;
+    
+    let targetZ_cm;
+    if (calibrated && calibW > 0) {
+        targetZ_cm = EYE_DIST_CM * calibW / fw;
+    } else {
+        targetZ_cm = EYE_DIST_CM * REF_FACE_WIDTH / fw;
+    }
+    targetZ_cm = Math.min(150, Math.max(20, targetZ_cm));
+    
+    const rawX_cm = (calibCX - cx) * SCREEN_W_CM * XY_SENS;
+    const rawY_cm = -(cy - calibCY) * SCREEN_H_CM * XY_SENS;
+    const targetX = rawX_cm * S;
+    const targetY = rawY_cm * S;
+    const targetZ = targetZ_cm * S;
+    const dz_wu = DEADZONE_CM * S;
+    const alpha = 1 / SMOOTH_N;
+    if (Math.abs(targetX - eyeX) > dz_wu) eyeX += (targetX - eyeX) * alpha;
+    if (Math.abs(targetY - eyeY) > dz_wu) eyeY += (targetY - eyeY) * alpha;
+    eyeZ += (targetZ - eyeZ) * alpha * 0.5;
+    
+    document.getElementById('debug-info').innerHTML = `Distance: ${(eyeZ/S).toFixed(0)} cm | Fog: ${adaptiveFogEnabled ? 'adaptive' : 'fixed'}<br>${calibrated ? '✓ Calibrated' : '⚠ Not calibrated'}`;
+    document.getElementById('face-status').innerHTML = calibrated ? '🎯 Active' : '🔍 Move closer/farther → fog changes';
+    updateFog();
+}
+
+function calibrate() {
+    if (!currentFaceNorm) return;
+    calibCX = currentFaceNorm.x + currentFaceNorm.w / 2;
+    calibCY = currentFaceNorm.y + currentFaceNorm.h / 2;
+    calibW = currentFaceNorm.w;
+    REF_FACE_WIDTH = calibW;
+    eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
+    calibrated = true;
+    document.getElementById('face-status').innerHTML = '✅ Calibrated!';
+    setTimeout(() => { document.getElementById('face-status').innerHTML = '🎯 Active'; }, 1400);
+}
+function resetCalib() {
+    calibCX = 0.5; calibCY = 0.5; calibW = 0.25;
+    REF_FACE_WIDTH = 0.25;
+    eyeX = 0; eyeY = 0; eyeZ = EYE_DIST_CM * S;
+    calibrated = false;
+    document.getElementById('face-status').innerHTML = '↺ Reset';
+}
+
+function updateAnimation() {
+    if (!animationEnabled) {
+        teapot.rotation.y = 0;
+        if (earLeftRef) earLeftRef.rotation.z = earBaseRotLeftZ;
+        if (earRightRef) earRightRef.rotation.z = earBaseRotRightZ;
+        return;
+    }
+    teapot.rotation.y += 0.012;
+    const wiggle = Math.sin(Date.now() * 0.008) * 0.18;
+    if (earLeftRef) earLeftRef.rotation.z = earBaseRotLeftZ + wiggle;
+    if (earRightRef) earRightRef.rotation.z = earBaseRotRightZ - wiggle * 0.8;
+}
+
+// Config
+function getCurrentConfig() {
+    return {
+        screenW: SCREEN_W_CM, screenH: SCREEN_H_CM, eyeDist: EYE_DIST_CM,
+        smooth: SMOOTH_N, deadzone: DEADZONE_CM, xySens: XY_SENS,
+        animation: animationEnabled, lightBg: lightBackground,
+        adaptiveFog: adaptiveFogEnabled, fogRange: fogBaseRangeCM,
+        anamorphism: anamorphismEnabled
+    };
+}
+
+function applyConfig(cfg) {
+    if (cfg.screenW !== undefined) SCREEN_W_CM = cfg.screenW;
+    if (cfg.screenH !== undefined) SCREEN_H_CM = cfg.screenH;
+    if (cfg.eyeDist !== undefined) EYE_DIST_CM = cfg.eyeDist;
+    if (cfg.smooth !== undefined) SMOOTH_N = cfg.smooth;
+    if (cfg.deadzone !== undefined) DEADZONE_CM = cfg.deadzone;
+    if (cfg.xySens !== undefined) XY_SENS = cfg.xySens;
+    if (cfg.animation !== undefined) animationEnabled = cfg.animation;
+    if (cfg.lightBg !== undefined) lightBackground = cfg.lightBg;
+    if (cfg.adaptiveFog !== undefined) adaptiveFogEnabled = cfg.adaptiveFog;
+    if (cfg.fogRange !== undefined) fogBaseRangeCM = cfg.fogRange;
+    if (cfg.anamorphism !== undefined) anamorphismEnabled = cfg.anamorphism;
+    
+    document.getElementById('range-sw').value = SCREEN_W_CM;
+    document.getElementById('val-sw').innerText = SCREEN_W_CM;
+    document.getElementById('range-sh').value = SCREEN_H_CM;
+    document.getElementById('val-sh').innerText = SCREEN_H_CM;
+    document.getElementById('range-ed').value = EYE_DIST_CM;
+    document.getElementById('val-ed').innerText = EYE_DIST_CM;
+    document.getElementById('range-sm').value = SMOOTH_N;
+    document.getElementById('val-sm').innerText = SMOOTH_N;
+    document.getElementById('range-dz').value = DEADZONE_CM;
+    document.getElementById('val-dz').innerText = DEADZONE_CM.toFixed(1);
+    document.getElementById('range-xs').value = XY_SENS;
+    document.getElementById('val-xs').innerText = XY_SENS.toFixed(1);
+    document.getElementById('anim-checkbox').checked = animationEnabled;
+    document.getElementById('bg-checkbox').checked = lightBackground;
+    document.getElementById('adaptive-fog-checkbox').checked = adaptiveFogEnabled;
+    document.getElementById('range-fogRange').value = fogBaseRangeCM;
+    document.getElementById('val-fogRange').innerText = fogBaseRangeCM;
+    document.getElementById('anamorphism-checkbox').checked = anamorphismEnabled;
+    
+    makeWindowFrame();
+    updateBackground();
+    updateFog();
+    saveToLocalStorage();
+}
+
+function saveToLocalStorage() { localStorage.setItem('offaxis_config', JSON.stringify(getCurrentConfig())); }
+function loadFromLocalStorage() { const raw = localStorage.getItem('offaxis_config'); if (raw) { try { applyConfig(JSON.parse(raw)); } catch(e) {} } }
+function exportToJsonFile() {
+    const data = getCurrentConfig();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a'); const url = URL.createObjectURL(blob);
+    a.href = url; a.download = `offaxis_config_${new Date().toISOString().slice(0,19)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+}
+function importFromJsonFile(file) { const reader = new FileReader(); reader.onload = (e) => { try { applyConfig(JSON.parse(e.target.result)); } catch (err) { alert('Invalid JSON file'); } }; reader.readAsText(file); }
+function resetToDefaults() { applyConfig({ screenW: 34, screenH: 21, eyeDist: 60, smooth: 8, deadzone: 0.3, xySens: 1.0, animation: false, lightBg: false, adaptiveFog: true, fogRange: 80, anamorphism: true }); }
+
+// Mediapipe
+const video = document.getElementById('video');
+const debugCanvas = document.getElementById('debug-canvas');
+const ctx = debugCanvas.getContext('2d');
+
+function onResults(results) {
+    if (!videoReady) return;
+    ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+    if (results.detections && results.detections.length > 0) {
+        const bbox = results.detections[0].boundingBox;
+        currentFaceNorm = { x: bbox.xCenter - bbox.width/2, y: bbox.yCenter - bbox.height/2, w: bbox.width, h: bbox.height };
+        ctx.strokeStyle = '#44ff88'; ctx.lineWidth = 2;
+        ctx.strokeRect(currentFaceNorm.x * debugCanvas.width, currentFaceNorm.y * debugCanvas.height, bbox.width * debugCanvas.width, bbox.height * debugCanvas.height);
+    } else { currentFaceNorm = null; }
+}
+
+async function initMediapipe() {
+    const statusSpan = document.getElementById('face-status');
+    statusSpan.innerHTML = 'Starting camera...';
+    try {
+        faceDetection = new FaceDetection({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${f}` });
+        faceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
+        faceDetection.onResults(onResults);
+        camera_mp = new Camera(video, { onFrame: async () => { await faceDetection.send({ image: video }); }, width: 640, height: 480 });
+        await camera_mp.start();
+        await new Promise(r => setTimeout(r, 500));
+        debugCanvas.width = video.videoWidth; debugCanvas.height = video.videoHeight;
+        videoReady = true;
+        statusSpan.innerHTML = '✅ Looking for face...';
+        document.getElementById('calibrate-btn').disabled = false;
+        document.getElementById('calibrate-btn').addEventListener('click', calibrate);
+        document.getElementById('reset-calib').addEventListener('click', resetCalib);
+    } catch(err) { statusSpan.innerHTML = '❌ ' + err.message; }
+}
+
+function bindSettingsUI() {
+    const bind = (id, valId, setter) => {
+        const el = document.getElementById(id), span = document.getElementById(valId);
+        el.addEventListener('input', () => { const v = parseFloat(el.value); span.innerText = (id.includes('dz')||id.includes('xs')) ? v.toFixed(1) : (id.includes('ed')?v:v); setter(v); saveToLocalStorage(); });
+    };
+    bind('range-sw', 'val-sw', v => { SCREEN_W_CM = v; makeWindowFrame(); });
+    bind('range-sh', 'val-sh', v => { SCREEN_H_CM = v; makeWindowFrame(); });
+    bind('range-ed', 'val-ed', v => { EYE_DIST_CM = v; });
+    bind('range-sm', 'val-sm', v => { SMOOTH_N = v; });
+    bind('range-dz', 'val-dz', v => { DEADZONE_CM = v; });
+    bind('range-xs', 'val-xs', v => { XY_SENS = v; });
+    bind('range-fogRange', 'val-fogRange', v => { fogBaseRangeCM = v; updateFog(); saveToLocalStorage(); });
+    
+    const animCh = document.getElementById('anim-checkbox');
+    const bgCh = document.getElementById('bg-checkbox');
+    const fogCh = document.getElementById('adaptive-fog-checkbox');
+    const anamorphCh = document.getElementById('anamorphism-checkbox');
+    animCh.addEventListener('change', e => { animationEnabled = e.target.checked; saveToLocalStorage(); });
+    bgCh.addEventListener('change', e => { lightBackground = e.target.checked; updateBackground(); saveToLocalStorage(); });
+    fogCh.addEventListener('change', e => { adaptiveFogEnabled = e.target.checked; updateFog(); saveToLocalStorage(); });
+    anamorphCh.addEventListener('change', e => { anamorphismEnabled = e.target.checked; saveToLocalStorage(); });
+    
+    document.getElementById('save-config-btn').addEventListener('click', () => exportToJsonFile());
+    document.getElementById('load-config-btn').addEventListener('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.onchange = e => { if(e.target.files[0]) importFromJsonFile(e.target.files[0]); }; input.click(); });
+    document.getElementById('reset-defaults-btn').addEventListener('click', () => resetToDefaults());
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    if (cheeseCube && cheeseCube.updatePlanes) {
+        cheeseCube.updatePlanes(); // Постоянно обновляем плоскости в зависимости от мировой матрицы куба
+    }
+    updateEyeFromFace();
+    updateAnimation();
+    computeOffAxisProjection();
+    renderer.render(scene, cam3d);
+}
+
+initMediapipe();
+loadFromLocalStorage();
+bindSettingsUI();
+updateBackground();
+window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
+animate();
+
+const modal = document.getElementById('settings-modal');
+document.getElementById('settings-btn').addEventListener('click', () => modal.classList.add('active'));
+document.getElementById('close-settings').addEventListener('click', () => modal.classList.remove('active'));
+</script>
+</body>
+</html>
