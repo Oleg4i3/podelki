@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Двойной Метроном — Мульти-метр</title>
+    <style>
+        :root {
+            --bg-color: #f7f6f0; /* Цвет качественной нотной бумаги */
+            --panel-bg: #ffffff;
+            --text-main: #2c3e50; /* Глубокий графитовый */
+            --text-muted: #7f8c8d;
+            --border-color: #bdc3c7;
+            
+            /* Музыкальные акценты */
+            --accent-primary: #34495e; /* Матовый металл */
+            --accent-strong: #8b1e0f;  /* Классический бордовый / скрипичное дерево */
+            --accent-semi: #d4af37;    /* Благородное золото */
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+            padding: 30px;
+            box-sizing: border-box;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 35px;
+            border-bottom: 2px solid var(--accent-primary);
+            padding-bottom: 15px;
+        }
+
+        header h1 {
+            margin: 0 0 5px 0;
+            font-size: 2.2rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            margin: 0;
+            font-style: italic;
+        }
+
+        /* Общая панель управления */
+        .master-controls {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .tempo-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 550px;
+        }
+
+        .tempo-row label {
+            font-weight: 600;
+            min-width: 110px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* Рубильник режимов */
+        .mode-switcher {
+            display: flex;
+            background-color: #eee;
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-btn {
+            background: none;
+            border: none;
+            padding: 8px 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background-color: var(--accent-primary);
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+
+        .slider {
+            flex-grow: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border-color);
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            transition: transform 0.1s;
+            border: 2px solid var(--panel-bg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .tempo-display {
+            font-size: 1.3rem;
+            font-weight: 700;
+            width: 90px;
+            text-align: right;
+            color: var(--accent-strong);
+        }
+
+        .btn-main {
+            background-color: var(--accent-strong);
+            color: #fff;
+            border: 1px solid var(--accent-strong);
+            padding: 14px 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn-main:hover {
+            background-color: transparent;
+            color: var(--accent-strong);
+        }
+
+        .btn-main.playing {
+            background-color: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: #fff;
+        }
+        
+        .btn-main.playing:hover {
+            background-color: transparent;
+            color: var(--accent-primary);
+        }
+
+        /* Сетка метрономов */
+        .metronomes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        @media (max-width: 650px) {
+            .metronomes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .metro-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .metro-panel h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* Выбор размера */
+        .time-signature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time-signature span {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: var(--text-muted);
+        }
+
+        select {
+            background-color: var(--panel-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-grow: 1;
+            font-weight: 500;
+        }
+
+        select:focus {
+            border-color: var(--accent-primary);
+        }
+
+        /* Визуализация долей */
+        .dots-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            min-height: 45px;
+            align-content: flex-start;
+            background: #fafafa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px dashed var(--border-color);
+        }
+
+        .dot {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.1s ease;
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        .dot:not(:first-child) {
+            cursor: pointer;
+        }
+        .dot:not(:first-child):hover {
+            transform: scale(1.05);
+            border-color: var(--text-main);
+        }
+
+        .dot.strong-beat {
+            border-color: var(--accent-strong);
+            color: var(--accent-strong);
+            background-color: rgba(139, 30, 15, 0.03);
+        }
+
+        .dot.semi-beat {
+            border-color: var(--accent-semi);
+            color: var(--accent-semi);
+            background-color: rgba(212, 175, 55, 0.03);
+        }
+
+        .dot.active {
+            background-color: var(--text-main);
+            color: #fff;
+            border-color: var(--text-main);
+            transform: scale(1.1);
+        }
+
+        .dot.strong-beat.active {
+            background-color: var(--accent-strong);
+            color: #fff;
+            border-color: var(--accent-strong);
+            box-shadow: 0 0 10px rgba(139, 30, 15, 0.4);
+        }
+
+        .dot.semi-beat.active {
+            background-color: var(--accent-semi);
+            color: #fff;
+            border-color: var(--accent-semi);
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Двойной Метроном</h1>
+        
+    </header>
+
+    <div class="master-controls">
+        <div class="mode-switcher">
+            <button class="mode-btn active" id="mode-polyrhythm" data-mode="polyrhythm">Полиритмия (Сильные вместе)</button>
+            <button class="mode-btn" id="mode-polymeter" data-mode="polymeter">Полиметрия (Доли вместе)</button>
+        </div>
+
+        <div class="tempo-row">
+            <label for="tempo">Общий темп:</label>
+            <input type="range" id="tempo" class="slider" min="40" max="240" value="120">
+            <div class="tempo-display"><span id="bpm-val">120</span> BPM</div>
+        </div>
+        <button id="start-btn" class="btn-main">Старт</button>
+    </div>
+
+    <div class="metronomes-grid">
+        
+        <div class="metro-panel" id="panel-1">
+            <h2>Пульс А</h2>
+            
+            <div class="control-group">
+                <label>Размер:</label>
+                <div class="time-signature">
+                    <select id="beats-1"></select>
+                    <span>/</span>
+                    <select id="denom-1">
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="sound-1">Звук инструмента:</label>
+                <select id="sound-1">
+                    <option value="tick" selected>Тик (Деревянный)</option>
+                    <option value="click">Щелчок (Электронный)</option>
+                    <option value="bongo">Бонго</option>
+                    <option value="maracas">Маракас</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="volume-1">Громкость линии:</label>
+                <input type="range" id="volume-1" class="slider" min="0" max="1" step="0.05" value="0.8">
+            </div>
+
+            <div class="dots-container" id="dots-1"></div>
+        </div>
+
+        <div class="metro-panel" id="panel-2">
+            <h2>Пульс Б</h2>
+            
+            <div class="control-group">
+                <label>Размер:</label>
+                <div class="time-signature">
+                    <select id="beats-2"></select>
+                    <span>/</span>
+                    <select id="denom-2">
+                        <option value="4">4</option>
+                        <option value="8" selected>8</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="sound-2">Звук инструмента:</label>
+                <select id="sound-2">
+                    <option value="tick">Тик (Деревянный)</option>
+                    <option value="click">Щелчок (Электронный)</option>
+                    <option value="bongo" selected>Бонго</option>
+                    <option value="maracas">Маракас</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="volume-2">Громкость линии:</label>
+                <input type="range" id="volume-2" class="slider" min="0" max="1" step="0.05" value="0.8">
+            </div>
+
+            <div class="dots-container" id="dots-2"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    let audioCtx = null;
+    let isPlaying = false;
+    
+    let tempo = 120;
+    let appMode = 'polyrhythm'; 
+    
+    let nextNoteTime1 = 0.0;
+    let nextNoteTime2 = 0.0;
+    
+    const lookahead = 25.0; 
+    const scheduleAheadTime = 0.1; 
+    let timerId = null;
+
+    const metro1 = { id: 1, beats: 5, denominator: 4, currentBeat: 0, sound: 'tick', volume: 0.8, domId: 'dots-1', beatTypes: [] };
+    const metro2 = { id: 2, beats: 6, denominator: 8, currentBeat: 0, sound: 'bongo', volume: 0.8, domId: 'dots-2', beatTypes: [] };
+
+    const notesInQueue = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        populateSelectors();
+        loadSettings(); 
+        setupEventListeners();
+        renderDots(metro1);
+        renderDots(metro2);
+    });
+
+    function populateSelectors() {
+        const selects = [document.getElementById('beats-1'), document.getElementById('beats-2')];
+        selects.forEach(select => {
+            for (let i = 2; i <= 14; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = i;
+                select.appendChild(opt);
+            }
+        });
+    }
+
+    function initBeatTypes(metro) {
+        if (!metro.beatTypes || metro.beatTypes.length !== metro.beats) {
+            metro.beatTypes = new Array(metro.beats).fill(0);
+            metro.beatTypes[0] = 2; 
+            
+            const b = metro.beats;
+            if (b === 4 || b === 6) metro.beatTypes[3] = 1;
+            else if (b === 5) metro.beatTypes[3] = 1;
+            else if (b === 7 || b === 8) metro.beatTypes[4] = 1;
+            else if (b === 9 || b === 12) metro.beatTypes[3] = 1;
+            else if (b === 10) metro.beatTypes[5] = 1;
+            else if (b === 11) metro.beatTypes[6] = 1;
+            else if (b === 13 || b === 14) metro.beatTypes[7] = 1;
+        }
+    }
+
+    function setupEventListeners() {
+        const startBtn = document.getElementById('start-btn');
+        const tempoSlider = document.getElementById('tempo');
+        const bpmVal = document.getElementById('bpm-val');
+
+        tempoSlider.addEventListener('input', (e) => {
+            tempo = parseInt(e.target.value);
+            bpmVal.innerText = tempo;
+            saveSettings();
+        });
+
+        startBtn.addEventListener('click', toggleMetronome);
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                appMode = e.target.dataset.mode;
+                saveSettings();
+                
+                if (isPlaying) {
+                    const now = audioCtx.currentTime + 0.02;
+                    nextNoteTime1 = now;
+                    nextNoteTime2 = now;
+                    metro1.currentBeat = 0;
+                    metro2.currentBeat = 0;
+                }
+            });
+        });
+
+        // Метроном 1
+        document.getElementById('beats-1').addEventListener('change', (e) => {
+            metro1.beats = parseInt(e.target.value);
+            metro1.beatTypes = null; 
+            initBeatTypes(metro1);
+            if(metro1.currentBeat >= metro1.beats) metro1.currentBeat = 0;
+            renderDots(metro1);
+            saveSettings();
+        });
+        document.getElementById('denom-1').addEventListener('change', (e) => { metro1.denominator = parseInt(e.target.value); saveSettings(); });
+        document.getElementById('sound-1').addEventListener('change', (e) => { metro1.sound = e.target.value; saveSettings(); });
+        document.getElementById('volume-1').addEventListener('input', (e) => { metro1.volume = parseFloat(e.target.value); saveSettings(); });
+
+        // Метроном 2 (Знаменатель теперь всегда доступен)
+        document.getElementById('beats-2').addEventListener('change', (e) => {
+            metro2.beats = parseInt(e.target.value);
+            metro2.beatTypes = null;
+            initBeatTypes(metro2);
+            if(metro2.currentBeat >= metro2.beats) metro2.currentBeat = 0;
+            renderDots(metro2);
+            saveSettings();
+        });
+        document.getElementById('denom-2').addEventListener('change', (e) => { metro2.denominator = parseInt(e.target.value); saveSettings(); });
+        document.getElementById('sound-2').addEventListener('change', (e) => { metro2.sound = e.target.value; saveSettings(); });
+        document.getElementById('volume-2').addEventListener('input', (e) => { metro2.volume = parseFloat(e.target.value); saveSettings(); });
+
+        setupDotClickEvent(metro1);
+        setupDotClickEvent(metro2);
+    }
+
+    function setupDotClickEvent(metro) {
+        const container = document.getElementById(metro.domId);
+        container.addEventListener('click', (e) => {
+            const dot = e.target.closest('.dot');
+            if (!dot) return;
+            
+            const index = parseInt(dot.dataset.index);
+            if (index === 0) return; 
+
+            metro.beatTypes[index] = metro.beatTypes[index] === 1 ? 0 : 1;
+            
+            renderDots(metro);
+            saveSettings();
+        });
+    }
+
+    function renderDots(metro) {
+        initBeatTypes(metro);
+        const container = document.getElementById(metro.domId);
+        container.innerHTML = '';
+        
+        for (let i = 0; i < metro.beats; i++) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            dot.innerText = i + 1;
+            dot.dataset.index = i;
+            
+            const type = metro.beatTypes[i];
+            if (type === 2) dot.classList.add('strong-beat');
+            else if (type === 1) dot.classList.add('semi-beat');
+            
+            container.appendChild(dot);
+        }
+    }
+
+    function toggleMetronome() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        isPlaying = !isPlaying;
+        const btn = document.getElementById('start-btn');
+
+        if (isPlaying) {
+            btn.textContent = 'Стоп';
+            btn.classList.add('playing');
+            
+            metro1.currentBeat = 0;
+            metro2.currentBeat = 0;
+            
+            const startTime = audioCtx.currentTime + 0.05;
+            nextNoteTime1 = startTime;
+            nextNoteTime2 = startTime;
+            
+            scheduler();
+            requestAnimationFrame(drawVisuals);
+        } else {
+            btn.textContent = 'Старт';
+            btn.classList.remove('playing');
+            clearTimeout(timerId);
+            clearAllActiveVisuals();
+        }
+    }
+
+    function scheduler() {
+        const currentTime = audioCtx.currentTime;
+
+        // Расчет реальной длительности четверти от текущего BPM
+        const baseSecondsPerBeat = 60.0 / tempo;
+        
+        // Шаг времени для Пульса А (учитывает его знаменатель /4 или /8)
+        const secondsPerBeat1 = metro1.denominator === 8 ? baseSecondsPerBeat / 2 : baseSecondsPerBeat;
+        
+        // Общая длительность одного полного такта Пульса А
+        const totalBarTime1 = metro1.beats * secondsPerBeat1;
+
+        let secondsPerBeat2;
+        if (appMode === 'polyrhythm') {
+            // Режим «Сильные вместе»: Время такта Б принудительно равно времени такта А.
+            // Доли равномерно распределяются внутри этого временного промежутка.
+            secondsPerBeat2 = totalBarTime1 / metro2.beats;
+        } else {
+            // Режим «Доли вместе»: Каждый пульс звучит со своей математической скоростью долей.
+            secondsPerBeat2 = metro2.denominator === 8 ? baseSecondsPerBeat / 2 : baseSecondsPerBeat;
+        }
+
+        // Очередь Пульса А
+        while (nextNoteTime1 < currentTime + scheduleAheadTime) {
+            scheduleNote(1, nextNoteTime1, metro1.currentBeat);
+            nextNoteTime1 += secondsPerBeat1;
+            metro1.currentBeat = (metro1.currentBeat + 1) % metro1.beats;
+        }
+
+        // Очередь Пульса Б
+        while (nextNoteTime2 < currentTime + scheduleAheadTime) {
+            scheduleNote(2, nextNoteTime2, metro2.currentBeat);
+            nextNoteTime2 += secondsPerBeat2;
+            metro2.currentBeat = (metro2.currentBeat + 1) % metro2.beats;
+        }
+
+        timerId = setTimeout(scheduler, lookahead);
+    }
+
+    function scheduleNote(metroId, time, beatIndex) {
+        notesInQueue.push({ time: time, metroId: metroId, beatIndex: beatIndex });
+        playSynthSound(metroId === 1 ? metro1 : metro2, time, beatIndex);
+    }
+
+    function playSynthSound(metro, time, beatIndex) {
+        if (metro.volume === 0) return;
+
+        const type = metro.beatTypes[beatIndex];
+        
+        let volMultiplier = 0.25; 
+        if (type === 2) volMultiplier = 1.0;   
+        if (type === 1) volMultiplier = 0.55;  
+        
+        const finalVolume = metro.volume * volMultiplier;
+
+        if (metro.sound === 'maracas') {
+            const bufferSize = audioCtx.sampleRate * 0.05;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noiseNode = audioCtx.createBufferSource();
+            noiseNode.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(type === 2 ? 7500 : (type === 1 ? 6200 : 4800), time);
+            filter.Q.setValueAtTime(4, time);
+
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(finalVolume * 0.5, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+
+            noiseNode.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            noiseNode.start(time);
+            noiseNode.stop(time + 0.04);
+
+        } else {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            let duration = 0.05;
+
+            if (metro.sound === 'click') {
+                osc.type = 'sine';
+                let freq = type === 2 ? 1500 : (type === 1 ? 1150 : 850);
+                osc.frequency.setValueAtTime(freq, time);
+                duration = 0.03;
+            } 
+            else if (metro.sound === 'tick') {
+                osc.type = 'triangle';
+                let freq = type === 2 ? 1700 : (type === 1 ? 1250 : 950);
+                osc.frequency.setValueAtTime(freq, time);
+                duration = 0.04;
+            } 
+            else if (metro.sound === 'bongo') {
+                osc.type = 'sine';
+                let startFreq = type === 2 ? 480 : (type === 1 ? 360 : 260);
+                osc.frequency.setValueAtTime(startFreq, time);
+                osc.frequency.exponentialRampToValueAtTime(startFreq * 0.5, time + 0.08);
+                duration = 0.12;
+            }
+
+            gainNode.gain.setValueAtTime(finalVolume, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+            osc.start(time);
+            osc.stop(time + duration);
+        }
+    }
+
+    function drawVisuals() {
+        if (!isPlaying) return;
+
+        const currentTime = audioCtx.currentTime;
+
+        while (notesInQueue.length && notesInQueue[0].time <= currentTime) {
+            const currentNote = notesInQueue.shift();
+            const metroDomId = currentNote.metroId === 1 ? metro1.domId : metro2.domId;
+            
+            const dots = document.querySelectorAll(`#${metroDomId} .dot`);
+            dots.forEach(d => d.classList.remove('active'));
+            
+            if (dots[currentNote.beatIndex]) {
+                dots[currentNote.beatIndex].classList.add('active');
+            }
+        }
+
+        requestAnimationFrame(drawVisuals);
+    }
+
+    function clearAllActiveVisuals() {
+        document.querySelectorAll('.dot').forEach(d => d.classList.remove('active'));
+    }
+
+    function saveSettings() {
+        const state = {
+            tempo: tempo,
+            appMode: appMode,
+            metro1: { beats: metro1.beats, denominator: metro1.denominator, sound: metro1.sound, volume: metro1.volume, beatTypes: metro1.beatTypes },
+            metro2: { beats: metro2.beats, denominator: metro2.denominator, sound: metro2.sound, volume: metro2.volume, beatTypes: metro2.beatTypes }
+        };
+        localStorage.setItem('double_metronome_v3_data', JSON.stringify(state));
+    }
+
+    // Загрузка последних настроек
+    function loadSettings() {
+        const saved = localStorage.getItem('double_metronome_v3_data');
+        if (!saved) return;
+
+        try {
+            const parsed = JSON.parse(saved);
+            
+            tempo = parsed.tempo || 120;
+            document.getElementById('tempo').value = tempo;
+            document.getElementById('bpm-val').innerText = tempo;
+
+            appMode = parsed.appMode || 'polyrhythm';
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                if(b.dataset.mode === appMode) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+
+            if (parsed.metro1) {
+                Object.assign(metro1, parsed.metro1);
+                document.getElementById('beats-1').value = metro1.beats;
+                document.getElementById('denom-1').value = metro1.denominator;
+                document.getElementById('sound-1').value = metro1.sound;
+                document.getElementById('volume-1').value = metro1.volume;
+            }
+
+            if (parsed.metro2) {
+                Object.assign(metro2, parsed.metro2);
+                document.getElementById('beats-2').value = metro2.beats;
+                document.getElementById('denom-2').value = metro2.denominator;
+                document.getElementById('sound-2').value = metro2.sound;
+                document.getElementById('volume-2').value = metro2.volume;
+            }
+        } catch (e) {
+            console.error("Ошибка чтения настроек из localStorage", e);
+        }
+    }
+</script>
+</body>
+</html>
