@@ -118,6 +118,54 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.15);
         }
 
+        /* Тумблер Стерео */
+        .stereo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-main);
+        }
+
+        .stereo-checkbox {
+            position: relative;
+            width: 44px;
+            height: 22px;
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: var(--border-color);
+            border-radius: 11px;
+            outline: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .stereo-checkbox:checked {
+            background-color: var(--accent-strong);
+        }
+
+        .stereo-checkbox::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            background-color: #fff;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .stereo-checkbox:checked::before {
+            transform: translateX(22px);
+        }
+
         .slider {
             flex-grow: 1;
             -webkit-appearance: none;
@@ -340,8 +388,8 @@
 
 <div class="container">
     <header>
-        <h1>Двойной Метроном</h1>
-  
+        <p>Двойной Метроном</p>
+
     </header>
 
     <div class="master-controls">
@@ -349,6 +397,11 @@
             <button class="mode-btn active" id="mode-polyrhythm" data-mode="polyrhythm">Полиритмия (Сильные вместе)</button>
             <button class="mode-btn" id="mode-polymeter" data-mode="polymeter">Полиметрия (Доли вместе)</button>
         </div>
+
+        <label class="stereo-wrap" for="stereo-toggle">
+            <input type="checkbox" id="stereo-toggle" class="stereo-checkbox">
+            <span>Разделение каналов (Пульс А — Лев / Пульс Б — Прав)</span>
+        </label>
 
         <div class="tempo-row">
             <label for="tempo">Общий темп:</label>
@@ -435,6 +488,7 @@
     
     let tempo = 120;
     let appMode = 'polyrhythm'; 
+    let isStereo = false; // Глобальный флаг стереорежима
     
     const lookahead = 25.0; 
     const scheduleAheadTime = 0.1; 
@@ -485,10 +539,16 @@
         const startBtn = document.getElementById('start-btn');
         const tempoSlider = document.getElementById('tempo');
         const bpmVal = document.getElementById('bpm-val');
+        const stereoToggle = document.getElementById('stereo-toggle');
 
         tempoSlider.addEventListener('input', (e) => {
             tempo = parseInt(e.target.value);
             bpmVal.innerText = tempo;
+            saveSettings();
+        });
+
+        stereoToggle.addEventListener('change', (e) => {
+            isStereo = e.target.checked;
             saveSettings();
         });
 
@@ -502,7 +562,6 @@
                 saveSettings();
                 
                 if (isPlaying) {
-                    // Фазовый сброс для мгновенной жесткой синхронизации
                     const now = audioCtx.currentTime + 0.02;
                     metro1.barStartTime = now;
                     metro2.barStartTime = now;
@@ -608,14 +667,11 @@
 
     function scheduler() {
         const currentTime = audioCtx.currentTime;
-
         const baseSecondsPerBeat = 60.0 / tempo;
         
-        // Математически точный расчет параметров Линии А
         const secondsPerBeat1 = metro1.denominator === 8 ? baseSecondsPerBeat / 2 : baseSecondsPerBeat;
         const totalBarTime1 = metro1.beats * secondsPerBeat1;
 
-        // Расчет шага для Линии Б
         let secondsPerBeat2;
         if (appMode === 'polyrhythm') {
             secondsPerBeat2 = totalBarTime1 / metro2.beats;
@@ -631,7 +687,7 @@
             metro1.currentBeat++;
             if (metro1.currentBeat >= metro1.beats) {
                 metro1.currentBeat = 0;
-                metro1.barStartTime += totalBarTime1; // Шаг тактового якоря А
+                metro1.barStartTime += totalBarTime1;
             }
             noteTime1 = metro1.barStartTime + metro1.currentBeat * secondsPerBeat1;
         }
@@ -646,10 +702,7 @@
                 metro2.currentBeat = 0;
                 
                 if (appMode === 'polyrhythm') {
-                    // КЛЮЧЕВОЙ МОМЕНТ СИНХРОНИЗАЦИИ:
-                    // Вместо накопления дробных долей Б, мы жестко сдвигаем якорь Б 
-                    // на абсолютно идентичную эталонную длину такта А! 
-                    metro2.barStartTime += totalBarTime1;
+                    metro2.barStartTime += totalBarTime1; // Жесткая синхронизация фазы против дрифта
                 } else {
                     const totalBarTime2 = metro2.beats * secondsPerBeat2;
                     metro2.barStartTime += totalBarTime2;
@@ -677,6 +730,19 @@
         
         const finalVolume = metro.volume * volMultiplier;
 
+        // Создаем целевой узел (конечный узел перед выводом)
+        let targetOutput = audioCtx.destination;
+
+        // Если стереорежим активен, пропускаем звук через PannerNode
+        if (isStereo) {
+            const panner = audioCtx.createStereoPanner();
+            // Пульс А (id: 1) -> жестко влево (-1), Пульс Б (id: 2) -> жестко вправо (1)
+            const panValue = metro.id === 1 ? -1.0 : 1.0;
+            panner.pan.setValueAtTime(panValue, time);
+            panner.connect(audioCtx.destination);
+            targetOutput = panner;
+        }
+
         if (metro.sound === 'maracas') {
             const bufferSize = audioCtx.sampleRate * 0.05;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -698,7 +764,7 @@
 
             noiseNode.connect(filter);
             filter.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(targetOutput);
 
             noiseNode.start(time);
             noiseNode.stop(time + 0.04);
@@ -707,7 +773,7 @@
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(targetOutput);
 
             let duration = 0.05;
 
@@ -767,14 +833,15 @@
         const state = {
             tempo: tempo,
             appMode: appMode,
+            isStereo: isStereo,
             metro1: { beats: metro1.beats, denominator: metro1.denominator, sound: metro1.sound, volume: metro1.volume, beatTypes: metro1.beatTypes },
             metro2: { beats: metro2.beats, denominator: metro2.denominator, sound: metro2.sound, volume: metro2.volume, beatTypes: metro2.beatTypes }
         };
-        localStorage.setItem('double_metronome_v4_data', JSON.stringify(state));
+        localStorage.setItem('double_metronome_v5_data', JSON.stringify(state));
     }
 
     function loadSettings() {
-        const saved = localStorage.getItem('double_metronome_v4_data');
+        const saved = localStorage.getItem('double_metronome_v5_data');
         if (!saved) return;
 
         try {
@@ -789,6 +856,9 @@
                 if(b.dataset.mode === appMode) b.classList.add('active');
                 else b.classList.remove('active');
             });
+
+            isStereo = parsed.isStereo || false;
+            document.getElementById('stereo-toggle').checked = isStereo;
 
             if (parsed.metro1) {
                 Object.assign(metro1, parsed.metro1);
