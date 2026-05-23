@@ -341,7 +341,7 @@
 <div class="container">
     <header>
         <h1>Двойной Метроном</h1>
-        
+  
     </header>
 
     <div class="master-controls">
@@ -436,15 +436,12 @@
     let tempo = 120;
     let appMode = 'polyrhythm'; 
     
-    let nextNoteTime1 = 0.0;
-    let nextNoteTime2 = 0.0;
-    
     const lookahead = 25.0; 
     const scheduleAheadTime = 0.1; 
     let timerId = null;
 
-    const metro1 = { id: 1, beats: 5, denominator: 4, currentBeat: 0, sound: 'tick', volume: 0.8, domId: 'dots-1', beatTypes: [] };
-    const metro2 = { id: 2, beats: 6, denominator: 8, currentBeat: 0, sound: 'bongo', volume: 0.8, domId: 'dots-2', beatTypes: [] };
+    const metro1 = { id: 1, beats: 5, denominator: 4, currentBeat: 0, sound: 'tick', volume: 0.8, domId: 'dots-1', beatTypes: [], barStartTime: 0.0 };
+    const metro2 = { id: 2, beats: 6, denominator: 8, currentBeat: 0, sound: 'bongo', volume: 0.8, domId: 'dots-2', beatTypes: [], barStartTime: 0.0 };
 
     const notesInQueue = [];
 
@@ -505,9 +502,10 @@
                 saveSettings();
                 
                 if (isPlaying) {
+                    // Фазовый сброс для мгновенной жесткой синхронизации
                     const now = audioCtx.currentTime + 0.02;
-                    nextNoteTime1 = now;
-                    nextNoteTime2 = now;
+                    metro1.barStartTime = now;
+                    metro2.barStartTime = now;
                     metro1.currentBeat = 0;
                     metro2.currentBeat = 0;
                 }
@@ -527,7 +525,7 @@
         document.getElementById('sound-1').addEventListener('change', (e) => { metro1.sound = e.target.value; saveSettings(); });
         document.getElementById('volume-1').addEventListener('input', (e) => { metro1.volume = parseFloat(e.target.value); saveSettings(); });
 
-        // Метроном 2 (Знаменатель теперь всегда доступен)
+        // Метроном 2
         document.getElementById('beats-2').addEventListener('change', (e) => {
             metro2.beats = parseInt(e.target.value);
             metro2.beatTypes = null;
@@ -595,8 +593,8 @@
             metro2.currentBeat = 0;
             
             const startTime = audioCtx.currentTime + 0.05;
-            nextNoteTime1 = startTime;
-            nextNoteTime2 = startTime;
+            metro1.barStartTime = startTime;
+            metro2.barStartTime = startTime;
             
             scheduler();
             requestAnimationFrame(drawVisuals);
@@ -611,37 +609,53 @@
     function scheduler() {
         const currentTime = audioCtx.currentTime;
 
-        // Расчет реальной длительности четверти от текущего BPM
         const baseSecondsPerBeat = 60.0 / tempo;
         
-        // Шаг времени для Пульса А (учитывает его знаменатель /4 или /8)
+        // Математически точный расчет параметров Линии А
         const secondsPerBeat1 = metro1.denominator === 8 ? baseSecondsPerBeat / 2 : baseSecondsPerBeat;
-        
-        // Общая длительность одного полного такта Пульса А
         const totalBarTime1 = metro1.beats * secondsPerBeat1;
 
+        // Расчет шага для Линии Б
         let secondsPerBeat2;
         if (appMode === 'polyrhythm') {
-            // Режим «Сильные вместе»: Время такта Б принудительно равно времени такта А.
-            // Доли равномерно распределяются внутри этого временного промежутка.
             secondsPerBeat2 = totalBarTime1 / metro2.beats;
         } else {
-            // Режим «Доли вместе»: Каждый пульс звучит со своей математической скоростью долей.
             secondsPerBeat2 = metro2.denominator === 8 ? baseSecondsPerBeat / 2 : baseSecondsPerBeat;
         }
 
-        // Очередь Пульса А
-        while (nextNoteTime1 < currentTime + scheduleAheadTime) {
-            scheduleNote(1, nextNoteTime1, metro1.currentBeat);
-            nextNoteTime1 += secondsPerBeat1;
-            metro1.currentBeat = (metro1.currentBeat + 1) % metro1.beats;
+        // --- ПЛАНИРОВАНИЕ ПУЛЬСА А ---
+        let noteTime1 = metro1.barStartTime + metro1.currentBeat * secondsPerBeat1;
+        while (noteTime1 < currentTime + scheduleAheadTime) {
+            scheduleNote(1, noteTime1, metro1.currentBeat);
+
+            metro1.currentBeat++;
+            if (metro1.currentBeat >= metro1.beats) {
+                metro1.currentBeat = 0;
+                metro1.barStartTime += totalBarTime1; // Шаг тактового якоря А
+            }
+            noteTime1 = metro1.barStartTime + metro1.currentBeat * secondsPerBeat1;
         }
 
-        // Очередь Пульса Б
-        while (nextNoteTime2 < currentTime + scheduleAheadTime) {
-            scheduleNote(2, nextNoteTime2, metro2.currentBeat);
-            nextNoteTime2 += secondsPerBeat2;
-            metro2.currentBeat = (metro2.currentBeat + 1) % metro2.beats;
+        // --- ПЛАНИРОВАНИЕ ПУЛЬСА Б ---
+        let noteTime2 = metro2.barStartTime + metro2.currentBeat * secondsPerBeat2;
+        while (noteTime2 < currentTime + scheduleAheadTime) {
+            scheduleNote(2, noteTime2, metro2.currentBeat);
+
+            metro2.currentBeat++;
+            if (metro2.currentBeat >= metro2.beats) {
+                metro2.currentBeat = 0;
+                
+                if (appMode === 'polyrhythm') {
+                    // КЛЮЧЕВОЙ МОМЕНТ СИНХРОНИЗАЦИИ:
+                    // Вместо накопления дробных долей Б, мы жестко сдвигаем якорь Б 
+                    // на абсолютно идентичную эталонную длину такта А! 
+                    metro2.barStartTime += totalBarTime1;
+                } else {
+                    const totalBarTime2 = metro2.beats * secondsPerBeat2;
+                    metro2.barStartTime += totalBarTime2;
+                }
+            }
+            noteTime2 = metro2.barStartTime + metro2.currentBeat * secondsPerBeat2;
         }
 
         timerId = setTimeout(scheduler, lookahead);
@@ -756,12 +770,11 @@
             metro1: { beats: metro1.beats, denominator: metro1.denominator, sound: metro1.sound, volume: metro1.volume, beatTypes: metro1.beatTypes },
             metro2: { beats: metro2.beats, denominator: metro2.denominator, sound: metro2.sound, volume: metro2.volume, beatTypes: metro2.beatTypes }
         };
-        localStorage.setItem('double_metronome_v3_data', JSON.stringify(state));
+        localStorage.setItem('double_metronome_v4_data', JSON.stringify(state));
     }
 
-    // Загрузка последних настроек
     function loadSettings() {
-        const saved = localStorage.getItem('double_metronome_v3_data');
+        const saved = localStorage.getItem('double_metronome_v4_data');
         if (!saved) return;
 
         try {
