@@ -878,7 +878,6 @@
             </div>
             <div class="actions">
                 <button onclick="closeBendEditor()">Cancel</button>
-                <button onclick="resetBend()" style="background:#e53935; color:white;" title="Remove bend from this note">Reset Bend</button>
                 <button onclick="saveBend()" style="background:#4caf50; color:white;">OK</button>
             </div>
 			
@@ -1702,23 +1701,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 alert("Cannot apply bend to a rest or directive.");
                 return;
             }
-
-            // If the selected note is inside a tie chain (i.e. the previous note
-            // is tied into this one with the same pitch), walk backward to find the
-            // root note — that is the single owner of the bend data.
-            let rootIdx = sel.start;
-            while (rootIdx > 0) {
-                let prev = notes[rootIdx - 1];
-                if (prev.tie && prev.pitches && prev.pitches.length > 0 &&
-                    note.pitches && note.pitches.length > 0) {
-                    let pp = prev.pitches[0], np = note.pitches[0];
-                    if (pp.pitch === np.pitch && pp.octave === np.octave) {
-                        rootIdx--;
-                        note = notes[rootIdx];
-                    } else break;
-                } else break;
-            }
-            bendNoteIndex = rootIdx;
+            bendNoteIndex = sel.start;
 
             if (note.bend) {
                 bendPoints = note.bend.points.map(p => ({ ...p }));
@@ -1728,22 +1711,8 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 document.getElementById('bendMaxCents').value = 200;
             }
 
-            // Walk the tie chain forward from root to compute total combined duration
-            let totalDurQ = note.durationInQuarters;
-            let chainIdx = rootIdx;
-            while (notes[chainIdx].tie && chainIdx + 1 < notes.length) {
-                let next = notes[chainIdx + 1];
-                if (next.pitches && next.pitches.length > 0 && note.pitches.length > 0) {
-                    let p1 = note.pitches[0], p2 = next.pitches[0];
-                    if (p1.pitch === p2.pitch && p1.octave === p2.octave) {
-                        totalDurQ += next.durationInQuarters;
-                        chainIdx++;
-                    } else break;
-                } else break;
-            }
-
             let tempo = parseInt(document.getElementById('tempo').value) || 120;
-            let durSec = totalDurQ * (60 / tempo);
+            let durSec = note.durationInQuarters * (60 / tempo);
             document.getElementById('bendNoteDuration').innerText = durSec.toFixed(2);
 
             drawBendCanvas();
@@ -1763,15 +1732,6 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 points: bendPoints.map(p => ({ x: p.x, y: p.y })),
                 maxCents: parseInt(document.getElementById('bendMaxCents').value)
             };
-            closeBendEditor();
-            updateScore();
-        }
-
-        function resetBend() {
-            if (bendNoteIndex === -1) return;
-            let notes = getNotes();
-            let note = notes[bendNoteIndex];
-            delete note.bend;
             closeBendEditor();
             updateScore();
         }
@@ -3379,8 +3339,6 @@ function deleteSelectionSync() {
             const allTied = Array.from({length: sel.end - sel.start}, (_, k) => notes[sel.start + k]).every(n => n.tie);
             if (allTied) {
                 for (let i = sel.start; i < sel.end; i++) notes[i].tie = false;
-                // Bend was applied across the tied chain — remove it when untying
-                if (notes[sel.start].bend) delete notes[sel.start].bend;
             } else {
                 for (let i = sel.start; i < sel.end; i++) notes[i].tie = true;
             }
@@ -3741,9 +3699,6 @@ function generateMIDIWithBend() {
                         let pb = Math.max(0, Math.min(16383, 8192 + Math.round((co/(sem*100))*8191)));
                         absEvents.push({ tick: t0+prog*dur, priority:3, bytes:[0xE0+channel, pb&0x7F, (pb>>7)&0x7F] });
                     }
-                    // Reset pitch-wheel to centre so the next note on this channel isn't detuned.
-                    // MIDI pitch bend is channel-wide and persists until explicitly reset.
-                    absEvents.push({ tick: t0 + dur, priority: 4, bytes: [0xE0+channel, 0x00, 0x40] });
                 }
             }
         }
@@ -4033,9 +3988,6 @@ function generateMIDIWithBend() {
                                         const rate = base * Math.pow(2, centsOffset / 1200);
                                         source.playbackRate.linearRampToValueAtTime(rate, time);
                                     }
-                                    // Snap back to unshifted rate at note-end so any off-centre
-                                    // automation doesn't linger beyond the source's stop time.
-                                    source.playbackRate.setValueAtTime(base, playTimeAc + durSec);
                                 }
                             }
                         }
@@ -4071,8 +4023,6 @@ function generateMIDIWithBend() {
                                             let centsOffset = (0.5 - y) * 2 * maxCents;
                                             source.playbackRate.linearRampToValueAtTime(Math.pow(2, centsOffset / 1200), time);
                                         }
-                                        // Snap back to neutral at note-end
-                                        source.playbackRate.setValueAtTime(1.0, playTimeAc + durSeconds);
                                     }
                                 }
                             }
@@ -4481,18 +4431,35 @@ function generateMIDIWithBend() {
 
         function mergeTiedNotes(timeline) {
             if (timeline.length === 0) return timeline;
-            let merged = [], current = null;
+            // Group by voice — timeline is sorted by playStartQ (all voices interleaved),
+            // so a linear single-current pass would break tie chains whenever notes from
+            // other voices appear between a tied pair.
+            const byVoice = new Map();
             for (let note of timeline) {
-                if (current === null) { current = { ...note }; continue; }
-                if (current.voiceId === note.voiceId && current.tie && pitchesEqual(current.pitches[0], note.pitches[0])) {
-                    current.duration += note.duration;
-                    current.articulations = [...new Set([...current.articulations, ...note.articulations])];
-                    current.tie = note.tie;
-                    if (note.bend) current.bend = note.bend;
-                } else { merged.push(current); current = { ...note }; }
+                if (!byVoice.has(note.voiceId)) byVoice.set(note.voiceId, []);
+                byVoice.get(note.voiceId).push(note);
             }
-            if (current) merged.push(current);
-            return merged;
+            const result = [];
+            for (let notes of byVoice.values()) {
+                let i = 0;
+                while (i < notes.length) {
+                    let note = { ...notes[i], pitches: notes[i].pitches.map(p => ({ ...p })) };
+                    while (note.tie && i + 1 < notes.length &&
+                           pitchesEqual(note.pitches[0], notes[i + 1].pitches[0])) {
+                        i++;
+                        note.duration += notes[i].duration;
+                        note.tie = notes[i].tie;   // carry tie flag forward
+                        // articulations and bend stay from the FIRST note only:
+                        // continuation notes are not played/drawn separately and must
+                        // not contribute their own dynamics, staccato, accent, or bend.
+                    }
+                    result.push(note);
+                    i++;
+                }
+            }
+            // Restore chronological order for the scheduler
+            result.sort((a, b) => a.playStartQ - b.playStartQ);
+            return result;
         }
 
         function pitchesEqual(p1, p2) { return p1.pitch === p2.pitch && p1.octave === p2.octave && p1.accidental === p2.accidental; }
@@ -4828,7 +4795,20 @@ function generateMIDIWithBend() {
                     let articulationStr = '';
                     let hasStaccato = false;
                     const inHairpinInterior = hairpinInterior.has(i);
-                    if (n.articulations && n.articulations.length) {
+                    // Detect tie-continuation: find the previous real note (skip directives)
+                    // and check whether it has tie:true with matching pitch.
+                    let isTiedContinuation = false;
+                    if (n.pitches) {
+                        for (let k = i - 1; k >= 0; k--) {
+                            let prev = notes[k];
+                            if (!prev || prev.type === 'directive') continue;
+                            isTiedContinuation = !!(prev.tie && prev.pitches &&
+                                pitchesEqual(prev.pitches[0], n.pitches[0]));
+                            break;
+                        }
+                    }
+                    // Continuation notes are part of one merged sound — no articulations drawn.
+                    if (n.articulations && n.articulations.length && !isTiedContinuation) {
                         const DYN_NAMES = ['ppp','pp','p','mp','mf','f','ff','fff'];
                         articulationStr = n.articulations.map(a => {
                             if (a === 'staccato') { hasStaccato = true; return ''; }
