@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VEIL — Steganographic Messenger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f1eb;--surf:#fff;--surf2:#ede9e1;--surf3:#e2ddd4;
+  --border:#ccc8be;--border2:#b8b3a8;
+  --ink:#0f0e0b;--ink2:#3a3830;--ink3:#6e6a60;--ink4:#a09c90;
+  --blue:#0038ff;--blue-bg:#eef0ff;--blue-bd:#99aaff;
+  --green:#00622c;--green-bg:#e6f5ee;--green-bd:#70c090;
+  --red:#c0001a;--amber:#945000;--amber-bg:#fff4e6;--amber-bd:#e09050;
+  --mono:'IBM Plex Mono','Courier New',monospace;
+  --ui:'Barlow Condensed','Arial Narrow',sans-serif;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.55}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* HEADER */
+header{padding:20px 36px;border-bottom:2px solid var(--ink);display:flex;align-items:center;gap:18px;background:var(--surf)}
+.logo-mark{width:44px;height:44px;flex-shrink:0;border:2.5px solid var(--ink);display:flex;align-items:center;justify-content:center;position:relative}
+.logo-mark::before{content:'';position:absolute;width:20px;height:20px;border:2px solid var(--ink);transform:rotate(45deg);opacity:.3}
+.logo-mark::after{content:'▲';font-size:13px;color:var(--ink);position:relative;z-index:1;font-weight:700}
+.logo-name{font-family:var(--ui);font-size:40px;font-weight:800;letter-spacing:12px;color:var(--ink);line-height:1}
+.logo-sub{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:2px;color:var(--ink3);margin-top:3px}
+header .sep{flex:1}
+.hdr-meta{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:1.5px;color:var(--ink4);text-align:right;line-height:2}
+.hdr-meta b{color:var(--ink3)}
+
+/* TABS */
+.tabs{display:flex;align-items:stretch;border-bottom:2px solid var(--ink);padding:0 36px;background:var(--surf)}
+.tab{background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:var(--ui);font-size:16px;font-weight:700;letter-spacing:3px;color:var(--ink3);padding:13px 18px 10px;cursor:pointer;transition:color .15s,border-color .15s;text-transform:uppercase;white-space:nowrap}
+.tab:hover{color:var(--ink)}.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.tab.keys-tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.tabs-sep{flex:1}
+.help-btn{background:none;border:1.5px solid var(--border2);font-family:var(--ui);font-size:14px;font-weight:700;letter-spacing:2px;color:var(--ink3);padding:6px 14px;cursor:pointer;margin:auto 0;transition:all .15s;text-transform:uppercase}
+.help-btn:hover{border-color:var(--ink);color:var(--ink)}
+.lang-toggle{display:flex;gap:3px;margin:auto 10px auto 14px}
+.lang-btn{background:none;border:1.5px solid var(--border2);font-family:var(--ui);font-size:13px;font-weight:700;letter-spacing:1.5px;color:var(--ink3);padding:5px 10px;cursor:pointer;transition:all .15s}
+.lang-btn:hover{border-color:var(--ink);color:var(--ink)}
+.lang-btn.on{background:var(--ink);border-color:var(--ink);color:var(--surf)}
+
+/* PANELS */
+.panel{display:none;padding:28px 36px}
+.panel.on{display:grid}
+#keys-panel{grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+#enc-panel{grid-template-columns:260px 1fr 310px;gap:22px;align-items:start}
+#dec-panel{grid-template-columns:1fr 330px;gap:22px;align-items:start}
+
+/* SECTION LABEL */
+.lbl{font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:4px;color:var(--ink3);text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.lbl::after{content:'';flex:1;height:1.5px;background:var(--border)}
+
+/* PRESETS */
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px}
+.presets.two-col{grid-template-columns:1fr 1fr}
+.preset-wrap{cursor:pointer}
+.preset-wrap canvas{width:100%;aspect-ratio:4/3;display:block;border:2px solid var(--border);transition:border-color .15s,box-shadow .15s}
+.preset-wrap:hover canvas{border-color:var(--ink2)}
+.preset-wrap.sel canvas{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.preset-name{font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:2px;color:var(--ink3);text-align:center;margin-top:4px;text-transform:uppercase}
+
+/* UPLOAD */
+.upload-btn{display:block;width:100%;padding:11px;border:1.5px dashed var(--border2);color:var(--ink3);font-family:var(--ui);font-size:14px;font-weight:700;letter-spacing:2px;text-align:center;cursor:pointer;transition:all .15s;margin-bottom:14px;text-transform:uppercase}
+.upload-btn:hover{border-color:var(--ink);color:var(--ink);background:var(--surf2)}
+.upload-btn input{display:none}
+
+/* FORMAT */
+.fmt-row{display:flex;gap:7px;margin-bottom:10px}
+.fmt{flex:1;padding:9px;background:var(--surf);border:1.5px solid var(--border);color:var(--ink3);font-family:var(--ui);font-size:16px;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all .15s;text-transform:uppercase}
+.fmt:hover{border-color:var(--ink2);color:var(--ink)}
+.fmt.on{background:var(--ink);border-color:var(--ink);color:var(--surf);box-shadow:3px 3px 0 var(--border2)}
+
+/* WARN */
+.warn-box{background:var(--amber-bg);border:1.5px solid var(--amber-bd);color:var(--amber);padding:10px 13px;font-family:var(--mono);font-size:11px;font-weight:600;line-height:1.7;margin-bottom:10px}
+
+/* PREVIEW */
+.preview-outer{background:var(--surf2);border:1.5px solid var(--border);overflow:hidden;min-height:200px;display:flex;align-items:center;justify-content:center}
+.preview-outer canvas{width:100%;height:auto;display:block;max-height:380px;object-fit:contain}
+.preview-ph{color:var(--ink4);font-family:var(--ui);font-size:16px;font-weight:700;letter-spacing:4px;text-align:center;padding:40px;line-height:2.5;text-transform:uppercase}
+.cap-bar-wrap{background:var(--surf);border:1.5px solid var(--border);border-top:none;padding:10px 13px}
+.cap-row{display:flex;justify-content:space-between;font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:2px;color:var(--ink3);margin-bottom:6px;text-transform:uppercase}
+.cap-track{height:4px;background:var(--surf3);border-radius:2px}
+.cap-fill{height:100%;border-radius:2px;background:var(--ink);transition:width .3s,background .3s;width:0%}
+
+/* FIELDS */
+.field{margin-bottom:15px}
+.field label{display:block;font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:3px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase}
+.field input,.field textarea{width:100%;background:var(--surf);border:1.5px solid var(--border);color:var(--ink);font-family:var(--mono);font-size:14px;padding:11px 13px;outline:none;resize:vertical;transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field textarea:focus{border-color:var(--ink);box-shadow:3px 3px 0 var(--border)}
+.field textarea{min-height:110px}
+textarea[readonly]{color:var(--green);background:var(--green-bg);border-color:var(--green-bd);font-weight:600;cursor:default}
+
+/* ACTION BUTTON */
+.act-btn{width:100%;padding:14px;background:var(--ink);border:none;color:var(--surf);font-family:var(--ui);font-weight:800;font-size:18px;letter-spacing:5px;cursor:pointer;text-transform:uppercase;transition:all .15s;box-shadow:4px 4px 0 var(--border2)}
+.act-btn:hover{background:var(--ink2);box-shadow:6px 6px 0 var(--border2);transform:translate(-1px,-1px)}
+.act-btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--border2)}
+.act-btn:disabled{background:var(--surf3);color:var(--ink4);cursor:not-allowed;box-shadow:none;transform:none}
+.act-btn.blue-btn{background:var(--blue);box-shadow:4px 4px 0 #aabbff}
+.act-btn.blue-btn:hover{background:#0028cc;box-shadow:6px 6px 0 #aabbff;transform:translate(-1px,-1px)}
+.act-btn.sm{font-size:14px;padding:11px;letter-spacing:3px}
+
+/* STATUS */
+.status{min-height:30px;padding:6px 0;font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.5px;transition:color .2s}
+.status.ok{color:var(--green)}.status.err{color:var(--red)}.status.info{color:var(--ink3)}.status.work{color:var(--amber)}
+
+/* DH ACTIVE BAR (DH key is active, password hidden) */
+.dh-active-bar{background:var(--blue-bg);border:1.5px solid var(--blue-bd);padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dh-active-label{font-family:var(--ui);font-size:15px;font-weight:700;letter-spacing:1.5px;color:var(--blue)}
+.dh-active-fp{font-family:var(--mono);font-size:10px;color:#3355cc;margin-top:3px}
+.dh-switch-btn{background:var(--ink);border:none;color:var(--surf);font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:1.5px;padding:6px 13px;cursor:pointer;text-transform:uppercase;white-space:nowrap;flex-shrink:0;transition:background .15s}
+.dh-switch-btn:hover{background:var(--ink2)}
+.dh-switch-btn.back{background:var(--blue)}
+.dh-switch-btn.back:hover{background:#0028cc}
+
+/* DH AVAILABLE NOTE (password visible but DH available) */
+.dh-avail-bar{background:var(--surf2);border:1.5px solid var(--blue-bd);padding:9px 13px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dh-avail-text{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+
+/* KEY EXCHANGE */
+.key-col{display:flex;flex-direction:column}
+.key-bar{background:var(--surf2);border:1.5px solid var(--border);padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.key-dot{width:10px;height:10px;border-radius:50%;background:var(--border2);flex-shrink:0}
+.key-dot.on{background:var(--green)}.key-dot.blue{background:var(--blue)}
+.key-bar-text{font-family:var(--ui);font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--ink3);flex:1}
+.key-bar-text.on{color:var(--green)}
+.key-note{font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.75;margin-top:10px;padding:11px 12px;background:var(--surf2);border-left:3px solid var(--border)}
+.key-note b{color:var(--ink2)}
+.key-sub{font-family:var(--mono);font-size:11px;color:var(--ink4);letter-spacing:.5px;margin-top:-8px;margin-bottom:11px}
+.key-dl-hint{font-family:var(--mono);font-size:11px;color:var(--blue);margin:7px 0 4px;letter-spacing:.3px}
+.mini-sep{height:1.5px;background:var(--border);margin:16px 0}
+.clear-btn{background:none;border:1.5px solid var(--border2);font-family:var(--ui);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--ink4);padding:8px 16px;cursor:pointer;text-transform:uppercase;transition:all .15s;width:100%;margin-top:8px}
+.clear-btn:hover{border-color:var(--red);color:var(--red)}
+.key-big-status{border:2px solid var(--border);padding:18px;text-align:center;margin-top:6px}
+.key-big-status.ready{background:var(--green-bg);border-color:var(--green-bd)}
+.big-label{font-family:var(--ui);font-size:22px;font-weight:800;letter-spacing:4px;text-transform:uppercase;color:var(--ink3)}
+.key-big-status.ready .big-label{color:var(--green)}
+.fp-label{font-family:var(--ui);font-size:10px;font-weight:700;letter-spacing:3px;color:var(--ink4);margin-top:8px;text-transform:uppercase}
+.fp-value{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--ink2);letter-spacing:4px;margin-top:4px}
+
+/* DECODE ZONE */
+.dec-zone{background:var(--surf);border:1.5px dashed var(--border2);min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;cursor:pointer;transition:all .15s}
+.dec-zone:hover,.dec-zone.drag{border-color:var(--ink);background:var(--surf2);box-shadow:4px 4px 0 var(--border2)}
+.dec-zone canvas{width:100%;height:auto;display:block}
+.dec-ph{color:var(--ink4);font-family:var(--ui);font-size:15px;font-weight:700;letter-spacing:3px;text-align:center;pointer-events:none;text-transform:uppercase}
+.dec-ph .ic{font-size:32px;display:block;margin-bottom:12px;opacity:.25}
+.dec-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* OUTPUT */
+.out-box{display:none;background:var(--green-bg);border:1.5px solid var(--green-bd);border-top:3px solid var(--green);padding:15px;color:var(--green);font-family:var(--mono);font-size:14px;font-weight:600;white-space:pre-wrap;word-break:break-word;min-height:80px;margin-top:13px}
+.out-box.vis{display:block}
+
+/* HELP MODAL */
+.overlay{position:fixed;inset:0;background:rgba(15,14,11,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.help-modal{background:var(--surf);border:2px solid var(--ink);max-width:720px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:8px 8px 0 var(--border2)}
+.help-hdr{padding:16px 24px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;background:var(--surf2)}
+.help-hdr h2{font-family:var(--ui);font-size:22px;font-weight:800;letter-spacing:6px;text-transform:uppercase}
+.help-close{background:none;border:1.5px solid var(--ink);width:34px;height:34px;font-size:20px;cursor:pointer;font-family:var(--mono);display:flex;align-items:center;justify-content:center}
+.help-close:hover{background:var(--ink);color:var(--surf)}
+.help-body-wrap{overflow-y:auto;flex:1}
+.help-body{padding:24px}
+.help-section{margin-bottom:26px}
+.help-section h3{font-family:var(--ui);font-size:15px;font-weight:800;letter-spacing:3px;text-transform:uppercase;border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:11px}
+.help-section p{font-size:12.5px;color:var(--ink2);margin-bottom:8px;line-height:1.75}
+.help-section ol,.help-section ul{padding-left:22px;margin-bottom:8px}
+.help-section li{font-size:12.5px;color:var(--ink2);margin-bottom:6px;line-height:1.7}
+.help-section li b{color:var(--ink)}
+.note-box{background:var(--blue-bg);border:1.5px solid var(--blue-bd);padding:12px 14px;font-size:12px;color:#002299;margin-top:10px;line-height:1.75}
+.warn-note{background:var(--amber-bg);border:1.5px solid var(--amber-bd);padding:12px 14px;font-size:12px;color:var(--amber);margin-top:8px;line-height:1.75}
+.flow-row{display:flex;gap:14px;margin:12px 0}
+.flow-box{flex:1;border:1.5px solid var(--border);padding:12px;background:var(--surf2)}
+.flow-box h4{font-family:var(--ui);font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;color:var(--blue)}
+.flow-box p{font-size:11.5px;color:var(--ink3);line-height:1.65}
+
+/* FOOTER */
+footer{padding:16px 36px;border-top:2px solid var(--ink);background:var(--surf);font-family:var(--ui);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--ink3);text-align:center;text-transform:uppercase}
+
+@media(max-width:960px){
+  #enc-panel,#dec-panel,#keys-panel{grid-template-columns:1fr}
+  header,footer,.tabs,.panel{padding-left:18px;padding-right:18px}
+  .flow-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark"></div>
+  <div>
+    <div class="logo-name">VEIL</div>
+    <div class="logo-sub">Steganographic Messenger · ECDH P-256 · AES-256-GCM · LSB Stego</div>
+  </div>
+  <div class="sep"></div>
+  <div class="hdr-meta"><div><b>Offline</b> · No Server</div><div>Standalone HTML</div></div>
+</header>
+
+<div class="tabs">
+  <button class="tab keys-tab on" data-tab="keys" data-i18n="tabKeys">⇄ Key Exchange</button>
+  <button class="tab" data-tab="enc" data-i18n="tabEncode">▲ Encode</button>
+  <button class="tab" data-tab="dec" data-i18n="tabDecode">▼ Decode</button>
+  <div class="tabs-sep"></div>
+  <div class="lang-toggle">
+    <button class="lang-btn on" data-lang="en">EN</button>
+    <button class="lang-btn" data-lang="uk">UK</button>
+  </div>
+  <button class="help-btn" id="help-btn" data-i18n="tabHelp">? Help</button>
+</div>
+
+<!-- ══ KEY EXCHANGE ══ -->
+<section class="panel on" id="keys-panel">
+
+  <div class="key-col">
+    <div class="lbl" data-i18n="myKeypairLbl">My Keypair</div>
+    <div class="key-bar">
+      <div class="key-dot" id="my-key-dot"></div>
+      <span class="key-bar-text" id="my-key-text" data-i18n="noKeysYet">No keys generated yet</span>
+    </div>
+    <button class="act-btn blue-btn sm" id="gen-keys-btn" data-i18n="genKeysBtn">Generate My Keys</button>
+
+    <div id="my-key-export" style="display:none">
+      <div class="mini-sep"></div>
+      <div class="lbl" data-i18n="coverForKeyLbl">Cover image for key</div>
+      <div class="presets" id="key-preset-grid"></div>
+      <button class="act-btn sm" id="dl-key-btn" disabled data-i18n="dlKeyBtn">Download Key Image</button>
+      <div class="key-dl-hint" data-i18n="dlKeyHint">↑ this is your public key image — share it openly</div>
+      <div class="key-note">
+        <span data-i18n="keyNote1">This image contains your public key hidden inside.</span><br>
+        <b><span data-i18n="keyNote2">Send it to your contact — it is not secret.</span></b><br>
+        <span data-i18n="keyNote3">Your private key stays on this device only.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="key-col">
+    <div class="lbl" data-i18n="peerKeyLbl">Peer's Key Image</div>
+    <div class="key-sub" data-i18n="peerKeySubLbl">image received from your contact</div>
+    <div class="dec-zone" id="key-drop-zone" style="min-height:180px">
+      <div class="dec-ph" id="key-drop-ph">
+        <span class="ic">⊞</span>
+        <span data-i18n="dropPeerPh1">Drop peer's key image here</span><br>
+        <span data-i18n="dropPeerPh2">or click to browse</span>
+      </div>
+      <canvas id="key-preview-canvas" style="display:none"></canvas>
+      <input type="file" id="key-peer-file" accept="image/png,.png">
+    </div>
+    <div class="status info" id="peer-key-status" data-i18n="peerKeyStatusInit">Waiting for peer's image…</div>
+    <div class="key-note" style="margin-bottom:0">
+      <span data-i18n="peerKeyHint1">Load the key image your contact sent you.</span><br>
+      <span data-i18n="peerKeyHint2">The shared secret will be derived automatically.</span>
+    </div>
+
+    <div class="mini-sep"></div>
+    <div class="lbl" data-i18n="sharedSecretLbl">Shared Secret</div>
+    <div class="key-big-status" id="dh-big-status">
+      <div class="big-label" id="dh-big-label" data-i18n="waitingBothKeys">Waiting for both keys…</div>
+      <div class="fp-label" id="dh-fp-label" style="display:none" data-i18n="fpLabel">KEY FINGERPRINT — verify verbally with your contact</div>
+      <div class="fp-value" id="dh-fp-value"></div>
+    </div>
+    <button class="clear-btn" id="clear-session-btn" data-i18n="clearSessionBtn">✕ Clear Session &amp; Keys</button>
+  </div>
+
+</section>
+
+<!-- ══ ENCODE ══ -->
+<section class="panel" id="enc-panel">
+
+  <div>
+    <div class="lbl" data-i18n="coverImageLbl">Cover Image</div>
+    <div class="presets two-col" id="enc-preset-grid"></div>
+    <label class="upload-btn"><input type="file" id="img-upload" accept="image/*"><span data-i18n="loadCustomImg">+ Load Custom Image</span></label>
+    <div class="lbl" data-i18n="outputFormatLbl">Output Format</div>
+    <div class="fmt-row">
+      <button class="fmt on" data-fmt="png">PNG</button>
+      <button class="fmt" data-fmt="gif">GIF</button>
+    </div>
+    <div class="warn-box" id="gif-warn" style="display:none" data-i18n-html="gifWarnHtml">
+      ⚠ GIF is NOT safe in Telegram — it converts GIF to MP4, destroying hidden data.<br>Use GIF for WhatsApp &amp; Viber only.
+    </div>
+  </div>
+
+  <div>
+    <div class="lbl" data-i18n="previewLbl">Preview</div>
+    <div class="preview-outer" id="enc-preview-wrap">
+      <div class="preview-ph" id="enc-ph" data-i18n="selectImagePh">← Select a cover image</div>
+      <canvas id="enc-canvas" style="display:none"></canvas>
+    </div>
+    <div class="cap-bar-wrap">
+      <div class="cap-row"><span data-i18n="capacityLbl">Capacity</span><span id="cap-text">—</span></div>
+      <div class="cap-track"><div class="cap-fill" id="cap-fill"></div></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="lbl" data-i18n="encKeyLbl">Encryption Key</div>
+
+    <!-- DH Active bar -->
+    <div id="enc-dh-active" class="dh-active-bar" style="display:none">
+      <div>
+        <div class="dh-active-label" data-i18n="dhKeyActive">🔑 DH Key Active</div>
+        <div class="dh-active-fp" id="enc-fp"></div>
+      </div>
+      <button class="dh-switch-btn" id="enc-to-pwd-btn" data-i18n="usePasswordBtn">Use Password</button>
+    </div>
+
+    <!-- DH Available note (shown when password override is on) -->
+    <div id="enc-dh-avail" class="dh-avail-bar" style="display:none">
+      <span class="dh-avail-text" data-i18n="dhAvailNote">🔑 DH Key available</span>
+      <button class="dh-switch-btn back" id="enc-to-dh-btn" data-i18n="useDHKeyBtn">← Use DH Key</button>
+    </div>
+
+    <div id="enc-pwd-field" class="field">
+      <label data-i18n="passwordLbl">Password</label>
+      <input type="password" id="enc-pwd" data-i18n-ph="passwordPh" placeholder="shared password…">
+    </div>
+
+    <div class="lbl" data-i18n="messageLbl">Message</div>
+    <div class="field">
+      <label data-i18n="textToHideLbl">Text to Hide</label>
+      <textarea id="enc-msg" data-i18n-ph="messagePh" placeholder="your secret message…"></textarea>
+    </div>
+    <div class="status info" id="enc-status" data-i18n="encStatusInit">← select a cover image to begin</div>
+    <button class="act-btn" id="enc-btn" data-i18n="encodeBtn">Encode &amp; Download</button>
+  </div>
+
+</section>
+
+<!-- ══ DECODE ══ -->
+<section class="panel" id="dec-panel">
+
+  <div>
+    <div class="lbl" data-i18n="steganogramLbl">Steganogram File</div>
+    <div class="dec-zone" id="dec-zone">
+      <div class="dec-ph" id="dec-ph">
+        <span class="ic">⊞</span>
+        <span data-i18n="dropDecPh1">Click or drop</span><br>
+        <span data-i18n="dropDecPh2">PNG / GIF file</span>
+      </div>
+      <canvas id="dec-canvas" style="display:none"></canvas>
+      <input type="file" id="dec-file" accept="image/png,image/gif,.png,.gif">
+    </div>
+  </div>
+
+  <div>
+    <div class="lbl" data-i18n="decKeyLbl">Decryption Key</div>
+
+    <div id="dec-dh-active" class="dh-active-bar" style="display:none">
+      <div>
+        <div class="dh-active-label" data-i18n="dhKeyActive">🔑 DH Key Active</div>
+        <div class="dh-active-fp" id="dec-fp"></div>
+      </div>
+      <button class="dh-switch-btn" id="dec-to-pwd-btn" data-i18n="usePasswordBtn">Use Password</button>
+    </div>
+
+    <div id="dec-dh-avail" class="dh-avail-bar" style="display:none">
+      <span class="dh-avail-text" data-i18n="dhAvailNote">🔑 DH Key available</span>
+      <button class="dh-switch-btn back" id="dec-to-dh-btn" data-i18n="useDHKeyBtn">← Use DH Key</button>
+    </div>
+
+    <div id="dec-pwd-field" class="field">
+      <label data-i18n="passwordLbl">Password</label>
+      <input type="password" id="dec-pwd" data-i18n-ph="passwordPh" placeholder="shared password…">
+    </div>
+
+    <div class="status info" id="dec-status" data-i18n="decStatusInit">← load an encoded image</div>
+    <button class="act-btn" id="dec-btn" data-i18n="decodeBtn">Decode Message</button>
+    <div class="lbl" style="margin-top:20px" data-i18n="recoveredMsgLbl">Recovered Message</div>
+    <textarea class="out-box" id="out-box" readonly></textarea>
+  </div>
+
+</section>
+
+<!-- ══ HELP MODAL ══ -->
+<div class="overlay" id="help-overlay" style="display:none">
+  <div class="help-modal">
+    <div class="help-hdr">
+      <h2 id="help-title" data-i18n="helpTitle">User Guide</h2>
+      <button class="help-close" id="help-close">✕</button>
+    </div>
+    <div class="help-body-wrap">
+
+      <!-- ENGLISH HELP -->
+      <div class="help-body" id="help-body-en">
+        <div class="help-section">
+          <h3>What is VEIL?</h3>
+          <p>VEIL hides encrypted text inside ordinary-looking images using <b>LSB steganography</b>. Anyone who intercepts the image sees only a normal emoji sticker or photo. The hidden message is invisible and protected by strong encryption.</p>
+          <p>Everything runs locally in your browser. No data is ever sent to any server.</p>
+        </div>
+        <div class="help-section">
+          <h3>Step 1 — Key Exchange (one-time setup)</h3>
+          <p>Both parties must establish a shared key using <b>Elliptic-Curve Diffie–Hellman (ECDH P-256)</b>. Neither needs to know the other's secret — each derives the same shared key independently.</p>
+          <div class="flow-row">
+            <div class="flow-box"><h4>Alice</h4>
+              <p>1. Opens KEY EXCHANGE tab<br>2. Clicks <b>Generate My Keys</b><br>3. Picks an emoji cover<br>4. Clicks <b>Download Key Image</b><br>5. Sends the PNG to Bob<br><i>(email, any messenger — not secret)</i></p>
+            </div>
+            <div class="flow-box"><h4>Bob</h4>
+              <p>1. Opens KEY EXCHANGE tab<br>2. Clicks <b>Generate My Keys</b><br>3. Drops Alice's image under "Peer's Key"<br>4. Shared secret derived automatically<br>5. Downloads his own key image<br>6. Sends it to Alice</p>
+            </div>
+          </div>
+          <p>Alice drops Bob's image → <b>Shared Key Ready ✓</b> on both sides. Both will see the same <b>Key Fingerprint</b> — verify it verbally or via a separate channel to confirm no interception.</p>
+          <div class="note-box">💡 <b>About the Key Fingerprint:</b> it is the first 4 bytes of SHA-256(shared_secret), displayed as hex pairs (e.g. <code>A3 F2 B8 C1</code>). It is a hash of the derived secret — not raw key bytes — so it reveals nothing about the secret itself. If both parties see the same fingerprint, the key exchange was successful.</div>
+          <div class="warn-note">⚠ Keys are saved in browser localStorage and survive page refresh. Click <b>Clear Session</b> to remove them. On a shared computer, always clear the session after use.</div>
+        </div>
+        <div class="help-section">
+          <h3>Step 2 — Sending a Message (Encode tab)</h3>
+          <ol>
+            <li>Go to the <b>Encode</b> tab.</li>
+            <li>Select a cover image (emoji preset or your own photo). PNG is recommended.</li>
+            <li>If the DH key is active, it is used automatically (<b>🔑 DH Key Active</b>). Otherwise enter a shared password.</li>
+            <li>Type your message in <b>Text to Hide</b>.</li>
+            <li>Click <b>Encode &amp; Download</b>. The image file downloads.</li>
+            <li>Send the downloaded file to your contact.</li>
+          </ol>
+          <div class="warn-note">⚠ <b>Always send as a file/document</b>, not as an inline photo. Most messengers re-compress images to JPEG, destroying hidden data.<br>Telegram: 📎 → File. WhatsApp: share as document.</div>
+        </div>
+        <div class="help-section">
+          <h3>Step 3 — Reading a Message (Decode tab)</h3>
+          <ol>
+            <li>Go to the <b>Decode</b> tab.</li>
+            <li>Drop or select the received PNG/GIF file.</li>
+            <li>DH key or password — same as encoding.</li>
+            <li>Click <b>Decode Message</b>. The text appears below.</li>
+          </ol>
+        </div>
+        <div class="help-section">
+          <h3>Format Notes</h3>
+          <ul>
+            <li><b>PNG</b> — Lossless. Works everywhere when sent as file. Recommended.</li>
+            <li><b>GIF</b> — Works in WhatsApp and Viber. <b>Fails in Telegram</b> (converts to MP4).</li>
+            <li>Never use the messenger's "photo" upload — always use "file" mode.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Technical Details</h3>
+          <ul>
+            <li><b>Key exchange:</b> ECDH P-256 via Web Crypto API. 256-bit shared secret via <code>deriveBits</code>.</li>
+            <li><b>Key fingerprint:</b> SHA-256(shared_secret)[0..3] as hex — a verifiable digest, not raw key material.</li>
+            <li><b>Encryption:</b> AES-256-GCM. Key derived with PBKDF2 (100,000 × SHA-256). Fresh random salt (16 B) + IV (12 B) per message. GCM auth tag prevents tampering.</li>
+            <li><b>PNG stego:</b> LSB of R,G,B — 3 bits/pixel. 500×500 px ≈ 90 KB capacity.</li>
+            <li><b>GIF stego:</b> Median-cut to 128 colors, palette-pair encoding (LSB of index). 1 bit/pixel.</li>
+            <li><b>Header:</b> "VEIL"(4) + length(4) + salt(16) + IV(12) = 36 bytes overhead.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- UKRAINIAN HELP -->
+      <div class="help-body" id="help-body-uk" style="display:none">
+        <div class="help-section">
+          <h3>Що таке VEIL?</h3>
+          <p>VEIL приховує зашифрований текст всередині звичайних зображень за допомогою <b>LSB-стеганографії</b>. Будь-хто, хто перехопить зображення, побачить лише звичайний emoji-стікер або фото. Приховане повідомлення невидиме та захищене стійким шифруванням.</p>
+          <p>Усе виконується локально у вашому браузері. Жодні дані не передаються на сервери.</p>
+        </div>
+        <div class="help-section">
+          <h3>Крок 1 — Обмін ключами (одноразово)</h3>
+          <p>Обидва учасники повинні встановити спільний ключ за допомогою <b>ECDH P-256</b>. Нікому не потрібно знати секрет іншого — кожен незалежно виводить однаковий спільний ключ.</p>
+          <div class="flow-row">
+            <div class="flow-box"><h4>Аліса</h4>
+              <p>1. Відкриває вкладку «Обмін ключами»<br>2. Натискає <b>Згенерувати ключі</b><br>3. Вибирає emoji-обкладинку<br>4. Натискає <b>Завантажити ключ-зображення</b><br>5. Надсилає PNG Бобу<br><i>(email, будь-який месенджер — не секрет)</i></p>
+            </div>
+            <div class="flow-box"><h4>Боб</h4>
+              <p>1. Відкриває вкладку «Обмін ключами»<br>2. Натискає <b>Згенерувати ключі</b><br>3. Завантажує зображення Аліси у «Ключ від контакту»<br>4. Спільний секрет виводиться автоматично<br>5. Завантажує своє ключ-зображення<br>6. Надсилає його Алісі</p>
+            </div>
+          </div>
+          <p>Аліса завантажує зображення Боба → <b>Спільний ключ готовий ✓</b> у обох. Обидва бачать однаковий <b>Відбиток ключа</b> — звірте його голосово або іншим каналом, щоб підтвердити відсутність перехоплення.</p>
+          <div class="note-box">💡 <b>Про відбиток ключа:</b> це перші 4 байти SHA-256(спільний_секрет), відображені як hex-пари (наприклад <code>A3 F2 B8 C1</code>). Це хеш похідного секрету — не самі байти ключа — тому він нічого не розкриває про секрет. Якщо обидва учасники бачать однаковий відбиток, обмін ключами пройшов успішно.</div>
+          <div class="warn-note">⚠ Ключі зберігаються у localStorage браузера та виживають після перезавантаження. Натисніть <b>Очистити сесію</b> для їх видалення. На спільному комп'ютері завжди очищуйте сесію після використання.</div>
+        </div>
+        <div class="help-section">
+          <h3>Крок 2 — Надсилання повідомлення (вкладка Шифрування)</h3>
+          <ol>
+            <li>Перейдіть на вкладку <b>Шифрування</b>.</li>
+            <li>Виберіть зображення-носій (emoji-пресет або своє фото). Рекомендується PNG.</li>
+            <li>Якщо DH-ключ активний, він використовується автоматично (<b>🔑 DH-ключ активний</b>). Інакше введіть спільний пароль.</li>
+            <li>Введіть повідомлення у полі <b>Текст для приховування</b>.</li>
+            <li>Натисніть <b>Зашифрувати та завантажити</b>. Файл зображення буде завантажено.</li>
+            <li>Надішліть завантажений файл контакту.</li>
+          </ol>
+          <div class="warn-note">⚠ <b>Завжди надсилайте як файл/документ</b>, а не як вбудоване фото. Більшість месенджерів повторно стискають зображення у JPEG, знищуючи приховані дані.<br>Telegram: 📎 → Файл. WhatsApp: поділіться як документ.</div>
+        </div>
+        <div class="help-section">
+          <h3>Крок 3 — Читання повідомлення (вкладка Розшифрування)</h3>
+          <ol>
+            <li>Перейдіть на вкладку <b>Розшифрування</b>.</li>
+            <li>Перетягніть або виберіть отриманий PNG/GIF файл.</li>
+            <li>DH-ключ або пароль — так само, як при шифруванні.</li>
+            <li>Натисніть <b>Розшифрувати</b>. Текст з'явиться нижче.</li>
+          </ol>
+        </div>
+        <div class="help-section">
+          <h3>Примітки щодо форматів</h3>
+          <ul>
+            <li><b>PNG</b> — Без втрат. Працює скрізь при надсиланні як файл. Рекомендується.</li>
+            <li><b>GIF</b> — Працює у WhatsApp та Viber. <b>Не Telegram</b> (конвертує у MP4).</li>
+            <li>Ніколи не використовуйте режим «фото» — завжди режим «файл».</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Технічні деталі</h3>
+          <ul>
+            <li><b>Обмін ключами:</b> ECDH P-256 через Web Crypto API. 256-бітний спільний секрет через <code>deriveBits</code>.</li>
+            <li><b>Відбиток ключа:</b> SHA-256(спільний_секрет)[0..3] як hex — верифікований дайджест, не самі байти ключа.</li>
+            <li><b>Шифрування:</b> AES-256-GCM. Ключ через PBKDF2 (100 000 × SHA-256). Нові випадкові сіль (16 Б) + IV (12 Б) для кожного повідомлення. Тег GCM запобігає підробленню.</li>
+            <li><b>PNG-стего:</b> LSB каналів R,G,B — 3 біти/піксель. 500×500 пікселів ≈ 90 КБ ємності.</li>
+            <li><b>GIF-стего:</b> Median-cut до 128 кольорів, кодування парами палітри (LSB індексу). 1 біт/піксель.</li>
+            <li><b>Заголовок:</b> "VEIL"(4) + довжина(4) + сіль(16) + IV(12) = 36 байтів накладних витрат.</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer><span data-i18n="footerText">VEIL · All encryption &amp; steganography runs locally in your browser · No data is transmitted</span></footer>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// I18N
+// ═══════════════════════════════════════════════════════════════
+const I18N = {
+  en: {
+    tabKeys:'⇄ Key Exchange', tabEncode:'▲ Encode', tabDecode:'▼ Decode', tabHelp:'? Help',
+    myKeypairLbl:'My Keypair', noKeysYet:'No keys generated yet', keysReady:'Keys ready ✓',
+    genKeysBtn:'Generate My Keys', regenKeysBtn:'Regenerate Keys',
+    coverForKeyLbl:'Cover image for key', dlKeyBtn:'Download Key Image',
+    keyNote1:'This image contains your public key hidden inside.',
+    keyNote2:'Send it to your contact — it is not secret.',
+    keyNote3:'Your private key stays on this device only.',
+    peerKeyLbl:"Peer's Key Image",
+    peerKeySubLbl:"image received from your contact",
+    dlKeyHint:"↑ this is your public key image — share it openly",
+    dropPeerPh1:"Drop peer's key image here", dropPeerPh2:'or click to browse',
+    peerKeyHint1:'Load the key image your contact sent you.',
+    peerKeyHint2:'The shared secret will be derived automatically.',
+    peerKeyStatusInit:"Waiting for peer's image…",
+    sharedSecretLbl:'Shared Secret', waitingBothKeys:'Waiting for both keys…',
+    derivingLabel:'Deriving…', sharedKeyReady:'Shared Key Ready ✓',
+    fpLabel:'KEY FINGERPRINT — verify verbally with your contact',
+    clearSessionBtn:'✕ Clear Session & Keys',
+    coverImageLbl:'Cover Image', loadCustomImg:'+ Load Custom Image',
+    outputFormatLbl:'Output Format',
+    gifWarnHtml:'⚠ GIF is NOT safe in Telegram — it converts GIF to MP4, destroying hidden data.<br>Use GIF for WhatsApp &amp; Viber only.',
+    previewLbl:'Preview', selectImagePh:'← Select a cover image', capacityLbl:'Capacity',
+    encKeyLbl:'Encryption Key', dhKeyActive:'🔑 DH Key Active',
+    usePasswordBtn:'Use Password', dhAvailNote:'🔑 DH Key available', useDHKeyBtn:'← Use DH Key',
+    passwordLbl:'Password', passwordPh:'shared password…',
+    messageLbl:'Message', textToHideLbl:'Text to Hide', messagePh:'your secret message…',
+    encStatusInit:'← select a cover image to begin', encodeBtn:'Encode & Download',
+    steganogramLbl:'Steganogram File',
+    dropDecPh1:'Click or drop', dropDecPh2:'PNG / GIF file',
+    decKeyLbl:'Decryption Key', decStatusInit:'← load an encoded image',
+    decodeBtn:'Decode Message', recoveredMsgLbl:'Recovered Message',
+    helpTitle:'User Guide',
+    footerText:'VEIL · All encryption & steganography runs locally in your browser · No data is transmitted',
+    // dynamic
+    errSelectImage:'⊘ Select a cover image first',
+    errEnterPwd:'⊘ Enter a password (or use key exchange)',
+    errEnterMsg:'⊘ Enter a message to hide',
+    stEncrypting:'⟳ Encrypting with AES-256-GCM…',
+    stEmbedPNG:'⟳ Embedding LSB into PNG…',
+    stQuantize:'⟳ Quantizing colors…',
+    stLZW:'⟳ LZW + LSB embed…',
+    stDone: kb=>`✓ Done — downloaded (${kb} KB)`,
+    errLoadFile:'⊘ Load an encoded file first',
+    stParseGIF:'⟳ Parsing GIF + LZW decode…',
+    stExtractLSB:'⟳ Extracting LSB from PNG…',
+    stDecrypt:'⟳ Decrypting…',
+    stDecryptOk: n=>`✓ Decrypted successfully  (${n} bytes)`,
+    stLoadedFile: (name,fmt,kb)=>`✓ Loaded: ${name}  (${fmt}, ${kb} KB)`,
+    stPeerKeyOk: name=>`✓ Peer key extracted from: ${name}`,
+    stPeerKeyErr: m=>`⊘ ${m}`,
+    confirmClear:'Clear all keys and shared secret? This cannot be undone.',
+  },
+  uk: {
+    tabKeys:'⇄ Обмін ключами', tabEncode:'▲ Шифрування', tabDecode:'▼ Розшифрування', tabHelp:'? Довідка',
+    myKeypairLbl:'Мої ключі', noKeysYet:'Ключі ще не згенеровано', keysReady:'Ключі готові ✓',
+    genKeysBtn:'Згенерувати ключі', regenKeysBtn:'Перегенерувати ключі',
+    coverForKeyLbl:'Зображення для ключа', dlKeyBtn:'Завантажити ключ-зображення',
+    keyNote1:'Це зображення містить ваш публічний ключ прихованим всередині.',
+    keyNote2:'Надішліть контакту — це не секрет.',
+    keyNote3:'Ваш приватний ключ зберігається лише на цьому пристрої.',
+    peerKeyLbl:'Ключ від контакту',
+    peerKeySubLbl:'зображення, отримане від вашого контакту',
+    dlKeyHint:'↑ це ваше публічне ключ-зображення — надішліть його відкрито',
+    dropPeerPh1:'Перетягніть ключ-зображення', dropPeerPh2:'від контакту або натисніть',
+    peerKeyHint1:'Завантажте ключ-зображення, яке надіслав вам контакт.',
+    peerKeyHint2:'Спільний секрет буде виведено автоматично.',
+    peerKeyStatusInit:'Очікування зображення від контакту…',
+    sharedSecretLbl:'Спільний секрет', waitingBothKeys:'Очікування обох ключів…',
+    derivingLabel:'Виведення…', sharedKeyReady:'Спільний ключ готовий ✓',
+    fpLabel:'ВІДБИТОК КЛЮЧА — звірте голосово з контактом',
+    clearSessionBtn:'✕ Очистити сесію та ключі',
+    coverImageLbl:'Зображення-носій', loadCustomImg:'+ Завантажити своє зображення',
+    outputFormatLbl:'Формат виводу',
+    gifWarnHtml:'⚠ GIF не підходить для Telegram — він конвертує GIF у MP4, знищуючи приховані дані.<br>Використовуйте GIF лише для WhatsApp та Viber.',
+    previewLbl:'Перегляд', selectImagePh:'← Виберіть зображення-носій', capacityLbl:'Ємність',
+    encKeyLbl:'Ключ шифрування', dhKeyActive:'🔑 DH-ключ активний',
+    usePasswordBtn:'Використати пароль', dhAvailNote:'🔑 DH-ключ доступний', useDHKeyBtn:'← Повернутися до DH-ключа',
+    passwordLbl:'Пароль', passwordPh:'спільний пароль…',
+    messageLbl:'Повідомлення', textToHideLbl:'Текст для приховування', messagePh:'ваше таємне повідомлення…',
+    encStatusInit:'← виберіть зображення-носій', encodeBtn:'Зашифрувати та завантажити',
+    steganogramLbl:'Файл стеганограми',
+    dropDecPh1:'Натисніть або перетягніть', dropDecPh2:'файл PNG / GIF',
+    decKeyLbl:'Ключ дешифрування', decStatusInit:'← завантажте закодоване зображення',
+    decodeBtn:'Розшифрувати', recoveredMsgLbl:'Розшифроване повідомлення',
+    helpTitle:'Довідник',
+    footerText:'VEIL · Усе шифрування та стеганографія виконуються локально у вашому браузері · Жодні дані не передаються',
+    errSelectImage:'⊘ Спочатку виберіть зображення-носій',
+    errEnterPwd:'⊘ Введіть пароль (або використайте обмін ключами)',
+    errEnterMsg:'⊘ Введіть повідомлення для приховування',
+    stEncrypting:'⟳ Шифрування AES-256-GCM…',
+    stEmbedPNG:'⟳ Вбудовування LSB у PNG…',
+    stQuantize:'⟳ Квантизація кольорів…',
+    stLZW:'⟳ LZW + вбудовування LSB…',
+    stDone: kb=>`✓ Готово — завантажено (${kb} КБ)`,
+    errLoadFile:'⊘ Спочатку завантажте закодований файл',
+    stParseGIF:'⟳ Парсинг GIF + LZW-декодування…',
+    stExtractLSB:'⟳ Витягування LSB з PNG…',
+    stDecrypt:'⟳ Дешифрування…',
+    stDecryptOk: n=>`✓ Успішно розшифровано  (${n} байт)`,
+    stLoadedFile: (name,fmt,kb)=>`✓ Завантажено: ${name}  (${fmt}, ${kb} КБ)`,
+    stPeerKeyOk: name=>`✓ Ключ контакту витягнуто з: ${name}`,
+    stPeerKeyErr: m=>`⊘ ${m}`,
+    confirmClear:'Видалити всі ключі та спільний секрет? Цю дію неможливо скасувати.',
+  }
+};
+
+let lang = 'en';
+function t(k, ...a) {
+  const v = (I18N[lang]||I18N.en)[k] || I18N.en[k] || k;
+  return typeof v === 'function' ? v(...a) : v;
+}
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  document.querySelectorAll('[data-i18n-html]').forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
+  document.getElementById('help-body-en').style.display = lang==='en' ? 'block' : 'none';
+  document.getElementById('help-body-uk').style.display = lang==='uk' ? 'block' : 'none';
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('on', b.dataset.lang===lang));
+  // update dynamic placeholders
+  if (curImgData) updateCap();
+}
+
+document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => {
+  lang = b.dataset.lang;
+  applyLang();
+  // re-apply status messages that have i18n keys
+  setEncSt(t('encStatusInit'), 'info');
+  setDecSt(t('decStatusInit'), 'info');
+  updateKeyExchangeUI();
+  updateDHUI();
+}));
+
+// ═══════════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════════
+function ss(k,v){try{localStorage.setItem('veil_'+k,v);}catch{}}
+function sg(k){try{return localStorage.getItem('veil_'+k);}catch{return null;}}
+function sd(k){try{localStorage.removeItem('veil_'+k);}catch{}}
+
+// ═══════════════════════════════════════════════════════════════
+// BIT / BYTE UTILS
+// ═══════════════════════════════════════════════════════════════
+function bytesToBits(bytes){const b=[];for(const v of bytes)for(let i=7;i>=0;i--)b.push((v>>i)&1);return b;}
+function bitsToBytes(bits){const o=[];for(let i=0;i+7<bits.length;i+=8){let v=0;for(let j=0;j<8;j++)v=(v<<1)|bits[i+j];o.push(v);}return new Uint8Array(o);}
+function u32be(a,o){return((a[o]<<24)|(a[o+1]<<16)|(a[o+2]<<8)|a[o+3])>>>0;}
+function wU32be(a,o,v){a[o]=(v>>>24)&0xff;a[o+1]=(v>>>16)&0xff;a[o+2]=(v>>>8)&0xff;a[o+3]=v&0xff;}
+function u8toB64(u){return btoa(String.fromCharCode(...u));}
+function b64toU8(b){return Uint8Array.from(atob(b),c=>c.charCodeAt(0));}
+
+// ═══════════════════════════════════════════════════════════════
+// CRYPTO — AES-256-GCM + PBKDF2
+// ═══════════════════════════════════════════════════════════════
+const MAGIC=[0x56,0x45,0x49,0x4C]; const HDR=36;
+async function deriveKey(pwd,salt,use){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pwd),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,[use]);
+}
+async function packPayload(msg,pwd){
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveKey(pwd,salt,'encrypt');
+  const enc=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(msg)));
+  const out=new Uint8Array(HDR+enc.length);
+  MAGIC.forEach((b,i)=>out[i]=b); wU32be(out,4,enc.length);
+  out.set(salt,8); out.set(iv,24); out.set(enc,HDR); return out;
+}
+async function unpackPayload(raw,pwd){
+  for(let i=0;i<4;i++) if(raw[i]!==MAGIC[i]) throw new Error('No VEIL message found in this file');
+  const encLen=u32be(raw,4);
+  if(encLen>raw.length-HDR) throw new Error('Data is corrupted or truncated');
+  const salt=raw.slice(8,24),iv=raw.slice(24,36),enc=raw.slice(HDR,HDR+encLen);
+  const key=await deriveKey(pwd,salt,'decrypt');
+  let dec;
+  try{dec=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,enc);}
+  catch{throw new Error('Wrong password or file was modified after encoding');}
+  return new TextDecoder().decode(dec);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ECDH KEY EXCHANGE
+// ═══════════════════════════════════════════════════════════════
+const MAGIC_KEY=[0x56,0x4B,0x45,0x59]; const PUBKEY_LEN=65;
+let myKeyPair=null,myPubKeyRaw=null,peerPubRaw=null,dhPassword=null,dhFingerprint=null;
+
+async function computeFingerprint(hexStr){
+  const bytes=new Uint8Array(hexStr.match(/.{2}/g).map(h=>parseInt(h,16)));
+  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(hash)).slice(0,4).map(b=>b.toString(16).padStart(2,'0')).join(' ').toUpperCase();
+}
+
+async function generateKeyPair(){
+  myKeyPair=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+  myPubKeyRaw=new Uint8Array(await crypto.subtle.exportKey('raw',myKeyPair.publicKey));
+  const priv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',myKeyPair.privateKey));
+  ss('myPriv',u8toB64(priv)); ss('myPub',u8toB64(myPubKeyRaw));
+  if(peerPubRaw) await deriveShared();
+}
+
+async function tryRestoreKeys(){
+  const pb=sg('myPriv'),ub=sg('myPub'); if(!pb||!ub) return false;
+  try{
+    const privKey=await crypto.subtle.importKey('pkcs8',b64toU8(pb),{name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+    const pubKey=await crypto.subtle.importKey('raw',b64toU8(ub),{name:'ECDH',namedCurve:'P-256'},true,[]);
+    myKeyPair={publicKey:pubKey,privateKey:privKey}; myPubKeyRaw=b64toU8(ub); return true;
+  }catch{return false;}
+}
+
+async function importPeerKeyFromImageData(imgData){
+  const raw=pngExtract(imgData);
+  for(let i=0;i<4;i++) if(raw[i]!==MAGIC_KEY[i]) throw new Error('No public key found in this image');
+  peerPubRaw=raw.slice(4,4+PUBKEY_LEN);
+  ss('peerPub',u8toB64(peerPubRaw));
+  if(myKeyPair) await deriveShared();
+}
+
+async function deriveShared(){
+  const peerKey=await crypto.subtle.importKey('raw',peerPubRaw,{name:'ECDH',namedCurve:'P-256'},false,[]);
+  const bits=await crypto.subtle.deriveBits({name:'ECDH',public:peerKey},myKeyPair.privateKey,256);
+  dhPassword=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  dhFingerprint=await computeFingerprint(dhPassword);
+  ss('dhPwd',dhPassword); ss('dhFp',dhFingerprint);
+}
+
+async function buildKeyImage(coverCanvas){
+  if(!myPubKeyRaw) throw new Error('Generate your keys first');
+  const payload=new Uint8Array(4+PUBKEY_LEN);
+  MAGIC_KEY.forEach((b,i)=>payload[i]=b); payload.set(myPubKeyRaw,4);
+  const ctx=coverCanvas.getContext('2d');
+  const imgData=ctx.getImageData(0,0,coverCanvas.width,coverCanvas.height);
+  const mod=pngEmbed(imgData,payload);
+  const c=document.createElement('canvas'); c.width=coverCanvas.width; c.height=coverCanvas.height;
+  c.getContext('2d').putImageData(new ImageData(mod,c.width,c.height),0,0);
+  return new Promise(res=>c.toBlob(res,'image/png'));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PNG LSB STEGANOGRAPHY
+// ═══════════════════════════════════════════════════════════════
+function pngCapacity(w,h){return Math.floor(w*h*3/8)-HDR-1;}
+function pngEmbed(imgData,payload){
+  const bits=bytesToBits(payload),px=imgData.data;
+  if(bits.length>Math.floor(px.length/4)*3) throw new Error('Message too large');
+  const out=new Uint8ClampedArray(px); let bi=0;
+  for(let i=0;i<out.length&&bi<bits.length;i+=4){
+    out[i]=(out[i]&0xfe)|bits[bi++];
+    if(bi<bits.length) out[i+1]=(out[i+1]&0xfe)|bits[bi++];
+    if(bi<bits.length) out[i+2]=(out[i+2]&0xfe)|bits[bi++];
+  }
+  return out;
+}
+function pngExtract(imgData){
+  const px=imgData.data,bits=[];
+  for(let i=0;i<px.length;i+=4) bits.push(px[i]&1,px[i+1]&1,px[i+2]&1);
+  return bitsToBytes(bits);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COLOR QUANTIZATION (Median Cut)
+// ═══════════════════════════════════════════════════════════════
+function medianCut(samples,n){
+  let buckets=[samples.slice()];
+  while(buckets.length<n){
+    let bi=-1,br=-1;
+    for(let i=0;i<buckets.length;i++){const b=buckets[i];if(!b.length)continue;let rN=255,rX=0,gN=255,gX=0,bN=255,bX=0;for(const[r,g,v]of b){if(r<rN)rN=r;if(r>rX)rX=r;if(g<gN)gN=g;if(g>gX)gX=g;if(v<bN)bN=v;if(v>bX)bX=v;}const rng=Math.max(rX-rN,gX-gN,bX-bN);if(rng>br){br=rng;bi=i;}}
+    if(br===0)break;
+    const bk=buckets[bi];let rN=255,rX=0,gN=255,gX=0,bN=255,bX=0;
+    for(const[r,g,v]of bk){if(r<rN)rN=r;if(r>rX)rX=r;if(g<gN)gN=g;if(g>gX)gX=g;if(v<bN)bN=v;if(v>bX)bX=v;}
+    const d=(rX-rN>=gX-gN&&rX-rN>=bX-bN)?0:(gX-gN>=bX-bN?1:2);
+    bk.sort((a,b2)=>a[d]-b2[d]);const mid=bk.length>>1;
+    buckets.splice(bi,1,bk.slice(0,mid),bk.slice(mid));
+  }
+  return buckets.filter(b=>b.length>0).map(b=>{let rs=0,gs=0,bs=0;for(const[r,g,v]of b){rs+=r;gs+=g;bs+=v;}const n=b.length;return[Math.round(rs/n),Math.round(gs/n),Math.round(bs/n)];});
+}
+function twin(c){return[c[0],c[1],c[2]<255?c[2]+1:c[2]-1];}
+
+// ═══════════════════════════════════════════════════════════════
+// GIF LZW
+// ═══════════════════════════════════════════════════════════════
+function lzwEncode(indices,minCS){
+  const CC=1<<minCS,EC=CC+1,out=[];let buf=0,blen=0,cs=minCS+1,next=EC+1;const table=new Map();
+  function wBits(code,cs){buf|=(code<<blen);blen+=cs;while(blen>=8){out.push(buf&0xff);buf>>>=8;blen-=8;}}
+  function reset(){table.clear();for(let i=0;i<CC;i++)table.set(String(i),i);cs=minCS+1;next=EC+1;}
+  reset();wBits(CC,cs);
+  if(!indices.length){wBits(EC,cs);if(blen)out.push(buf&0xff);return out;}
+  let pfx=String(indices[0]);
+  for(let i=1;i<indices.length;i++){const c=pfx+','+indices[i];if(table.has(c)){pfx=c;}else{wBits(table.get(pfx),cs);if(next<4096){table.set(c,next++);if(next>(1<<cs)&&cs<12)cs++;}if(next>=4096){wBits(CC,cs);reset();}pfx=String(indices[i]);}}
+  wBits(table.get(pfx),cs);wBits(EC,cs);if(blen)out.push(buf&0xff);return out;
+}
+function lzwDecode(data,minCS,maxPx){
+  const CC=1<<minCS,EC=CC+1;let cs=minCS+1,next=EC+1;const table=[];
+  function reset(){table.length=0;for(let i=0;i<CC;i++)table.push([i]);table.push(null,null);cs=minCS+1;next=EC+1;}
+  reset();const out=[];let pos=0,bbuf=0,blen=0;
+  function rCode(){while(blen<cs&&pos<data.length){bbuf|=data[pos++]<<blen;blen+=8;}const c=bbuf&((1<<cs)-1);bbuf>>>=cs;blen-=cs;return c;}
+  let prev=null;
+  outer:while(pos<data.length||blen>=cs){if(blen<cs&&pos>=data.length)break;const code=rCode();if(code===CC){reset();prev=null;continue;}if(code===EC)break;let entry;if(code<table.length&&table[code]!==null)entry=table[code];else if(prev!==null&&code===next)entry=[...prev,prev[0]];else break;for(const p of entry){out.push(p);if(out.length>=maxPx)break outer;}if(prev!==null&&next<4096){table.push([...prev,entry[0]]);next++;if(next>(1<<cs)&&cs<12)cs++;}prev=entry;}
+  return out;
+}
+function buildGIF(w,h,pal256,pixels){
+  const bytes=[],wb=b=>bytes.push(b&0xff),ws=v=>{wb(v);wb(v>>8);},wstr=s=>{for(const c of s)wb(c.charCodeAt(0));};
+  wstr('GIF89a');ws(w);ws(h);wb(0xF7);wb(0);wb(0);
+  for(let i=0;i<256;i++){const c=pal256[i]||[0,0,0];wb(c[0]);wb(c[1]);wb(c[2]);}
+  wb(0x2C);ws(0);ws(0);ws(w);ws(h);wb(0);wb(8);
+  const comp=lzwEncode(pixels,8);let i=0;while(i<comp.length){const bl=Math.min(255,comp.length-i);wb(bl);for(let j=0;j<bl;j++)wb(comp[i+j]);i+=bl;}
+  wb(0);wb(0x3B);return new Uint8Array(bytes);
+}
+function parseGIF(buf){
+  const d=new Uint8Array(buf);let p=0;const rb=()=>d[p++],rs=()=>{const lo=d[p++],hi=d[p++];return lo|(hi<<8);};
+  let hdr='';for(let i=0;i<6;i++)hdr+=String.fromCharCode(d[p++]);if(!hdr.startsWith('GIF'))throw new Error('File is not a GIF');
+  const w=rs(),h=rs(),pk=rb();rb();rb();if(pk&0x80)p+=3*(1<<((pk&0x07)+1));
+  let pixels=null;
+  while(p<d.length){const blk=rb();if(blk===0x3B)break;if(blk===0x21){rb();while(p<d.length){const sz=rb();if(!sz)break;p+=sz;}continue;}if(blk===0x2C){rs();rs();const iw=rs(),ih=rs(),ip=rb();if(ip&0x80)p+=3*(1<<((ip&0x07)+1));const minCS=rb(),imgData=[];while(p<d.length){const sz=rb();if(!sz)break;for(let i=0;i<sz;i++)imgData.push(d[p++]);}pixels=lzwDecode(imgData,minCS,iw*ih);break;}}
+  if(!pixels)throw new Error('GIF: no image data found');
+  return{w,h,pixels};
+}
+function gifCapacity(w,h){return Math.floor(w*h/8)-HDR-1;}
+function buildLUT(pal128){const lut=new Uint8Array(4096);for(let ri=0;ri<16;ri++)for(let gi=0;gi<16;gi++)for(let bi=0;bi<16;bi++){const r=ri*17,g=gi*17,b=bi*17;let best=0,bestD=Infinity;for(let k=0;k<pal128.length;k++){const dr=r-pal128[k][0],dg=g-pal128[k][1],db=b-pal128[k][2];const d=dr*dr+dg*dg+db*db;if(d<bestD){bestD=d;best=k;}}lut[ri*256+gi*16+bi]=best;}return lut;}
+async function gifEmbed(imgData,payload){
+  const{width:w,height:h,data}=imgData;const step=Math.max(1,Math.floor(w*h/8000));const samples=[];
+  for(let i=0;i<w*h;i+=step)samples.push([data[i*4],data[i*4+1],data[i*4+2]]);
+  const pal128=medianCut(samples,128);const pal256=[];for(let k=0;k<128;k++){pal256.push(pal128[k]);pal256.push(twin(pal128[k]));}
+  const lut=buildLUT(pal128);const bits=bytesToBits(payload);if(bits.length>w*h)throw new Error('Message too large for this GIF');
+  const idx=new Uint8Array(w*h);for(let i=0;i<w*h;i++){const r=data[i*4],g=data[i*4+1],b=data[i*4+2];idx[i]=(lut[(r>>4)*256+(g>>4)*16+(b>>4)])*2+(i<bits.length?bits[i]:0);}
+  return buildGIF(w,h,pal256,idx);
+}
+function gifExtract(buf){const{pixels}=parseGIF(buf);return bitsToBytes(pixels.map(p=>p&1));}
+
+// ═══════════════════════════════════════════════════════════════
+// EMOJI PRESETS
+// ═══════════════════════════════════════════════════════════════
+const EMOJI_PRESETS=[
+  {emoji:'😊',name:'Happy',  bg1:'#fff8d0',bg2:'#ffe870'},
+  {emoji:'😢',name:'Sad',    bg1:'#ddeeff',bg2:'#99ccff'},
+  {emoji:'🐱',name:'Cat',    bg1:'#fff0e0',bg2:'#ffcc90'},
+  {emoji:'🐶',name:'Dog',    bg1:'#f5f0e0',bg2:'#d8c890'},
+  {emoji:'🌸',name:'Blossom',bg1:'#fff0f8',bg2:'#ffb8d8'},
+  {emoji:'🎉',name:'Party',  bg1:'#f5eeff',bg2:'#ccaaff'},
+];
+function makeEmojiCanvas(pr,w=240,h=180){
+  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+  const g=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*.7);g.addColorStop(0,pr.bg1);g.addColorStop(1,pr.bg2);ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  const id=ctx.getImageData(0,0,w,h);for(let i=0;i<id.data.length;i+=4){const n=(Math.random()-.5)*22;id.data[i]=Math.min(255,Math.max(0,id.data[i]+n));id.data[i+1]=Math.min(255,Math.max(0,id.data[i+1]+n));id.data[i+2]=Math.min(255,Math.max(0,id.data[i+2]+n));}ctx.putImageData(id,0,0);
+  ctx.font='80px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pr.emoji,w/2,h/2);
+  return c;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI STATE
+// ═══════════════════════════════════════════════════════════════
+let curImgData=null, curFmt='png';
+let encUsePwd=false, decUsePwd=false;  // true = override DH, show password field
+let selectedKeyCanvas=null;
+
+// ── Tabs ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById(btn.dataset.tab+'-panel').classList.add('on');
+}));
+
+// ── Help ──────────────────────────────────────────────────────
+document.getElementById('help-btn').addEventListener('click',()=>document.getElementById('help-overlay').style.display='flex');
+document.getElementById('help-close').addEventListener('click',()=>document.getElementById('help-overlay').style.display='none');
+document.getElementById('help-overlay').addEventListener('click',e=>{if(e.target.id==='help-overlay')document.getElementById('help-overlay').style.display='none';});
+
+// ── Format ────────────────────────────────────────────────────
+document.querySelectorAll('.fmt').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.fmt').forEach(b=>b.classList.remove('on'));btn.classList.add('on');curFmt=btn.dataset.fmt;
+  document.getElementById('gif-warn').style.display=curFmt==='gif'?'block':'none';updateCap();
+}));
+
+// ── Preset grids ──────────────────────────────────────────────
+function buildPresetGrid(containerId,gridCls,onSelect){
+  const grid=document.getElementById(containerId); grid.className='presets '+gridCls;
+  EMOJI_PRESETS.forEach(pr=>{
+    const wrap=document.createElement('div'); wrap.className='preset-wrap';
+    const c=makeEmojiCanvas(pr); c.title=pr.name;
+    const lbl=document.createElement('div'); lbl.className='preset-name'; lbl.textContent=pr.name;
+    c.addEventListener('click',()=>{grid.querySelectorAll('.preset-wrap').forEach(w=>w.classList.remove('sel'));wrap.classList.add('sel');onSelect(c,wrap,pr);});
+    wrap.appendChild(c); wrap.appendChild(lbl); grid.appendChild(wrap);
+  });
+}
+buildPresetGrid('enc-preset-grid','two-col',c=>loadEncCanvas(c));
+buildPresetGrid('key-preset-grid','',c=>{selectedKeyCanvas=c;document.getElementById('dl-key-btn').disabled=false;});
+
+// ── Encode canvas ─────────────────────────────────────────────
+function loadEncCanvas(src){
+  const ec=document.getElementById('enc-canvas');
+  if(src.nodeName==='CANVAS'){ec.width=src.width;ec.height=src.height;}else{ec.width=src.naturalWidth;ec.height=src.naturalHeight;}
+  ec.getContext('2d').drawImage(src,0,0);
+  curImgData=ec.getContext('2d').getImageData(0,0,ec.width,ec.height);
+  document.getElementById('enc-ph').style.display='none'; ec.style.display='block';
+  updateCap(); setEncSt('','info');
+}
+function loadImgFile(file){
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{loadEncCanvas(img);URL.revokeObjectURL(url);};img.src=url;
+  document.querySelectorAll('#enc-preset-grid .preset-wrap').forEach(w=>w.classList.remove('sel'));
+}
+document.getElementById('img-upload').addEventListener('change',e=>{if(e.target.files[0])loadImgFile(e.target.files[0]);});
+const epw=document.getElementById('enc-preview-wrap');
+epw.addEventListener('dragover',e=>{e.preventDefault();epw.style.outline='2px dashed var(--ink)';});
+epw.addEventListener('dragleave',()=>{epw.style.outline='';});
+epw.addEventListener('drop',e=>{e.preventDefault();epw.style.outline='';const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadImgFile(f);});
+
+// ── Capacity bar ──────────────────────────────────────────────
+function updateCap(){
+  if(!curImgData)return;
+  const{width:w,height:h}=curImgData;
+  const cap=curFmt==='png'?pngCapacity(w,h):gifCapacity(w,h);
+  const msgB=new TextEncoder().encode(document.getElementById('enc-msg').value).length;
+  const pct=cap>0?Math.min(100,(msgB+16)/cap*100):0;
+  const fill=document.getElementById('cap-fill');
+  fill.style.width=pct+'%'; fill.style.background=pct>90?'var(--red)':pct>60?'var(--amber)':'var(--ink)';
+  document.getElementById('cap-text').textContent=`${msgB} / ${cap} bytes  (${w}×${h}px)`;
+}
+document.getElementById('enc-msg').addEventListener('input',updateCap);
+
+// ── Status helpers ────────────────────────────────────────────
+function setEncSt(m,c='info'){const el=document.getElementById('enc-status');el.textContent=m;el.className='status '+c;}
+function setDecSt(m,c='info'){const el=document.getElementById('dec-status');el.textContent=m;el.className='status '+c;}
+
+// ── DH UI update ──────────────────────────────────────────────
+function updateDHUI(){
+  const hasKey=!!dhPassword;
+  const fp=dhFingerprint||'';
+  ['enc','dec'].forEach(pfx=>{
+    const usePwd=pfx==='enc'?encUsePwd:decUsePwd;
+    const activeBar=document.getElementById(`${pfx}-dh-active`);
+    const availBar=document.getElementById(`${pfx}-dh-avail`);
+    const pwdFld=document.getElementById(`${pfx}-pwd-field`);
+    const fpEl=document.getElementById(`${pfx}-fp`);
+    if(hasKey&&!usePwd){
+      // DH active, password hidden
+      activeBar.style.display='flex'; availBar.style.display='none'; pwdFld.style.display='none';
+      if(fpEl) fpEl.textContent=`fingerprint: ${fp}`;
+    }else if(hasKey&&usePwd){
+      // Password override — show "DH available" note above field
+      activeBar.style.display='none'; availBar.style.display='flex'; pwdFld.style.display='block';
+    }else{
+      // No DH key at all
+      activeBar.style.display='none'; availBar.style.display='none'; pwdFld.style.display='block';
+    }
+  });
+}
+
+// Toggle buttons — Use Password
+document.getElementById('enc-to-pwd-btn').addEventListener('click',()=>{encUsePwd=true;updateDHUI();});
+document.getElementById('dec-to-pwd-btn').addEventListener('click',()=>{decUsePwd=true;updateDHUI();});
+// Toggle buttons — Back to DH Key
+document.getElementById('enc-to-dh-btn').addEventListener('click',()=>{encUsePwd=false;updateDHUI();});
+document.getElementById('dec-to-dh-btn').addEventListener('click',()=>{decUsePwd=false;updateDHUI();});
+
+// ── Key Exchange UI ───────────────────────────────────────────
+function updateKeyExchangeUI(){
+  const dot=document.getElementById('my-key-dot'),txt=document.getElementById('my-key-text');
+  if(myKeyPair){dot.className='key-dot on';txt.className='key-bar-text on';txt.textContent=t('keysReady');document.getElementById('my-key-export').style.display='block';document.getElementById('gen-keys-btn').textContent=t('regenKeysBtn');}
+  else{dot.className='key-dot';txt.className='key-bar-text';txt.textContent=t('noKeysYet');document.getElementById('my-key-export').style.display='none';document.getElementById('gen-keys-btn').textContent=t('genKeysBtn');}
+  const big=document.getElementById('dh-big-status'),bigLbl=document.getElementById('dh-big-label'),fpLbl=document.getElementById('dh-fp-label'),fpVal=document.getElementById('dh-fp-value');
+  if(dhPassword){big.classList.add('ready');bigLbl.textContent=t('sharedKeyReady');fpLbl.style.display='block';fpLbl.textContent=t('fpLabel');fpVal.textContent=dhFingerprint||'';}
+  else{big.classList.remove('ready');bigLbl.textContent=myKeyPair&&peerPubRaw?t('derivingLabel'):t('waitingBothKeys');fpLbl.style.display='none';}
+}
+
+document.getElementById('gen-keys-btn').addEventListener('click',async()=>{
+  const btn=document.getElementById('gen-keys-btn');btn.disabled=true;btn.textContent='…';
+  try{await generateKeyPair();updateKeyExchangeUI();updateDHUI();}
+  catch(e){alert('Error: '+e.message);}
+  finally{btn.disabled=false;btn.textContent=myKeyPair?t('regenKeysBtn'):t('genKeysBtn');}
+});
+
+document.getElementById('dl-key-btn').addEventListener('click',async()=>{
+  if(!selectedKeyCanvas){alert(lang==='uk'?'Оберіть обкладинку':'Select a cover image first');return;}
+  const btn=document.getElementById('dl-key-btn');btn.disabled=true;btn.textContent='…';
+  try{const blob=await buildKeyImage(selectedKeyCanvas);download(blob,'veil_mykey.png');}
+  catch(e){alert('Error: '+e.message);}
+  finally{btn.disabled=false;btn.textContent=t('dlKeyBtn');}
+});
+
+// Peer key drop zone
+const keyDropZone=document.getElementById('key-drop-zone');
+document.getElementById('key-peer-file').addEventListener('change',e=>{if(e.target.files[0])loadPeerKeyFile(e.target.files[0]);});
+keyDropZone.addEventListener('dragover',e=>{e.preventDefault();keyDropZone.classList.add('drag');});
+keyDropZone.addEventListener('dragleave',()=>keyDropZone.classList.remove('drag'));
+keyDropZone.addEventListener('drop',e=>{e.preventDefault();keyDropZone.classList.remove('drag');if(e.dataTransfer.files[0])loadPeerKeyFile(e.dataTransfer.files[0]);});
+
+async function loadPeerKeyFile(file){
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=async()=>{
+    const kc=document.getElementById('key-preview-canvas');kc.width=img.width;kc.height=img.height;kc.getContext('2d').drawImage(img,0,0);kc.style.display='block';document.getElementById('key-drop-ph').style.display='none';URL.revokeObjectURL(url);
+    try{const imgData=kc.getContext('2d').getImageData(0,0,kc.width,kc.height);await importPeerKeyFromImageData(imgData);const el=document.getElementById('peer-key-status');el.textContent=t('stPeerKeyOk',file.name);el.className='status ok';updateKeyExchangeUI();updateDHUI();}
+    catch(e){const el=document.getElementById('peer-key-status');el.textContent=t('stPeerKeyErr',e.message);el.className='status err';}
+  };img.src=url;
+}
+
+document.getElementById('clear-session-btn').addEventListener('click',()=>{
+  if(!confirm(t('confirmClear')))return;
+  myKeyPair=null;myPubKeyRaw=null;peerPubRaw=null;dhPassword=null;dhFingerprint=null;
+  ['myPriv','myPub','peerPub','dhPwd','dhFp'].forEach(sd);
+  encUsePwd=false;decUsePwd=false;
+  document.getElementById('key-preview-canvas').style.display='none';
+  document.getElementById('key-drop-ph').style.display='block';
+  document.getElementById('peer-key-status').textContent=t('peerKeyStatusInit');
+  document.getElementById('peer-key-status').className='status info';
+  document.querySelectorAll('#key-preset-grid .preset-wrap').forEach(w=>w.classList.remove('sel'));
+  selectedKeyCanvas=null;document.getElementById('dl-key-btn').disabled=true;
+  updateKeyExchangeUI();updateDHUI();
+});
+
+// ── ENCODE ────────────────────────────────────────────────────
+document.getElementById('enc-btn').addEventListener('click',async()=>{
+  if(!curImgData)return setEncSt(t('errSelectImage'),'err');
+  const pwd=(!encUsePwd&&dhPassword)?dhPassword:document.getElementById('enc-pwd').value.trim();
+  const msg=document.getElementById('enc-msg').value;
+  if(!pwd)return setEncSt(t('errEnterPwd'),'err');
+  if(!msg)return setEncSt(t('errEnterMsg'),'err');
+  const btn=document.getElementById('enc-btn');btn.disabled=true;
+  try{
+    setEncSt(t('stEncrypting'),'work');await tick();const payload=await packPayload(msg,pwd);let blob;
+    if(curFmt==='png'){setEncSt(t('stEmbedPNG'),'work');await tick();const mod=pngEmbed(curImgData,payload);const c=document.createElement('canvas');c.width=curImgData.width;c.height=curImgData.height;c.getContext('2d').putImageData(new ImageData(mod,c.width,c.height),0,0);blob=await new Promise(res=>c.toBlob(res,'image/png'));}
+    else{setEncSt(t('stQuantize'),'work');await tick(80);setEncSt(t('stLZW'),'work');await tick(40);blob=new Blob([await gifEmbed(curImgData,payload)],{type:'image/gif'});}
+    download(blob,`veil_${Date.now()}.${curFmt}`);setEncSt(t('stDone',(blob.size/1024).toFixed(1)),'ok');
+  }catch(e){setEncSt('⊘ '+e.message,'err');console.error(e);}
+  finally{btn.disabled=false;}
+});
+
+// ── DECODE ────────────────────────────────────────────────────
+let decBuf=null,decIsGIF=false;
+const decZone=document.getElementById('dec-zone');
+document.getElementById('dec-file').addEventListener('change',e=>{if(e.target.files[0])loadDecFile(e.target.files[0]);});
+decZone.addEventListener('dragover',e=>{e.preventDefault();decZone.classList.add('drag');});
+decZone.addEventListener('dragleave',()=>decZone.classList.remove('drag'));
+decZone.addEventListener('drop',e=>{e.preventDefault();decZone.classList.remove('drag');if(e.dataTransfer.files[0])loadDecFile(e.dataTransfer.files[0]);});
+
+async function loadDecFile(file){
+  decIsGIF=file.type==='image/gif'||file.name.toLowerCase().endsWith('.gif');decBuf=await file.arrayBuffer();
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{const dc=document.getElementById('dec-canvas');dc.width=img.width;dc.height=img.height;dc.getContext('2d').drawImage(img,0,0);dc.style.display='block';document.getElementById('dec-ph').style.display='none';URL.revokeObjectURL(url);};img.src=url;
+  setDecSt(t('stLoadedFile',file.name,decIsGIF?'GIF':'PNG',(file.size/1024).toFixed(1)),'ok');
+  document.getElementById('out-box').classList.remove('vis');
+}
+
+document.getElementById('dec-btn').addEventListener('click',async()=>{
+  if(!decBuf)return setDecSt(t('errLoadFile'),'err');
+  const pwd=(!decUsePwd&&dhPassword)?dhPassword:document.getElementById('dec-pwd').value.trim();
+  if(!pwd)return setDecSt(t('errEnterPwd'),'err');
+  const btn=document.getElementById('dec-btn');btn.disabled=true;document.getElementById('out-box').classList.remove('vis');
+  try{
+    let raw;
+    if(decIsGIF){setDecSt(t('stParseGIF'),'work');await tick(40);raw=gifExtract(decBuf);}
+    else{setDecSt(t('stExtractLSB'),'work');await tick();const dc=document.getElementById('dec-canvas');raw=pngExtract(dc.getContext('2d').getImageData(0,0,dc.width,dc.height));}
+    setDecSt(t('stDecrypt'),'work');const msg=await unpackPayload(raw,pwd);
+    const box=document.getElementById('out-box');box.value=msg;box.classList.add('vis');
+    setDecSt(t('stDecryptOk',new TextEncoder().encode(msg).length),'ok');
+  }catch(e){setDecSt('⊘ '+e.message,'err');console.error(e);}
+  finally{btn.disabled=false;}
+});
+
+// ── Helpers ───────────────────────────────────────────────────
+function tick(ms=20){return new Promise(r=>setTimeout(r,ms));}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);}
+
+// ── INIT ──────────────────────────────────────────────────────
+async function init(){
+  if(await tryRestoreKeys()){
+    const pb=sg('peerPub');if(pb)peerPubRaw=b64toU8(pb);
+    const dh=sg('dhPwd');if(dh)dhPassword=dh;
+    const fp=sg('dhFp');if(fp)dhFingerprint=fp;
+    else if(dhPassword){dhFingerprint=await computeFingerprint(dhPassword);ss('dhFp',dhFingerprint);}
+  }
+  updateKeyExchangeUI();updateDHUI();
+}
+init();
+</script>
+</body>
+</html>
