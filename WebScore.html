@@ -9,11 +9,17 @@
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.0/dist/abcjs-midi-min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 10px; background: #eceff1; margin: 0; -webkit-tap-highlight-color: transparent; overflow-y: scroll; }
-        details { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        summary { cursor: pointer; font-weight: bold; outline: none; }
+        html { height: 100%; }
+        body { font-family: sans-serif; padding: 4px 6px 0 6px; background: #eceff1; margin: 0; -webkit-tap-highlight-color: transparent; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+        /* Top details: shrinks when not enough vertical space, scrolls internally */
+        details { background: #fff; padding: 6px 8px; border-radius: 6px; margin-bottom: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
+        /* When open: scrollable, up to almost full screen (keyboard is hidden when open) */
+        details[open] { overflow-y: auto; max-height: calc(100vh - 60px); flex-shrink: 1; }
+        /* When closed: just the summary, never shrinks */
+        details:not([open]) { overflow: hidden; }
+        summary { cursor: pointer; font-weight: bold; outline: none; font-size: 13px; padding: 1px 0; }
         
-        .toolbar { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .toolbar { background: #fff; padding: 5px 8px; border-radius: 6px; margin-bottom: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
         button { padding: 8px 10px; cursor: pointer; border: 1px solid #ccc; background: #fafafa; border-radius: 4px; font-weight: bold; font-size: 14px; user-select: none; transition: 0.1s; }
         button:hover { background: #eee; }
         button:active { background: #ddd; transform: scale(0.95); }
@@ -43,24 +49,30 @@
         .control-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-right: 8px; align-items: center; }
         .control-btn { min-width: 48px; height: 32px; padding: 0; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
 
-        /* ===== SCORE VIEWPORT (wraps #paper) ===== */
         #scoreViewport {
             background: #fff;
-            border-radius: 8px;
+            border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin-bottom: 5px;
-            overflow: visible;  /* normal mode: no clipping */
+            /* Own vertical scroll */
+            overflow-x: hidden;
+            overflow-y: scroll;
             position: relative;
-            transition: border-radius 0.15s, margin 0.15s, box-shadow 0.15s;
+            transition: border-radius 0.15s, box-shadow 0.15s;
+            /* Fill all space; padding-bottom is set dynamically = stickyBottomWrap.offsetHeight */
+            flex: 1;
+            min-height: 80px;
         }
+        #scoreViewport::-webkit-scrollbar { width: 8px; }
+        #scoreViewport::-webkit-scrollbar-track { background: #cfd8dc; border-radius: 4px; }
+        #scoreViewport::-webkit-scrollbar-thumb { background: #607d8b; border-radius: 4px; }
+        #scoreViewport::-webkit-scrollbar-thumb:hover { background: #37474f; }
         #paper {
-            padding: 10px;
+            padding: 8px 8px 16px 8px;
             user-select: none;
             cursor: pointer;
             touch-action: manipulation;
             position: relative;
             min-height: 0;
-            /* In normal mode: overflow-x auto handled by viewport */
         }
 
         /* ===== PLAYBACK MODE ===== */
@@ -79,8 +91,7 @@
         /* Show the compact playback bar */
         #playbackModeBar {
             display: none;
-            position: sticky;
-            bottom: 0;
+            flex-shrink: 0;
             z-index: 1001;
             background: rgba(30,40,45,0.96);
             backdrop-filter: blur(6px);
@@ -248,15 +259,17 @@
         .control-panel { 
             display: flex; 
             flex-wrap: wrap;
-            gap: 10px; 
+            gap: 6px; 
             margin-top: 0;
             align-items: center; 
             background: #eceff1; 
-            padding: 10px 0 6px; 
+            padding: 4px 0 3px; 
         }
-        .control-panel-main { flex: 1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        #stickyBottomWrap details { margin: 0; border-radius: 0; overflow: visible; max-height: none; background: #eceff1; box-shadow: none; padding: 0; }
-        #stickyBottomWrap details summary { padding: 4px 10px; font-size: 12px; font-weight: normal; color: #555; line-height: 1.2; }
+        .control-panel-main { flex: 1; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        /* Inside the bottom panel, details are styled differently — no padding, no shadow, very compact */
+        #stickyBottomWrap details { margin: 0; border-radius: 0; overflow: visible; max-height: none; background: transparent; box-shadow: none; padding: 0; flex-shrink: 0; }
+        #stickyBottomWrap details:not([open]) { background: transparent; }
+        #stickyBottomWrap details summary { padding: 2px 8px; font-size: 11px; font-weight: normal; color: #555; line-height: 1.3; background: #dde4e8; border-top: 1px solid #c8d0d4; }
         .note-panel { flex: 1; }
 
         .symbols-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
@@ -433,6 +446,30 @@
         .channel-row.active { background: #e0f7fa; border-left-color: #00bcd4; font-weight: bold; }
         .channel-row-top { display: flex; gap: 6px; align-items: center; }
         .channel-row-bottom { display: flex; gap: 6px; align-items: center; }
+
+        /* ===== DRUM INPUT PANEL ===== */
+        #drumInputPanel { display: none; flex-direction: column; width: 100%; gap: 3px; }
+        /* drum-btn: same look as note-btn but immune to updateNoteButtonIcons rewrites */
+        .drum-btn { display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; padding: 1px 2px 2px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
+        .drum-btn:hover { background: #e3f2fd; border-color: #90caf9; }
+        .drum-btn:active { background: #bbdefb; transform: scale(0.95); }
+        .drum-row { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding-bottom: 3px; align-items: stretch; }
+        .drum-group-block { display: flex; flex-direction: column; flex-shrink: 0; border-right: 2px solid #cfd8dc; padding-right: 5px; margin-right: 2px; }
+        .drum-group-block:last-child { border-right: none; }
+        .drum-group-label { font-size: 8px; font-weight: bold; color: #78909c; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 2px 2px; white-space: nowrap; }
+        .drum-group-btns { display: flex; gap: 2px; align-items: stretch; }
+        .drum-hit-btn {
+            min-width: 48px; height: 60px; padding: 2px 3px 3px;
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            font-size: 10px; cursor: pointer; gap: 1px;
+            border: 1px solid #ccc; border-radius: 4px; background: #fafafa;
+            user-select: none; transition: background 0.07s, transform 0.07s;
+        }
+        .drum-hit-btn:hover { background: #e3f2fd; border-color: #90caf9; }
+        .drum-hit-btn:active { background: #bbdefb; transform: scale(0.95); }
+        .drum-hit-btn .d-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
+        .drum-hit-btn .d-label { font-size: 8px; font-weight: bold; color: #37474f; text-align: center; line-height: 1.15; max-width: 46px; word-break: break-word; }
+        .drum-dur-row { display: flex; gap: 3px; flex-wrap: wrap; padding: 3px 0 1px; align-items: center; }
     </style>
 </head>
 <body>
@@ -547,6 +584,9 @@
             <label title="In Synchro mode all active channels share the same timeline. Inserting a note in one channel shifts all others forward by the same duration — like a multi-track tape recorder. Without Synchro, each channel is edited independently." style="display:flex;align-items:center;gap:4px;cursor:help;">
                 <input type="checkbox" id="synchroModeCheckbox" onchange="toggleSynchroMode(this.checked)"> Synchro ⓘ
             </label>
+            <label title="Show ½♯ / ½♭ buttons on the keyboard for quarter-tone (±50 cents) input" style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="checkbox" id="quarterToneCheckbox" onchange="toggleQuarterToneMode(this.checked)"> ¼-tone
+            </label>
         </div>
         <!-- Row 2: file buttons -->
         <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
@@ -582,6 +622,7 @@
                 <option value="bass">𝄢 Bass</option>
             </select>
             <button onclick="addChannelFromSelect()">+ Add Channel</button>
+            <button onclick="addDrumChannel()" title="Add a percussion / drumset staff (MIDI ch.10)" style="background:#fff3e0;border-color:#ffb74d;color:#e65100;">🥁 Add Drum Track</button>
         </div>
     </details>
 
@@ -589,7 +630,7 @@
         <div id="paper"></div>
     </div>
 
-    <div id="stickyBottomWrap" style="position:sticky;bottom:0;z-index:1000;background:#eceff1;box-shadow:0 -4px 10px rgba(0,0,0,0.05);overflow:hidden;">
+    <div id="stickyBottomWrap" style="position:fixed;bottom:0;left:0;right:0;z-index:1000;background:#eceff1;box-shadow:0 -2px 6px rgba(0,0,0,0.08);overflow:hidden;">
     <!-- Pin button -->
     <button id="panelPinBtn"
         onclick="togglePanelPin()"
@@ -655,6 +696,10 @@
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-nat" onclick="toggleMod('accidental', '=', this)" title="Natural">♮</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-dblsharp" onclick="toggleMod('accidental', '^^', this)" title="Double sharp">𝄪</button>
                         <button class="btn-small mod-btn acc-mod-btn" id="mod-dblflat" onclick="toggleMod('accidental', '__', this)" title="Double flat">𝄫</button>
+                    </div>
+                    <div class="group quarter-tone-btns" style="display:none;" title="Quarter-tone: ±50 cents bend">
+                        <button class="btn-small mod-btn" id="mod-halfsharp" onclick="toggleQuarterToneMod('halfSharp', this)" title="Half-sharp (+50¢)" style="font-size:11px;letter-spacing:-1px;">½♯</button>
+                        <button class="btn-small mod-btn" id="mod-halfflat"  onclick="toggleQuarterToneMod('halfFlat',  this)" title="Half-flat (−50¢)"  style="font-size:11px;letter-spacing:-1px;">½♭</button>
                     </div>
                 </div>
                 <!-- Action buttons row (same layout as Piano and 3-Row Grid modes) -->
@@ -749,6 +794,10 @@
                     <button class="control-btn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
                 </div>
             </div>
+
+            <!-- ===== DRUM INPUT MODE ===== -->
+            <div id="drumInputPanel"></div>
+
         </div>
         </div><!-- end control-panel-main -->
     </div>
@@ -1012,7 +1061,8 @@
         let selectionAtStart = false;
         
         let currentDurQuarters = 1.0; 
-        let nextMods = { accidental: '', dot: false };
+        let nextMods = { accidental: '', dot: false, quarterTone: null }; // quarterTone: null | 'halfSharp' | 'halfFlat'
+        let quarterToneModeEnabled = false;
         let tripletNotesLeft = 0;
         let tripletAccumNominal = 0; // accumulated nominal quarters in current triplet group
         let isChordMode = false;
@@ -1036,29 +1086,16 @@
 
         function togglePanelPin() {
             isPanelPinned = !isPanelPinned;
-            const wrap = document.getElementById('stickyBottomWrap');
-            const btn  = document.getElementById('panelPinBtn');
+            const btn = document.getElementById('panelPinBtn');
             if (isPanelPinned) {
-                wrap.style.position = 'fixed';
-                wrap.style.bottom   = '0';
-                wrap.style.left     = '0';
-                wrap.style.right    = '0';
-                wrap.style.width    = '100%';
-                // Add padding to body so score content isn't hidden behind fixed panel
-                document.body.style.paddingBottom = wrap.offsetHeight + 'px';
+                showNoteInputPanel(); // ensure visible when pinned
                 btn.style.opacity   = '1';
-                btn.style.transform = 'rotate(-45deg)'; // tilted = "active"
-                btn.title = 'Unpin panel';
+                btn.style.transform = 'rotate(-45deg)';
+                btn.title = 'Unpin — allow keyboard to hide when scrolling';
             } else {
-                wrap.style.position = 'sticky';
-                wrap.style.bottom   = '0';
-                wrap.style.left     = '';
-                wrap.style.right    = '';
-                wrap.style.width    = '';
-                document.body.style.paddingBottom = '';
                 btn.style.opacity   = '0.4';
                 btn.style.transform = '';
-                btn.title = 'Pin panel — keep it always visible while scrolling';
+                btn.title = 'Pin — keep keyboard visible while scrolling';
             }
         }
 
@@ -1287,16 +1324,18 @@ function undo() {
 
         function addChannel(program, clef, displayName) {
             const key = 'ch' + Date.now() + Math.floor(Math.random() * 1000);
+            const isDrum = (clef === 'perc');
             voicesData[key] = {
                 id: 'V' + (voiceOrder.length + 1),
-                short: displayName.substring(0, 3),
+                short: displayName.substring(0, 4),
                 name: displayName,
-                clef: clef,
+                clef: isDrum ? 'perc' : clef,
                 program: program,
                 active: true,
                 notes: [],
                 visible: true,
-                volume: 100
+                volume: 100,
+                isDrum: isDrum
             };
             voiceOrder.push(key);
             renderChannelRow(key);
@@ -1333,6 +1372,16 @@ function undo() {
                 `<option value="${inst.num}" ${inst.num === v.program ? 'selected' : ''}>${inst.name}</option>`
             ).join('');
 
+            // Clef/type cell: drum channels show fixed label, others show selector
+            const clefCell = v.isDrum
+                ? `<span style="font-size:16px;flex-shrink:0;" title="Percussion / MIDI ch.10">🥁</span>`
+                : `<select class="channel-clef-select" style="font-size:11px;margin-left:3px;" title="Clef"
+                        onchange="changeChannelClef('${key}', this.value); event.stopPropagation();"
+                        onclick="event.stopPropagation()">
+                        <option value="treble" ${v.clef === 'treble' ? 'selected' : ''}>𝄞</option>
+                        <option value="bass" ${v.clef === 'bass' ? 'selected' : ''}>𝄢</option>
+                    </select>`;
+
             row.innerHTML = `
                 <div class="channel-row-top" onclick="changeTrack('${key}')">
                     <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
@@ -1341,16 +1390,12 @@ function undo() {
                     </div>
                     <input type="checkbox" class="channel-check" ${v.active ? 'checked' : ''} onclick="toggleVoice('${key}'); event.stopPropagation()">
                     <select class="channel-instrument-select" style="flex:1;font-size:11px;min-width:0;" title="Instrument"
+                        ${v.isDrum ? 'disabled' : ''}
                         onchange="changeChannelInstrument('${key}', this.value); event.stopPropagation();"
                         onclick="event.stopPropagation()">
-                        ${instrOptions}
+                        ${v.isDrum ? '<option>Standard GM Drums</option>' : instrOptions}
                     </select>
-                    <select class="channel-clef-select" style="font-size:11px;margin-left:3px;" title="Clef"
-                        onchange="changeChannelClef('${key}', this.value); event.stopPropagation();"
-                        onclick="event.stopPropagation()">
-                        <option value="treble" ${v.clef === 'treble' ? 'selected' : ''}>𝄞</option>
-                        <option value="bass" ${v.clef === 'bass' ? 'selected' : ''}>𝄢</option>
-                    </select>
+                    ${clefCell}
                     <button class="visibility-btn" onclick="toggleVisibility('${key}'); event.stopPropagation()">${v.visible ? '👁' : '🙈'}</button>
                     <button class="remove-btn" onclick="removeChannel('${key}'); event.stopPropagation()">✖</button>
                 </div>
@@ -1429,6 +1474,7 @@ function undo() {
             const row = document.querySelector(`.channel-row[data-key="${vKey}"]`);
             if (row) row.classList.add('active');
             setBaseOctave(0, null);
+            updateInputPanelForTrack();
             updateScore();
         }
 
@@ -1501,6 +1547,422 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         function initDefaultChannels() {
             addChannel(0, 'treble', 'Piano RH');
             addChannel(0, 'bass', 'Piano LH');
+        }
+
+        // ==================== DRUM KIT ====================
+        // Each entry: label, short, pitch (ABC note letter+octave used as staff position),
+        //             midi (GM drum note 35-81), notehead ('normal'|'x'|'triangle'), group
+        // Staff layout (bottom→top, clef=perc with ABC pitch convention):
+        //   C,  D,  E,  F,  G,  A,  B,  C  D  E  F  G  A  B  c  d  e  f  g
+        const DRUM_KIT = [
+            { label:'Bass Drum',    short:'BD',  pitch:'C,', midi:36, head:'●', group:'kick'   },
+            { label:'Snare',        short:'SN',  pitch:'A,', midi:38, head:'●', group:'snare'  },
+            { label:'Rim Shot',     short:'RIM', pitch:'E,', midi:37, head:'×', group:'snare'  },
+            { label:'Hi-Hat Cl.',   short:'HH',  pitch:'F',  midi:42, head:'×', group:'hihat'  },
+            { label:'Hi-Hat Op.',   short:'HHo', pitch:'G',  midi:46, head:'○', group:'hihat'  },
+            { label:'Hi-Hat Ped.',  short:'HHp', pitch:'D,', midi:44, head:'×', group:'hihat'  },
+            { label:'Crash 1',      short:'CR1', pitch:'A',  midi:49, head:'×', group:'cymbal' },
+            { label:'Crash 2',      short:'CR2', pitch:'B',  midi:57, head:'×', group:'cymbal' },
+            { label:'Ride',         short:'RD',  pitch:'c',  midi:51, head:'×', group:'cymbal' },
+            { label:'Ride Bell',    short:'RB',  pitch:'d',  midi:53, head:'△', group:'cymbal' },
+            { label:'Floor Tom L',  short:'FTL', pitch:'F,', midi:41, head:'●', group:'tom'    },
+            { label:'Floor Tom H',  short:'FTH', pitch:'G,', midi:43, head:'●', group:'tom'    },
+            { label:'Tom Hi',       short:'T-Hi',pitch:'D',  midi:50, head:'●', group:'tom'    },
+            { label:'Tom Mid',      short:'T-Md',pitch:'C',  midi:48, head:'●', group:'tom'    },
+            { label:'Tom Lo',       short:'T-Lo',pitch:'B,', midi:47, head:'●', group:'tom'    },
+            { label:'Cowbell',      short:'CB',  pitch:'e',  midi:56, head:'△', group:'extra'  },
+            { label:'Tambourine',   short:'TBR', pitch:'f',  midi:54, head:'×', group:'extra'  },
+            { label:'Hand Clap',    short:'CLP', pitch:'g',  midi:39, head:'×', group:'extra'  },
+            { label:'Bongo Hi',     short:'BgHi',pitch:'a',  midi:60, head:'●', group:'bongo'  },
+            { label:'Bongo Lo',     short:'BgLo',pitch:'b',  midi:61, head:'●', group:'bongo'  },
+        ];
+        const DRUM_GROUPS = [
+            { key:'kick',   label:'Kick'     },
+            { key:'snare',  label:'Snare'    },
+            { key:'hihat',  label:'Hi-Hat'   },
+            { key:'cymbal', label:'Cymbals'  },
+            { key:'tom',    label:'Toms'     },
+            { key:'bongo',  label:'Bongos'   },
+            { key:'extra',  label:'Special'  },
+        ];
+
+        // Map pitch string → drum entry for fast lookup
+        function getDrumEntryByPitch(pitch) {
+            return DRUM_KIT.find(d => d.pitch === pitch) || null;
+        }
+
+        // Build the drum notehead type string abcjs understands for %%percmap
+        function drumPercmapHead(d) {
+            if (d.head === '●') return 'normal';
+            if (d.head === '×' || d.head === '○') return 'x';
+            if (d.head === '△') return 'triangle';
+            return 'normal';
+        }
+
+        // Build/rebuild the drum input panel HTML
+        // Build/inject drum hit buttons as a keyboard-row inside #buttonInputPanel
+        // ==================== WEB AUDIO DRUM SYNTHESIS ====================
+        // Synthesizes realistic drum sounds directly — no external soundfont needed.
+        // GM MIDI note numbers determine which drum sound to play.
+        function playDrumSoundWebAudio(midiNote, gain) {
+            if (!audioContext) return;
+            const ctx = audioContext;
+            const t   = ctx.currentTime;
+            const vol = Math.max(0, Math.min(1, gain || 0.8));
+
+            const masterGain = ctx.createGain();
+            masterGain.gain.value = vol;
+            masterGain.connect(ctx.destination);
+
+            function makeNoise(dur) {
+                const n = Math.ceil(ctx.sampleRate * dur);
+                const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+                const d = buf.getChannelData(0);
+                for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+                const s = ctx.createBufferSource(); s.buffer = buf; return s;
+            }
+            function envGain(peak, decayTime) {
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(peak, t);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + decayTime);
+                return g;
+            }
+
+            if (midiNote === 35 || midiNote === 36) {
+                // Bass Drum: pitched sine sweep + body thump
+                const osc = ctx.createOscillator();
+                osc.frequency.setValueAtTime(160, t);
+                osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+                const eg = envGain(1, 0.45); osc.connect(eg); eg.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.45);
+                // Transient click
+                const click = makeNoise(0.015);
+                const cg = envGain(0.5, 0.015); click.connect(cg); cg.connect(masterGain);
+                click.start(t);
+
+            } else if (midiNote === 37) {
+                // Rim Shot: sharp woodblock-like
+                const osc = ctx.createOscillator(); osc.type = 'square'; osc.frequency.value = 800;
+                const eg = envGain(0.7, 0.06); osc.connect(eg); eg.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.06);
+
+            } else if (midiNote === 38 || midiNote === 40) {
+                // Acoustic/Electric Snare: noise burst + ring
+                const noise = makeNoise(0.25);
+                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 1500;
+                const eg = envGain(0.9, 0.2); noise.connect(hpf); hpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+                const osc = ctx.createOscillator(); osc.frequency.value = 185;
+                const og = envGain(0.35, 0.08); osc.connect(og); og.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.08);
+
+            } else if (midiNote === 39) {
+                // Hand Clap
+                for (let i = 0; i < 3; i++) {
+                    const n = makeNoise(0.04);
+                    const hpf = ctx.createBiquadFilter(); hpf.type = 'bandpass'; hpf.frequency.value = 1200;
+                    const g = ctx.createGain(); g.gain.setValueAtTime(0, t + i*0.012); g.gain.linearRampToValueAtTime(0.6, t + i*0.012 + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + i*0.012 + 0.04);
+                    n.connect(hpf); hpf.connect(g); g.connect(masterGain); n.start(t + i*0.012);
+                }
+
+            } else if (midiNote === 42) {
+                // Closed Hi-Hat: very short metallic noise
+                const noise = makeNoise(0.06);
+                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 9000;
+                const eg = envGain(0.65, 0.05); noise.connect(hpf); hpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+
+            } else if (midiNote === 44) {
+                // Pedal Hi-Hat: slightly longer
+                const noise = makeNoise(0.08);
+                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 8000;
+                const eg = envGain(0.5, 0.07); noise.connect(hpf); hpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+
+            } else if (midiNote === 46) {
+                // Open Hi-Hat: long metallic decay
+                const noise = makeNoise(0.6);
+                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 8500;
+                const eg = envGain(0.7, 0.55); noise.connect(hpf); hpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+
+            } else if (midiNote === 49 || midiNote === 57) {
+                // Crash Cymbal: long wash
+                const noise = makeNoise(2.0);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 5500; bpf.Q.value = 0.4;
+                const eg = envGain(0.75, 1.8); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+                // Bell transient
+                const bell = ctx.createOscillator(); bell.frequency.value = 4200;
+                const bg = envGain(0.3, 0.15); bell.connect(bg); bg.connect(masterGain);
+                bell.start(t); bell.stop(t + 0.15);
+
+            } else if (midiNote === 51 || midiNote === 59) {
+                // Ride Cymbal: defined ping + wash
+                const bell = ctx.createOscillator(); bell.frequency.value = 3100;
+                const bg = envGain(0.55, 0.9); bell.connect(bg); bg.connect(masterGain);
+                bell.start(t); bell.stop(t + 0.9);
+                const noise = makeNoise(0.5);
+                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 7000;
+                const ng = envGain(0.25, 0.45); noise.connect(hpf); hpf.connect(ng); ng.connect(masterGain);
+                noise.start(t);
+
+            } else if (midiNote === 53) {
+                // Ride Bell: bright metallic ping
+                const osc = ctx.createOscillator(); osc.frequency.value = 4800;
+                const eg = envGain(0.6, 0.5); osc.connect(eg); eg.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.5);
+
+            } else if (midiNote === 56) {
+                // Cowbell: resonant metallic
+                const o1 = ctx.createOscillator(); o1.type = 'square'; o1.frequency.value = 562;
+                const o2 = ctx.createOscillator(); o2.type = 'square'; o2.frequency.value = 845;
+                const eg = envGain(0.5, 0.4);
+                o1.connect(eg); o2.connect(eg); eg.connect(masterGain);
+                o1.start(t); o1.stop(t + 0.4); o2.start(t); o2.stop(t + 0.4);
+
+            } else if (midiNote === 54) {
+                // Tambourine: shaker noise burst
+                const noise = makeNoise(0.18);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 4000; bpf.Q.value = 1.5;
+                const eg = envGain(0.55, 0.15); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+
+            } else if (midiNote === 60 || midiNote === 61) {
+                // Bongos: high-pitched tuned drum, tight attack
+                const baseFreq = midiNote === 60 ? 220 : 175; // Hi / Lo bongo
+                const osc = ctx.createOscillator();
+                osc.frequency.setValueAtTime(baseFreq * 1.6, t);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.75, t + 0.10);
+                const eg = envGain(0.9, 0.22); osc.connect(eg); eg.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.22);
+                const click = makeNoise(0.018);
+                const cg = envGain(0.4, 0.018); click.connect(cg); cg.connect(masterGain);
+                click.start(t);
+
+            } else {
+                // Toms & generic: pitched sine with decay (frequency varies by note)
+                const freq = 55 * Math.pow(2, (midiNote - 36) / 12) * 0.5;
+                const osc = ctx.createOscillator();
+                osc.frequency.setValueAtTime(freq * 1.4, t);
+                osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.18);
+                const eg = envGain(0.85, 0.4); osc.connect(eg); eg.connect(masterGain);
+                osc.start(t); osc.stop(t + 0.4);
+                const noise = makeNoise(0.04);
+                const ng = envGain(0.3, 0.04); noise.connect(ng); ng.connect(masterGain);
+                noise.start(t);
+            }
+        }
+
+        // Add a drum/percussion track
+        function addDrumChannel() { addChannel(0, 'perc', 'Drums'); }
+
+        // Insert a drum hit at cursor with chord-mode support + Web Audio preview
+        function addDrumHit(drumEntry) {
+            if (!activeTrack || !voicesData[activeTrack]) return;
+            ensureAudioAndPreload();
+
+            let p = drumEntry.pitch, acc = '';
+            if (p.startsWith('^^'))      { acc = '^^'; p = p.slice(2); }
+            else if (p.startsWith('^'))  { acc = '^';  p = p.slice(1); }
+            else if (p.startsWith('__')) { acc = '__'; p = p.slice(2); }
+            else if (p.startsWith('_'))  { acc = '_';  p = p.slice(1); }
+            const letter = p.replace(/[,'']/g, '');
+            const octave = p.slice(letter.length);
+
+            const gain = (voicesData[activeTrack]?.volume ?? 100) / 100;
+            playDrumSoundWebAudio(drumEntry.midi, gain);
+
+            // ── Chord mode: add pitch to the currently selected note ──────────
+            if ((isChordMode || isShiftChord) && selection.start !== -1) {
+                const notes = getNotes();
+                const targetNote = notes[selection.start];
+                if (targetNote && targetNote.pitches) {
+                    // Avoid exact duplicate
+                    const already = targetNote.pitches.some(pp =>
+                        pp.pitch === letter && pp.octave === octave && (pp.accidental||'') === acc);
+                    if (!already) {
+                        targetNote.pitches.push({ pitch: letter, octave, accidental: acc });
+                        updateScore(); return;
+                    }
+                }
+            }
+
+            // ── Normal insert ─────────────────────────────────────────────────
+            let nominalQ = currentDurQuarters;
+            if (nextMods && nextMods.dot && currentDurQuarters > 0.125 + 0.001) nominalQ *= 1.5;
+            const isTriplet = tripletNotesLeft > 0;
+            const newNote = {
+                pitches: [{ pitch: letter, octave, accidental: acc }],
+                durationInQuarters: isTriplet ? nominalQ * (2/3) : nominalQ,
+                abcUnits: nominalQ / 0.25,
+                triplet: isTriplet, tie: false, articulations: []
+            };
+            const notes = getNotes();
+            let idx;
+            if (selectionAtStart) { idx = 0; selectionAtStart = false; }
+            else if (selection.start !== -1 && selection.end !== -1) idx = Math.max(selection.start, selection.end) + 1;
+            else idx = notes.length;
+            insertNotes(activeTrack, idx, [newNote]);
+
+            if (isTriplet) {
+                tripletAccumNominal += nominalQ;
+                const cv = tripletAccumNominal * 8 / 3;
+                if (cv > 0.001 && Math.abs(cv - Math.round(cv)) < 0.001) { tripletNotesLeft = 0; tripletAccumNominal = 0; }
+                else { tripletNotesLeft--; if (tripletNotesLeft <= 0) { tripletNotesLeft = 0; tripletAccumNominal = 0; } }
+                ['mod-trip','mod-trip-piano','mod-trip-g3','mod-trip-drum'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.classList.toggle('active', tripletNotesLeft > 0);
+                });
+            }
+            resetMods(); updateScore();
+        }
+
+        function buildDrumPanel() {
+            const btnPanel = document.getElementById('buttonInputPanel');
+            if (!btnPanel) return;
+
+            // Remove legacy single-row element if it survived from an older session
+            const legacyRow = document.getElementById('drumHitsRow');
+            if (legacyRow) legacyRow.remove();
+
+            let row1 = document.getElementById('drumHitsRow1');
+            let row2 = document.getElementById('drumHitsRow2');
+
+            if (!row1) {
+                row1 = document.createElement('div');
+                row1.id = 'drumHitsRow1';
+                row1.className = 'keyboard-row';
+                row1.style.cssText = 'padding-bottom:0;display:none;';
+                const firstKbRow = btnPanel.querySelector('.keyboard-row');
+                firstKbRow ? btnPanel.insertBefore(row1, firstKbRow) : btnPanel.prepend(row1);
+            }
+            if (!row2) {
+                row2 = document.createElement('div');
+                row2.id = 'drumHitsRow2';
+                row2.className = 'keyboard-row';
+                row2.style.cssText = 'display:none;';
+                // Insert row2 right after row1
+                row1.insertAdjacentElement('afterend', row2);
+            }
+
+            row1.innerHTML = '';
+            row2.innerHTML = '';
+
+            // Compact drum button — narrower than btn-small (60px), same height (70px)
+            function makeDrumBtn(d) {
+                const b = document.createElement('button');
+                b.className = 'btn-small drum-btn';
+                b.title = `${d.label} (MIDI ${d.midi})`;
+                b.style.cssText = 'min-width:42px;width:42px;';
+                b.innerHTML = `<span style="font-size:15px;line-height:1;display:block;text-align:center;">${d.head}</span>` +
+                              `<small class="note-letter" style="font-size:8px;margin-top:2px;">${d.short}</small>`;
+                b.onclick = () => addDrumHit(d);
+                return b;
+            }
+
+            // ── Row 1 left: kick | snare | hihat | cymbal ──────────────────
+            ['kick','snare','hihat','cymbal'].forEach(grpKey => {
+                const hits = DRUM_KIT.filter(d => d.group === grpKey);
+                if (!hits.length) return;
+                const g = document.createElement('div');
+                g.className = 'group';
+                hits.forEach(d => g.appendChild(makeDrumBtn(d)));
+                row1.appendChild(g);
+            });
+
+            // ── Row 1 right: duration + dot + triplet ─────────────────────
+            const durG = document.createElement('div');
+            durG.className = 'group';
+            [[4.0,'𝅝','Whole'],[2.0,'𝅗𝅥','Half'],[1.0,'𝅘𝅥','Quarter'],
+             [0.5,'𝅘𝅥𝅮','Eighth'],[0.25,'𝅘𝅥𝅯','Sixteenth'],[0.125,'𝅘𝅥𝅰','32nd']
+            ].forEach(([val, sym, title]) => {
+                const b = document.createElement('button');
+                b.className = 'btn-small dur-btn' + (Math.abs(val - currentDurQuarters) < 0.001 ? ' active' : '');
+                b.dataset.val = val;
+                b.title = title;
+                b.textContent = sym;
+                b.onclick = () => setDur(val, b);
+                durG.appendChild(b);
+            });
+            const dotB = document.createElement('button');
+            dotB.className = 'btn-small mod-btn dot-mod-btn' + (nextMods && nextMods.dot ? ' active' : '');
+            dotB.id = 'mod-dot-drum';  dotB.title = 'Dot (.)';  dotB.textContent = '•';
+            dotB.onclick = () => toggleMod('dot', true, dotB);
+            durG.appendChild(dotB);
+            const tripB = document.createElement('button');
+            tripB.className = 'btn-small mod-btn' + (tripletNotesLeft > 0 ? ' active' : '');
+            tripB.id = 'mod-trip-drum';  tripB.title = 'Triplet (3)';  tripB.textContent = '3';
+            tripB.onclick = () => toggleTriplet(tripB);
+            durG.appendChild(tripB);
+            row1.appendChild(durG);
+
+            // ── Row 2: toms | bongos | special | rest ─────────────────────
+            ['tom','bongo','extra'].forEach(grpKey => {
+                const hits = DRUM_KIT.filter(d => d.group === grpKey);
+                if (!hits.length) return;
+                const g = document.createElement('div');
+                g.className = 'group';
+                hits.forEach(d => g.appendChild(makeDrumBtn(d)));
+                row2.appendChild(g);
+            });
+            // Rest button
+            const restG = document.createElement('div');
+            restG.className = 'group';
+            const restB = document.createElement('button');
+            restB.className = 'btn-small drum-btn';
+            restB.title = 'Rest';
+            restB.style.cssText = 'min-width:42px;width:42px;';
+            restB.innerHTML = '<span style="font-size:15px;line-height:1;display:block;text-align:center;">𝄽</span>' +
+                              '<small class="note-letter" style="font-size:8px;margin-top:2px;">rest</small>';
+            restB.onclick = () => addNoteEx('z', 0);
+            restG.appendChild(restB);
+            row2.appendChild(restG);
+        }
+
+        // Show drum hit row inside buttonInputPanel when track is drums; normal rows otherwise
+        function updateInputPanelForTrack() {
+            const isDrum = !!(activeTrack && voicesData[activeTrack] && voicesData[activeTrack].isDrum);
+            const modeToggle  = document.querySelector('.input-mode-toggle');
+            const btnPanel    = document.getElementById('buttonInputPanel');
+            const pianoPanel  = document.getElementById('pianoInputPanel');
+            const g3Panel     = document.getElementById('grid3InputPanel');
+
+            if (isDrum) {
+                if (pianoPanel) pianoPanel.style.display = 'none';
+                if (g3Panel)    g3Panel.style.display    = 'none';
+                if (modeToggle) modeToggle.style.display = 'none';
+                if (btnPanel)   btnPanel.style.display   = '';
+                buildDrumPanel();
+                // Hide the regular keyboard rows (note buttons + octave/acc); show drum rows
+                if (btnPanel) {
+                    btnPanel.querySelectorAll('.keyboard-row:not(#drumHitsRow1):not(#drumHitsRow2)')
+                        .forEach(r => r.style.display = 'none');
+                }
+                const dr1 = document.getElementById('drumHitsRow1');
+                const dr2 = document.getElementById('drumHitsRow2');
+                if (dr1) dr1.style.display = 'flex';
+                if (dr2) dr2.style.display = 'flex';
+            } else {
+                // Restore regular keyboard rows; hide drum rows
+                if (btnPanel) {
+                    btnPanel.querySelectorAll('.keyboard-row:not(#drumHitsRow1):not(#drumHitsRow2)')
+                        .forEach(r => r.style.display = '');
+                    btnPanel.querySelectorAll('.note-btn').forEach(b => {
+                        b.style.visibility = '';
+                        b.style.pointerEvents = '';
+                    });
+                }
+                const dr1 = document.getElementById('drumHitsRow1');
+                const dr2 = document.getElementById('drumHitsRow2');
+                if (dr1) dr1.style.display = 'none';
+                if (dr2) dr2.style.display = 'none';
+                if (modeToggle) modeToggle.style.display = '';
+                const modeRadio = document.querySelector('input[name="inputMode"]:checked');
+                const mode = modeRadio ? modeRadio.value : 'buttons';
+                if (btnPanel)   btnPanel.style.display   = mode === 'buttons' ? '' : 'none';
+                if (pianoPanel) { pianoPanel.style.display = mode === 'piano' ? 'flex' : 'none'; if (mode === 'piano') pianoPanel.style.flexDirection = 'column'; }
+                if (g3Panel)    { g3Panel.style.display    = mode === 'grid3' ? 'flex' : 'none'; if (mode === 'grid3') g3Panel.style.flexDirection = 'column'; }
+            }
         }
 
         // ==================== CONTEXT MENU ====================
@@ -2155,9 +2617,10 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             }
         }
         function resetMods() {
-            nextMods = { accidental: '', dot: false };
+            nextMods = { accidental: '', dot: false, quarterTone: null };
             document.querySelectorAll('.acc-mod-btn').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.dot-mod-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('#mod-halfsharp,#mod-halfflat').forEach(el => el.classList.remove('active'));
             updateNoteButtonIcons();
         }
         /**
@@ -2226,6 +2689,8 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
         }
 
         function updateNoteButtonIcons() {
+            updateInputPanelForTrack();
+            if (activeTrack && voicesData[activeTrack] && voicesData[activeTrack].isDrum) return; // drum panel handles its own UI
             if (!activeTrack) return;
             let clef = voicesData[activeTrack].clef;
             const keyAccs = getKeyAccidentals();
@@ -2817,7 +3282,7 @@ function addNoteSync(noteBase, rowShift) {
         const groupComplete = checkVal > 0.001 && Math.abs(checkVal - Math.round(checkVal)) < 0.001;
         if (groupComplete) {
             tripletNotesLeft = 0; tripletAccumNominal = 0;
-            ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
+            ['mod-trip','mod-trip-piano','mod-trip-g3','mod-trip-drum'].forEach(id => {
                 let el = document.getElementById(id);
                 if (el) el.classList.remove('active');
             });
@@ -2825,7 +3290,7 @@ function addNoteSync(noteBase, rowShift) {
             tripletNotesLeft--;
             if (tripletNotesLeft <= 0) {
                 tripletNotesLeft = 0; tripletAccumNominal = 0;
-                ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => {
+                ['mod-trip','mod-trip-piano','mod-trip-g3','mod-trip-drum'].forEach(id => {
                     let el = document.getElementById(id);
                     if (el) el.classList.remove('active');
                 });
@@ -2951,6 +3416,39 @@ function addNoteSync(noteBase, rowShift) {
             updateScore();
         }
 
+        // ==================== QUARTER-TONE MODE ====================
+        function toggleQuarterToneMode(enabled) {
+            quarterToneModeEnabled = enabled;
+            document.querySelectorAll('.quarter-tone-btns').forEach(el => {
+                el.style.display = enabled ? '' : 'none';
+            });
+            if (!enabled) {
+                nextMods.quarterTone = null;
+                document.querySelectorAll('#mod-halfsharp,#mod-halfflat').forEach(el => el.classList.remove('active'));
+            }
+        }
+
+        function toggleQuarterToneMod(type, btn) {
+            // Exclusive: toggle off if same, switch if different
+            if (nextMods.quarterTone === type) {
+                nextMods.quarterTone = null;
+                btn.classList.remove('active');
+            } else {
+                nextMods.quarterTone = type;
+                document.querySelectorAll('#mod-halfsharp,#mod-halfflat').forEach(el => el.classList.remove('active'));
+                btn.classList.add('active');
+            }
+        }
+
+        // Build bend object for a constant offset in cents (half-sharp = +50, half-flat = -50)
+        function makeConstantBend(cents) {
+            const y = cents > 0 ? 0 : 1; // y=0 → +maxCents, y=1 → -maxCents
+            return {
+                points: Array.from({length: 9}, (_, i) => ({ x: i/8, y })),
+                maxCents: Math.abs(cents)
+            };
+        }
+
         function addNoteEx(noteBase, rowShift) {
             if (!activeTrack) return;
             // Rests cannot be part of a chord — auto-disable chord mode when entering a rest
@@ -2989,6 +3487,10 @@ function addNoteSync(noteBase, rowShift) {
                     pedalStart: false,
                     pedalEnd: false
                 };
+                // Quarter-tone: attach a constant ±50¢ bend
+                if (noteBase !== 'z' && noteBase !== 'x' && nextMods.quarterTone) {
+                    newNote.bend = makeConstantBend(nextMods.quarterTone === 'halfSharp' ? 50 : -50);
+                }
                 if (noteBase !== 'z' && noteBase !== 'x') playSingleNote(noteBase, finalOctaveStr, nextMods.accidental, baseQuarters);
                 let notes = getNotes();
                 let insertIdx;
@@ -3050,12 +3552,12 @@ function addNoteSync(noteBase, rowShift) {
                     const groupComplete = checkVal > 0.001 && Math.abs(checkVal - Math.round(checkVal)) < 0.001;
                     if (groupComplete) {
                         tripletNotesLeft = 0; tripletAccumNominal = 0;
-                        ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
+                        ['mod-trip','mod-trip-piano','mod-trip-g3','mod-trip-drum'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
                     } else {
                         tripletNotesLeft--;
                         if (tripletNotesLeft <= 0) {
                             tripletNotesLeft = 0; tripletAccumNominal = 0;
-                            ['mod-trip','mod-trip-piano','mod-trip-g3'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
+                            ['mod-trip','mod-trip-piano','mod-trip-g3','mod-trip-drum'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.remove('active'); });
                         }
                     }
                 }
@@ -3403,6 +3905,8 @@ function deleteSelectionSync() {
                         for (let key of getOrderedKeys()) {
                             if (voicesData[key].visible === undefined) voicesData[key].visible = true;
                             if (voicesData[key].volume === undefined) voicesData[key].volume = 100;
+                            // Migrate: old saves without isDrum flag
+                            if (voicesData[key].isDrum === undefined) voicesData[key].isDrum = (voicesData[key].clef === 'perc');
                         }
                         document.getElementById('channelsContainer').innerHTML = '';
                         for (let key of getOrderedKeys()) renderChannelRow(key);
@@ -3804,7 +4308,8 @@ function generateMIDIWithBend() {
                                 scoreStartQ: currentQ, 
                                 duration: n.durationInQuarters, 
                                 pitches: pitchesWithKeySig, 
-                                program: voice.program, 
+                                program: voice.isDrum ? DRUM_SF_KEY : voice.program,
+                                isDrum: voice.isDrum || false,
                                 articulations: [...(n.articulations || [])],
                                 tie: n.tie || false,
                                 volume: voice.volume,
@@ -3953,6 +4458,21 @@ function generateMIDIWithBend() {
                         if (dynMap[a] !== undefined) { dynGain = dynMap[a]; break; }
                     }
                     let finalGain = (note.volume / 100) * dynGain;
+
+                    // ── Drum notes: Web Audio synthesis via GM drum MIDI number ──
+                    if (note.isDrum) {
+                        for (let p of note.pitches) {
+                            if (p.pitch === 'z' || p.pitch === 'x') continue;
+                            const fullPitch = p.pitch + (p.octave || '');
+                            const drumEntry = DRUM_KIT.find(d => d.pitch === fullPitch);
+                            if (!drumEntry) continue;
+                            // Schedule via setTimeout approximation (Web Audio can't pre-schedule custom nodes easily)
+                            const delayMs = Math.max(0, (playTimeAc - audioContext.currentTime) * 1000);
+                            const capGain = (note.volume / 100) * dynGain;
+                            setTimeout(() => playDrumSoundWebAudio(drumEntry.midi, capGain), delayMs);
+                        }
+                        return;
+                    }
 
                     if (customSF2Data) {
                         const midiVelocity = Math.round(dynGain * 127);
@@ -4302,20 +4822,22 @@ function generateMIDIWithBend() {
                 if (sbWrap) sbWrap.scrollLeft = newSL;
 
             } else {
-                // PAGE SCROLL: only when row changes, anchor to top of new system.
+                // VIEWPORT SCROLL: only when row changes, anchor to top of new system.
                 // Comparing integer index avoids re-triggering scroll every frame,
                 // which caused shaking when the system was taller than the viewport.
                 if (activeSystemIdx !== _lastPlaybackSystemIdx) {
                     _lastPlaybackSystemIdx = activeSystemIdx;
+                    const vp = document.getElementById('scoreViewport');
+                    if (!vp) return;
                     let target;
                     if (activeSystem) {
-                        target = activeSystem.getBoundingClientRect().top + window.scrollY - 8;
+                        target = activeSystem.getBoundingClientRect().top - vp.getBoundingClientRect().top + vp.scrollTop - 8;
                     } else {
                         // Fallback: scroll to the note element itself
                         const elR = item.el.getBoundingClientRect();
-                        target = elR.top + window.scrollY - 60;
+                        target = elR.top - vp.getBoundingClientRect().top + vp.scrollTop - 60;
                     }
-                    window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+                    vp.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
                 }
             }
         }
@@ -4341,16 +4863,13 @@ function generateMIDIWithBend() {
         // as many staves as possible are visible during playback.
         let _prePlaybackScrollY = 0;
         function enterPlaybackMode() {
-            _prePlaybackScrollY = window.scrollY;
+            const vp = document.getElementById('scoreViewport');
+            _prePlaybackScrollY = vp ? vp.scrollTop : 0;
             document.body.classList.add('playback-mode');
             const lbl = document.getElementById('pbTempoLabel');
             if (lbl) lbl.textContent = (document.getElementById('tempo')?.value || '120') + ' ♩ = bpm';
             // Scroll to top of score so first system is visible immediately
-            const vp = document.getElementById('scoreViewport');
-            if (vp) {
-                const vpTop = vp.getBoundingClientRect().top + window.scrollY;
-                window.scrollTo({ top: Math.max(0, vpTop - 8), behavior: 'instant' });
-            }
+            if (vp) vp.scrollTo({ top: 0, behavior: 'instant' });
             // Force score re-render at new (full-width) size
             _skipUndo = true;
             updateScore();
@@ -4363,7 +4882,8 @@ function generateMIDIWithBend() {
             updateScore();
             _skipUndo = false;
             // Restore scroll position
-            window.scrollTo({ top: _prePlaybackScrollY, behavior: 'instant' });
+            const vp = document.getElementById('scoreViewport');
+            if (vp) vp.scrollTo({ top: _prePlaybackScrollY, behavior: 'instant' });
         }
 
         function togglePlayback() {
@@ -4947,8 +5467,18 @@ function generateMIDIWithBend() {
                 let voice = voicesData[vKey];
                 let measures = voicesMeasures[vKey];
                 const isFirstVoice = (vKey === visibleKeys[0]);
-                let vStr = `V:${voice.id} clef=${voice.clef} name="${voice.short || (voice.name || '').substring(0, 4)}"\n`;
-                vStr += `%%MIDI program ${voice.program}\n`;
+                let vStr;
+                if (voice.isDrum) {
+                    // Percussion staff: clef=perc, MIDI channel 10, percmap for each drum hit
+                    vStr = `V:${voice.id} clef=perc name="Dms"\n`;
+                    vStr += `%%MIDI channel 10\n`;
+                    for (const d of DRUM_KIT) {
+                        vStr += `%%percmap ${d.pitch} ${d.midi} ${drumPercmapHead(d)}\n`;
+                    }
+                } else {
+                    vStr = `V:${voice.id} clef=${voice.clef} name="${voice.short || (voice.name || '').substring(0, 4)}"\n`;
+                    vStr += `%%MIDI program ${voice.program}\n`;
+                }
                 if (measures.length === 0) vStr += "x16 |";
                 else {
                     for (let mIdx = 0; mIdx < measures.length; mIdx++) {
@@ -5176,6 +5706,11 @@ function generateMIDIWithBend() {
             let isInfinite = !!(document.getElementById('infiniteString') && document.getElementById('infiniteString').checked);
             let padding    = 20;
 
+            // Preserve vertical scroll position across re-renders so the viewport
+            // does not jump back to the top every time a note is entered.
+            let savedScrollTop  = viewport ? viewport.scrollTop  : 0;
+            let savedScrollLeft = viewport ? viewport.scrollLeft : 0;
+
             if (isInfinite) {
                 // ── INFINITE MODE ──────────────────────────────────────────────────────
                 const mpl = parseInt((document.getElementById('measuresPerLine') || {}).value) || 8;
@@ -5271,6 +5806,26 @@ function generateMIDIWithBend() {
             drawOttavaBrackets();
             highlightIncompleteMeasures();
             updateNoteButtonIcons();
+            // Ensure bottom spacer matches current panel height after re-render.
+            // IMPORTANT: this must happen BEFORE restoring scrollTop.
+            // updateScoreViewportPadding() appends a spacer to #paper, increasing its
+            // scrollable height. Without the spacer the content is shorter than before,
+            // so setting scrollTop too early would be silently clamped by the browser.
+            if (typeof updateScoreViewportPadding === 'function') updateScoreViewportPadding();
+
+            // Restore the scroll position that was saved before the re-render.
+            // Runs after the spacer is in place so the scrollable area is large enough
+            // to accept the saved value without clamping.
+            // In infinite (horizontal) mode we only restore the vertical axis because
+            // scrollToActiveSelection() handles the horizontal cursor-follow logic.
+            if (viewport) {
+                if (isInfinite) {
+                    viewport.scrollTop = savedScrollTop;
+                } else {
+                    viewport.scrollTop  = savedScrollTop;
+                    viewport.scrollLeft = savedScrollLeft;
+                }
+            }
             // Update key sig change label
             const keySigLabel = document.getElementById('currentKeySigLabel');
             if (keySigLabel) {
@@ -5824,11 +6379,17 @@ function generateMIDIWithBend() {
             preloadInstruments();
         }
 
+        const DRUM_SF_KEY = '__drums__'; // key in loadedInstruments for percussion soundfont
+
         async function preloadInstruments() {
             if (!audioContext) return;
             let promises = [];
+            let needDrums = false;
             for (let vKey of getOrderedKeys()) {
-                if (voicesData[vKey].active) {
+                if (!voicesData[vKey].active) continue;
+                if (voicesData[vKey].isDrum) {
+                    needDrums = true;
+                } else {
                     let prog = voicesData[vKey].program;
                     if (!loadedInstruments[prog]) {
                         loadedInstruments[prog] = "loading";
@@ -5836,6 +6397,18 @@ function generateMIDIWithBend() {
                         promises.push(Soundfont.instrument(audioContext, sfName).then(inst => { loadedInstruments[prog] = inst; }).catch(err => { console.error("Soundfont load error:", err); delete loadedInstruments[prog]; }));
                     }
                 }
+            }
+            // Load GM percussion soundfont (MIDI channel 10 / bank 128)
+            if (needDrums && !loadedInstruments[DRUM_SF_KEY]) {
+                loadedInstruments[DRUM_SF_KEY] = 'loading';
+                Soundfont.instrument(audioContext, 'percussion').then(inst => {
+                    loadedInstruments[DRUM_SF_KEY] = inst;
+                }).catch(() => {
+                    // Fallback: try synth_drum
+                    Soundfont.instrument(audioContext, 'synth_drum').then(inst => {
+                        loadedInstruments[DRUM_SF_KEY] = inst;
+                    }).catch(() => { delete loadedInstruments[DRUM_SF_KEY]; });
+                });
             }
             await Promise.all(promises);
         }
@@ -7214,37 +7787,61 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-    // ==================== NOTE PANEL AUTO-HIDE (keys only) ====================
+    // ==================== BOTTOM PANEL: always position:fixed, spacer keeps last staff visible ====================
+    function updateScoreViewportPadding() {
+        if (document.body.classList.contains('playback-mode')) return;
+        const wrap  = document.getElementById('stickyBottomWrap');
+        // A spacer div at the bottom of #paper (not on the viewport) lets the user
+        // scroll the SVG fully into view above the fixed panel.
+        let spacer = document.getElementById('score-bottom-spacer');
+        if (!spacer) {
+            spacer = document.createElement('div');
+            spacer.id = 'score-bottom-spacer';
+            spacer.style.cssText = 'width:100%;pointer-events:none;flex-shrink:0;';
+            document.getElementById('paper').appendChild(spacer);
+        }
+        if (wrap) spacer.style.height = (wrap.offsetHeight + 48) + 'px';
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(updateScoreViewportPadding)
+            .observe(document.getElementById('stickyBottomWrap'));
+    }
+    updateScoreViewportPadding();
+
     function showNoteInputPanel() {
-        document.querySelector('.note-panel').classList.remove('keys-hidden');
-        syncPinnedPadding();
+        const cp = document.querySelector('.control-panel-main');
+        if (cp) cp.style.display = '';
     }
     function hideNoteInputPanel() {
-        document.querySelector('.note-panel').classList.add('keys-hidden');
-        syncPinnedPadding();
-    }
-    function syncPinnedPadding() {
-        if (!isPanelPinned) return;
-        const wrap = document.getElementById('stickyBottomWrap');
-        document.body.style.paddingBottom = wrap.offsetHeight + 'px';
+        const cp = document.querySelector('.control-panel-main');
+        if (cp) cp.style.display = 'none';
     }
 
-    // Hide on score scroll (infinite mode viewport scroll) — only when unpinned
+    // Hide keyboard on viewport scroll — only when not pinned
     document.getElementById('scoreViewport').addEventListener('scroll', function() {
         if (!isPanelPinned) hideNoteInputPanel();
     }, { passive: true });
 
-    // Hide on window/page scroll — only when unpinned
-    window.addEventListener('scroll', function() {
-        if (!isPanelPinned) hideNoteInputPanel();
-    }, { passive: true });
-
-    // Hide keys when bottom spoiler is opened
+    // Hide keyboard when bottom spoiler opens; restore when it closes
     (function() {
         const bottomDetails = document.querySelector('#stickyBottomWrap details');
         if (bottomDetails) {
             bottomDetails.addEventListener('toggle', function() {
                 if (this.open) hideNoteInputPanel();
+                else showNoteInputPanel();
+                // ResizeObserver fires automatically, but call eagerly for immediate response
+                updateScoreViewportPadding();
+            });
+        }
+    })();
+
+    // Hide keyboard when Score Settings (top details) opens; restore when closed
+    (function() {
+        const topDetails = document.querySelector('body > details');
+        if (topDetails) {
+            topDetails.addEventListener('toggle', function() {
+                if (this.open) hideNoteInputPanel();
+                else showNoteInputPanel();
             });
         }
     })();
