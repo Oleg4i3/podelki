@@ -277,7 +277,7 @@
             line-height: 1; padding: 0;
         }
         .gm-drum-header button:hover { background: rgba(255,255,255,0.35); }
-        .gm-drum-body { overflow-y: auto; padding: 10px 14px 14px; }
+        .gm-drum-body { overflow-y: auto; padding: 10px 14px 14px; touch-action: pan-y; }
         .gm-drum-section { margin-bottom: 10px; }
         .gm-drum-section-title {
             font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
@@ -506,7 +506,7 @@
         /* ===== DRUM INPUT PANEL ===== */
         #drumInputPanel { display: none; flex-direction: column; width: 100%; gap: 3px; }
         /* drum-btn: same look as note-btn but immune to updateNoteButtonIcons rewrites */
-        .drum-btn { display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; padding: 1px 2px 2px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; }
+        .drum-btn { display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; padding: 1px 2px 2px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
         .drum-btn:hover { background: #e3f2fd; border-color: #90caf9; }
         .drum-btn:active { background: #bbdefb; transform: scale(0.95); }
         .drum-row { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding-bottom: 3px; align-items: stretch; }
@@ -1640,6 +1640,14 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             'tambourine': `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="11" cy="3.5" r="1.5" fill="currentColor"/><circle cx="18.5" cy="8" r="1.5" fill="currentColor"/><circle cx="18.5" cy="14" r="1.5" fill="currentColor"/><circle cx="11" cy="18.5" r="1.5" fill="currentColor"/><circle cx="3.5" cy="14" r="1.5" fill="currentColor"/><circle cx="3.5" cy="8" r="1.5" fill="currentColor"/></svg>`,
             // Hand clap: two hands
             'handclap': `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><path d="M4,13 Q3,9 6,7 Q8,6 9,8 L10,11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M18,13 Q19,9 16,7 Q14,6 13,8 L12,11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9,8 L10,16 Q11,19 13,16 L12,8" fill="currentColor" opacity="0.25" stroke="currentColor" stroke-width="1.4"/><path d="M10,16 Q11,20 12,16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`,
+            // Chinese cymbal: upturned edges, characteristic "cup" shape
+            'chinese': `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><line x1="11" y1="5" x2="11" y2="20" stroke="currentColor" stroke-width="1.5"/><path d="M2,11 Q4,7 11,9 Q18,7 20,11" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="1.6"/><path d="M2,11 Q5,15 11,13 Q17,15 20,11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5,1.5"/><circle cx="11" cy="9" r="2" fill="currentColor" opacity="0.45" stroke="currentColor" stroke-width="1.2"/></svg>`,
+            // Splash cymbal: small, narrow profile — tiny crash
+            'splash':  `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><line x1="11" y1="7" x2="11" y2="20" stroke="currentColor" stroke-width="1.5"/><ellipse cx="11" cy="10" rx="5.5" ry="1.8" fill="currentColor" opacity="0.18" stroke="currentColor" stroke-width="1.5" transform="rotate(-8,11,10)"/><circle cx="11" cy="10" r="1.6" fill="currentColor" opacity="0.5"/></svg>`,
+            // Conga: tall narrow single drum (taller than bongo)
+            'conga':   `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><ellipse cx="8" cy="6" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3,6 Q2,15 4,19 Q8,21 12,19 Q14,15 13,6" fill="none" stroke="currentColor" stroke-width="1.6"/><ellipse cx="8" cy="19" rx="4" ry="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><ellipse cx="16" cy="8" rx="4" ry="1.7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12,8 Q11,15 13,18 Q16,20 19,18 Q21,15 20,8" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="16" cy="18" rx="3.5" ry="1.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`,
+            // Open Triangle: triangle outline with striker stick
+            'triangle-op': `<svg viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><path d="M11,3 L20,18 L2,18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><line x1="16" y1="4" x2="19" y2="1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
         };
 
         const DRUM_KIT = [
@@ -1648,21 +1656,22 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             { label:'Rim Shot',     short:'RIM', pitch:'E,', midi:37, head:'×', group:'snare',  svg: DRUM_SVG['rim']       },
             { label:'Hi-Hat Cl.',   short:'HH',  pitch:'F',  midi:42, head:'×', group:'hihat',  svg: DRUM_SVG['hihat-cl']  },
             { label:'Hi-Hat Op.',   short:'HHo', pitch:'G',  midi:46, head:'○', group:'hihat',  svg: DRUM_SVG['hihat-op']  },
-            { label:'Hi-Hat Ped.',  short:'HHp', pitch:'D,', midi:44, head:'×', group:'hihat',  svg: DRUM_SVG['hihat-ped'] },
             { label:'Crash 1',      short:'CR1', pitch:'A',  midi:49, head:'×', group:'cymbal', svg: DRUM_SVG['crash']     },
-            { label:'Crash 2',      short:'CR2', pitch:'B',  midi:57, head:'×', group:'cymbal', svg: DRUM_SVG['crash']     },
             { label:'Ride',         short:'RD',  pitch:'c',  midi:51, head:'×', group:'cymbal', svg: DRUM_SVG['ride']      },
-            { label:'Ride Bell',    short:'RB',  pitch:'d',  midi:53, head:'△', group:'cymbal', svg: DRUM_SVG['ridebell']  },
             { label:'Floor Tom L',  short:'FTL', pitch:'F,', midi:41, head:'●', group:'tom',    svg: DRUM_SVG['tom']       },
             { label:'Floor Tom H',  short:'FTH', pitch:'G,', midi:43, head:'●', group:'tom',    svg: DRUM_SVG['tom']       },
             { label:'Tom Hi',       short:'T-Hi',pitch:'D',  midi:50, head:'●', group:'tom',    svg: DRUM_SVG['tom']       },
             { label:'Tom Mid',      short:'T-Md',pitch:'C',  midi:48, head:'●', group:'tom',    svg: DRUM_SVG['tom']       },
-            { label:'Tom Lo',       short:'T-Lo',pitch:'B,', midi:47, head:'●', group:'tom',    svg: DRUM_SVG['tom']       },
             { label:'Cowbell',      short:'CB',  pitch:'e',  midi:56, head:'△', group:'extra',  svg: DRUM_SVG['cowbell']   },
             { label:'Tambourine',   short:'TBR', pitch:'f',  midi:54, head:'×', group:'extra',  svg: DRUM_SVG['tambourine']},
             { label:'Hand Clap',    short:'CLP', pitch:'g',  midi:39, head:'×', group:'extra',  svg: DRUM_SVG['handclap']  },
+            { label:'Open Triangle',short:'TriO',pitch:'B',  midi:81, head:'△', group:'extra',  svg: DRUM_SVG['triangle-op']},
             { label:'Bongo Hi',     short:'BgHi',pitch:'a',  midi:60, head:'●', group:'bongo',  svg: DRUM_SVG['bongo']     },
             { label:'Bongo Lo',     short:'BgLo',pitch:'b',  midi:61, head:'●', group:'bongo',  svg: DRUM_SVG['bongo']     },
+            { label:'Conga Lo',     short:'CgLo',pitch:'c\'',midi:62, head:'●', group:'bongo',  svg: DRUM_SVG['conga']     },
+            { label:'Conga Hi',     short:'CgHi',pitch:'d\'',midi:64, head:'●', group:'bongo',  svg: DRUM_SVG['conga']     },
+            { label:'Chinese',      short:'CH',  pitch:'e\'',midi:52, head:'×', group:'cymbal', svg: DRUM_SVG['chinese']   },
+            { label:'Splash',       short:'SP',  pitch:'f\'',midi:55, head:'×', group:'cymbal', svg: DRUM_SVG['splash']    },
         ];
         const DRUM_GROUPS = [
             { key:'kick',   label:'Kick'     },
@@ -2020,6 +2029,37 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 osc.start(t); osc.stop(t + decay);
                 osc2.start(t); osc2.stop(t + decay);
 
+            } else if (midiNote === 52) {
+                // Chinese Cymbal: trashier crash — inharmonic metallic clang + bright noise wash
+                const noiseC = makeNoise(1.8);
+                const bpfC = ctx.createBiquadFilter(); bpfC.type = 'bandpass'; bpfC.frequency.value = 8500; bpfC.Q.value = 0.25;
+                const egC = envGain(0.9, 1.4); noiseC.connect(bpfC); bpfC.connect(egC); egC.connect(masterGain);
+                noiseC.start(t);
+                const clang1 = ctx.createOscillator(); clang1.type = 'sawtooth'; clang1.frequency.value = 3700;
+                const egCl1 = envGain(0.3, 0.08); clang1.connect(egCl1); egCl1.connect(masterGain);
+                clang1.start(t); clang1.stop(t + 0.10);
+                const clang2 = ctx.createOscillator(); clang2.type = 'square'; clang2.frequency.value = 5300;
+                const egCl2 = envGain(0.2, 0.05); clang2.connect(egCl2); egCl2.connect(masterGain);
+                clang2.start(t); clang2.stop(t + 0.07);
+                const trashyN = makeNoise(0.6);
+                const trashyF = ctx.createBiquadFilter(); trashyF.type = 'bandpass'; trashyF.frequency.value = 3200; trashyF.Q.value = 0.7;
+                const trashyG = envGain(0.45, 0.5); trashyN.connect(trashyF); trashyF.connect(trashyG); trashyG.connect(masterGain);
+                trashyN.start(t);
+
+            } else if (midiNote === 55) {
+                // Splash Cymbal: short bright crash — quick airy decay, small cymbal
+                const noiseS = makeNoise(0.7);
+                const bpfS = ctx.createBiquadFilter(); bpfS.type = 'bandpass'; bpfS.frequency.value = 7000; bpfS.Q.value = 0.4;
+                const egS = envGain(0.75, 0.55); noiseS.connect(bpfS); bpfS.connect(egS); egS.connect(masterGain);
+                noiseS.start(t);
+                const zingN = makeNoise(0.03);
+                const zingF = ctx.createBiquadFilter(); zingF.type = 'highpass'; zingF.frequency.value = 11000;
+                const zingG = envGain(0.7, 0.025); zingN.connect(zingF); zingF.connect(zingG); zingG.connect(masterGain);
+                zingN.start(t);
+                const splBell = ctx.createOscillator(); splBell.frequency.value = 6800;
+                const splBg = envGain(0.25, 0.08); splBell.connect(splBg); splBg.connect(masterGain);
+                splBell.start(t); splBell.stop(t + 0.09);
+
             } else {
                 // Generic fallback for any user-assigned MIDI number not listed above.
                 // Drum MIDI range 35–81: map to a plausible pitched-drum synthesis.
@@ -2147,7 +2187,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             function makeDrumBtn(d) {
                 const b = document.createElement('button');
                 b.className = 'btn-small drum-btn';
-                b.title = `${d.label}  —  click to play, click MIDI# to reassign`;
+                b.title = `${d.label}  —  tap to play, long-press to reassign`;
                 b.style.cssText = 'min-width:44px;width:44px;flex-direction:column;gap:0;padding:2px 1px;';
 
                 const iconEl = document.createElement('span');
@@ -2165,35 +2205,33 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                     'font-size:8px;display:block;margin-top:2px;',
                     'border:1px solid #b0bec5;border-radius:3px;',
                     'padding:0 3px;line-height:1.5;color:#455a64;',
-                    'background:#eceff1;cursor:pointer;'
+                    'background:#eceff1;cursor:pointer;pointer-events:none;'
                 ].join('');
-                midiEl.title = 'Tap to change GM MIDI note# (long-press on touch for picker)';
+                midiEl.title = 'Long-press to open picker';
 
-                // Long-press → modal picker (touch-friendly)
+                // БАГ 1 FIX: long-press на всей кнопке b, а не только на midiEl
                 let _lpTimer = null;
-                midiEl.addEventListener('touchstart', (ev) => {
-                    ev.stopPropagation();
+                let _lpFired = false;
+                b.addEventListener('touchstart', (ev) => {
+                    _lpFired = false;
                     _lpTimer = setTimeout(() => {
+                        _lpFired = true;
                         _lpTimer = null;
                         navigator.vibrate && navigator.vibrate(30);
-                        openDrumMidiPickerModal(d);
+                        openDrumMidiPickerModal(d, b, iconEl, labelEl, midiEl);
                     }, 480);
                 }, { passive: true });
-                midiEl.addEventListener('touchmove',  () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
-                midiEl.addEventListener('touchend',   () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
-                // Right-click (desktop) → also open picker
-                midiEl.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDrumMidiPickerModal(d); });
+                b.addEventListener('touchmove', () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
+                b.addEventListener('touchend',  () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
+                // Right-click (desktop) → picker
+                b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDrumMidiPickerModal(d, b, iconEl, labelEl, midiEl); });
 
                 b.appendChild(iconEl);
                 b.appendChild(labelEl);
                 b.appendChild(midiEl);
 
                 b.onclick = (e) => {
-                    if (e.target === midiEl) {
-                        e.stopPropagation();
-                        openMidiEdit(d, midiEl);
-                        return;
-                    }
+                    if (_lpFired) { _lpFired = false; return; } // long-press уже обработан
                     if (e.target.tagName === 'INPUT') return; // editing in progress
                     addDrumHit(d);
                 };
@@ -8690,14 +8728,15 @@ document.addEventListener('keydown', function(e) {
 
     // ==================== DRUM MIDI PICKER MODAL ====================
     // Touch-friendly modal for selecting GM percussion MIDI note number
-    function openDrumMidiPickerModal(drumEntry) {
+    function openDrumMidiPickerModal(drumEntry, btnEl, iconEl, labelEl, midiEl) {
         // Remove any previous instance
         const existing = document.getElementById('drumMidiPickerModal');
         if (existing) existing.remove();
 
         const modal = document.createElement('div');
         modal.id = 'drumMidiPickerModal';
-        modal.onclick = (e) => { if (e.target === modal) closeDrumMidiPickerModal(); };
+        // Закрываем только по тапу на оверлей (вне box) или кнопкой ✕
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeDrumMidiPickerModal(); });
 
         const box = document.createElement('div');
         box.className = 'gm-drum-box'; // reuse GM drum modal styles
@@ -8707,6 +8746,7 @@ document.addEventListener('keydown', function(e) {
         hdr.innerHTML = `<span>🥁 Assign MIDI# &mdash; <em style="font-weight:normal;">${drumEntry.label}</em></span>`;
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'font-size:18px;padding:4px 10px;'; // крупнее для пальца
         closeBtn.onclick = closeDrumMidiPickerModal;
         hdr.appendChild(closeBtn);
         box.appendChild(hdr);
@@ -8718,6 +8758,14 @@ document.addEventListener('keydown', function(e) {
 
         const body = document.createElement('div');
         body.className = 'gm-drum-body';
+        // БАГ 2 FIX: разрешаем скролл внутри тела модала
+        body.style.cssText = (body.style.cssText || '') + 'touch-action:pan-y;overflow-y:auto;';
+
+        // Карта GM MIDI → {name, group}
+        const gmMap = {};
+        for (const sec of GM_DRUM_REF) {
+            for (const [num, name] of sec.items) gmMap[num] = { name, group: sec.group };
+        }
 
         for (const sec of GM_DRUM_REF) {
             const secDiv = document.createElement('div');
@@ -8731,11 +8779,56 @@ document.addEventListener('keydown', function(e) {
             for (const [num, name] of sec.items) {
                 const tr = document.createElement('tr');
                 tr.className = 'drum-picker-row' + (num === drumEntry.midi ? ' drum-picker-row-active' : '');
-                tr.style.cursor = 'pointer';
-                tr.addEventListener('pointerdown', () => {
+                tr.style.cssText = 'cursor:pointer;';
+                tr.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation(); // не даём клику дойти до оверлея
+                    // Воспроизводим звук выбранной перкуссии
+                    playDrumSoundWebAudio(num, 0.8);
                     drumEntry.midi = num;
-                    closeDrumMidiPickerModal();
-                    buildDrumPanel();
+                    // Подсвечиваем активную строку
+                    tbl.querySelectorAll('.drum-picker-row').forEach(r => r.classList.remove('drum-picker-row-active'));
+                    tr.classList.add('drum-picker-row-active');
+                    // Обновляем кнопку в DOM без полного пересброса панели
+                    if (midiEl) midiEl.textContent = num;
+                    if (labelEl) {
+                        const match = DRUM_KIT.find(dk => dk.midi === num);
+                        if (match) {
+                            labelEl.textContent = match.short;
+                            if (iconEl) iconEl.innerHTML = match.svg || match.head;
+                            drumEntry.short = match.short;
+                            drumEntry.label = match.label;
+                            drumEntry.svg   = match.svg;
+                            drumEntry.head  = match.head;
+                            if (btnEl) btnEl.title = `${match.label}  —  tap to play, long-press to reassign`;
+                        } else if (gmMap[num]) {
+                            const gmName = gmMap[num].name;
+                            const shortName = gmName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,4);
+                            labelEl.textContent = shortName;
+                            drumEntry.short = shortName;
+                            drumEntry.label = gmName;
+                            // Pick the best matching SVG icon by keyword
+                            const nl = gmName.toLowerCase();
+                            let svgKey = null;
+                            if (/chinese/.test(nl))                          svgKey = 'chinese';
+                            else if (/splash/.test(nl))                      svgKey = 'splash';
+                            else if (/crash/.test(nl))                       svgKey = 'crash';
+                            else if (/ride bell/.test(nl))                   svgKey = 'ridebell';
+                            else if (/ride/.test(nl))                        svgKey = 'ride';
+                            else if (/hi.hat|hihat/.test(nl))                svgKey = 'hihat-cl';
+                            else if (/bass drum/.test(nl))                   svgKey = 'kick';
+                            else if (/snare/.test(nl))                       svgKey = 'snare';
+                            else if (/rim|side stick/.test(nl))              svgKey = 'rim';
+                            else if (/conga/.test(nl))                       svgKey = 'conga';
+                            else if (/bongo/.test(nl))                       svgKey = 'bongo';
+                            else if (/tom/.test(nl))                         svgKey = 'tom';
+                            else if (/cowbell/.test(nl))                     svgKey = 'cowbell';
+                            else if (/tambourine/.test(nl))                  svgKey = 'tambourine';
+                            else if (/clap/.test(nl))                        svgKey = 'handclap';
+                            if (svgKey && iconEl) iconEl.innerHTML = DRUM_SVG[svgKey];
+                            if (btnEl) btnEl.title = `${gmName}  —  tap to play, long-press to reassign`;
+                        }
+                    }
                     updateScore();
                 });
                 const tdNum = document.createElement('td');
