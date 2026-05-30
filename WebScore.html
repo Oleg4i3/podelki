@@ -248,6 +248,16 @@
             background: rgba(0,0,0,0.45); align-items: center; justify-content: center;
         }
         #gmDrumModal.open { display: flex; }
+
+        /* ===== DRUM MIDI PICKER MODAL ===== */
+        #drumMidiPickerModal {
+            display: none; position: fixed; inset: 0; z-index: 4100;
+            background: rgba(0,0,0,0.55); align-items: center; justify-content: center;
+        }
+        #drumMidiPickerModal.open { display: flex; }
+        .drum-picker-row:hover td { background: #e3f2fd !important; }
+        .drum-picker-row-active td { background: #b3e5fc !important; font-weight: bold; }
+        .drum-picker-row-active .gm-drum-num { color: #0d47a1; }
         .gm-drum-box {
             background: #fff; border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.28);
@@ -1719,14 +1729,20 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 click.start(t);
 
             } else if (midiNote === 37) {
-                // Side Stick / Rim Shot: wooden click — two tone burst
-                const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = 1000;
-                const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 600;
-                const eg1 = envGain(0.55, 0.04); o1.connect(eg1); eg1.connect(masterGain); o1.start(t); o1.stop(t+0.04);
-                const eg2 = envGain(0.35, 0.07); o2.connect(eg2); eg2.connect(masterGain); o2.start(t); o2.stop(t+0.07);
-                const click = makeNoise(0.01);
-                const cf = ctx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 2500;
-                const cg = envGain(0.4, 0.01); click.connect(cf); cf.connect(cg); cg.connect(masterGain); click.start(t);
+                // Side Stick / Rim Shot: sharp wooden crack — bright transient
+                // Two inharmonic tones mimic the rim resonance
+                const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = 1500;
+                const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 950;
+                const eg1 = envGain(0.7, 0.03);  o1.connect(eg1); eg1.connect(masterGain); o1.start(t); o1.stop(t + 0.05);
+                const eg2 = envGain(0.45, 0.06); o2.connect(eg2); eg2.connect(masterGain); o2.start(t); o2.stop(t + 0.08);
+                // Bright high-frequency click (the "crack")
+                const crack = makeNoise(0.025);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 4000; bpf.Q.value = 0.7;
+                const cg = envGain(0.7, 0.02); crack.connect(bpf); bpf.connect(cg); cg.connect(masterGain); crack.start(t);
+                // Very short body body noise
+                const body = makeNoise(0.04);
+                const hpf2 = ctx.createBiquadFilter(); hpf2.type = 'highpass'; hpf2.frequency.value = 1800;
+                const bg = envGain(0.25, 0.035); body.connect(hpf2); hpf2.connect(bg); bg.connect(masterGain); body.start(t);
 
             } else if (midiNote === 38 || midiNote === 40) {
                 // Acoustic/Electric Snare: noise burst + ring
@@ -1768,32 +1784,76 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 const eg = envGain(0.7, 0.55); noise.connect(hpf); hpf.connect(eg); eg.connect(masterGain);
                 noise.start(t);
 
-            } else if (midiNote === 49 || midiNote === 57) {
-                // Crash Cymbal: long wash
+            } else if (midiNote === 49) {
+                // Crash Cymbal 1: bright attack, medium-high wash
                 const noise = makeNoise(2.0);
-                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 5500; bpf.Q.value = 0.4;
-                const eg = envGain(0.75, 1.8); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 6000; bpf.Q.value = 0.35;
+                const eg = envGain(0.85, 2.0); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
                 noise.start(t);
-                // Bell transient
-                const bell = ctx.createOscillator(); bell.frequency.value = 4200;
-                const bg = envGain(0.3, 0.15); bell.connect(bg); bg.connect(masterGain);
-                bell.start(t); bell.stop(t + 0.15);
+                // Bright bell transient
+                const bell = ctx.createOscillator(); bell.frequency.value = 5200;
+                const bg = envGain(0.4, 0.12); bell.connect(bg); bg.connect(masterGain);
+                bell.start(t); bell.stop(t + 0.13);
+                // High shimmer layer
+                const shimmer = makeNoise(0.5);
+                const shf = ctx.createBiquadFilter(); shf.type = 'highpass'; shf.frequency.value = 10000;
+                const shg = envGain(0.3, 0.45); shimmer.connect(shf); shf.connect(shg); shg.connect(masterGain);
+                shimmer.start(t);
+
+            } else if (midiNote === 57) {
+                // Crash Cymbal 2: heavier, darker, longer decay
+                const noise = makeNoise(2.8);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 4200; bpf.Q.value = 0.3;
+                const eg = envGain(0.90, 2.5); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
+                noise.start(t);
+                // Low-mid body layer
+                const body = makeNoise(1.2);
+                const bbpf = ctx.createBiquadFilter(); bbpf.type = 'bandpass'; bbpf.frequency.value = 2500; bbpf.Q.value = 0.5;
+                const bg2 = envGain(0.40, 1.0); body.connect(bbpf); bbpf.connect(bg2); bg2.connect(masterGain);
+                body.start(t);
+                // Darker bell transient
+                const bell2 = ctx.createOscillator(); bell2.frequency.value = 3800;
+                const bg = envGain(0.35, 0.18); bell2.connect(bg); bg.connect(masterGain);
+                bell2.start(t); bell2.stop(t + 0.20);
 
             } else if (midiNote === 51 || midiNote === 59) {
-                // Ride Cymbal: defined ping + wash
-                const bell = ctx.createOscillator(); bell.frequency.value = 3100;
-                const bg = envGain(0.55, 0.9); bell.connect(bg); bg.connect(masterGain);
-                bell.start(t); bell.stop(t + 0.9);
-                const noise = makeNoise(0.5);
-                const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 7000;
-                const ng = envGain(0.25, 0.45); noise.connect(hpf); hpf.connect(ng); ng.connect(masterGain);
+                // Ride Cymbal: metallic ping + sustained shimmer wash (like crash but tighter/shorter)
+                // Main noise wash — higher center freq and shorter decay than crash
+                const noise = makeNoise(1.2);
+                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 7000; bpf.Q.value = 0.45;
+                const eg = envGain(0.70, 1.0); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
                 noise.start(t);
+                // Bright attack "ping" — short noise burst
+                const ping = makeNoise(0.04);
+                const pf = ctx.createBiquadFilter(); pf.type = 'highpass'; pf.frequency.value = 9000;
+                const pg = envGain(0.55, 0.04); ping.connect(pf); pf.connect(pg); pg.connect(masterGain);
+                ping.start(t);
+                // Low metallic clank — gives "body" of the bow strike
+                const clank = ctx.createOscillator(); clank.frequency.value = 1900;
+                const cg = envGain(0.22, 0.12); clank.connect(cg); cg.connect(masterGain);
+                clank.start(t); clank.stop(t + 0.14);
+                // Mid shimmer sustain
+                const shimmer = makeNoise(0.8);
+                const sf = ctx.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 4500; sf.Q.value = 0.6;
+                const sg = envGain(0.35, 0.7); shimmer.connect(sf); sf.connect(sg); sg.connect(masterGain);
+                shimmer.start(t);
 
             } else if (midiNote === 53) {
-                // Ride Bell: bright metallic ping
-                const osc = ctx.createOscillator(); osc.frequency.value = 4800;
-                const eg = envGain(0.6, 0.5); osc.connect(eg); eg.connect(masterGain);
-                osc.start(t); osc.stop(t + 0.5);
+                // Ride Bell: tight bright metallic cup — focused inharmonic ping
+                const bellParts = [
+                    [5100, 0.60, 0.7],
+                    [7800, 0.35, 0.45],
+                    [12000, 0.18, 0.25],
+                ];
+                bellParts.forEach(([freq, lvl, dec]) => {
+                    const osc = ctx.createOscillator(); osc.frequency.value = freq;
+                    const eg = envGain(lvl, dec); osc.connect(eg); eg.connect(masterGain);
+                    osc.start(t); osc.stop(t + dec + 0.03);
+                });
+                // Tiny transient click
+                const tc = makeNoise(0.008);
+                const tcf = ctx.createBiquadFilter(); tcf.type = 'highpass'; tcf.frequency.value = 6000;
+                const tcg = envGain(0.4, 0.007); tc.connect(tcf); tcf.connect(tcg); tcg.connect(masterGain); tc.start(t);
 
             } else if (midiNote === 56) {
                 // Cowbell: resonant metallic
@@ -1811,16 +1871,25 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 noise.start(t);
 
             } else if (midiNote === 60 || midiNote === 61) {
-                // Bongos: high-pitched tuned drum, tight attack
-                const baseFreq = midiNote === 60 ? 220 : 175; // Hi / Lo bongo
-                const osc = ctx.createOscillator();
-                osc.frequency.setValueAtTime(baseFreq * 1.6, t);
-                osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.75, t + 0.10);
-                const eg = envGain(0.9, 0.22); osc.connect(eg); eg.connect(masterGain);
-                osc.start(t); osc.stop(t + 0.22);
-                const click = makeNoise(0.018);
-                const cg = envGain(0.4, 0.018); click.connect(cg); cg.connect(masterGain);
-                click.start(t);
+                // Bongos: lower pitched, deader/duller than before
+                // Real bongos: ~185 Hz (Hi) / ~145 Hz (Lo), tight membrane, short decay
+                const baseFreq = midiNote === 60 ? 188 : 148;
+                // Fundamental — small pitch sweep (bongos have less sweep than tom-toms)
+                const osc1 = ctx.createOscillator();
+                osc1.frequency.setValueAtTime(baseFreq * 1.35, t);
+                osc1.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.04);
+                const eg1 = envGain(0.80, 0.18); osc1.connect(eg1); eg1.connect(masterGain);
+                osc1.start(t); osc1.stop(t + 0.22);
+                // Low body resonance (adds thickness)
+                const osc2 = ctx.createOscillator();
+                osc2.frequency.setValueAtTime(baseFreq * 0.7, t);
+                osc2.frequency.exponentialRampToValueAtTime(baseFreq * 0.55, t + 0.06);
+                const eg2 = envGain(0.45, 0.12); osc2.connect(eg2); eg2.connect(masterGain);
+                osc2.start(t); osc2.stop(t + 0.14);
+                // Short woody skin-slap transient (low-pass filtered noise for dull attack)
+                const slap = makeNoise(0.022);
+                const sf2 = ctx.createBiquadFilter(); sf2.type = 'lowpass'; sf2.frequency.value = 1800;
+                const sg2 = envGain(0.50, 0.018); slap.connect(sf2); sf2.connect(sg2); sg2.connect(masterGain); slap.start(t);
 
             } else if (midiNote === 41 || midiNote === 43) {
                 // Floor Tom Low (41) / Floor Tom High (43): deep tom
@@ -2098,7 +2167,22 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                     'padding:0 3px;line-height:1.5;color:#455a64;',
                     'background:#eceff1;cursor:pointer;'
                 ].join('');
-                midiEl.title = 'Click to change GM MIDI note#';
+                midiEl.title = 'Tap to change GM MIDI note# (long-press on touch for picker)';
+
+                // Long-press → modal picker (touch-friendly)
+                let _lpTimer = null;
+                midiEl.addEventListener('touchstart', (ev) => {
+                    ev.stopPropagation();
+                    _lpTimer = setTimeout(() => {
+                        _lpTimer = null;
+                        navigator.vibrate && navigator.vibrate(30);
+                        openDrumMidiPickerModal(d);
+                    }, 480);
+                }, { passive: true });
+                midiEl.addEventListener('touchmove',  () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
+                midiEl.addEventListener('touchend',   () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }, { passive: true });
+                // Right-click (desktop) → also open picker
+                midiEl.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDrumMidiPickerModal(d); });
 
                 b.appendChild(iconEl);
                 b.appendChild(labelEl);
@@ -2209,13 +2293,24 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             restG.className = 'group';
             const restB = document.createElement('button');
             restB.className = 'btn-small drum-btn';
+            restB.id = 'drum-rest-btn';
             restB.title = 'Rest';
             restB.style.cssText = 'min-width:42px;width:42px;';
-            restB.innerHTML = '<span style="font-size:15px;line-height:1;display:block;text-align:center;">𝄽</span>' +
-                              '<small class="note-letter" style="font-size:8px;margin-top:2px;">rest</small>';
+            // Icon span rendered via ABCJS (same as regular note buttons) so it tracks currentDurQuarters
+            const restIconSpan = document.createElement('span');
+            restIconSpan.className = 'note-icon drum-rest-icon';
+            restIconSpan.style.cssText = 'width:100%;height:40px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+            const restLetterSpan = document.createElement('small');
+            restLetterSpan.className = 'note-letter';
+            restLetterSpan.style.cssText = 'font-size:8px;margin-top:2px;';
+            restLetterSpan.textContent = 'rest';
+            restB.appendChild(restIconSpan);
+            restB.appendChild(restLetterSpan);
             restB.onclick = () => addNoteEx('z', 0);
             restG.appendChild(restB);
             row2.appendChild(restG);
+            // Render the rest icon for the current duration immediately
+            updateDrumRestIcon();
         }
 
         // Show drum hit row inside buttonInputPanel when track is drums; normal rows otherwise
@@ -2987,9 +3082,30 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             });
         }
 
+        function updateDrumRestIcon() {
+            const iconSpan = document.querySelector('#drum-rest-btn .drum-rest-icon');
+            if (!iconSpan) return;
+            // Show a plain Unicode rest glyph — no staff, no clef (drums don't use treble clef)
+            const REST_GLYPHS = {
+                4.0:   '𝄻', // whole rest
+                2.0:   '𝄼', // half rest
+                1.0:   '𝄽', // quarter rest
+                0.5:   '𝄾', // eighth rest
+                0.25:  '𝄿', // 16th rest
+                0.125: '𝅀', // 32nd rest
+            };
+            const glyph = REST_GLYPHS[currentDurQuarters] || '𝄽';
+            const isDotted = nextMods && nextMods.dot && currentDurQuarters > 0.125 + 0.001;
+            iconSpan.innerHTML =
+                `<span style="font-size:26px;line-height:1;font-family:'Times New Roman',serif;display:flex;align-items:center;justify-content:center;height:100%;">${glyph}${isDotted ? '<span style="font-size:12px;vertical-align:super;margin-left:1px;">&#x2022;</span>' : ''}</span>`;
+        }
+
         function updateNoteButtonIcons() {
             updateInputPanelForTrack();
-            if (activeTrack && voicesData[activeTrack] && voicesData[activeTrack].isDrum) return; // drum panel handles its own UI
+            if (activeTrack && voicesData[activeTrack] && voicesData[activeTrack].isDrum) {
+                updateDrumRestIcon();
+                return;
+            } // drum panel handles its own UI
             if (!activeTrack) return;
             let clef = voicesData[activeTrack].clef;
             const keyAccs = getKeyAccidentals();
@@ -8572,31 +8688,112 @@ document.addEventListener('keydown', function(e) {
         printWin.document.close();
     }
 
+    // ==================== DRUM MIDI PICKER MODAL ====================
+    // Touch-friendly modal for selecting GM percussion MIDI note number
+    function openDrumMidiPickerModal(drumEntry) {
+        // Remove any previous instance
+        const existing = document.getElementById('drumMidiPickerModal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'drumMidiPickerModal';
+        modal.onclick = (e) => { if (e.target === modal) closeDrumMidiPickerModal(); };
+
+        const box = document.createElement('div');
+        box.className = 'gm-drum-box'; // reuse GM drum modal styles
+
+        const hdr = document.createElement('div');
+        hdr.className = 'gm-drum-header';
+        hdr.innerHTML = `<span>🥁 Assign MIDI# &mdash; <em style="font-weight:normal;">${drumEntry.label}</em></span>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.onclick = closeDrumMidiPickerModal;
+        hdr.appendChild(closeBtn);
+        box.appendChild(hdr);
+
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11px;color:#78909c;padding:6px 14px 2px;';
+        hint.textContent = 'Tap a row to assign that MIDI # to this button.';
+        box.appendChild(hint);
+
+        const body = document.createElement('div');
+        body.className = 'gm-drum-body';
+
+        for (const sec of GM_DRUM_REF) {
+            const secDiv = document.createElement('div');
+            secDiv.className = 'gm-drum-section';
+            const title = document.createElement('div');
+            title.className = 'gm-drum-section-title';
+            title.textContent = sec.group;
+            secDiv.appendChild(title);
+            const tbl = document.createElement('table');
+            tbl.className = 'gm-drum-table';
+            for (const [num, name] of sec.items) {
+                const tr = document.createElement('tr');
+                tr.className = 'drum-picker-row' + (num === drumEntry.midi ? ' drum-picker-row-active' : '');
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('pointerdown', () => {
+                    drumEntry.midi = num;
+                    closeDrumMidiPickerModal();
+                    buildDrumPanel();
+                    updateScore();
+                });
+                const tdNum = document.createElement('td');
+                tdNum.className = 'gm-drum-num';
+                tdNum.textContent = num;
+                const tdName = document.createElement('td');
+                tdName.className = 'gm-drum-name';
+                tdName.textContent = name;
+                tr.appendChild(tdNum);
+                tr.appendChild(tdName);
+                tbl.appendChild(tr);
+            }
+            secDiv.appendChild(tbl);
+            body.appendChild(secDiv);
+        }
+
+        box.appendChild(body);
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+        modal.classList.add('open');
+
+        // Scroll to active row after render
+        requestAnimationFrame(() => {
+            const active = modal.querySelector('.drum-picker-row-active');
+            if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+    }
+
+    function closeDrumMidiPickerModal() {
+        const modal = document.getElementById('drumMidiPickerModal');
+        if (modal) modal.remove();
+    }
+
     // ==================== GM DRUM REFERENCE MODAL ====================
     const GM_DRUM_REF = [
-        { group: 'Бас-барабан', items: [
+        { group: 'Bass Drum', items: [
             [35,'Acoustic Bass Drum'],[36,'Bass Drum 1'],
         ]},
-        { group: 'Малый барабан', items: [
+        { group: 'Snare', items: [
             [37,'Side Stick / Rim'],[38,'Acoustic Snare'],[39,'Hand Clap'],[40,'Electric Snare'],
         ]},
         { group: 'Hi-Hat', items: [
             [42,'Closed Hi-Hat'],[44,'Pedal Hi-Hat'],[46,'Open Hi-Hat'],
         ]},
-        { group: 'Томы', items: [
+        { group: 'Toms', items: [
             [41,'Low Floor Tom'],[43,'High Floor Tom'],[45,'Low Tom'],
             [47,'Low-Mid Tom'],[48,'High-Mid Tom'],[50,'High Tom'],
         ]},
-        { group: 'Тарелки', items: [
+        { group: 'Cymbals', items: [
             [49,'Crash Cymbal 1'],[51,'Ride Cymbal 1'],[52,'Chinese Cymbal'],
             [53,'Ride Bell'],[55,'Splash Cymbal'],[57,'Crash Cymbal 2'],
             [59,'Ride Cymbal 2'],
         ]},
-        { group: 'Конги и Бонго', items: [
+        { group: 'Congas & Bongos', items: [
             [60,'High Bongo'],[61,'Low Bongo'],
             [62,'Mute High Conga'],[63,'Open High Conga'],[64,'Low Conga'],
         ]},
-        { group: 'Перкуссия', items: [
+        { group: 'Percussion', items: [
             [54,'Tambourine'],[56,'Cowbell'],[58,'Vibraslap'],
             [65,'High Timbale'],[66,'Low Timbale'],
             [67,'High Agogo'],[68,'Low Agogo'],
@@ -8621,7 +8818,7 @@ document.addEventListener('keydown', function(e) {
 
             const hdr = document.createElement('div');
             hdr.className = 'gm-drum-header';
-            hdr.innerHTML = `<span>🥁 GM Percussion — справочник номеров</span>`;
+            hdr.innerHTML = `<span>🥁 GM Percussion — MIDI reference</span>`;
             const closeBtn = document.createElement('button');
             closeBtn.textContent = '✕';
             closeBtn.onclick = closeGmDrumModal;
@@ -8655,7 +8852,7 @@ document.addEventListener('keydown', function(e) {
                     if (kitMidi.has(num)) {
                         const mark = document.createElement('span');
                         mark.className = 'gm-drum-kit-mark';
-                        mark.textContent = 'в ките';
+                        mark.textContent = 'in kit';
                         tdMark.appendChild(mark);
                     }
                     tr.appendChild(tdNum);
