@@ -121,18 +121,24 @@
         /* Infinite string mode */
         #scoreViewport.infinite-mode {
             overflow-x: scroll;
-            overflow-y: hidden;
-            touch-action: pan-x;
+            overflow-y: auto;        /* FIX: was 'hidden' — vertical scroll must work */
+            touch-action: pan-x pan-y; /* FIX: was 'pan-x' only — allow vertical touch-scroll */
             width: 100%;
-            /* Hide native scrollbar — only the sticky proxy scrollbar is shown */
-            scrollbar-width: none;
+            /* Hide ONLY the native horizontal scrollbar.
+               The sticky #scoreScrollbarWrap is the proxy for horizontal.
+               The vertical scrollbar is left visible so the user can scroll
+               down past the input keyboard. */
+            scrollbar-width: thin;   /* Firefox: show vertical scrollbar */
             -ms-overflow-style: none;
         }
-        #scoreViewport.infinite-mode::-webkit-scrollbar { display: none; }
+        /* Chrome/Safari: hide horizontal native bar, keep vertical visible */
+        #scoreViewport.infinite-mode::-webkit-scrollbar { width: 8px; height: 0; }
+        #scoreViewport.infinite-mode::-webkit-scrollbar-track { background: #cfd8dc; border-radius: 4px; }
+        #scoreViewport.infinite-mode::-webkit-scrollbar-thumb { background: #607d8b; border-radius: 4px; }
         #scoreViewport.infinite-mode #paper {
             overflow: visible;
             width: max-content;  /* expand to SVG width */
-            height: 100%;
+            min-height: 100%;    /* FIX: was 'height: 100%' — allows content to exceed viewport height */
         }
         /* Scrollbar proxy in sticky panel */
         #scoreScrollbarWrap {
@@ -4527,7 +4533,7 @@ function deleteSelectionSync() {
 
         // ==================== FILE I/O ====================
         function downloadABC() {
-            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives, keySigs: measureKeySigs, pickup: pickupDurQuarters };
+            let state = { voices: voicesData, repeats: measureRepeats, voltas: measureVoltas, navDirs: measureDirectives, keySigs: measureKeySigs, pickup: pickupDurQuarters, beatGroups: beatGroups };
             let stateStr = "\n% EDITOR_STATE: " + JSON.stringify(state);
             const blob = new Blob([window.lastAbcString + stateStr], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
@@ -4604,6 +4610,20 @@ function deleteSelectionSync() {
                                 if (grpWrap) grpWrap.style.display = 'none';
                                 document.getElementById('timeSig').value = mVal;
                             }
+                        }
+                        // FIX (bug: x/8 numerator not saved): restore beatGroups from EDITOR_STATE.
+                        // getMeterString() writes "N/8" (plain) to the M: header for abcjs compat,
+                        // so the branch above cannot recover the groups from M: alone.
+                        // The state object (written by downloadABC) now stores beatGroups explicitly.
+                        if (state.beatGroups && Array.isArray(state.beatGroups) && state.beatGroups.length >= 2) {
+                            beatGroups = state.beatGroups;
+                            document.getElementById('timeSig').value = 'x/8';
+                            const grpWrap  = document.getElementById('customGroupsWrap');
+                            const grpInput = document.getElementById('customGroupsInput');
+                            const hint     = document.getElementById('customGroupsHint');
+                            if (grpWrap)  grpWrap.style.display = 'inline-flex';
+                            if (grpInput) { grpInput.value = beatGroups.join(' '); grpInput.style.borderColor = '#4caf50'; }
+                            if (hint)     hint.textContent = `= ${beatGroups.reduce((a,b)=>a+b,0)}/8`;
                         }
                         let tempoMatch = contents.match(/Q:1\/4=(.*)/);
                         if (tempoMatch) document.getElementById('tempo').value = tempoMatch[1].trim();
@@ -6457,9 +6477,12 @@ function generateMIDIWithBend() {
                     wideSvg.setAttribute('height', String(trueH));
                 }
 
-                // Set viewport height to content height + paper padding only (no extra space)
+                // FIX: do NOT lock viewport to a fixed pixel height.
+                // flex:1 already gives the viewport all remaining screen space.
+                // With overflow-y:auto, the viewport will scroll vertically when
+                // the SVG (trueH) + bottom spacer exceed the available height.
                 viewport.classList.add('infinite-mode');
-                viewport.style.height = (trueH + 20) + 'px';
+                viewport.style.height = '';  // clear any old inline height
 
                 // Show and link the sticky scrollbar
                 setupInfiniteScrollSync(bigWidth);
