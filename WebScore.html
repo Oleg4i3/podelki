@@ -1873,11 +1873,50 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
                 o1.start(t); o1.stop(t + 0.4); o2.start(t); o2.stop(t + 0.4);
 
             } else if (midiNote === 54) {
-                // Tambourine: shaker noise burst
-                const noise = makeNoise(0.18);
-                const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 4000; bpf.Q.value = 1.5;
-                const eg = envGain(0.55, 0.15); noise.connect(bpf); bpf.connect(eg); eg.connect(masterGain);
-                noise.start(t);
+                // Tambourine: initial skin slap + sustained jingle shimmer
+                // Skin slap transient
+                const slap = makeNoise(0.04);
+                const slpf = ctx.createBiquadFilter(); slpf.type = 'lowpass'; slpf.frequency.value = 2200;
+                const slg = envGain(0.6, 0.04); slap.connect(slpf); slpf.connect(slg); slg.connect(masterGain);
+                slap.start(t);
+                // Jingle shimmer — bright bandpass noise, longer sustain
+                const jingle = makeNoise(0.55);
+                const jpf = ctx.createBiquadFilter(); jpf.type = 'bandpass'; jpf.frequency.value = 6500; jpf.Q.value = 0.8;
+                const jeg = envGain(0.55, 0.55); jingle.connect(jpf); jpf.connect(jeg); jeg.connect(masterGain);
+                jingle.start(t);
+                // High shimmer tail — ultra-bright, slow fade
+                const shimmer = makeNoise(0.3);
+                const shpf = ctx.createBiquadFilter(); shpf.type = 'highpass'; shpf.frequency.value = 9000;
+                const shg = envGain(0.35, 0.9); shimmer.connect(shpf); shpf.connect(shg); shg.connect(masterGain);
+                shimmer.start(t);
+
+            } else if (midiNote === 58) {
+                // Vibraslap: woody body thud + decaying rattle burst
+                // Body thud — short pitched knock
+                const body = ctx.createOscillator(); body.type = 'sine';
+                body.frequency.setValueAtTime(180, t);
+                body.frequency.exponentialRampToValueAtTime(90, t + 0.06);
+                const bg = envGain(0.7, 0.06); body.connect(bg); bg.connect(masterGain);
+                body.start(t); body.stop(t + 0.08);
+                // Woody click attack
+                const click = makeNoise(0.015);
+                const cf = ctx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1400; cf.Q.value = 3;
+                const cg = envGain(0.9, 0.015); click.connect(cf); cf.connect(cg); cg.connect(masterGain);
+                click.start(t);
+                // Rattle: amplitude-modulated noise — characteristic chattering decay
+                const rattle = makeNoise(1.2);
+                const rpf = ctx.createBiquadFilter(); rpf.type = 'bandpass'; rpf.frequency.value = 3200; rpf.Q.value = 1.2;
+                // AM modulation via fast LFO to simulate individual pin rattles
+                const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 38;
+                const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.5;
+                const lfoBase = ctx.createGain(); lfoBase.gain.value = 0.5;
+                lfo.connect(lfoGain); lfoGain.connect(lfoBase.gain);
+                const reg = ctx.createGain();
+                reg.gain.setValueAtTime(0.7, t);
+                reg.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+                rattle.connect(rpf); rpf.connect(lfoBase); lfoBase.connect(reg); reg.connect(masterGain);
+                lfo.start(t); lfo.stop(t + 1.15);
+                rattle.start(t);
 
             } else if (midiNote === 60 || midiNote === 61) {
                 // Bongos: lower pitched, deader/duller than before
@@ -2303,19 +2342,7 @@ function tryInsertIntoPause(trackKey, insertTime, newNote) {
             tripB.onclick = () => toggleTriplet(tripB);
             durG.appendChild(tripB);
 
-            // ── GM reference button ────────────────────────────────────────
-            const refG = document.createElement('div');
-            refG.className = 'group';
-            const refB = document.createElement('button');
-            refB.className = 'btn-small mod-btn';
-            refB.title = 'GM Percussion MIDI reference';
-            refB.style.cssText = 'min-width:28px;width:28px;font-size:13px;font-weight:bold;background:#e3f2fd;border-color:#90caf9;color:#1565c0;';
-            refB.textContent = '?';
-            refB.onclick = (e) => { e.stopPropagation(); openGmDrumModal(); };
-            refG.appendChild(refB);
-
             row1.appendChild(durG);
-            row1.appendChild(refG);
 
             // ── Row 2: toms | bongos | special | rest ─────────────────────
             ['tom','bongo','extra'].forEach(grpKey => {
@@ -8782,53 +8809,24 @@ document.addEventListener('keydown', function(e) {
                 tr.style.cssText = 'cursor:pointer;';
                 tr.addEventListener('click', (ev) => {
                     ev.preventDefault();
-                    ev.stopPropagation(); // не даём клику дойти до оверлея
-                    // Воспроизводим звук выбранной перкуссии
+                    ev.stopPropagation();
                     playDrumSoundWebAudio(num, 0.8);
                     drumEntry.midi = num;
-                    // Подсвечиваем активную строку
-                    tbl.querySelectorAll('.drum-picker-row').forEach(r => r.classList.remove('drum-picker-row-active'));
+                    // Снимаем подсветку со всех строк всех секций
+                    modal.querySelectorAll('.drum-picker-row').forEach(r => r.classList.remove('drum-picker-row-active'));
                     tr.classList.add('drum-picker-row-active');
-                    // Обновляем кнопку в DOM без полного пересброса панели
                     if (midiEl) midiEl.textContent = num;
-                    if (labelEl) {
-                        const match = DRUM_KIT.find(dk => dk.midi === num);
-                        if (match) {
-                            labelEl.textContent = match.short;
-                            if (iconEl) iconEl.innerHTML = match.svg || match.head;
-                            drumEntry.short = match.short;
-                            drumEntry.label = match.label;
-                            drumEntry.svg   = match.svg;
-                            drumEntry.head  = match.head;
-                            if (btnEl) btnEl.title = `${match.label}  —  tap to play, long-press to reassign`;
-                        } else if (gmMap[num]) {
-                            const gmName = gmMap[num].name;
-                            const shortName = gmName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,4);
-                            labelEl.textContent = shortName;
-                            drumEntry.short = shortName;
-                            drumEntry.label = gmName;
-                            // Pick the best matching SVG icon by keyword
-                            const nl = gmName.toLowerCase();
-                            let svgKey = null;
-                            if (/chinese/.test(nl))                          svgKey = 'chinese';
-                            else if (/splash/.test(nl))                      svgKey = 'splash';
-                            else if (/crash/.test(nl))                       svgKey = 'crash';
-                            else if (/ride bell/.test(nl))                   svgKey = 'ridebell';
-                            else if (/ride/.test(nl))                        svgKey = 'ride';
-                            else if (/hi.hat|hihat/.test(nl))                svgKey = 'hihat-cl';
-                            else if (/bass drum/.test(nl))                   svgKey = 'kick';
-                            else if (/snare/.test(nl))                       svgKey = 'snare';
-                            else if (/rim|side stick/.test(nl))              svgKey = 'rim';
-                            else if (/conga/.test(nl))                       svgKey = 'conga';
-                            else if (/bongo/.test(nl))                       svgKey = 'bongo';
-                            else if (/tom/.test(nl))                         svgKey = 'tom';
-                            else if (/cowbell/.test(nl))                     svgKey = 'cowbell';
-                            else if (/tambourine/.test(nl))                  svgKey = 'tambourine';
-                            else if (/clap/.test(nl))                        svgKey = 'handclap';
-                            if (svgKey && iconEl) iconEl.innerHTML = DRUM_SVG[svgKey];
-                            if (btnEl) btnEl.title = `${gmName}  —  tap to play, long-press to reassign`;
-                        }
-                    }
+                    // Используем GM_DRUM_ICONS для ЛЮБОЙ GM-ноты — единый источник правды
+                    const gmName = gmMap[num] ? gmMap[num].name : String(num);
+                    const info   = GM_DRUM_ICONS[num];
+                    const short  = info ? info.short : gmName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0,4);
+                    const svg    = info && DRUM_SVG[info.svgKey] ? DRUM_SVG[info.svgKey] : null;
+                    if (labelEl) labelEl.textContent = short;
+                    if (iconEl)  iconEl.innerHTML    = svg || '';
+                    drumEntry.short = short;
+                    drumEntry.label = gmName;
+                    drumEntry.svg   = svg;
+                    if (btnEl) btnEl.title = `${gmName}  —  tap to play, long-press to reassign`;
                     updateScore();
                 });
                 const tdNum = document.createElement('td');
@@ -8861,6 +8859,59 @@ document.addEventListener('keydown', function(e) {
         const modal = document.getElementById('drumMidiPickerModal');
         if (modal) modal.remove();
     }
+
+    // ==================== GM DRUM ICONS LOOKUP ====================
+    // Complete map: MIDI# → { short label, DRUM_SVG key }
+    // Used by the picker to update button icon/label for ANY GM note.
+    const GM_DRUM_ICONS = {
+        35: { short:'BD2',  svgKey:'kick'        },  // Acoustic Bass Drum
+        36: { short:'BD',   svgKey:'kick'        },  // Bass Drum 1
+        37: { short:'RIM',  svgKey:'rim'         },  // Side Stick / Rim
+        38: { short:'SN',   svgKey:'snare'       },  // Acoustic Snare
+        39: { short:'CLP',  svgKey:'handclap'    },  // Hand Clap
+        40: { short:'ES',   svgKey:'snare'       },  // Electric Snare
+        41: { short:'FTL',  svgKey:'tom'         },  // Low Floor Tom
+        42: { short:'HH',   svgKey:'hihat-cl'    },  // Closed Hi-Hat
+        43: { short:'FTH',  svgKey:'tom'         },  // High Floor Tom
+        44: { short:'HHp',  svgKey:'hihat-ped'   },  // Pedal Hi-Hat
+        45: { short:'TLo',  svgKey:'tom'         },  // Low Tom
+        46: { short:'HHo',  svgKey:'hihat-op'    },  // Open Hi-Hat
+        47: { short:'TLM',  svgKey:'tom'         },  // Low-Mid Tom
+        48: { short:'TMd',  svgKey:'tom'         },  // High-Mid Tom
+        49: { short:'CR1',  svgKey:'crash'       },  // Crash Cymbal 1
+        50: { short:'THi',  svgKey:'tom'         },  // High Tom
+        51: { short:'RD',   svgKey:'ride'        },  // Ride Cymbal 1
+        52: { short:'CH',   svgKey:'chinese'     },  // Chinese Cymbal
+        53: { short:'RB',   svgKey:'ridebell'    },  // Ride Bell
+        54: { short:'TBR',  svgKey:'tambourine'  },  // Tambourine
+        55: { short:'SP',   svgKey:'splash'      },  // Splash Cymbal
+        56: { short:'CB',   svgKey:'cowbell'     },  // Cowbell
+        57: { short:'CR2',  svgKey:'crash'       },  // Crash Cymbal 2
+        58: { short:'VS',   svgKey:'tom'         },  // Vibraslap (no special icon → tom fallback)
+        59: { short:'RD2',  svgKey:'ride'        },  // Ride Cymbal 2
+        60: { short:'BgHi', svgKey:'bongo'       },  // High Bongo
+        61: { short:'BgLo', svgKey:'bongo'       },  // Low Bongo
+        62: { short:'CgM',  svgKey:'conga'       },  // Mute High Conga
+        63: { short:'CgHi', svgKey:'conga'       },  // Open High Conga
+        64: { short:'CgLo', svgKey:'conga'       },  // Low Conga
+        65: { short:'TbHi', svgKey:'tom'         },  // High Timbale
+        66: { short:'TbLo', svgKey:'tom'         },  // Low Timbale
+        67: { short:'AgH',  svgKey:'cowbell'     },  // High Agogo
+        68: { short:'AgL',  svgKey:'cowbell'     },  // Low Agogo
+        69: { short:'CBS',  svgKey:'tambourine'  },  // Cabasa
+        70: { short:'MRC',  svgKey:'tambourine'  },  // Maracas
+        71: { short:'WSH',  svgKey:'tambourine'  },  // Short Whistle
+        72: { short:'WLG',  svgKey:'tambourine'  },  // Long Whistle
+        73: { short:'GRS',  svgKey:'tambourine'  },  // Short Guiro
+        74: { short:'GRL',  svgKey:'tambourine'  },  // Long Guiro
+        75: { short:'CLV',  svgKey:'rim'         },  // Claves
+        76: { short:'WBH',  svgKey:'rim'         },  // High Wood Block
+        77: { short:'WBL',  svgKey:'rim'         },  // Low Wood Block
+        78: { short:'CuM',  svgKey:'tom'         },  // Mute Cuica
+        79: { short:'CuO',  svgKey:'tom'         },  // Open Cuica
+        80: { short:'TriM', svgKey:'triangle-op' },  // Mute Triangle
+        81: { short:'TriO', svgKey:'triangle-op' },  // Open Triangle
+    };
 
     // ==================== GM DRUM REFERENCE MODAL ====================
     const GM_DRUM_REF = [
@@ -8899,74 +8950,6 @@ document.addEventListener('keydown', function(e) {
         ]},
     ];
 
-    function openGmDrumModal() {
-        let modal = document.getElementById('gmDrumModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'gmDrumModal';
-            modal.onclick = (e) => { if (e.target === modal) closeGmDrumModal(); };
-
-            const box = document.createElement('div');
-            box.className = 'gm-drum-box';
-
-            const hdr = document.createElement('div');
-            hdr.className = 'gm-drum-header';
-            hdr.innerHTML = `<span>🥁 GM Percussion — MIDI reference</span>`;
-            const closeBtn = document.createElement('button');
-            closeBtn.textContent = '✕';
-            closeBtn.onclick = closeGmDrumModal;
-            hdr.appendChild(closeBtn);
-            box.appendChild(hdr);
-
-            const body = document.createElement('div');
-            body.className = 'gm-drum-body';
-
-            // Build kit pitch lookup for marking kit entries
-            const kitMidi = new Set(DRUM_KIT.map(d => d.midi));
-
-            for (const sec of GM_DRUM_REF) {
-                const secDiv = document.createElement('div');
-                secDiv.className = 'gm-drum-section';
-                const title = document.createElement('div');
-                title.className = 'gm-drum-section-title';
-                title.textContent = sec.group;
-                secDiv.appendChild(title);
-                const tbl = document.createElement('table');
-                tbl.className = 'gm-drum-table';
-                for (const [num, name] of sec.items) {
-                    const tr = document.createElement('tr');
-                    const tdNum = document.createElement('td');
-                    tdNum.className = 'gm-drum-num';
-                    tdNum.textContent = num;
-                    const tdName = document.createElement('td');
-                    tdName.className = 'gm-drum-name';
-                    tdName.textContent = name;
-                    const tdMark = document.createElement('td');
-                    if (kitMidi.has(num)) {
-                        const mark = document.createElement('span');
-                        mark.className = 'gm-drum-kit-mark';
-                        mark.textContent = 'in kit';
-                        tdMark.appendChild(mark);
-                    }
-                    tr.appendChild(tdNum);
-                    tr.appendChild(tdName);
-                    tr.appendChild(tdMark);
-                    tbl.appendChild(tr);
-                }
-                secDiv.appendChild(tbl);
-                body.appendChild(secDiv);
-            }
-            box.appendChild(body);
-            modal.appendChild(box);
-            document.body.appendChild(modal);
-        }
-        modal.classList.add('open');
-    }
-
-    function closeGmDrumModal() {
-        const modal = document.getElementById('gmDrumModal');
-        if (modal) modal.classList.remove('open');
-    }
     </script>
 </body>
 </html>
