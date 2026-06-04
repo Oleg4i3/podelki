@@ -2646,19 +2646,88 @@ const DRUM_SVG = {
         let contextMenuVisible = false;
         let _savedSelBeforePointerDown = null; // used to restore multi-selection on contextmenu
 
-        function showContextMenu(e, noteIndex) {
+        // ── Chord pitch sub-selection ──────────────────────────────────────────────
+        // pitchSelection >= 0 means one specific pitch within a chord is highlighted.
+        // Set by left-clicking an already-selected chord, or by right-clicking it.
+        let pitchSelection   = -1;   // index in note.pitches[]
+        let _ctxPitchIndex   = -1;   // pitchSelection at the time the context menu opened
+
+        // Convert a note pitch object to an absolute MIDI-like value for sorting.
+        function _pitchToAbs(p) {
+            const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+            const semi = (base[p.pitch] ?? 0) + (p.accidental==='^'?1:p.accidental==='_'?-1:0);
+            const commas = (p.octave.match(/,/g)||[]).length;
+            const apostr = (p.octave.match(/'/g)||[]).length;
+            return semi + (4 + apostr - commas) * 12;
+        }
+
+        // Given a chord <g> element and a click clientY, return the pitch index
+        // (within note.pitches[]) whose note-head is nearest to that y coordinate.
+        function findClickedPitchInChord(chordEl, clientY, note) {
+            if (!note || !note.pitches || note.pitches.length <= 1) return 0;
+            // Collect candidate paths: small bounding boxes = note heads
+            let paths = Array.from(chordEl.querySelectorAll('path'));
+            let heads = paths.filter(p => {
+                const r = p.getBoundingClientRect();
+                return r.width > 2 && r.width < 28 && r.height > 2 && r.height < 22;
+            });
+            if (heads.length === 0) heads = paths;
+            // Sort heads top→bottom (top = higher pitch on staff)
+            heads.sort((a, b) => {
+                const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+                return (ra.top + ra.height/2) - (rb.top + rb.height/2);
+            });
+            // Sort pitch indices high→low to match the visual top→bottom order
+            const sortedIdxs = note.pitches
+                .map((p, i) => ({ abs: _pitchToAbs(p), i }))
+                .sort((a, b) => b.abs - a.abs)
+                .map(x => x.i);
+            // Find head closest to click Y
+            let minDist = Infinity, bestHead = 0;
+            heads.forEach((p, hi) => {
+                const r = p.getBoundingClientRect();
+                const cy = r.top + r.height / 2;
+                const d = Math.abs(cy - clientY);
+                if (d < minDist) { minDist = d; bestHead = hi; }
+            });
+            return sortedIdxs[Math.min(bestHead, sortedIdxs.length - 1)] ?? 0;
+        }
+
+        // Return the SVG path element for a specific pitch within a chord element.
+        // Used for individual-pitch highlighting in drawVisualSelection.
+        function findPitchHeadEl(chordEl, pitchIdx, note) {
+            if (!note || !note.pitches || note.pitches.length <= 1) return null;
+            let paths = Array.from(chordEl.querySelectorAll('path'));
+            let heads = paths.filter(p => {
+                const r = p.getBoundingClientRect();
+                return r.width > 2 && r.width < 28 && r.height > 2 && r.height < 22;
+            });
+            if (heads.length === 0) heads = paths;
+            heads.sort((a, b) => {
+                const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+                return (ra.top + ra.height/2) - (rb.top + rb.height/2);
+            });
+            const sortedIdxs = note.pitches
+                .map((p, i) => ({ abs: _pitchToAbs(p), i }))
+                .sort((a, b) => b.abs - a.abs)
+                .map(x => x.i);
+            const headIdx = sortedIdxs.indexOf(pitchIdx);
+            return (headIdx >= 0 && headIdx < heads.length) ? heads[headIdx] : null;
+        }
+
+        function showContextMenu(e, noteIndex, pitchIdx = -1) {
             e.preventDefault();
             contextNoteIndex = noteIndex;
+            _ctxPitchIndex   = pitchIdx;
             const menu = document.getElementById('contextMenu');
             menu.style.display = 'flex';
             menu.style.left = e.pageX + 'px';
             menu.style.top = e.pageY + 'px';
 
-            // If a multi-note selection is active and the right-clicked note is inside it,
-            // show a fragment-transpose-only menu.
             const sel = getSelectionIndices();
             const isMultiSelection = sel && (sel.end > sel.start) &&
                                      (noteIndex >= sel.start && noteIndex <= sel.end);
+            const isChordPitch = pitchIdx >= 0 && !isMultiSelection;
 
             if (isMultiSelection) {
                 menu.innerHTML = `
@@ -2667,6 +2736,24 @@ const DRUM_SVG = {
                     </div>
                     <button onclick="contextPitchShiftSelection(1)"  title="Транспонировать вверх на ступень" style="font-size:20px;min-width:54px;height:44px;">⬆</button>
                     <button onclick="contextPitchShiftSelection(-1)" title="Транспонировать вниз на ступень" style="font-size:20px;min-width:54px;height:44px;">⬇</button>
+                `;
+            } else if (isChordPitch) {
+                // Context menu for one specific pitch inside a chord
+                const notes = getNotes();
+                const note  = notes[noteIndex];
+                const p     = note && note.pitches && note.pitches[pitchIdx];
+                const label = p ? `${p.pitch}${p.octave}` : '?';
+                menu.innerHTML = `
+                    <div style="width:100%;font-size:11px;color:#888;padding:0 2px 4px;user-select:none;">
+                        Нота <b>${label}</b> в аккорде
+                    </div>
+                    <button onclick="contextAccidentalPitch('^')" title="Sharp">#</button>
+                    <button onclick="contextAccidentalPitch('_')" title="Flat">b</button>
+                    <button onclick="contextAccidentalPitch('=')" title="Natural">♮</button>
+                    <button onclick="contextPitchShiftOne(1)"  title="Вверх на ступень">⬆</button>
+                    <button onclick="contextPitchShiftOne(-1)" title="Вниз на ступень">⬇</button>
+                    <button onclick="contextRemovePitch()" title="Убрать из аккорда"
+                        style="background:#ffebee;border-color:#ef9a9a;color:#c62828;">✕</button>
                 `;
             } else {
                 menu.innerHTML = `
@@ -2775,6 +2862,62 @@ const DRUM_SVG = {
                 }
             });
             hideContextMenu();
+        }
+
+        // ── Chord-pitch–specific context menu actions ──────────────────────────────
+        function contextAccidentalPitch(acc) {
+            if (contextNoteIndex === -1 || _ctxPitchIndex === -1) return;
+            modifyNote(contextNoteIndex, (note) => {
+                const p = note.pitches && note.pitches[_ctxPitchIndex];
+                if (p) p.accidental = (p.accidental === acc) ? '' : acc;
+            });
+            hideContextMenu();
+        }
+
+        function contextPitchShiftOne(delta) {
+            if (contextNoteIndex === -1 || _ctxPitchIndex === -1) return;
+            const scale = ['C','D','E','F','G','A','B'];
+            modifyNote(contextNoteIndex, (note) => {
+                const p = note.pitches && note.pitches[_ctxPitchIndex];
+                if (!p || p.pitch === 'z' || p.pitch === 'x') return;
+                let idx = scale.indexOf(p.pitch);
+                if (idx === -1) return;
+                let newIdx = idx + delta, octShift = 0;
+                while (newIdx < 0) { newIdx += 7; octShift--; }
+                while (newIdx > 6) { newIdx -= 7; octShift++; }
+                p.pitch = scale[newIdx];
+                const commas = (p.octave.match(/,/g)||[]).length;
+                const apostr = (p.octave.match(/'/g)||[]).length;
+                const octNum = apostr - commas + octShift;
+                p.octave = octNum >= 0 ? "'".repeat(octNum) : ",".repeat(-octNum);
+            });
+            pitchSelection = _ctxPitchIndex; // keep the same pitch selected after edit
+            hideContextMenu();
+        }
+
+        function contextRemovePitch() {
+            if (contextNoteIndex === -1 || _ctxPitchIndex === -1) return;
+            if (!activeTrack) return;
+            const notes = getNotes();
+            const note  = notes[contextNoteIndex];
+            if (!note || !note.pitches) return;
+            const noteCopy = JSON.parse(JSON.stringify(note));
+            noteCopy.pitches.splice(_ctxPitchIndex, 1);
+            if (noteCopy.pitches.length === 0) {
+                // Last pitch — remove entire note event
+                notes.splice(contextNoteIndex, 1);
+                selection.start = Math.max(0, contextNoteIndex - 1);
+                selection.end   = selection.start;
+            } else {
+                notes.splice(contextNoteIndex, 1, noteCopy);
+                selection.start = contextNoteIndex;
+                selection.end   = contextNoteIndex;
+            }
+            pitchSelection   = -1;
+            _ctxPitchIndex   = -1;
+            normalizeAllMeasures && normalizeAllMeasures();
+            hideContextMenu();
+            markUndoDirty(); updateScore();
         }
 
         function modifyNote(index, modifier) {
@@ -4275,6 +4418,21 @@ function addNoteSync(noteBase, rowShift) {
 
         function deleteSelection() {
             if (!activeTrack) return;
+            // If a specific pitch within a chord is sub-selected, remove only that pitch
+            if (pitchSelection >= 0 && selection.start !== -1 && selection.start === selection.end) {
+                const notes = getNotes();
+                const note  = notes[selection.start];
+                if (note && note.pitches && note.pitches.length > 1) {
+                    const noteCopy = JSON.parse(JSON.stringify(note));
+                    noteCopy.pitches.splice(pitchSelection, 1);
+                    notes.splice(selection.start, 1, noteCopy);
+                    pitchSelection = -1;
+                    normalizeAllMeasures && normalizeAllMeasures();
+                    markUndoDirty(); updateScore();
+                    return;
+                }
+                pitchSelection = -1;
+            }
             if (synchroMode) {
                 deleteSelectionSync();
             } else {
@@ -4577,7 +4735,7 @@ function deleteSelectionSync() {
             return { start: Math.min(selection.start, selection.end), end: Math.max(selection.start, selection.end) };
         }
 
-        function clearSelection() { selectionAtStart = false; selection = { start: -1, end: -1 }; }
+        function clearSelection() { selectionAtStart = false; selection = { start: -1, end: -1 }; pitchSelection = -1; _ctxPitchIndex = -1; }
 
         // ==================== FILE I/O ====================
         function downloadABC() {
@@ -6924,12 +7082,30 @@ function generateMIDIWithBend() {
                             let actualArrayIdx = visualToArrayMap[closestVisIdx];
                             if (actualArrayIdx !== undefined) {
                                 if ((e.shiftKey || isVirtualShift) && selection.start !== -1) {
+                                    pitchSelection = -1;
                                     selection.end = actualArrayIdx;
                                     if (isVirtualShift) { isVirtualShift = false; let vBtn = document.getElementById('btn-vshift'); if (vBtn) vBtn.classList.remove('active'); }
-                                } else { selection.start = actualArrayIdx; selection.end = actualArrayIdx; selectionAtStart = false; }
+                                } else if (
+                                    actualArrayIdx === selection.start &&
+                                    selection.start === selection.end &&
+                                    !selectionAtStart
+                                ) {
+                                    // Second click on the same note — sub-select a pitch if it's a chord
+                                    const clickedNote = voicesData[targetKey].notes[actualArrayIdx];
+                                    if (clickedNote && clickedNote.pitches && clickedNote.pitches.length > 1) {
+                                        const pi = findClickedPitchInChord(closestEl, e.clientY, clickedNote);
+                                        pitchSelection = (pitchSelection === pi) ? -1 : pi;
+                                    } else {
+                                        pitchSelection = -1;
+                                    }
+                                } else {
+                                    pitchSelection = -1;
+                                    selection.start = actualArrayIdx; selection.end = actualArrayIdx; selectionAtStart = false;
+                                }
                             }
                             showNoteInputPanel(); // tap ON a note — reveal panel
                         } else {
+                            pitchSelection = -1;
                             hideNoteInputPanel(); // tap on score but NOT on any note
                         }
                     } else clearSelection();
@@ -6985,13 +7161,27 @@ function generateMIDIWithBend() {
                 let visIdx = visualToArrayMap.indexOf(i);
                 if (visIdx !== -1 && visIdx < trackEls.length) {
                     let el = trackEls[visIdx];
-                    el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#00bcd4'));
+                    const isSingleSel = (i === sel.start && sel.start === sel.end);
+                    const note = tNotes[i];
+                    const hasPitchSel = isSingleSel && pitchSelection >= 0 && note &&
+                                        note.pitches && note.pitches.length > 1;
+
+                    if (hasPitchSel) {
+                        // Colour all note heads in muted cyan, the selected one in bright accent
+                        el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#80deea'));
+                        const selHead = findPitchHeadEl(el, pitchSelection, note);
+                        if (selHead) selHead.setAttribute('fill', '#e53935'); // red accent for sub-selected pitch
+                    } else {
+                        el.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#00bcd4'));
+                    }
+
                     let rect = el.getBoundingClientRect();
                     let box = document.createElement('div'); box.className = 'selection-box';
                     let top = rect.top - paperRect.top + paper.scrollTop - 5;
                     let left = rect.left - paperRect.left + paper.scrollLeft - 5;
                     box.style.top = top + 'px'; box.style.left = left + 'px';
                     box.style.width = (rect.width + 10) + 'px'; box.style.height = (rect.height + 10) + 'px';
+                    if (hasPitchSel) box.style.outline = '2px solid #e53935';
                     paper.appendChild(box);
                 }
             }
@@ -7559,7 +7749,18 @@ function generateMIDIWithBend() {
                         let tNotes = voicesData[targetKey].notes;
                         for (let i = 0; i < tNotes.length; i++) { let n = tNotes[i]; if (n.type !== 'directive' && n.type !== 'barline') visualToArrayMap.push(i); }
                         let noteIdx = trackEls.indexOf(closestEl);
-                        if (noteIdx !== -1 && noteIdx < visualToArrayMap.length) { let actualArrayIdx = visualToArrayMap[noteIdx]; showContextMenu(e, actualArrayIdx); }
+                        if (noteIdx !== -1 && noteIdx < visualToArrayMap.length) {
+                            let actualArrayIdx = visualToArrayMap[noteIdx];
+                            // On right-click, also detect the specific pitch within a chord
+                            const ctxNote = voicesData[targetKey].notes[actualArrayIdx];
+                            if (ctxNote && ctxNote.pitches && ctxNote.pitches.length > 1) {
+                                pitchSelection = findClickedPitchInChord(closestEl, e.clientY, ctxNote);
+                            } else {
+                                pitchSelection = -1;
+                            }
+                            drawVisualSelection();
+                            showContextMenu(e, actualArrayIdx, pitchSelection);
+                        }
                     }
                 }
             }
