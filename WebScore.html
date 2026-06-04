@@ -443,11 +443,42 @@
         #startupModal .btn-open:hover { background: #eeeeee; }
         #startupModal .startup-divider { text-align: center; font-size: 12px; color: #aaa; margin: -6px 0; }
 
+        /* ===== SESSION MANAGER ===== */
+        .sm-section-label { font-size: 11px; font-weight: 700; color: #78909c; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .sm-sessions-list {
+            max-height: 210px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
+            border: 1px solid #e0e0e0; border-radius: 8px; padding: 5px;
+            background: #fafafa;
+        }
+        .sm-sessions-list:empty::after { content: 'No saved sessions yet'; color: #b0bec5; font-size: 13px; text-align: center; padding: 16px 0; display: block; }
+        .sm-empty-hint { font-size: 13px; color: #b0bec5; text-align: center; padding: 14px 0; }
+        .sm-session-row {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+            background: white; border-radius: 6px; border: 1px solid #e8ecef;
+            cursor: pointer; transition: border-color .15s, box-shadow .15s;
+        }
+        .sm-session-row:hover { border-color: #00bcd4; box-shadow: 0 0 0 2px rgba(0,188,212,.15); }
+        .sm-session-row.sm-active { border-color: #00bcd4; background: #e0f7fa; }
+        .sm-session-info { flex: 1; min-width: 0; }
+        .sm-session-title { font-weight: 600; font-size: 14px; color: #263238; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sm-session-meta  { font-size: 11px; color: #90a4ae; margin-top: 1px; }
+        .sm-session-del { background: none; border: none; color: #ef9a9a; font-size: 17px; cursor: pointer; padding: 2px 5px; border-radius: 4px; flex-shrink: 0; line-height: 1; }
+        .sm-session-del:hover { background: #ffcdd2; color: #b71c1c; }
+        .sm-collapsible-header { cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; color: #37474f; user-select: none; padding: 4px 0; }
+        .sm-collapsible-header .sm-arrow { transition: transform .2s; display: inline-block; font-size: 11px; }
+        .sm-collapsible-header.open .sm-arrow { transform: rotate(90deg); }
+        .sm-new-form { display: flex; flex-direction: column; gap: 12px; }
+        #startupModal .startup-box { max-height: 92vh; overflow-y: auto; }
+
         /* ===== PIANO KEYBOARD ===== */
         .input-mode-toggle { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
         .input-mode-toggle label { font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
         #pianoInputPanel { display: none; flex-direction: column; width: 100%; }
+        #midiConnectBtn:hover { background: #e3f2fd !important; border-color: #90caf9 !important; }
+        #midiConnectBtn.connected { background: #e8f5e9 !important; border-color: #81c784 !important; }
+        #midiLed.active  { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
+        #midiLed.waiting { background: #ff9800; box-shadow: 0 0 4px #ff9800; }
         #pianoKeyboard {
             position: relative;
             height: 110px;
@@ -540,68 +571,69 @@
     <div id="startupModal">
         <div class="startup-box">
             <h2>𝄞 WebScoreCreator</h2>
-		
-				<p class="startup-sub">Enter a name for the new song, or open an existing ABC file.</p>
-            <input type="text" id="startupTitleInput" value="New song" placeholder="Song name…"
-                onkeydown="if(event.key==='Enter') startupCreate()">
 
-            <!-- Key / Time / Pickup -->
-            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
-                    Key
-                    <select id="startupKeySig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
-                        <option value="C">C / Am</option>
-                        <option value="G">G / Em</option>
-                        <option value="D">D / Bm</option>
-                        <option value="A">A / F♯m</option>
-                        <option value="E">E / C♯m</option>
-                        <option value="B">B / G♯m</option>
-                        <option value="F#">F♯ / D♯m</option>
-                        <option value="C#">C♯ / A♯m</option>
-                        <option value="F">F / Dm</option>
-                        <option value="Bb">B♭ / Gm</option>
-                        <option value="Eb">E♭ / Cm</option>
-                        <option value="Ab">A♭ / Fm</option>
-                        <option value="Db">D♭ / B♭m</option>
-                        <option value="Gb">G♭ / E♭m</option>
-                        <option value="Cb">C♭ / A♭m</option>
-                    </select>
-                </label>
-                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
-                    Time
-                    <select id="startupTimeSig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;" onchange="startupUpdatePickup(); startupToggleCustomGroups()">
-                        <option value="4/4">4/4</option>
-                        <option value="3/4">3/4</option>
-                        <option value="2/4">2/4</option>
-                        <option value="5/4">5/4</option>
-                        <option value="6/8">6/8</option>
-                        <option value="5/8">5/8</option>
-                        <option value="x/8">x/8 — custom</option>
-                    </select>
-                </label>
-                <label id="startupCustomGroupsWrap" style="display:none;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
-                    Beat groups (8ths)
-                    <input type="text" id="startupCustomGroupsInput"
-                        placeholder="e.g. 3 3 2"
-                        style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;width:110px;"
-                        oninput="startupUpdatePickup()">
-                    <span style="font-size:10px;color:#90a4ae;line-height:1.3;">Space-separated 8th-note group<br>sizes. Sum = total 8ths.</span>
-                </label>
-                <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">
-                    Pickup (anacrusis)
-                    <select id="startupPickup" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
-                        <option value="0">None</option>
-                    </select>
-                </label>
+            <!-- SESSIONS LIST -->
+            <div id="smSessionsSection">
+                <div class="sm-section-label">📂 Saved sessions</div>
+                <div class="sm-sessions-list" id="smSessionsList">
+                    <div class="sm-empty-hint">No saved sessions yet</div>
+                </div>
             </div>
 
-            <p style="margin:0;font-size:12px;color:#90a4ae;background:#f5f9fa;border-left:3px solid #b0bec5;padding:6px 10px;border-radius:4px;">
-                🎸 Instruments and channels can be added later in <strong>Score Settings</strong>.
-            </p>
+            <!-- NEW SCORE (collapsible) -->
+            <div>
+                <div class="sm-collapsible-header" id="smNewHeader" onclick="smToggleNewForm()">
+                    <span class="sm-arrow">▶</span>&ensp;New score
+                </div>
+                <div id="smNewForm" class="sm-new-form" style="display:none; margin-top:10px;">
+                    <input type="text" id="startupTitleInput" value="New song" placeholder="Song name…"
+                        onkeydown="if(event.key==='Enter') startupCreate()">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">Key
+                            <select id="startupKeySig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
+                                <option value="C">C / Am</option><option value="G">G / Em</option>
+                                <option value="D">D / Bm</option><option value="A">A / F♯m</option>
+                                <option value="E">E / C♯m</option><option value="B">B / G♯m</option>
+                                <option value="F#">F♯ / D♯m</option><option value="C#">C♯ / A♯m</option>
+                                <option value="F">F / Dm</option><option value="Bb">B♭ / Gm</option>
+                                <option value="Eb">E♭ / Cm</option><option value="Ab">A♭ / Fm</option>
+                                <option value="Db">D♭ / B♭m</option><option value="Gb">G♭ / E♭m</option>
+                                <option value="Cb">C♭ / A♭m</option>
+                            </select>
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">Time
+                            <select id="startupTimeSig" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;" onchange="startupUpdatePickup(); startupToggleCustomGroups()">
+                                <option value="4/4">4/4</option><option value="3/4">3/4</option>
+                                <option value="2/4">2/4</option><option value="5/4">5/4</option>
+                                <option value="6/8">6/8</option><option value="5/8">5/8</option>
+                                <option value="x/8">x/8 — custom</option>
+                            </select>
+                        </label>
+                        <label id="startupCustomGroupsWrap" style="display:none;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">Beat groups (8ths)
+                            <input type="text" id="startupCustomGroupsInput" placeholder="e.g. 3 3 2"
+                                style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;width:110px;"
+                                oninput="startupUpdatePickup()">
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#546e7a;font-weight:600;">Pickup
+                            <select id="startupPickup" style="padding:7px 8px;font-size:14px;border:1px solid #b0bec5;border-radius:6px;outline:none;">
+                                <option value="0">None</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p style="margin:0;font-size:12px;color:#90a4ae;background:#f5f9fa;border-left:3px solid #b0bec5;padding:6px 10px;border-radius:4px;">
+                        🎸 Instruments and channels can be added later in <strong>Score Settings</strong>.
+                    </p>
+                    <div class="startup-actions">
+                        <button class="btn-create" onclick="startupCreate()">✓ Create</button>
+                        <button class="btn-open" onclick="startupOpenABC()">📂 Open ABC</button>
+                    </div>
+                </div>
+            </div>
 
-            <div class="startup-actions">
-                <button class="btn-create" onclick="startupCreate()">✓ Create</button>
-                <button class="btn-open" onclick="startupOpenABC()">📂 Open ABC</button>
+            <!-- QUICK BUTTONS (shown when new-form is collapsed) -->
+            <div id="smQuickBtns" style="display:flex; gap:10px;">
+                <button class="btn-create" style="flex:1;padding:10px;font-size:15px;" onclick="smToggleNewForm(true)">✚ New score</button>
+                <button class="btn-open" style="flex:1;padding:10px;font-size:15px;" onclick="startupOpenABC()">📂 Open ABC</button>
             </div>
         </div>
     </div>
@@ -664,7 +696,7 @@
         </div>
         <!-- SF2 soundfont row -->
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <button onclick="document.getElementById('sf2Input').click()" title="Load a custom SF2 soundfont for note preview and score playback">🎷 Load SF2</button>
+            <button onclick="pickSF2File()" title="Load a custom SF2 soundfont for note preview and score playback">🎷 Load SF2</button>
             <input type="file" id="sf2Input" accept=".sf2" style="display:none;" onchange="loadSF2File(event)">
             <span id="sf2Status" style="font-size:12px;color:#888;font-style:italic;">Default sound (soundfont-player)</span>
             <button id="sf2ClearBtn" onclick="clearSF2()" title="Revert to default sound" style="display:none;background:#ffcdd2;border-color:#e57373;">&#10005; Clear SF2</button>
@@ -782,6 +814,17 @@
             <div id="pianoInputPanel" style="display:none;">
                 <div id="pianoKeyboard">
                     <div id="pianoKeysInner"></div>
+                </div>
+                <div class="piano-controls-row" style="padding:3px 0 0; gap:8px; align-items:center;">
+                    <button id="midiConnectBtn" onclick="MidiInput.toggle()"
+                        style="display:flex;align-items:center;gap:5px;padding:4px 10px;font-size:13px;border-radius:5px;border:1px solid #b0bec5;background:#f5f5f5;cursor:pointer;"
+                        title="Connect/disconnect MIDI keyboard">
+                        <span id="midiLed" style="width:9px;height:9px;border-radius:50%;background:#ccc;display:inline-block;box-shadow:0 0 0 1px #999;flex-shrink:0;"></span>
+                        🎹 MIDI
+                    </button>
+                    <select id="midiDeviceSelect" style="display:none;font-size:12px;padding:3px 6px;border-radius:5px;border:1px solid #b0bec5;max-width:200px;"
+                        onchange="MidiInput.selectDevice(this.value)" title="Select MIDI input device"></select>
+                    <span id="midiStatusText" style="font-size:12px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
                 </div>
                 <div class="piano-controls-row note-input-keys">
                     <div class="group">
@@ -1060,6 +1103,8 @@
                 onPickupChange();
             }
 
+            const _newId = WSM._genId();
+            WSM._currentId = _newId;
             updateScore();
             closeStartupModal();
         }
@@ -1185,31 +1230,25 @@ let undoLimit = 20;               // максимум шагов отмены
 let isUndoing = false;            // флаг, чтобы не сохранять снимок при отмене
 let _skipUndo = false;            // флаг для пропуска сохранения (например, при resize)
 let lastStateHash = null;
+// _undoDirty is set by note-mutating operations so pushUndoState can skip
+// the expensive state-comparison step when nothing has changed.
+let _undoDirty = false;
+function markUndoDirty() { _undoDirty = true; }
+
 function pushUndoState() {
     if (isUndoing || _skipUndo) return;
+    if (!_undoDirty) return; // nothing mutated since last undo push
+    _undoDirty = false;
 
-    // Создаём объект текущего состояния для сравнения
-    const currentState = {
-        voicesData: voicesData,
-        measureRepeats: measureRepeats,
-        measureVoltas: measureVoltas,
-        measureDirectives: measureDirectives,
-        measureKeySigs: measureKeySigs,
-        voiceOrder: voiceOrder,
-        activeTrack: activeTrack,
-        selection: selection,
-        selectionAtStart: selectionAtStart
-    };
-    const hash = JSON.stringify(currentState);
-    if (hash === lastStateHash) return; // ничего не изменилось – не сохраняем
-
-    // Сохраняем глубокую копию
+    // structuredClone is 3-5x faster than JSON.parse(JSON.stringify(...))
+    // and handles typed arrays / Date objects correctly.
+    const sc = typeof structuredClone === 'function' ? structuredClone : (v => JSON.parse(JSON.stringify(v)));
     const stateCopy = {
-        voicesData: JSON.parse(JSON.stringify(voicesData)),
-        measureRepeats: JSON.parse(JSON.stringify(measureRepeats)),
-        measureVoltas: JSON.parse(JSON.stringify(measureVoltas)),
-        measureDirectives: JSON.parse(JSON.stringify(measureDirectives)),
-        measureKeySigs: JSON.parse(JSON.stringify(measureKeySigs)),
+        voicesData:        sc(voicesData),
+        measureRepeats:    sc(measureRepeats),
+        measureVoltas:     sc(measureVoltas),
+        measureDirectives: sc(measureDirectives),
+        measureKeySigs:    sc(measureKeySigs),
         voiceOrder: [...voiceOrder],
         activeTrack: activeTrack,
         selection: { ...selection },
@@ -1218,7 +1257,7 @@ function pushUndoState() {
     undoStack.push(stateCopy);
     if (undoStack.length > undoLimit) undoStack.shift();
 
-    lastStateHash = hash;
+    lastStateHash = null; // kept for compatibility (unused now)
     hasUnsavedChanges = true;
 }
 function undo() {
@@ -3356,6 +3395,11 @@ const DRUM_SVG = {
             let effAccsAtCursor = {};
             try { effAccsAtCursor = getMeasureEffectiveAccidentals(activeTrack, getInsertionTime()); } catch(e) {}
 
+            // Context key: icon SVGs are pure functions of these params,
+            // independent of actual notes in the score. Skip ABCJS renders when unchanged.
+            const _effAccKey = Object.entries(effAccsAtCursor).sort().toString();
+            const _iconCtxKey = `${clef}|${baseOctaveShift}|${currentDurQuarters}|${nextMods.accidental}|${nextMods.dot}|${_effAccKey}`;
+
             function renderBtn(btn, durQuarters) {
                 let note = btn.dataset.note;
                 let rowShift = parseInt(btn.dataset.rowShift);
@@ -3365,19 +3409,23 @@ const DRUM_SVG = {
                 if (note !== 'z') {
                     if (totalShift <= -3) octaveStr = ',,,'; else if (totalShift === -2) octaveStr = ',,'; else if (totalShift === -1) octaveStr = ','; else if (totalShift === 0) octaveStr = ''; else if (totalShift === 1) octaveStr = "'"; else if (totalShift === 2) octaveStr = "''"; else if (totalShift >= 3) octaveStr = "'''";
                 }
-                let baseUnits = Math.round(durQuarters / 0.125); // L:1/32: 32nd=1, 16th=2, 8th=4, quarter=8 ...
+                let baseUnits = Math.round(durQuarters / 0.125);
                 let durStr = String(baseUnits);
                 if (nextMods.dot && durQuarters > 0.125 + 0.001) durStr += '.';
                 let abcLine = note === 'z' ? `z${durStr}` : `${note}${octaveStr}${durStr}`;
                 let abc = `X:1\nL:1/32\nK:C clef=${clef}\n${abcLine}`;
                 let iconSpan = btn.querySelector('.note-icon');
                 if (!iconSpan) return;
-                iconSpan.innerHTML = '';
-                try {
-                    ABCJS.renderAbc(iconSpan, abc, { responsive: 'resize', staffwidth: 70 });
-                    // Normalize staff line vertical position so treble and bass staves align
-                    alignStaffInIcon(iconSpan, clef);
-                } catch (e) {}
+                // Cache hit: SVG already shows the correct icon for these exact params
+                const _btnKey = `${_iconCtxKey}|${note}|${rowShift}|${durQuarters}`;
+                if (iconSpan.dataset.iconKey !== _btnKey) {
+                    iconSpan.innerHTML = '';
+                    try {
+                        ABCJS.renderAbc(iconSpan, abc, { responsive: 'resize', staffwidth: 70 });
+                        alignStaffInIcon(iconSpan, clef);
+                    } catch (e) {}
+                    iconSpan.dataset.iconKey = _btnKey;
+                }
                 let letterSpan = btn.querySelector('.note-letter');
                 if (letterSpan) {
                     let letter = note;
@@ -3956,7 +4004,7 @@ function addNoteSync(noteBase, rowShift) {
         }
     }
     resetMods();
-    updateScore();
+    markUndoDirty(); _scoreJustMutated = true; updateScore(); _scoreJustMutated = false;
 }
         // ==================== MAIN EDITING FUNCTIONS ====================
         function insertNotes(activeKey, insertIdx, notesToInsert) {
@@ -4002,7 +4050,7 @@ function addNoteSync(noteBase, rowShift) {
             else { selection.start = -1; selection.end = -1; }
             selectionAtStart = false;
             removeEmptyMeasures();
-            updateScore();
+            markUndoDirty(); _scoreJustMutated = true; updateScore(); _scoreJustMutated = false;
         }
 
         function findInsertedIndices(notes, beforeDur, insertedDur) {
@@ -4199,7 +4247,7 @@ function addNoteSync(noteBase, rowShift) {
                             if (n.pitches) n.pitches.push({ ...newPitch });
                         }
                         selection.start = groupEnd; selection.end = groupEnd;
-                        updateScore(); resetMods(); return;
+                        markUndoDirty(); _scoreJustMutated = true; updateScore(); _scoreJustMutated = false; resetMods(); return;
                     }
                 }
                 if (selectionAtStart) { insertIdx = 0; selectionAtStart = false; }
@@ -4638,6 +4686,8 @@ function deleteSelectionSync() {
                         updateNoteButtonIcons();
                         preloadInstruments();
                         hasUnsavedChanges = false;
+                        // Assign new session ID for this loaded file
+                        if (!WSM._currentId) WSM._currentId = WSM._genId();
                         closeStartupModal();
                     } catch (err) { alert("Error reading saved file!"); console.error(err); }
                 } else alert("This ABC file was created in another program. Direct import of foreign files is not supported yet.");
@@ -6403,33 +6453,15 @@ function generateMIDIWithBend() {
             }
         }
 
-        function updateScore() {
-			if (!_skipUndo && !isUndoing) {
-             pushUndoState();
-             }
-            window.lastAbcString = buildAbcString();
-            console.log("ABC String:", window.lastAbcString);
-            for (let vKey of getOrderedKeys()) for (let n of voicesData[vKey].notes) {
-                if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
-                if (n.abcUnits !== undefined && isNaN(n.abcUnits)) n.abcUnits = 1;
-            }
+        // Timer for deferred rendering during rapid note input.
+        let _renderTimer   = null;
+        let _scoreJustMutated = false; // set by addNoteEx around its updateScore call
 
-            let paperDiv   = document.getElementById('paper');
-            let viewport   = document.getElementById('scoreViewport');
-            let sbWrap     = document.getElementById('scoreScrollbarWrap');
-            let isInfinite = !!(document.getElementById('infiniteString') && document.getElementById('infiniteString').checked);
-            let padding    = 20;
-
-            // Preserve vertical scroll position across re-renders so the viewport
-            // does not jump back to the top every time a note is entered.
-            let savedScrollTop  = viewport ? viewport.scrollTop  : 0;
-            let savedScrollLeft = viewport ? viewport.scrollLeft : 0;
-
+        function _doRender(isInfinite, paperDiv, viewport, sbWrap, savedScrollTop, savedScrollLeft, padding) {
+            _renderTimer = null;
             if (isInfinite) {
-                // ── INFINITE MODE ──────────────────────────────────────────────────────
                 const mpl = parseInt((document.getElementById('measuresPerLine') || {}).value) || 8;
                 const vpW = viewport.clientWidth || window.innerWidth;
-
                 const activeKeysInf = getActiveKeys();
                 let totalMeasures   = 0;
                 const mcap          = getMeasureCapacity();
@@ -6440,110 +6472,49 @@ function generateMIDIWithBend() {
                     if (mc > totalMeasures) totalMeasures = mc;
                 }
                 totalMeasures = Math.max(totalMeasures, 1);
-
-                const OVERHEAD_PX = 70;
+                const OVERHEAD_PX  = 70;
                 const pxPerMeasure = Math.max(60, (vpW - OVERHEAD_PX) / mpl);
                 const bigWidth     = Math.ceil(totalMeasures * pxPerMeasure + OVERHEAD_PX);
-
-                // Clear stale SVG first so abcjs measures a clean container
                 paperDiv.innerHTML = '';
-
                 ABCJS.renderAbc("paper", window.lastAbcString, {
-                    responsive: null,
-                    add_classes: true,
-                    staffwidth: bigWidth,
-                    scale: 1.0,
+                    responsive: null, add_classes: true, staffwidth: bigWidth, scale: 1.0,
                     wrap: { minSpacing: 1, maxSpacing: 1, preferredMeasuresPerLine: 9999 }
                 });
-
-                // Read the height abcjs computed for this single line.
-                // getAttribute('height') is set by abcjs in SVG user-units (≈ px at scale 1.0).
-                // viewBox.height is the canonical content height — we use it as the ground truth.
                 let wideSvg = paperDiv.querySelector('svg');
                 let trueH   = 200;
                 if (wideSvg) {
-                    // viewBox height is the most reliable: it is what abcjs computed before
-                    // any browser scaling, and does not include the proportional extra space
-                    // that getBoundingClientRect() returns when the SVG has responsive sizing.
                     let vb = wideSvg.viewBox && wideSvg.viewBox.baseVal;
-                    if (vb && vb.height > 10) {
-                        trueH = Math.ceil(vb.height);
-                    } else {
-                        let hAttr = parseFloat(wideSvg.getAttribute('height'));
-                        if (hAttr > 10) trueH = Math.ceil(hAttr);
-                    }
-                    // Lock the SVG to exactly trueH — prevents browser from adding space
+                    if (vb && vb.height > 10) { trueH = Math.ceil(vb.height); }
+                    else { let hAttr = parseFloat(wideSvg.getAttribute('height')); if (hAttr > 10) trueH = Math.ceil(hAttr); }
                     wideSvg.style.height = trueH + 'px';
                     wideSvg.setAttribute('height', String(trueH));
                 }
-
-                // FIX: do NOT lock viewport to a fixed pixel height.
-                // flex:1 already gives the viewport all remaining screen space.
-                // With overflow-y:auto, the viewport will scroll vertically when
-                // the SVG (trueH) + bottom spacer exceed the available height.
                 viewport.classList.add('infinite-mode');
-                viewport.style.height = '';  // clear any old inline height
-
-                // Show and link the sticky scrollbar
+                viewport.style.height = '';
                 setupInfiniteScrollSync(bigWidth);
-
             } else {
-                // ── NORMAL MODE ─────────────────────────────────────────────
-                // Clean up infinite mode state
                 if (viewport._infCleanup) viewport._infCleanup();
                 viewport.classList.remove('infinite-mode');
                 viewport.style.height = '';
                 paperDiv.style.width  = '';
                 paperDiv.style.height = '';
                 if (sbWrap) sbWrap.style.display = 'none';
-
-                // IMPORTANT: clear stale SVG content BEFORE measuring container width
-                // and BEFORE calling renderAbc. After infinite mode the wide SVG
-                // (responsive:null, staffwidth=bigWidth) is still in #paper.
-                // abcjs's responsive:"resize" mode reads the element's scrollWidth to
-                // set staffwidth — with the old wide SVG still present scrollWidth equals
-                // bigWidth (~2000px) instead of the visible container width, so the score
-                // renders as one enormous line showing only the first measure fragment.
-                // Clearing innerHTML first gives abcjs a clean, correctly-sized container.
                 paperDiv.innerHTML = '';
-
                 let containerWidth = viewport.clientWidth || (viewport.parentElement || document.body).clientWidth;
                 let opts = { responsive: "resize", add_classes: true, staffwidth: containerWidth - padding, scale: 1.0 };
                 let measuresPerLine = parseInt(document.getElementById('measuresPerLine').value);
                 if (measuresPerLine > 0) opts.wrap = { minSpacing: 0, maxSpacing: 0, preferredMeasuresPerLine: measuresPerLine };
                 ABCJS.renderAbc("paper", window.lastAbcString, opts);
             }
-
-            setTimeout(() => {
-                let annotations = document.querySelectorAll('.abcjs-annotation');
-                console.log('Found annotations:', annotations.length);
-                annotations.forEach(el => console.log('Annotation text:', el.textContent));
-            }, 500);
             drawVisualSelection();
             drawOttavaBrackets();
             highlightIncompleteMeasures();
             updateNoteButtonIcons();
-            // Ensure bottom spacer matches current panel height after re-render.
-            // IMPORTANT: this must happen BEFORE restoring scrollTop.
-            // updateScoreViewportPadding() appends a spacer to #paper, increasing its
-            // scrollable height. Without the spacer the content is shorter than before,
-            // so setting scrollTop too early would be silently clamped by the browser.
             if (typeof updateScoreViewportPadding === 'function') updateScoreViewportPadding();
-
-            // Restore the scroll position that was saved before the re-render.
-            // Runs after the spacer is in place so the scrollable area is large enough
-            // to accept the saved value without clamping.
-            // In infinite (horizontal) mode we only restore the vertical axis because
-            // scrollToActiveSelection() handles the horizontal cursor-follow logic.
             if (viewport) {
-                if (isInfinite) {
-                    viewport.scrollTop = savedScrollTop;
-                } else {
-                    viewport.scrollTop  = savedScrollTop;
-                    viewport.scrollLeft = savedScrollLeft;
-                }
+                if (isInfinite) { viewport.scrollTop = savedScrollTop; }
+                else { viewport.scrollTop = savedScrollTop; viewport.scrollLeft = savedScrollLeft; }
             }
-            // Update key sig change label
             const keySigLabel = document.getElementById('currentKeySigLabel');
             if (keySigLabel) {
                 const curMeas = getCurrentMeasureIndex();
@@ -6554,6 +6525,41 @@ function generateMIDIWithBend() {
                 if (sel && hasChange) sel.value = measureKeySigs[curMeas];
                 else if (sel && !hasChange) sel.value = '';
             }
+            if (typeof WSM !== 'undefined') WSM._scheduleSave();
+        }
+
+        function updateScore() {
+			if (!_skipUndo && !isUndoing) {
+             pushUndoState();
+             }
+            window.lastAbcString = buildAbcString();
+            for (let vKey of getOrderedKeys()) for (let n of voicesData[vKey].notes) {
+                if (n.durationInQuarters !== undefined && isNaN(n.durationInQuarters)) { n.durationInQuarters = 0.25; n.abcUnits = 1; }
+                if (n.abcUnits !== undefined && isNaN(n.abcUnits)) n.abcUnits = 1;
+            }
+
+            let paperDiv   = document.getElementById('paper');
+            let viewport   = document.getElementById('scoreViewport');
+            let sbWrap     = document.getElementById('scoreScrollbarWrap');
+            let isInfinite = !!(document.getElementById('infiniteString') && document.getElementById('infiniteString').checked);
+            let padding    = 20;
+            let savedScrollTop  = viewport ? viewport.scrollTop  : 0;
+            let savedScrollLeft = viewport ? viewport.scrollLeft : 0;
+
+            // ── DEFERRED RENDER during note input ───────────────────────────
+            // Audio already played before updateScore was called.  We give the
+            // browser a ~60ms window to batch rapid keypresses into one render.
+            if (_scoreJustMutated) {
+                if (_renderTimer) clearTimeout(_renderTimer);
+                _renderTimer = setTimeout(() =>
+                    _doRender(isInfinite, paperDiv, viewport, sbWrap, savedScrollTop, savedScrollLeft, padding)
+                , 60);
+                return;
+            }
+
+            // ── IMMEDIATE RENDER (settings changes, undo, track switch…) ───
+            if (_renderTimer) { clearTimeout(_renderTimer); _renderTimer = null; }
+            _doRender(isInfinite, paperDiv, viewport, sbWrap, savedScrollTop, savedScrollLeft, padding);
         }
 
         // ── Infinite-mode scroll infrastructure ──────────────────────────
@@ -7065,9 +7071,14 @@ function generateMIDIWithBend() {
         }
 
         // ==================== INITIALIZATION ====================
-        window.addEventListener('load', function() { 
+        window.addEventListener('load', function() {
+            const _sessionRestored = WSM._init(); // returns true if tab session was auto-restored
             populateInstrumentSelect();
-            initDefaultChannels();
+            // Only create default Piano channels for a truly blank new score.
+            // If a session was auto-restored, voicesData already contains the saved channels;
+            // calling initDefaultChannels() here would add spurious Piano RH/LH on top and
+            // corrupt the auto-save 900 ms later.
+            if (!_sessionRestored) initDefaultChannels();
             // Set default beaming based on initial time signature
             const beamingMap = { '4/4': '4', '2/4': '4', '3/4': '2', '5/4': '2', '6/8': '3', '5/8': '5' };
             const ts = document.getElementById('timeSig').value;
@@ -7139,38 +7150,64 @@ function generateMIDIWithBend() {
         const sf2BufCache  = {};    // sampleIdx → AudioBuffer
 
         // ── UI helpers ──────────────────────────────────────────────
+
+        // Main entry point for SF2 loading — prefers File System Access API
+        // so the handle can be stored and the file re-opened automatically next time.
+        async function pickSF2File() {
+            if (window.showOpenFilePicker) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{ description: 'SF2 Soundfont', accept: { 'audio/x-soundfont': ['.sf2'] } }],
+                        multiple: false,
+                    });
+                    const file = await handle.getFile();
+                    await _parseSF2FromFile(file, handle);
+                    return;
+                } catch(e) {
+                    if (e.name === 'AbortError') return; // user cancelled picker
+                    // Fall through to legacy input
+                }
+            }
+            // Fallback for Firefox / Safari
+            document.getElementById('sf2Input').click();
+        }
+
+        // Legacy <input type="file"> path (Firefox/Safari fallback)
         function loadSF2File(event) {
             const file = event.target.files[0];
             if (!file) return;
+            _parseSF2FromFile(file, null);
+            event.target.value = '';
+        }
+
+        // Shared SF2 parse + status update + handle storage
+        async function _parseSF2FromFile(file, fileHandle) {
             const statusEl = document.getElementById('sf2Status');
             statusEl.textContent = 'Parsing ' + file.name + ' …';
             statusEl.style.color = '#f57c00';
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    customSF2Data = parseSF2(e.target.result);
-                    // Clear sample cache from any previous SF2
-                    for (const k in sf2BufCache) delete sf2BufCache[k];
-                    const zoneCount = Object.values(customSF2Data.programZones)
-                                            .reduce((a, z) => a + z.length, 0);
-                    statusEl.textContent = file.name
-                        + ' (' + Object.keys(customSF2Data.programZones).length + ' presets, '
-                        + zoneCount + ' zones)';
-                    statusEl.style.color = '#388e3c';
-                    document.getElementById('sf2ClearBtn').style.display = '';
-                } catch(err) {
-                    statusEl.textContent = 'Error: ' + err.message;
-                    statusEl.style.color = '#c62828';
-                    customSF2Data = null;
-                    console.error('SF2 parse error:', err);
+            try {
+                const buf = await file.arrayBuffer();
+                customSF2Data = parseSF2(buf);
+                for (const k in sf2BufCache) delete sf2BufCache[k];
+                const zoneCount = Object.values(customSF2Data.programZones).reduce((a, z) => a + z.length, 0);
+                statusEl.textContent = file.name
+                    + ' (' + Object.keys(customSF2Data.programZones).length + ' presets, '
+                    + zoneCount + ' zones)';
+                statusEl.style.color = '#388e3c';
+                document.getElementById('sf2ClearBtn').style.display = '';
+                // Save the file HANDLE (not binary!) so next session can reopen it
+                const sid = WSM._currentId || 'default';
+                if (fileHandle) {
+                    SF2HandleDB.save(sid, fileHandle, file.name).catch(() => {});
                 }
-            };
-            reader.onerror = () => {
-                statusEl.textContent = 'File read error';
+                // Always store the filename in session metadata (for display even if handle fails)
+                WSM._saveSF2FileName(sid, file.name);
+            } catch(err) {
+                statusEl.textContent = 'Error: ' + err.message;
                 statusEl.style.color = '#c62828';
-            };
-            reader.readAsArrayBuffer(file);
-            event.target.value = ''; // allow reloading same file
+                customSF2Data = null;
+                console.error('SF2 parse error:', err);
+            }
         }
 
         function clearSF2() {
@@ -7179,6 +7216,9 @@ function generateMIDIWithBend() {
             document.getElementById('sf2Status').textContent = 'Default sound (soundfont-player)';
             document.getElementById('sf2Status').style.color = '#888';
             document.getElementById('sf2ClearBtn').style.display = 'none';
+            const sid = WSM._currentId || 'default';
+            SF2HandleDB.delete(sid).catch(() => {});
+            WSM._saveSF2FileName(sid, null);
         }
 
         // ── SF2 binary parser ────────────────────────────────────────
@@ -8320,6 +8360,10 @@ function generateMIDIWithBend() {
                 label.textContent = k.n;
                 btn.appendChild(label);
 
+                btn.dataset.pkLetter = k.n;
+                btn.dataset.pkRow    = k.r;
+                btn.dataset.pkAcc   = '';
+
                 const trigger = (e) => {
                     e.preventDefault();
                     btn.classList.add('pressed');
@@ -8352,6 +8396,12 @@ function generateMIDIWithBend() {
                 btn.style.top = '0';
                 const noteName = k.n + '#';
                 btn.title = noteName + (k.r === 0 ? '' : "'");
+
+                // Compute smart spelling once at build time for data attrs (will recompute on click)
+                const _smart0 = getSmartBlackKeySpelling(k.n);
+                btn.dataset.pkLetter = _smart0.n;
+                btn.dataset.pkRow    = k.r;
+                btn.dataset.pkAcc   = _smart0.acc;
 
                 const trigger = (e) => {
                     e.preventDefault();
@@ -9106,6 +9156,599 @@ document.addEventListener('keydown', function(e) {
         79: { short:'CuO',  svgKey:'tom'         },  // Open Cuica
         80: { short:'TriM', svgKey:'triangle-op' },  // Mute Triangle
         81: { short:'TriO', svgKey:'triangle-op' },  // Open Triangle
+    };
+
+
+    // ==================== SESSION MANAGER (WSM) ====================
+    const WSM = {
+        SESSION_PREFIX: 'wsScore_s_',
+        LIST_KEY:        'wsScore_sessions',
+        TAB_KEY:         'wsCurrentSession', // in sessionStorage
+
+        get _currentId()    { return sessionStorage.getItem(this.TAB_KEY); },
+        set _currentId(v)   { sessionStorage.setItem(this.TAB_KEY, v); },
+
+        _genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+
+        _list() {
+            try { return JSON.parse(localStorage.getItem(this.LIST_KEY) || '[]'); } catch { return []; }
+        },
+        _saveList(list) {
+            try { localStorage.setItem(this.LIST_KEY, JSON.stringify(list)); } catch(e) {}
+        },
+
+        // ── Collect current app state ──────────────────────────────────────────────
+        _collect() {
+            const uiTitle   = document.getElementById('title')?.value || 'New song';
+            const uiKey     = document.getElementById('keySig')?.value || 'C';
+            const uiTime    = document.getElementById('timeSig')?.value || '4/4';
+            const uiTempo   = document.getElementById('tempo')?.value || '120';
+            const uiBeam    = document.getElementById('beaming')?.value || '4';
+            const uiMpl     = document.getElementById('measuresPerLine')?.value || '8';
+            const uiInf     = document.getElementById('infiniteString')?.checked || false;
+            const uiQt      = document.getElementById('quarterToneCheckbox')?.checked || false;
+            const uiSync    = document.getElementById('synchroModeCheckbox')?.checked || false;
+            const uiGroups  = document.getElementById('customGroupsInput')?.value || '';
+            const uiPickup  = document.getElementById('pickupSig')?.value || '0';
+            const uiMode    = document.querySelector('input[name="inputMode"]:checked')?.value || 'buttons';
+            return {
+                scoreState: {
+                    voicesData:       JSON.parse(JSON.stringify(voicesData)),
+                    measureRepeats:   JSON.parse(JSON.stringify(measureRepeats)),
+                    measureVoltas:    JSON.parse(JSON.stringify(measureVoltas)),
+                    measureDirectives:JSON.parse(JSON.stringify(measureDirectives)),
+                    measureKeySigs:   JSON.parse(JSON.stringify(measureKeySigs)),
+                    voiceOrder:       [...voiceOrder],
+                    activeTrack:      activeTrack,
+                    pickupDurQuarters:pickupDurQuarters,
+                    beatGroups:       [...beatGroups],
+                    synchroMode:      synchroMode,
+                },
+                uiState: {
+                    title: uiTitle, keySig: uiKey, timeSig: uiTime,
+                    tempo: uiTempo, beaming: uiBeam, measuresPerLine: uiMpl,
+                    infiniteString: uiInf, quarterTone: uiQt, synchroMode: uiSync,
+                    customGroups: uiGroups, pickupSig: uiPickup, inputMode: uiMode,
+                }
+            };
+        },
+
+        // ── Debounced auto-save ────────────────────────────────────────────────────
+        _saveTimer: null,
+        _paused: false,          // true while _apply() is running — prevents stale saves
+        _scheduleSave() {
+            if (this._paused) return;
+            if (this._saveTimer) clearTimeout(this._saveTimer);
+            this._saveTimer = setTimeout(() => this._doSave(), 900);
+        },
+        _doSave() {
+            const id = this._currentId;
+            if (!id) return;
+            const snap = this._collect();
+            // sf2FileName is kept separately by _saveSF2FileName — just pass through
+            const sf2Name = (() => { try { const r=localStorage.getItem(this.SESSION_PREFIX+id); if(r){const d=JSON.parse(r); return d.sf2FileName||null;} } catch(e){} return null; })();
+            const data = {
+                id,
+                title:        snap.uiState.title,
+                lastModified: Date.now(),
+                sf2FileName:  sf2Name,   // null when clearSF2() was called, or set by _saveSF2FileName
+                ...snap
+            };
+            try {
+                localStorage.setItem(this.SESSION_PREFIX + id, JSON.stringify(data));
+            } catch(e) {
+                console.warn('WSM: localStorage quota exceeded — trying to free space');
+                this._pruneOldest();
+                try { localStorage.setItem(this.SESSION_PREFIX + id, JSON.stringify(data)); } catch(e2) {}
+                return;
+            }
+            // Update index
+            const list = this._list();
+            const meta = { id, title: data.title, lastModified: data.lastModified };
+            const idx = list.findIndex(s => s.id === id);
+            if (idx >= 0) list[idx] = meta; else list.unshift(meta);
+            this._saveList(list);
+        },
+
+        // ── Pruning oldest session when storage is full ────────────────────────────
+        _pruneOldest() {
+            const list = this._list();
+            if (list.length === 0) return;
+            list.sort((a, b) => a.lastModified - b.lastModified);
+            const oldest = list[0];
+            localStorage.removeItem(this.SESSION_PREFIX + oldest.id);
+            SF2DB.delete(oldest.id).catch(() => {});
+            SF2HandleDB.delete(oldest.id).catch(() => {});
+            this._saveList(list.slice(1));
+        },
+
+        // ── Apply saved data to app state ──────────────────────────────────────────
+        _apply(data) {
+            this._paused = true;   // block auto-save while we're restoring
+            const s = data.scoreState || {};
+            const u = data.uiState   || {};
+
+            voicesData        = s.voicesData        ? JSON.parse(JSON.stringify(s.voicesData))        : {};
+            measureRepeats    = s.measureRepeats    ? JSON.parse(JSON.stringify(s.measureRepeats))    : {};
+            measureVoltas     = s.measureVoltas     ? JSON.parse(JSON.stringify(s.measureVoltas))     : {};
+            measureDirectives = s.measureDirectives ? JSON.parse(JSON.stringify(s.measureDirectives)) : {};
+            measureKeySigs    = s.measureKeySigs    ? JSON.parse(JSON.stringify(s.measureKeySigs))    : {};
+            voiceOrder        = s.voiceOrder        ? [...s.voiceOrder]                               : Object.keys(voicesData);
+            activeTrack       = s.activeTrack       || null;
+            pickupDurQuarters = s.pickupDurQuarters || 0;
+            beatGroups        = s.beatGroups        ? [...s.beatGroups]                               : [];
+            if (typeof s.synchroMode === 'boolean') synchroMode = s.synchroMode;
+
+            // UI elements
+            const set = (id, val) => { const el=document.getElementById(id); if(el && val!==undefined) el.value=val; };
+            set('title',          u.title);
+            set('keySig',         u.keySig);
+            set('timeSig',        u.timeSig);
+            set('tempo',          u.tempo);
+            set('beaming',        u.beaming);
+            set('measuresPerLine',u.measuresPerLine);
+            const infEl=document.getElementById('infiniteString');   if(infEl) infEl.checked=!!u.infiniteString;
+            const qtEl =document.getElementById('quarterToneCheckbox'); if(qtEl) qtEl.checked=!!u.quarterTone;
+            const scEl =document.getElementById('synchroModeCheckbox'); if(scEl) scEl.checked=!!s.synchroMode;
+            if (typeof s.synchroMode==='boolean') toggleSynchroMode && toggleSynchroMode(s.synchroMode);
+            if (u.quarterTone) { try { toggleQuarterToneMode(true); } catch(e) {} }
+
+            // Custom groups
+            if (u.timeSig === 'x/8' && u.customGroups) {
+                const gWrap=document.getElementById('customGroupsWrap');
+                const gInp =document.getElementById('customGroupsInput');
+                if (gWrap) gWrap.style.display='inline-flex';
+                if (gInp)  { gInp.value=u.customGroups; gInp.style.borderColor='#4caf50'; }
+                const nums=u.customGroups.trim().split(/[\s,+]+/).map(Number).filter(n=>n>0);
+                if (nums.length>=2) {
+                    beatGroups=nums;
+                    const hint=document.getElementById('customGroupsHint');
+                    if (hint) hint.textContent=`= ${nums.reduce((a,b)=>a+b,0)}/8`;
+                }
+            }
+
+            // Pickup
+            rebuildPickupOptions && rebuildPickupOptions();
+            const pickupEl=document.getElementById('pickupSig');
+            if (pickupEl && u.pickupSig!==undefined) {
+                pickupEl.value=u.pickupSig;
+                pickupDurQuarters=parseFloat(u.pickupSig)||0;
+            }
+
+            // Input mode radio
+            if (u.inputMode) {
+                const r=document.querySelector(`input[name="inputMode"][value="${u.inputMode}"]`);
+                if (r) { r.checked=true; try{switchInputMode(u.inputMode);}catch(e){} }
+            }
+
+            // Migrate missing fields in voicesData
+            for (const k of Object.keys(voicesData)) {
+                if (voicesData[k].visible  === undefined) voicesData[k].visible  = true;
+                if (voicesData[k].volume   === undefined) voicesData[k].volume   = 100;
+                if (voicesData[k].isDrum   === undefined) voicesData[k].isDrum   = (voicesData[k].clef === 'perc');
+            }
+
+            // Rebuild channel list UI
+            const cc=document.getElementById('channelsContainer');
+            if (cc) cc.innerHTML='';
+            for (const k of getOrderedKeys()) renderChannelRow(k);
+            updateVoiceUI && updateVoiceUI();
+
+            // Set active track
+            const firstActive = voiceOrder.find(k=>voicesData[k]&&voicesData[k].active) || voiceOrder[0];
+            if (firstActive) {
+                activeTrack=firstActive;
+                document.querySelectorAll('.channel-row').forEach(el=>el.classList.remove('active'));
+                const row=document.querySelector(`.channel-row[data-key="${firstActive}"]`);
+                if (row) row.classList.add('active');
+            }
+
+            preloadInstruments && preloadInstruments();
+            updateNoteButtonIcons && updateNoteButtonIcons();
+            this._paused = false;  // re-enable auto-save
+            updateScore && updateScore();
+            hasUnsavedChanges = false;
+        },
+
+        // ── Load SF2 from IndexedDB (if session had one) ──────────────────────────
+        async _restoreSF2(id, sf2FileName) {
+            if (!sf2FileName) return;
+            const statusEl = document.getElementById('sf2Status');
+            try {
+                const rec = await SF2HandleDB.load(id);
+                if (!rec || !rec.handle) {
+                    // No handle stored (e.g. loaded via legacy input) — show hint
+                    if (statusEl) {
+                        statusEl.textContent = sf2FileName + ' (не загружен — нажмите 🎷 чтобы открыть снова)';
+                        statusEl.style.color = '#f57c00';
+                    }
+                    return;
+                }
+                // Ask permission if needed (Chrome/Edge do this silently for same-origin)
+                if (rec.handle.queryPermission) {
+                    const perm = await rec.handle.queryPermission({ mode: 'read' });
+                    if (perm !== 'granted') {
+                        const req = await rec.handle.requestPermission({ mode: 'read' });
+                        if (req !== 'granted') {
+                            if (statusEl) {
+                                statusEl.textContent = sf2FileName + ' (нет доступа — нажмите 🎷 чтобы открыть снова)';
+                                statusEl.style.color = '#f57c00';
+                            }
+                            return;
+                        }
+                    }
+                }
+                const file = await rec.handle.getFile();
+                const buf  = await file.arrayBuffer();
+                customSF2Data = parseSF2(buf);
+                for (const k in sf2BufCache) delete sf2BufCache[k];
+                const zoneCount = Object.values(customSF2Data.programZones).reduce((a,z)=>a+z.length,0);
+                if (statusEl) {
+                    statusEl.textContent = sf2FileName + ' (' + Object.keys(customSF2Data.programZones).length + ' presets, ' + zoneCount + ' zones)';
+                    statusEl.style.color = '#388e3c';
+                }
+                const clrBtn = document.getElementById('sf2ClearBtn');
+                if (clrBtn) clrBtn.style.display = '';
+            } catch(e) {
+                console.warn('WSM: could not restore SF2 —', e);
+                if (statusEl) {
+                    statusEl.textContent = sf2FileName + ' (ошибка загрузки — нажмите 🎷 чтобы открыть снова)';
+                    statusEl.style.color = '#e65100';
+                }
+            }
+        },
+
+        // ── Load a session by ID ──────────────────────────────────────────────────
+        load(id) {
+            const raw = localStorage.getItem(this.SESSION_PREFIX + id);
+            if (!raw) { alert('Session not found'); return false; }
+            try {
+                const data = JSON.parse(raw);
+                this._currentId = id;
+                this._apply(data);
+                if (data.sf2FileName) this._restoreSF2(id, data.sf2FileName);
+                closeStartupModal();
+                return true;
+            } catch(e) {
+                console.error('WSM load error:', e);
+                alert('Failed to load session');
+                return false;
+            }
+        },
+
+        // ── Delete a session ──────────────────────────────────────────────────────
+        delete(id) {
+            localStorage.removeItem(this.SESSION_PREFIX + id);
+            SF2HandleDB.delete(id).catch(() => {});
+            const list = this._list().filter(s => s.id !== id);
+            this._saveList(list);
+            this._renderList();
+            if (this._currentId === id) this._currentId = '';
+        },
+
+        // ── Store SF2 filename in session record ──────────────────────────────────
+        _saveSF2FileName(sessionId, name) {
+            try {
+                const raw = localStorage.getItem(this.SESSION_PREFIX + sessionId);
+                if (!raw) return;
+                const d = JSON.parse(raw);
+                if (name) d.sf2FileName = name; else delete d.sf2FileName;
+                localStorage.setItem(this.SESSION_PREFIX + sessionId, JSON.stringify(d));
+                // Also update list meta title (filename doesn't affect title, no need)
+            } catch(e) {}
+        },
+
+        // ── Render sessions list in modal ──────────────────────────────────────────
+        _renderList() {
+            const container = document.getElementById('smSessionsList');
+            if (!container) return;
+            const list = this._list();
+            const curId = this._currentId;
+            if (list.length === 0) {
+                container.innerHTML = '<div class="sm-empty-hint">No saved sessions yet</div>';
+                return;
+            }
+            container.innerHTML = '';
+            list.sort((a, b) => b.lastModified - a.lastModified);
+            list.forEach(meta => {
+                const row = document.createElement('div');
+                row.className = 'sm-session-row' + (meta.id === curId ? ' sm-active' : '');
+                row.title = 'Click to open';
+
+                const elapsed = Date.now() - (meta.lastModified || 0);
+                let timeStr;
+                if      (elapsed < 60000)      timeStr = 'just now';
+                else if (elapsed < 3600000)    timeStr = Math.floor(elapsed/60000) + ' min ago';
+                else if (elapsed < 86400000)   timeStr = Math.floor(elapsed/3600000) + ' h ago';
+                else if (elapsed < 2592000000) timeStr = Math.floor(elapsed/86400000) + ' d ago';
+                else                           timeStr = new Date(meta.lastModified).toLocaleDateString();
+
+                row.innerHTML = `
+                    <div class="sm-session-info">
+                        <div class="sm-session-title">🎵 ${meta.title || 'Untitled'}</div>
+                        <div class="sm-session-meta">${timeStr}</div>
+                    </div>
+                    <button class="sm-session-del" title="Delete session" onclick="event.stopPropagation(); WSM.delete('${meta.id}')">🗑</button>`;
+                row.addEventListener('click', () => WSM.load(meta.id));
+                container.appendChild(row);
+            });
+        },
+
+        // ── Initialize on page load — returns true if a session was auto-restored ──
+        _init() {
+            // Render the sessions list in the modal (before potential auto-restore)
+            this._renderList();
+
+            const savedId = this._currentId;
+            if (savedId && localStorage.getItem(this.SESSION_PREFIX + savedId)) {
+                // Tab had a session — silently restore it (handles page refresh)
+                try {
+                    const data = JSON.parse(localStorage.getItem(this.SESSION_PREFIX + savedId));
+                    this._apply(data);
+                    if (data.sf2FileName) this._restoreSF2(savedId, data.sf2FileName);
+                    closeStartupModal();
+                    return true;   // ← caller must skip initDefaultChannels
+                } catch(e) {
+                    console.warn('WSM: auto-restore failed, showing modal', e);
+                    this._currentId = '';
+                }
+            }
+            // Show modal — the session list is already rendered above
+            return false;
+        },
+    };
+
+    // Toggle the New Score form in startup modal
+    function smToggleNewForm(forceOpen) {
+        const header   = document.getElementById('smNewHeader');
+        const form     = document.getElementById('smNewForm');
+        const quickBtns= document.getElementById('smQuickBtns');
+        if (!form) return;
+        const willOpen = forceOpen !== undefined ? !!forceOpen : (form.style.display === 'none');
+        form.style.display     = willOpen ? 'flex'  : 'none';
+        if (quickBtns) quickBtns.style.display = willOpen ? 'none'  : 'flex';
+        if (header) header.classList.toggle('open', willOpen);
+        if (willOpen) {
+            const inp = document.getElementById('startupTitleInput');
+            if (inp) setTimeout(() => inp.focus(), 50);
+        }
+    }
+
+    // ==================== SF2 FILE-HANDLE STORAGE (SF2HandleDB) ====================
+    // Stores a FileSystemFileHandle per session in IndexedDB.
+    // No binary data — just a lightweight pointer to the file on the user's disk.
+    // On restore: handle.getFile() -> arrayBuffer() re-reads it without a dialog
+    // (Chrome/Edge grant permission automatically for same origin; Firefox falls back).
+    const SF2HandleDB = {
+        _db: null,
+        async _open() {
+            if (this._db) return this._db;
+            return new Promise((res, rej) => {
+                const req = indexedDB.open('WebScoreCreator_v1', 1);
+                req.onupgradeneeded = e => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('sf2handles'))
+                        db.createObjectStore('sf2handles', { keyPath: 'id' });
+                };
+                req.onsuccess = e => { this._db = e.target.result; res(this._db); };
+                req.onerror   = ()  => rej(req.error);
+            });
+        },
+        async save(sessionId, fileHandle, fileName) {
+            try {
+                const db = await this._open();
+                await new Promise((res, rej) => {
+                    const tx = db.transaction('sf2handles', 'readwrite');
+                    tx.objectStore('sf2handles').put({ id: sessionId, handle: fileHandle, fileName });
+                    tx.oncomplete = () => res();
+                    tx.onerror    = () => rej(tx.error);
+                });
+            } catch(e) { /* handle not serializable in this browser — silent */ }
+        },
+        async load(sessionId) {
+            try {
+                const db = await this._open();
+                return await new Promise((res, rej) => {
+                    const req = db.transaction('sf2handles').objectStore('sf2handles').get(sessionId);
+                    req.onsuccess = () => res(req.result || null);
+                    req.onerror   = () => rej(req.error);
+                });
+            } catch(e) { return null; }
+        },
+        async delete(sessionId) {
+            try {
+                const db = await this._open();
+                await new Promise((res, rej) => {
+                    const tx = db.transaction('sf2handles', 'readwrite');
+                    tx.objectStore('sf2handles').delete(sessionId);
+                    tx.oncomplete = () => res();
+                    tx.onerror    = () => rej(tx.error);
+                });
+            } catch(e) {}
+        },
+    };
+
+    // ==================== MIDI KEYBOARD INPUT ====================
+    const MidiInput = {
+        _access:   null,    // MIDIAccess object
+        _input:    null,    // current MIDIInput port
+        _deviceId: null,    // selected port id
+
+        // Base MIDI for each uppercase letter at totalShift=0
+        _baseMidi: { C:48, D:50, E:52, F:53, G:55, A:57, B:59 },
+
+        // Map MIDI note number → { letter, acc, rowShift }
+        // Uses the same enharmonic-spelling logic as the visual piano keys
+        _midiToNote(midiNote) {
+            const pc = midiNote % 12;
+            // pitchClass → [letter, isBlack]
+            const map = [
+                ['C',false],['C',true ],['D',false],['D',true ],['E',false],
+                ['F',false],['F',true ],['G',false],['G',true ],['A',false],
+                ['A',true ],['B',false]
+            ];
+            const [baseL, isBlack] = map[pc];
+
+            let letter, acc;
+            if (!isBlack) {
+                letter = baseL;
+                acc    = '';
+            } else {
+                // Use smart enharmonic spelling (respects current key sig)
+                try {
+                    const smart = getSmartBlackKeySpelling(baseL);
+                    letter = smart.n;
+                    acc    = smart.acc;
+                } catch(e) {
+                    letter = baseL; acc = '^';
+                }
+            }
+
+            const accOffset = acc === '^' ? 1 : acc === '_' ? -1 : acc === '^^' ? 2 : acc === '__' ? -2 : 0;
+            const totalShift = Math.round((midiNote - this._baseMidi[letter] - accOffset) / 12);
+            const clefShift  = (activeTrack && voicesData[activeTrack]?.clef === 'bass') ? -2 : 0;
+            const rowShift   = totalShift - baseOctaveShift - clefShift;
+
+            return { letter, acc, isBlack, rowShift };
+        },
+
+        _handleMessage(ev) {
+            const [status, note, velocity] = ev.data;
+            const cmd = status & 0xf0;
+
+            if (cmd === 0x90 && velocity > 0) {
+                // noteOn
+                this._flashKey(note, true);
+                if (!activeTrack) return;
+                const { letter, acc, isBlack, rowShift } = this._midiToNote(note);
+                const insertTime = getInsertionTime();
+                const effAccs = getMeasureEffectiveAccidentals(activeTrack, insertTime);
+                const prevAcc = nextMods.accidental;
+                if (!isBlack) {
+                    nextMods.accidental = (effAccs[letter] || '') !== '' ? '=' : '';
+                } else {
+                    const currentEff = effAccs[letter] || '';
+                    nextMods.accidental = (currentEff === acc) ? '' : acc;
+                }
+                addNoteEx(letter, rowShift);
+                nextMods.accidental = prevAcc;
+            } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
+                // noteOff
+                this._flashKey(note, false);
+            }
+            // CC 64 = sustain pedal → chord mode toggle
+            else if (cmd === 0xb0 && note === 64) {
+                if (velocity >= 64) {
+                    if (!chordMode) toggleChordMode();
+                } else {
+                    if (chordMode) toggleChordMode();
+                }
+            }
+        },
+
+        // Light up / un-light the visual key for a MIDI note
+        _flashKey(midiNote, on) {
+            const { letter, acc, rowShift } = this._midiToNote(midiNote);
+            const key = document.querySelector(
+                `#pianoKeysInner [data-pk-letter="${letter}"][data-pk-row="${rowShift}"]`
+            );
+            if (!key) return;
+            if (on) key.classList.add('pressed');
+            else    key.classList.remove('pressed');
+        },
+
+        // Build/rebuild the device <select> list
+        _refreshDeviceList() {
+            const sel = document.getElementById('midiDeviceSelect');
+            if (!sel || !this._access) return;
+            sel.innerHTML = '';
+            let count = 0;
+            this._access.inputs.forEach((port, id) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = port.name;
+                if (id === this._deviceId) opt.selected = true;
+                sel.appendChild(opt);
+                count++;
+            });
+            sel.style.display = count > 1 ? '' : 'none';
+            if (count === 0) {
+                this._setStatus('Нет MIDI-устройств', 'grey');
+            }
+        },
+
+        selectDevice(id) {
+            if (this._input) { this._input.onmidimessage = null; this._input = null; }
+            this._deviceId = id;
+            if (this._access) {
+                this._input = this._access.inputs.get(id);
+                if (this._input) {
+                    this._input.onmidimessage = (ev) => this._handleMessage(ev);
+                    this._setStatus(this._input.name, 'green');
+                }
+            }
+        },
+
+        _setStatus(msg, color) {
+            const txt = document.getElementById('midiStatusText');
+            const led = document.getElementById('midiLed');
+            const btn = document.getElementById('midiConnectBtn');
+            if (txt) txt.textContent = msg;
+            if (led) {
+                led.className = '';
+                if (color === 'green')  { led.classList.add('active');  }
+                if (color === 'orange') { led.classList.add('waiting'); }
+            }
+            if (btn) btn.classList.toggle('connected', color === 'green');
+        },
+
+        async connect() {
+            if (!navigator.requestMIDIAccess) {
+                this._setStatus('Web MIDI не поддерживается в этом браузере', 'grey');
+                return;
+            }
+            this._setStatus('Подключение…', 'orange');
+            try {
+                this._access = await navigator.requestMIDIAccess({ sysex: false });
+                this._access.onstatechange = () => {
+                    this._refreshDeviceList();
+                    if (!this._input || this._input.state === 'disconnected') {
+                        // Try to reconnect to first available
+                        const first = this._access.inputs.values().next().value;
+                        if (first) this.selectDevice(first.id);
+                        else this._setStatus('MIDI-устройство отключено', 'grey');
+                    }
+                };
+                const inputs = [...this._access.inputs.values()];
+                if (inputs.length === 0) {
+                    this._setStatus('Нет подключённых MIDI-устройств', 'grey');
+                    this._refreshDeviceList();
+                    return;
+                }
+                // Pick previously selected device, or first available
+                const preferred = this._deviceId
+                    ? this._access.inputs.get(this._deviceId)
+                    : null;
+                const target = preferred || inputs[0];
+                this._deviceId = target.id;
+                this.selectDevice(target.id);
+                this._refreshDeviceList();
+            } catch(e) {
+                this._setStatus('Нет доступа: ' + e.message, 'grey');
+            }
+        },
+
+        disconnect() {
+            if (this._input) { this._input.onmidimessage = null; this._input = null; }
+            this._setStatus('', 'grey');
+            const sel = document.getElementById('midiDeviceSelect');
+            if (sel) sel.style.display = 'none';
+        },
+
+        toggle() {
+            if (this._input) this.disconnect();
+            else             this.connect();
+        },
     };
 
     // ==================== GM DRUM REFERENCE MODAL ====================
