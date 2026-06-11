@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Симуляція Рою </title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: relative;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            color: #1a202c;
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid #cbd5e1;
+            max-width: 320px;
+            box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.2);
+            pointer-events: auto;
+            z-index: 20;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        h3 { margin: 0 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; color: #1e293b; font-weight: 600; }
+        .control-group { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        label { font-size: 12px; color: #334155; font-weight: 600; flex: 1; }
+        input[type="range"] { width: 140px; accent-color: #3b82f6; cursor: pointer; }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        button:hover { background: linear-gradient(135deg, #2563eb, #1e3a8a); transform: scale(0.98); }
+        .info {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 14px;
+            line-height: 1.4;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 10px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px;
+        }
+        .badge {
+            background: #dbeafe;
+            padding: 3px 8px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        @media (max-width: 600px) {
+            #ui-panel { transform: scale(0.9); transform-origin: top left; top: 5px; left: 5px; max-width: 260px; padding: 12px; }
+            .control-group { margin-bottom: 8px; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h3>🚁 Керування роєм</h3>
+    <div class="control-group"><label>📌 Розділення (Separation):</label><input type="range" id="w-sep" min="0" max="5" step="0.1" value="3.5"></div>
+    <div class="control-group"><label>🔄 Вирівнювання (Alignment):</label><input type="range" id="w-ali" min="0" max="3" step="0.1" value="1.0"></div>
+    <div class="control-group"><label>🎯 Згуртованість (Cohesion):</label><input type="range" id="w-coh" min="0" max="3" step="0.1" value="1.0"></div>
+    <div class="control-group"><label>✨ Потяг до цілі:</label><input type="range" id="w-tar" min="0" max="5" step="0.1" value="2.0"></div>
+    <div class="control-group"><label>⚡ Швидкість цілі:</label><input type="range" id="v-tar-speed" min="0" max="2" step="0.1" value="0"></div>
+    <div class="control-group"><label>💥 Сила відштовхування:</label><input type="range" id="w-rep" min="0" max="10" step="0.5" value="6.0"></div>
+    <div class="control-group"><label>🏙️ Щільність забудови:</label><input type="range" id="v-density" min="4" max="50" step="1" value="30"></div>
+    <button id="btn-regen">🏗️ Згенерувати новий світ</button>
+    <div class="info">
+        🖱️ <b class="badge">Подвійний клік</b> на будь-якій поверхні (земля/будівля) — <span style="color:#dc2626;">миттєве переміщення червоної цілі</span> у вказане місце.<br>
+       .
+    </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script>
+(function() {
+    // -------- КОНФІГУРАЦІЯ ----------
+    const CONFIG = {
+        droneCount: 25,
+        maxSpeed: 0.9,
+        maxForce: 0.07,
+        commRadius: 32,
+        safeRadius: 7.8,
+        ceilingHeight: 28,
+        floorHeight: 1.5,
+        targetSpeed: 0.0,
+        density: 30
+    };
+
+    const weights = { separation: 3.5, alignment: 1.0, cohesion: 1.0, target: 2.0, repulsion: 6.0, swarmPull: 1.5 };
+
+    // UI зв'язок
+    document.getElementById('w-sep').addEventListener('input', (e) => weights.separation = parseFloat(e.target.value));
+    document.getElementById('w-ali').addEventListener('input', (e) => weights.alignment = parseFloat(e.target.value));
+    document.getElementById('w-coh').addEventListener('input', (e) => weights.cohesion = parseFloat(e.target.value));
+    document.getElementById('w-tar').addEventListener('input', (e) => weights.target = parseFloat(e.target.value));
+    document.getElementById('v-tar-speed').addEventListener('input', (e) => CONFIG.targetSpeed = parseFloat(e.target.value));
+    document.getElementById('w-rep').addEventListener('input', (e) => weights.repulsion = parseFloat(e.target.value));
+    document.getElementById('v-density').addEventListener('input', (e) => { CONFIG.density = parseInt(e.target.value); generateWorld(); });
+
+    // ---- СЦЕНА ТА ГРАФІКА ----
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f2f5);
+    scene.fog = new THREE.FogExp2(0xf0f2f5, 0.0028);
+
+    const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 1, 600);
+    camera.position.set(22, 42, 105);
+    camera.lookAt(0, 12, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true; // тіні для краси
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI / 2.3;
+    controls.rotateSpeed = 0.8;
+    controls.zoomSpeed = 1.2;
+    // ВАЖЛИВО: ВИМИКАЄМО ВСТАНОВЛЕНИЙ ОБРОБНИК ПОДВІЙНОГО КЛІКУ В OrbitControls, щоб не конфліктував
+    controls.dblclick = () => {}; // перевизначаємо, щоб не скидав камеру
+
+    // Освітлення
+    const ambientLight = new THREE.AmbientLight(0xbbc8dd, 0.55);
+    scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xa0aab8, 0.5);
+    scene.add(hemiLight);
+    const mainLight = new THREE.DirectionalLight(0xfff5e6, 1.1);
+    mainLight.position.set(45, 85, 30);
+    mainLight.castShadow = true;
+    mainLight.receiveShadow = false;
+    mainLight.shadow.mapSize.width = 1024;
+    mainLight.shadow.mapSize.height = 1024;
+    scene.add(mainLight);
+    const fillLight = new THREE.PointLight(0x445566, 0.35);
+    fillLight.position.set(-20, 35, 40);
+    scene.add(fillLight);
+
+    // Підлога та сітка
+    const floorPlane = new THREE.PlaneGeometry(560, 560);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xdce5f0, roughness: 0.85, metalness: 0.05 });
+    const ground = new THREE.Mesh(floorPlane, floorMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const gridHelper = new THREE.GridHelper(560, 56, 0x94a3b8, 0xcbd5e1);
+    gridHelper.position.y = 0.03;
+    scene.add(gridHelper);
+
+    // Матеріали споруд
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x5f6c84, roughness: 0.7 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, metalness: 0.45, roughness: 0.35 });
+    const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a99ae, roughness: 0.6 });
+
+    function createWindowTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#a0b4c8';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = '#3b82f6';
+        const cellW = 40, cellH = 48, cols = 5, rows = 4;
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                ctx.fillRect(18 + c*(cellW+12), 22 + r*(cellH+14), cellW, cellH);
+                ctx.strokeStyle = '#1e293b';
+                ctx.strokeRect(18 + c*(cellW+12), 22 + r*(cellH+14), cellW, cellH);
+            }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        return tex;
+    }
+    const baseTex = createWindowTexture();
+
+    let obstacles = [];      // фізичні дані
+    let obstacleMeshes = []; // меші для рейкастингу
+
+    // ---- ДОПОМІЖНІ ФУНКЦІЇ ЗІТКНЕНЬ ----
+    function enforceHardCollisions(entity, radius) {
+        for (const obs of obstacles) {
+            if (obs.type === 'box') {
+                const hW = obs.w / 2 + radius;
+                const hD = obs.d / 2 + radius;
+                const minX = obs.position.x - hW, maxX = obs.position.x + hW;
+                const minZ = obs.position.z - hD, maxZ = obs.position.z + hD;
+                const maxY = obs.h;
+                if (entity.position.x > minX && entity.position.x < maxX &&
+                    entity.position.z > minZ && entity.position.z < maxZ &&
+                    entity.position.y < maxY) {
+
+                    const penLeft = entity.position.x - minX;
+                    const penRight = maxX - entity.position.x;
+                    const penFront = entity.position.z - minZ;
+                    const penBack = maxZ - entity.position.z;
+                    const penTop = maxY - entity.position.y;
+                    const minPen = Math.min(penLeft, penRight, penFront, penBack, penTop);
+                    if (minPen === penTop) {
+                        entity.position.y = maxY;
+                        if (entity.velocity) entity.velocity.y = Math.max(0, entity.velocity.y);
+                    } else if (minPen === penLeft) {
+                        entity.position.x = minX;
+                        if (entity.velocity) entity.velocity.x = Math.min(0, entity.velocity.x);
+                    } else if (minPen === penRight) {
+                        entity.position.x = maxX;
+                        if (entity.velocity) entity.velocity.x = Math.max(0, entity.velocity.x);
+                    } else if (minPen === penFront) {
+                        entity.position.z = minZ;
+                        if (entity.velocity) entity.velocity.z = Math.min(0, entity.velocity.z);
+                    } else if (minPen === penBack) {
+                        entity.position.z = maxZ;
+                        if (entity.velocity) entity.velocity.z = Math.max(0, entity.velocity.z);
+                    }
+                }
+            }
+            else if (obs.type === 'cylinder') {
+                const dx = entity.position.x - obs.position.x;
+                const dz = entity.position.z - obs.position.z;
+                const dist2D = Math.hypot(dx, dz);
+                const totalR = obs.radius + radius;
+                if (dist2D < totalR && entity.position.y < obs.height) {
+                    const penSide = totalR - dist2D;
+                    const penTop = obs.height - entity.position.y;
+                    if (penTop < penSide) {
+                        entity.position.y = obs.height;
+                        if (entity.velocity) entity.velocity.y = Math.max(0, entity.velocity.y);
+                    } else {
+                        if (dist2D > 0.001) {
+                            const normX = dx / dist2D;
+                            const normZ = dz / dist2D;
+                            entity.position.x = obs.position.x + normX * totalR;
+                            entity.position.z = obs.position.z + normZ * totalR;
+                            if (entity.velocity) {
+                                const norm = new THREE.Vector3(normX, 0, normZ);
+                                const dot = entity.velocity.dot(norm);
+                                if (dot < 0) entity.velocity.addScaledVector(norm, -dot);
+                            }
+                        } else {
+                            entity.position.x = obs.position.x + totalR;
+                        }
+                    }
+                }
+            }
+            else if (obs.type === 'bridge_deck') {
+                const hW = obs.w / 2 + radius;
+                const hD = obs.d / 2 + radius;
+                const hH = obs.h / 2;
+                const minX = obs.position.x - hW, maxX = obs.position.x + hW;
+                const minZ = obs.position.z - hD, maxZ = obs.position.z + hD;
+                const minY = obs.position.y - hH, maxY = obs.position.y + hH;
+                if (entity.position.x > minX && entity.position.x < maxX &&
+                    entity.position.z > minZ && entity.position.z < maxZ &&
+                    entity.position.y > minY && entity.position.y < maxY) {
+                    const penTop = maxY - entity.position.y;
+                    const penBottom = entity.position.y - minY;
+                    if (penTop < penBottom) {
+                        entity.position.y = maxY;
+                        if (entity.velocity) entity.velocity.y = Math.max(0, entity.velocity.y);
+                    } else {
+                        entity.position.y = minY;
+                        if (entity.velocity) entity.velocity.y = Math.min(0, entity.velocity.y);
+                    }
+                }
+            }
+        }
+        // обмеження карти
+        if (entity.position.y > CONFIG.ceilingHeight) entity.position.y = CONFIG.ceilingHeight;
+        if (entity.position.y < CONFIG.floorHeight) entity.position.y = CONFIG.floorHeight;
+        const bound = 245;
+        if (entity.position.x > bound) entity.position.x = bound;
+        if (entity.position.x < -bound) entity.position.x = -bound;
+        if (entity.position.z > bound) entity.position.z = bound;
+        if (entity.position.z < -bound) entity.position.z = -bound;
+    }
+
+    // ---- ГЕНЕРАЦІЯ СВІТУ (будівлі, труби, мости) ----
+    function addBoxBuilding(x, z, w, h, d) {
+        const tex = baseTex.clone();
+        tex.repeat.set(Math.max(1, Math.floor(w/5)), Math.max(1, Math.floor(h/6)));
+        tex.needsUpdate = true;
+        const wallMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35, metalness: 0.1 });
+        const mats = [wallMat, wallMat, roofMat, roofMat, wallMat, wallMat];
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+        mesh.position.set(x, h/2, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = false;
+        scene.add(mesh);
+        obstacleMeshes.push(mesh);
+        obstacles.push({ type: 'box', position: new THREE.Vector3(x, h/2, z), w, h, d });
+    }
+
+    function addPipe(x, z, rBottom, rTop, h) {
+        const geo = new THREE.CylinderGeometry(rTop, rBottom, h, 18);
+        const mesh = new THREE.Mesh(geo, pipeMat);
+        mesh.position.set(x, h/2, z);
+        mesh.castShadow = true;
+        scene.add(mesh);
+        obstacleMeshes.push(mesh);
+        obstacles.push({ type: 'cylinder', position: new THREE.Vector3(x, h/2, z), radius: rBottom, height: h });
+    }
+
+    function addBridge(x, z, length, width, deckHeight, isAlignedX = true, numPillars = 5) {
+        const deckW = isAlignedX ? length : width;
+        const deckD = isAlignedX ? width : length;
+        const deckH = 2.3;
+        const deckGeo = new THREE.BoxGeometry(deckW, deckH, deckD);
+        const deckMesh = new THREE.Mesh(deckGeo, bridgeMat);
+        deckMesh.position.set(x, deckHeight, z);
+        deckMesh.castShadow = true;
+        scene.add(deckMesh);
+        obstacleMeshes.push(deckMesh);
+        obstacles.push({ type: 'bridge_deck', position: new THREE.Vector3(x, deckHeight, z), w: deckW, h: deckH, d: deckD });
+
+        const pRadius = 1.4;
+        const pHeight = deckHeight - deckH/2;
+        const pGeo = new THREE.CylinderGeometry(pRadius, pRadius, pHeight, 10);
+        const halfL = length / 2;
+        const margin = length * 0.07;
+        const activeSpan = length - (margin * 2);
+        const step = activeSpan / (numPillars - 1);
+        for (let i = 0; i < numPillars; i++) {
+            const offset = -halfL + margin + (i * step);
+            const px = isAlignedX ? x + offset : x;
+            const pz = isAlignedX ? z : z + offset;
+            const pillar = new THREE.Mesh(pGeo, bridgeMat);
+            pillar.position.set(px, pHeight/2, pz);
+            pillar.castShadow = true;
+            scene.add(pillar);
+            obstacleMeshes.push(pillar);
+            obstacles.push({ type: 'cylinder', position: new THREE.Vector3(px, pHeight/2, pz), radius: pRadius, height: pHeight });
+        }
+    }
+
+    function getValidSpatialCoord(minRadius = 38) {
+        let rx, rz;
+        do {
+            rx = (Math.random() - 0.5) * 440;
+            rz = (Math.random() - 0.5) * 440;
+        } while (Math.hypot(rx, rz) < minRadius);
+        return { x: rx, z: rz };
+    }
+
+    function generateWorld() {
+        obstacleMeshes.forEach(mesh => scene.remove(mesh));
+        obstacles = [];
+        obstacleMeshes = [];
+
+        const bridgeCount = Math.max(1, Math.floor(CONFIG.density * 0.28));
+        for (let i=0; i<bridgeCount; i++) {
+            const coords = getValidSpatialCoord(48);
+            const len = 95 + Math.random() * 60;
+            const width = 12;
+            const height = 13 + Math.random() * 7;
+            const align = Math.random() > 0.5;
+            addBridge(coords.x, coords.z, len, width, height, align, 5 + Math.floor(Math.random() * 2));
+        }
+
+        const pipeCount = Math.max(2, Math.floor(CONFIG.density * 0.65));
+        for (let i=0; i<pipeCount; i++) {
+            const coords = getValidSpatialCoord(34);
+            const h = 28 + Math.random() * 27;
+            const rBase = 4.2 + Math.random() * 3.2;
+            const rTop = 1.2 + Math.random() * 1.5;
+            addPipe(coords.x, coords.z, rBase, rTop, h);
+        }
+
+        const buildingCount = CONFIG.density;
+        for (let i=0; i<buildingCount; i++) {
+            const coords = getValidSpatialCoord(38);
+            const h = 10 + Math.random() * 28;
+            const variant = Math.random();
+            if (variant < 0.4) {
+                const w = 14 + Math.random() * 20;
+                const d = 14 + Math.random() * 20;
+                addBoxBuilding(coords.x, coords.z, w, h, d);
+            } else if (variant < 0.7) {
+                const w1 = 16 + Math.random() * 14;
+                const d1 = 32 + Math.random() * 16;
+                const w2 = 32 + Math.random() * 14;
+                const d2 = 16 + Math.random() * 14;
+                addBoxBuilding(coords.x, coords.z, w1, h, d1);
+                addBoxBuilding(coords.x + w2/2 - w1/2, coords.z + d1/2 - d2/2, w2, h, d2);
+            } else {
+                const mainW = 46, mainD = 14;
+                const wingW = 16, wingD = 26;
+                addBoxBuilding(coords.x, coords.z, mainW, h, mainD);
+                addBoxBuilding(coords.x - mainW/2 + wingW/2, coords.z + mainD/2 + wingD/2, wingW, h, wingD);
+                addBoxBuilding(coords.x + mainW/2 - wingW/2, coords.z + mainD/2 + wingD/2, wingW, h, wingD);
+            }
+        }
+        // оновлюємо позиції дронів після регену, щоб не народжувались всередині стін
+        if (typeof drones !== 'undefined' && drones.length) {
+            drones.forEach(d => {
+                let safe = false;
+                let attempts = 0;
+                while (!safe && attempts < 25) {
+                    d.position.set((Math.random() - 0.5) * 36, 4 + Math.random() * 6, (Math.random() - 0.5) * 36);
+                    let collides = false;
+                    for (let obs of obstacles) {
+                        const testPos = d.position.clone();
+                        if (obs.type === 'box') {
+                            if (Math.abs(testPos.x - obs.position.x) < obs.w/2 + 1.2 && Math.abs(testPos.z - obs.position.z) < obs.d/2 + 1.2 && testPos.y < obs.h + 1.2)
+                                collides = true;
+                        } else if (obs.type === 'cylinder' && Math.hypot(testPos.x - obs.position.x, testPos.z - obs.position.z) < obs.radius + 1.4 && testPos.y < obs.height) collides = true;
+                    }
+                    if (!collides) safe = true;
+                    attempts++;
+                }
+                d.velocity.set((Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2).normalize().multiplyScalar(CONFIG.maxSpeed);
+                d.acceleration.set(0,0,0);
+                d.mesh.position.copy(d.position);
+            });
+        }
+    }
+
+    // -------- ЦІЛЬ (ЧЕРВОНА СФЕРА) ----------
+    const targetMatRed = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x441111, roughness: 0.25 });
+    const targetMesh = new THREE.Mesh(new THREE.SphereGeometry(2.4, 36, 36), targetMatRed);
+    targetMesh.castShadow = true;
+    scene.add(targetMesh);
+ 
+    let targetCenter = new THREE.Vector3(0, 12, 0);
+    let targetPhase = 0;
+
+    // -------- ДРОНИ (КВАДРОКОПТЕРИ) ----------
+    function createDroneMesh() {
+        const group = new THREE.Group();
+        const bodyGeo = new THREE.SphereGeometry(0.52, 12, 12);
+        bodyGeo.scale(1, 0.55, 1.3);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7, roughness: 0.2 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        group.add(body);
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x5b6e8c, metalness: 0.6 });
+        const armGeo = new THREE.BoxGeometry(2.8, 0.12, 0.12);
+        const arm1 = new THREE.Mesh(armGeo, armMat); arm1.rotation.z = Math.PI/4; group.add(arm1);
+        const arm2 = new THREE.Mesh(armGeo, armMat); arm2.rotation.z = -Math.PI/4; group.add(arm2);
+        const propGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.04, 12);
+        const propMat = new THREE.MeshStandardMaterial({ color: 0x93c5fd, emissive: 0x1e3a8a, transparent: true, opacity: 0.55 });
+        const offsets = [[1.4, 0.12, 1.4], [1.4, 0.12, -1.4], [-1.4, 0.12, 1.4], [-1.4, 0.12, -1.4]];
+        group.userData.rotors = [];
+        offsets.forEach(pos => {
+            const rotor = new THREE.Mesh(propGeo, propMat);
+            rotor.position.set(pos[0], pos[1], pos[2]);
+            group.add(rotor);
+            group.userData.rotors.push(rotor);
+        });
+        return group;
+    }
+
+    class Drone {
+        constructor(x, y, z) {
+            this.position = new THREE.Vector3(x, y, z);
+            this.velocity = new THREE.Vector3((Math.random()-0.5)*1.4, (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.4).normalize().multiplyScalar(CONFIG.maxSpeed);
+            this.acceleration = new THREE.Vector3(0,0,0);
+            this.mesh = createDroneMesh();
+            this.mesh.position.copy(this.position);
+            scene.add(this.mesh);
+        }
+        applyForce(force) { this.acceleration.add(force); }
+        update() {
+            this.acceleration.clampLength(0, CONFIG.maxForce);
+            this.velocity.add(this.acceleration);
+            this.velocity.clampLength(0, CONFIG.maxSpeed);
+            this.position.add(this.velocity);
+            enforceHardCollisions(this, 1.25);
+            this.mesh.position.copy(this.position);
+            if (this.velocity.length() > 0.05) this.mesh.lookAt(this.position.clone().add(this.velocity));
+            if (this.mesh.userData.rotors) {
+                this.mesh.userData.rotors.forEach((rot, idx) => { rot.rotation.y += (idx % 2 === 0 ? 0.65 : -0.65); });
+            }
+            this.acceleration.set(0,0,0);
+        }
+    }
+
+    const drones = [];
+    for (let i=0; i<CONFIG.droneCount; i++) {
+        drones.push(new Drone((Math.random()-0.5)*28, 4 + Math.random()*6, (Math.random()-0.5)*28));
+    }
+
+    // ---- ЛІНІЇ ЗВ'ЯЗКУ МІЖ ДРОНАМИ ----
+    const maxEdges = CONFIG.droneCount * (CONFIG.droneCount - 1);
+    const linePositions = new Float32Array(maxEdges * 2 * 3);
+    const lineGeom = new THREE.BufferGeometry();
+    lineGeom.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.28 });
+    const networkLines = new THREE.LineSegments(lineGeom, lineMat);
+    scene.add(networkLines);
+
+    // ---- ОСНОВНА ЛОГІКА РОЮ (СИЛИ) + ОНОВЛЕННЯ ЛІНІЙ ----
+    function calculateSwarmForces() {
+        const posAttr = networkLines.geometry.attributes.position;
+        let lineIdx = 0;
+        let bestDrone = null;
+        let minDistToTarget = Infinity;
+
+        // Знаходимо найближчого дрона до цілі з урахуванням лінії видимості
+        for (let i=0; i<drones.length; i++) {
+            const d = drones[i].position.distanceTo(targetMesh.position);
+            const dir = targetMesh.position.clone().sub(drones[i].position).normalize();
+            const ray = new THREE.Raycaster(drones[i].position, dir, 0, d);
+            const hits = ray.intersectObjects(obstacleMeshes);
+            if (hits.length === 0 && d < minDistToTarget) {
+                minDistToTarget = d;
+                bestDrone = drones[i];
+            }
+        }
+        if (!bestDrone) {
+            for (let d of drones) {
+                const dist = d.position.distanceTo(targetMesh.position);
+                if (dist < minDistToTarget) { minDistToTarget = dist; bestDrone = d; }
+            }
+        }
+
+        for (let i=0; i<drones.length; i++) {
+            const a = drones[i];
+            let sep = new THREE.Vector3(), ali = new THREE.Vector3(), coh = new THREE.Vector3();
+            let neighbors = 0, avgVel = new THREE.Vector3(), avgPos = new THREE.Vector3();
+
+            for (let j=0; j<drones.length; j++) {
+                if (i===j) continue;
+                const b = drones[j];
+                const dist = a.position.distanceTo(b.position);
+                if (dist < CONFIG.commRadius && dist > 0.05) {
+                    const dirCheck = b.position.clone().sub(a.position).normalize();
+                    const ray = new THREE.Raycaster(a.position, dirCheck, 0, dist);
+                    const obstaclesHit = ray.intersectObjects(obstacleMeshes);
+                    if (obstaclesHit.length === 0) {
+                        neighbors++;
+                        if (dist < 4.2) {
+                            const diff = a.position.clone().sub(b.position);
+                            diff.divideScalar(Math.max(0.3, dist));
+                            sep.add(diff);
+                        }
+                        avgVel.add(b.velocity);
+                        avgPos.add(b.position);
+                        if (i < j) {
+                            posAttr.setXYZ(lineIdx, a.position.x, a.position.y, a.position.z);
+                            posAttr.setXYZ(lineIdx+1, b.position.x, b.position.y, b.position.z);
+                            lineIdx += 2;
+                        }
+                    }
+                }
+            }
+
+            if (neighbors > 0) {
+                avgVel.divideScalar(neighbors).normalize().multiplyScalar(CONFIG.maxSpeed);
+                ali = avgVel.sub(a.velocity);
+                avgPos.divideScalar(neighbors);
+                const desiredCoh = avgPos.sub(a.position).normalize().multiplyScalar(CONFIG.maxSpeed);
+                coh = desiredCoh.sub(a.velocity);
+            }
+
+            const targetForce = targetMesh.position.clone().sub(a.position).normalize().multiplyScalar(CONFIG.maxSpeed).sub(a.velocity);
+            let swarmPull = new THREE.Vector3();
+            if (bestDrone && bestDrone !== a) {
+                swarmPull = bestDrone.position.clone().sub(a.position);
+                if (swarmPull.length() > 0.2) swarmPull.normalize().multiplyScalar(CONFIG.maxSpeed).sub(a.velocity);
+            }
+
+            let totalRep = new THREE.Vector3();
+            for (const obs of obstacles) {
+                if (obs.type === 'box') {
+                    const closestX = Math.max(obs.position.x - obs.w/2, Math.min(a.position.x, obs.position.x + obs.w/2));
+                    const closestZ = Math.max(obs.position.z - obs.d/2, Math.min(a.position.z, obs.position.z + obs.d/2));
+                    const dx = a.position.x - closestX, dz = a.position.z - closestZ;
+                    const dist2D = Math.hypot(dx, dz);
+                    if (a.position.y < obs.h + 2.2 && dist2D < CONFIG.safeRadius) {
+                        let norm = new THREE.Vector3(dx, 0, dz);
+                        if (dist2D > 0.01) norm.normalize(); else norm.set(1,0,0);
+                        const intensity = Math.exp(-(dist2D / CONFIG.safeRadius)) * weights.repulsion;
+                        totalRep.add(norm.multiplyScalar(intensity));
+                        const tangent = new THREE.Vector3(-norm.z, 0, norm.x);
+                        totalRep.add(tangent.multiplyScalar(intensity * 1.2));
+                        if (obs.h - a.position.y < 5.5) totalRep.add(new THREE.Vector3(0, intensity*1.2, 0));
+                    }
+                } else if (obs.type === 'cylinder') {
+                    const dx = a.position.x - obs.position.x, dz = a.position.z - obs.position.z;
+                    const dist2D = Math.hypot(dx, dz);
+                    const edge = dist2D - obs.radius;
+                    if (a.position.y < obs.height + 2.2 && edge < CONFIG.safeRadius) {
+                        let norm = new THREE.Vector3(dx, 0, dz);
+                        if (dist2D > 0.01) norm.normalize(); else norm.set(1,0,0);
+                        const intensity = Math.exp(-(edge / CONFIG.safeRadius)) * weights.repulsion;
+                        totalRep.add(norm.multiplyScalar(intensity));
+                        const tangent = new THREE.Vector3(-norm.z, 0, norm.x);
+                        totalRep.add(tangent.multiplyScalar(intensity * 1.2));
+                        if (obs.height - a.position.y < 5.5) totalRep.add(new THREE.Vector3(0, intensity*1.2, 0));
+                    }
+                } else if (obs.type === 'bridge_deck') {
+                    const insideX = Math.abs(a.position.x - obs.position.x) < obs.w/2 + 1.8;
+                    const insideZ = Math.abs(a.position.z - obs.position.z) < obs.d/2 + 1.8;
+                    if (insideX && insideZ) {
+                        const deltaY = a.position.y - obs.position.y;
+                        const absY = Math.abs(deltaY) - obs.h/2;
+                        if (absY < 4.2) {
+                            const intensity = Math.exp(-(absY / 4.0)) * weights.repulsion * 1.4;
+                            totalRep.add(new THREE.Vector3(0, (deltaY > 0 ? 1 : -1) * intensity, 0));
+                        }
+                    }
+                }
+            }
+
+            a.applyForce(sep.multiplyScalar(weights.separation));
+            a.applyForce(ali.multiplyScalar(weights.alignment));
+            a.applyForce(coh.multiplyScalar(weights.cohesion));
+            a.applyForce(targetForce.multiplyScalar(weights.target));
+            a.applyForce(swarmPull.multiplyScalar(weights.swarmPull));
+            a.applyForce(totalRep);
+        }
+
+        for (let k=lineIdx; k<posAttr.count; k++) posAttr.setXYZ(k, 0,0,0);
+        networkLines.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // ----- ВИПРАВЛЕНИЙ ОБРОБНИК ПОДВІЙНОГО КЛІКУ (ТЕЛЕПОРТАЦІЯ ЦІЛІ) -----
+    const raycaster = new THREE.Raycaster();
+    const mouse2D = new THREE.Vector2();
+
+    function onDoubleClickHandler(event) {
+        // Обчислюємо координати відносно canvas (важливо для коректного рейкастингу)
+        const rect = renderer.domElement.getBoundingClientRect();
+        const canvasX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const canvasY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        mouse2D.set(canvasX, canvasY);
+        raycaster.setFromCamera(mouse2D, camera);
+        const intersectable = [ground, ...obstacleMeshes];
+        const hits = raycaster.intersectObjects(intersectable, true);
+        if (hits.length > 0) {
+            const hitPoint = hits[0].point.clone();
+            // Миттєве переміщення цілі в точку зіткнення (з невеликим зміщенням по Y, щоб не провалилась)
+            targetMesh.position.copy(hitPoint);
+            targetMesh.position.y = Math.max(CONFIG.floorHeight + 1.2, hitPoint.y);
+            // Центр орбіти тепер в цій точці, скидаємо фазу для плавного руху далі
+            targetCenter.copy(targetMesh.position);
+            targetPhase = 0;
+            // Додатково гарантуємо, що ціль не застрягне всередині перешкоди
+            enforceHardCollisions(targetMesh, 2.3);
+            // Невеликий візуальний ефект (миттєве оновлення)
+            console.log(`🎯 Ціль телепортовано на (${targetMesh.position.x.toFixed(1)}, ${targetMesh.position.y.toFixed(1)}, ${targetMesh.position.z.toFixed(1)})`);
+            // Запобігаємо стандартній поведінці та спливанню до OrbitControls
+            event.preventDefault();
+            event.stopPropagation();
+        } else {
+            // fallback на підлогу
+            const planeHit = raycaster.intersectObject(ground);
+            if(planeHit.length) {
+                const pt = planeHit[0].point;
+                targetMesh.position.copy(pt);
+                targetMesh.position.y = CONFIG.floorHeight + 1.2;
+                targetCenter.copy(targetMesh.position);
+                targetPhase = 0;
+                enforceHardCollisions(targetMesh, 2.3);
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+    }
+
+    // Підключаємо обробник безпосередньо до canvas, пріоритет вищий за OrbitControls (вже відключили його dblclick)
+    renderer.domElement.addEventListener('dblclick', onDoubleClickHandler, false);
+    // Додатковий захист від спливання
+    renderer.domElement.style.display = 'block';
+
+    // ---- АНІМАЦІЯ ТА РУХ ЦІЛІ (ОРБІТА ВІДНОСНО targetCenter) ----
+    let lastTimestamp = 0;
+    function animate() {
+        const now = performance.now();
+        let dt = Math.min(0.033, (now - (lastTimestamp || now)) / 1000);
+        lastTimestamp = now;
+        dt = Math.max(0.016, dt);
+        targetPhase += dt * CONFIG.targetSpeed * 0.52;
+        // Обчислюємо нову позицію цілі навколо центру (динамічний рух)
+        const orbitX = targetCenter.x + Math.sin(targetPhase) * 16;
+        const orbitZ = targetCenter.z + Math.cos(targetPhase * 0.65) * 16;
+        const orbitY = targetCenter.y + 6.5 + Math.sin(targetPhase * 1.4) * 5;
+        targetMesh.position.set(orbitX, orbitY, orbitZ);
+        // Колізія цілі з перешкодами
+        enforceHardCollisions(targetMesh, 2.5);
+        // Оновлення сил рою
+        calculateSwarmForces();
+        for (let drone of drones) drone.update();
+        controls.update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+
+    // Генерація першого світу та старт
+    generateWorld();
+    document.getElementById('btn-regen').addEventListener('click', () => { generateWorld(); });
+    // Початкове положення цілі
+    targetCenter.set(-190, 12, 40);
+	targetMesh.position.set(-190, 15, 40);
+    enforceHardCollisions(targetMesh, 2.5);
+    animate();
+})();
+</script>
+</body>
+</html>
