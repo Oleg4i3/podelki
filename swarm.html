@@ -25,15 +25,20 @@
             background: rgba(255, 255, 255, 0.94);
             backdrop-filter: blur(8px);
             color: #1a202c;
-            padding: 18px;
+            padding: 14px 18px 0 18px;   /* no bottom padding — scrolled content handles it */
             border-radius: 16px;
             border: 1px solid #cbd5e1;
-            max-width: 320px;
+            width: 300px;
+            max-width: 300px;
+            max-height: calc(100vh - 44px); /* never taller than viewport */
+            display: flex;
+            flex-direction: column;
             box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.2);
             pointer-events: auto;
             z-index: 20;
             font-size: 13px;
             transition: 0.2s;
+            box-sizing: border-box;
         }
         h3 { margin: 0 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; color: #1e293b; font-weight: 600; }
         .control-group { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -73,9 +78,85 @@
             font-weight: bold;
             color: #1e40af;
         }
+        #panel-toggle-btn {
+            background: none; border: none; box-shadow: none; margin: 0; padding: 0;
+            width: auto; color: #64748b; font-size: 18px; cursor: pointer;
+            line-height: 1; transform: none; letter-spacing: 0;
+        }
+        #panel-toggle-btn:hover { background: none; transform: none; color: #1e40af; box-shadow: none; }
+        #panel-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        #panel-header h3 { margin: 0; border: none; padding: 0; }
+        #panel-body {
+            overflow-y: auto;
+            overflow-x: hidden;
+            flex: 1;
+            padding-bottom: 14px;
+            /* thin custom scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        #panel-body::-webkit-scrollbar { width: 4px; }
+        #panel-body::-webkit-scrollbar-track { background: transparent; }
+        #panel-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        #panel-body.collapsed { max-height: 0 !important; overflow: hidden; opacity: 0; pointer-events: none; flex: 0; padding-bottom: 0; }
+        #ui-panel.collapsed { padding-bottom: 14px; flex-shrink: 0; }
+        .drone-count-row { display: flex; align-items: center; gap: 6px; }
+        .drone-count-row input[type=number] {
+            width: 58px; padding: 4px 6px; border-radius: 8px; border: 1px solid #cbd5e1;
+            font-size: 13px; color: #1e293b; text-align: center; background: #f8fafc;
+        }
+        .small-btn {
+            padding: 4px 10px; font-size: 12px; width: auto; margin: 0; border-radius: 20px;
+            background: linear-gradient(135deg, #3b82f6, #1e40af); color: #fff;
+            border: none; cursor: pointer; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        }
+        .small-btn:hover { background: linear-gradient(135deg, #2563eb, #1e3a8a); transform: scale(0.97); }
+        .checkbox-row { display: flex; align-items: center; gap: 8px; }
+        .checkbox-row input[type=checkbox] { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; }
         @media (max-width: 600px) {
             #ui-panel { transform: scale(0.9); transform-origin: top left; top: 5px; left: 5px; max-width: 260px; padding: 12px; }
             .control-group { margin-bottom: 8px; }
+        }
+
+        /* ── sim-control row ── */
+        .sim-ctrl-row { display:flex; gap:6px; margin-bottom:10px; }
+        .sim-ctrl-row button { flex:1; padding:7px 4px; font-size:12px; margin:0; border-radius:10px; }
+        #btn-pause.active { background:linear-gradient(135deg,#f59e0b,#b45309); }
+        /* ── speed display ── */
+        .speed-val { min-width:36px; text-align:right; font-weight:700; color:#1e40af; font-size:13px; }
+        /* ── section divider ── */
+        .sec-div { border:none; border-top:1px solid #e2e8f0; margin:10px 0 8px; }
+        .sec-label { font-size:10px; color:#94a3b8; font-weight:700; letter-spacing:.5px; text-transform:uppercase; margin-bottom:6px; }
+        /* ── autosim panel ── */
+        #autosim-header { cursor:pointer; display:flex; align-items:center; gap:6px;
+            padding:8px 10px; background:#f1f5f9; border-radius:10px; margin-top:4px;
+            border:1px solid #e2e8f0; user-select:none; }
+        #autosim-header span { font-size:12px; font-weight:700; color:#1e293b; }
+        #autosim-body { overflow:hidden; transition:max-height .32s cubic-bezier(.4,0,.2,1), opacity .25s ease;
+            max-height:0; opacity:0; pointer-events:none; }
+        #autosim-body.open { max-height:900px; opacity:1; pointer-events:auto; }
+        #autosim-body > * { padding-top:4px; }
+        #autosim-chart { width:100%; margin-top:6px; border-radius:8px; background:#f8fafc;
+            display:none; border:1px solid #e2e8f0; }
+        #autosim-progress { font-size:10px; color:#475569; min-height:14px; line-height:1.35;
+            padding:2px 0; white-space:pre-wrap; }
+        #btn-autosim-abort { background:linear-gradient(135deg,#ef4444,#b91c1c); }
+        #btn-autosim-abort:disabled { background:#cbd5e1; cursor:not-allowed; }
+        .numinput { width:58px; padding:4px 6px; border-radius:8px; border:1px solid #cbd5e1;
+            font-size:12px; color:#1e293b; text-align:center; background:#f8fafc; }
+        /* ── move-mode button ── */
+        #btn-move-mode { margin-top:6px; background:linear-gradient(135deg,#64748b,#475569); font-size:12px; padding:7px; border-radius:10px; letter-spacing:0; }
+        #btn-move-mode.active { background:linear-gradient(135deg,#f59e0b,#b45309); box-shadow:0 0 0 3px rgba(251,191,36,.35); }
+        #btn-move-mode:hover { background:linear-gradient(135deg,#475569,#334155); }
+        #btn-move-mode.active:hover { background:linear-gradient(135deg,#d97706,#92400e); }
+        /* ── canvas overlay hint ── */
+        #mode-overlay {
+            display:none; position:fixed; top:22px; right:22px;
+            background:rgba(251,191,36,0.93); color:#1c1917;
+            padding:8px 16px; border-radius:12px; font-weight:700; font-size:13px;
+            z-index:15; pointer-events:none;
+            box-shadow:0 4px 12px rgba(0,0,0,.18);
+            letter-spacing:.2px;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -83,19 +164,91 @@
 </head>
 <body>
 
+<div id="mode-overlay">✋ Режим переміщення &nbsp;·&nbsp; Esc — вийти</div>
+
 <div id="ui-panel">
-    <h3>🚁 Керування роєм</h3>
-    <div class="control-group"><label>📌 Розділення (Separation):</label><input type="range" id="w-sep" min="0" max="5" step="0.1" value="3.5"></div>
-    <div class="control-group"><label>🔄 Вирівнювання (Alignment):</label><input type="range" id="w-ali" min="0" max="3" step="0.1" value="1.0"></div>
-    <div class="control-group"><label>🎯 Згуртованість (Cohesion):</label><input type="range" id="w-coh" min="0" max="3" step="0.1" value="1.0"></div>
+    <div id="panel-header" onclick="togglePanel()">
+        <h3>🚁 Керування роєм</h3>
+        <button id="panel-toggle-btn" title="Згорнути/Розгорнути">▲</button>
+    </div>
+    <div id="panel-body">
+    <!-- ── Simulation controls ── -->
+    <div style="height:8px"></div>
+    <div class="sim-ctrl-row">
+        <button id="btn-restart" title="Скинути позиції дронів у поточному світі">↺ Рестарт</button>
+        <button id="btn-pause"   title="Пауза/продовження">⏸ Пауза</button>
+    </div>
+    <button id="btn-move-mode" title="Ввімкнути режим переміщення будівель мишею">✋ Рухати об'єкти</button>
+    <div class="control-group" style="margin-top:8px;">
+        <label>🚀 Швидкість:</label>
+        <input type="range" id="v-sim-speed" min="0" max="6" step="1" value="0" style="width:120px;">
+        <span class="speed-val" id="v-sim-speed-lbl">1×</span>
+    </div>
+    <hr class="sec-div">
+    <!-- ── Boids ── -->
+    <div class="sec-label">Параметри рою</div>
+    <div class="control-group"><label>📌 Розділення:</label><input type="range" id="w-sep" min="0" max="5" step="0.1" value="3.5"></div>
+    <div class="control-group"><label>🔄 Вирівнювання:</label><input type="range" id="w-ali" min="0" max="3" step="0.1" value="1.0"></div>
+    <div class="control-group"><label>🎯 Згуртованість:</label><input type="range" id="w-coh" min="0" max="3" step="0.1" value="1.0"></div>
     <div class="control-group"><label>✨ Потяг до цілі:</label><input type="range" id="w-tar" min="0" max="5" step="0.1" value="2.0"></div>
     <div class="control-group"><label>⚡ Швидкість цілі:</label><input type="range" id="v-tar-speed" min="0" max="2" step="0.1" value="0"></div>
-    <div class="control-group"><label>💥 Сила відштовхування:</label><input type="range" id="w-rep" min="0" max="10" step="0.5" value="6.0"></div>
-    <div class="control-group"><label>🏙️ Щільність забудови:</label><input type="range" id="v-density" min="4" max="50" step="1" value="30"></div>
-    <button id="btn-regen">🏗️ Згенерувати новий світ</button>
-    <div class="info">
-        🖱️ <b class="badge">Подвійний клік</b> на будь-якій поверхні (земля/будівля) — <span style="color:#dc2626;">миттєве переміщення червоної цілі</span> у вказане місце.<br>
-       .
+    <div class="control-group"><label>💥 Відштовхування:</label><input type="range" id="w-rep" min="0" max="10" step="0.5" value="6.0"></div>
+    <hr class="sec-div">
+    <!-- ── Agent memory ── -->
+    <div class="sec-label">Пам'ять агента</div>
+    <div class="control-group"><label>📐 Розмір комірки:</label><input type="range" id="v-mem-cell" min="2" max="20" step="1" value="7"></div>
+    <div class="control-group"><label>💫 Сила пам'яті:</label><input type="range" id="w-mem" min="0" max="10" step="0.25" value="3.3"></div>
+    <hr class="sec-div">
+    <!-- ── World ── -->
+    <div class="sec-label">Світ</div>
+    <div class="control-group"><label>🏙️ Щільність:</label><input type="range" id="v-density" min="4" max="50" step="1" value="30"></div>
+    <div class="control-group">
+        <label>🚁 Дронів:</label>
+        <div class="drone-count-row">
+            <input type="number" id="v-drone-count" min="1" max="120" value="25">
+            <button class="small-btn" id="btn-apply-drones">OK</button>
+        </div>
+    </div>
+    <div class="control-group">
+        <label>📷 Слідкувати:</label>
+        <div class="checkbox-row"><input type="checkbox" id="cb-follow-swarm"></div>
+    </div>
+    <button id="btn-regen">🏗️ Новий світ</button>
+    <div id="sel-hint">✅ Виділено · Стрілки — поворот · Esc — скасувати</div>
+    <hr class="sec-div">
+    <!-- ── Auto-simulation ── -->
+    <div id="autosim-header" onclick="window.toggleAutoSim()">
+        <span>📊 Автосимуляція</span>
+        <span id="autosim-icon" style="margin-left:auto; font-size:11px;">▼</span>
+    </div>
+    <div id="autosim-body">
+        <div class="control-group" style="margin-top:8px;">
+            <label>🔢 Макс. N дронів:</label>
+            <input type="number" class="numinput" id="v-as-maxn" min="1" max="120" value="32">
+        </div>
+        <div class="control-group">
+            <label>🔁 Проб на кожне N:</label>
+            <input type="number" class="numinput" id="v-as-trials" min="1" max="10" value="3">
+        </div>
+        <div class="control-group">
+            <label>⏱ Макс. кроків/проба:</label>
+            <input type="number" class="numinput" style="width:68px;" id="v-as-steps" min="200" max="60000" step="200" value="4000">
+        </div>
+        <div class="control-group">
+            <label>🚫 Без рендеру:</label>
+            <div class="checkbox-row"><input type="checkbox" id="cb-as-norender" checked></div>
+        </div>
+        <div style="display:flex; gap:6px; margin:6px 0;">
+            <button id="btn-as-run"   style="flex:2; margin:0; padding:8px; font-size:12px; border-radius:10px;">▶ Запустити</button>
+            <button id="btn-as-abort" style="flex:1; margin:0; padding:8px; font-size:12px; border-radius:10px;" disabled>✕ Стоп</button>
+        </div>
+        <div id="autosim-progress"></div>
+        <canvas id="autosim-chart" width="284" height="160"></canvas>
+    </div>
+    <div class="info" style="margin-top:10px;">
+        🖱️ <b class="badge">Подвійний клік</b> — переміщення цілі ·
+        <b class="badge">✋ Рухати</b> — перетягувати будівлі · <b class="badge">↑↓←→</b> — поворот виділеного
+    </div>
     </div>
 </div>
 
@@ -113,19 +266,91 @@
         ceilingHeight: 28,
         floorHeight: 1.5,
         targetSpeed: 0.0,
-        density: 30
+        density: 30,
+        followSwarm: false,
+        memCellSize: 7,       // розмір комірки просторової пам'яті агента
     };
 
-    const weights = { separation: 3.5, alignment: 1.0, cohesion: 1.0, target: 2.0, repulsion: 6.0, swarmPull: 1.5 };
+    const weights = { separation: 3.5, alignment: 1.0, cohesion: 1.0, target: 2.0,
+                      repulsion: 6.0, swarmPull: 1.5, memory: 3.3 };
 
-    // UI зв'язок
+    // ---- СТАН СИМУЛЯЦІЇ ----
+    let paused = false;
+    const SIM_SPEEDS = [0.5, 1, 2, 4, 8, 16, 32]; // steps-per-frame відповідно позиції слайдера
+    let stepsPerFrame = 1; // поточна кількість кроків на кадр (default 1×)
+
+    // ---- СТАН ВИБОРУ ПЕРЕШКОДИ ----
+    let moveMode      = false; // режим переміщення будівель (вмикається кнопкою)
+    let selectedObs   = null;  // {obs, mesh} для перетягування/повороту
+    let selHelper     = null;  // THREE.BoxHelper для підсвічування
+    let isDragging    = false;
+    let dragPlaneY    = 0;     // висота площини перетягування XZ
+    let dragWorldStart = new THREE.Vector3(); // початкова позиція на площині
+    let dragObsStart   = new THREE.Vector3(); // початкова позиція перешкоди
+
+    // ---- СТАН АВТОСИМУЛЯЦІЇ ----
+    let autoSimRunning = false;
+    let autoSimAbort   = false;
+
+    // ---- СПОЙЛЕР ПАНЕЛІ ----
+    window.togglePanel = function() {
+        const body = document.getElementById('panel-body');
+        const btn = document.getElementById('panel-toggle-btn');
+        const panel = document.getElementById('ui-panel');
+        const collapsed = body.classList.toggle('collapsed');
+        btn.textContent = collapsed ? '▼' : '▲';
+        panel.classList.toggle('collapsed', collapsed);
+    };
+    window.toggleAutoSim = function() {
+        const b = document.getElementById('autosim-body');
+        const ic = document.getElementById('autosim-icon');
+        const open = b.classList.toggle('open');
+        ic.textContent = open ? '▲' : '▼';
+    };
+
+    // ── Simulation controls ──
+    document.getElementById('btn-restart').addEventListener('click', () => restartSimulation());
+    document.getElementById('btn-pause').addEventListener('click', () => {
+        paused = !paused;
+        const btn = document.getElementById('btn-pause');
+        btn.textContent = paused ? '▶ Грати' : '⏸ Пауза';
+        btn.classList.toggle('active', paused);
+    });
+    document.getElementById('btn-move-mode').addEventListener('click', () => {
+        moveMode = !moveMode;
+        controls.enabled = !moveMode;
+        const btn = document.getElementById('btn-move-mode');
+        btn.classList.toggle('active', moveMode);
+        btn.textContent = moveMode ? '🔒 Зупинити рух' : '✋ Рухати об\'єкти';
+        document.getElementById('mode-overlay').style.display = moveMode ? 'block' : 'none';
+        if (!moveMode) deselectObstacle();
+    });
+    document.getElementById('v-sim-speed').addEventListener('input', (e) => {
+        const idx = parseInt(e.target.value);
+        stepsPerFrame = SIM_SPEEDS[idx];
+        document.getElementById('v-sim-speed-lbl').textContent = stepsPerFrame + '×';
+    });
+
+    // ── Boids + weights ──
     document.getElementById('w-sep').addEventListener('input', (e) => weights.separation = parseFloat(e.target.value));
-    document.getElementById('w-ali').addEventListener('input', (e) => weights.alignment = parseFloat(e.target.value));
-    document.getElementById('w-coh').addEventListener('input', (e) => weights.cohesion = parseFloat(e.target.value));
-    document.getElementById('w-tar').addEventListener('input', (e) => weights.target = parseFloat(e.target.value));
+    document.getElementById('w-ali').addEventListener('input', (e) => weights.alignment  = parseFloat(e.target.value));
+    document.getElementById('w-coh').addEventListener('input', (e) => weights.cohesion   = parseFloat(e.target.value));
+    document.getElementById('w-tar').addEventListener('input', (e) => weights.target     = parseFloat(e.target.value));
     document.getElementById('v-tar-speed').addEventListener('input', (e) => CONFIG.targetSpeed = parseFloat(e.target.value));
-    document.getElementById('w-rep').addEventListener('input', (e) => weights.repulsion = parseFloat(e.target.value));
+    document.getElementById('w-rep').addEventListener('input', (e) => weights.repulsion  = parseFloat(e.target.value));
+
+    // ── Memory sliders ──
+    document.getElementById('v-mem-cell').addEventListener('input', (e) => { CONFIG.memCellSize = parseInt(e.target.value); });
+    document.getElementById('w-mem').addEventListener('input', (e) => { weights.memory = parseFloat(e.target.value); });
+
+    // ── World ──
     document.getElementById('v-density').addEventListener('input', (e) => { CONFIG.density = parseInt(e.target.value); generateWorld(); });
+    document.getElementById('cb-follow-swarm').addEventListener('change', (e) => { CONFIG.followSwarm = e.target.checked; });
+    document.getElementById('btn-apply-drones').addEventListener('click', () => {
+        const newCount = Math.max(1, Math.min(120, parseInt(document.getElementById('v-drone-count').value) || 25));
+        document.getElementById('v-drone-count').value = newCount;
+        applyDroneCount(newCount);
+    });
 
     // ---- СЦЕНА ТА ГРАФІКА ----
     const container = document.getElementById('canvas-container');
@@ -149,6 +374,9 @@
     controls.maxPolarAngle = Math.PI / 2.3;
     controls.rotateSpeed = 0.8;
     controls.zoomSpeed = 1.2;
+    // Вимикаємо клавішні модифікатори OrbitControls: Alt буде наш (перетягування)
+    controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    controls.keyPanSpeed = 0; // вимикаємо Pan по Alt в OrbitControls
     // ВАЖЛИВО: ВИМИКАЄМО ВСТАНОВЛЕНИЙ ОБРОБНИК ПОДВІЙНОГО КЛІКУ В OrbitControls, щоб не конфліктував
     controls.dblclick = () => {}; // перевизначаємо, щоб не скидав камеру
 
@@ -184,6 +412,34 @@
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x5f6c84, roughness: 0.7 });
     const pipeMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, metalness: 0.45, roughness: 0.35 });
     const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a99ae, roughness: 0.6 });
+    const cableMat  = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.75, roughness: 0.22 });
+    const railMat   = new THREE.MeshStandardMaterial({ color: 0xb0bec5, metalness: 0.6, roughness: 0.3 });
+    const roadMat2  = new THREE.MeshStandardMaterial({ color: 0x3d4a55, roughness: 0.96 });
+    const markMat   = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 });
+    const pylonMat  = new THREE.MeshStandardMaterial({ color: 0x607080, metalness: 0.5, roughness: 0.4 });
+
+    // Допоміжна функція: циліндр між двома точками (кабель/распірка)
+    function addStick(scene, from, to, radius, mat) {
+        const dir = to.clone().sub(from);
+        const len = dir.length();
+        if (len < 0.01) return;
+        const geo = new THREE.CylinderGeometry(radius, radius, len, 6);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(from.clone().add(to).multiplyScalar(0.5));
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+        scene.add(mesh);
+        worldMeshes.push(mesh); // відстежуємо для очищення
+        return mesh;
+    }
+
+    // Найближча точка на відрізку до точки p (для зіткнення з вантами)
+    function closestPointOnSegment(p, from, to) {
+        const ab = to.clone().sub(from);
+        const ab2 = ab.dot(ab);
+        if (ab2 < 0.0001) return from.clone();
+        const t = Math.max(0, Math.min(1, p.clone().sub(from).dot(ab) / ab2));
+        return from.clone().addScaledVector(ab, t);
+    }
 
     function createWindowTexture() {
         const canvas = document.createElement('canvas');
@@ -210,6 +466,12 @@
 
     let obstacles = [];      // фізичні дані
     let obstacleMeshes = []; // меші для рейкастингу
+    let worldMeshes   = []; // УСІ меші світу (для повного очищення при регені)
+
+    // ---- ФІЗИЧНІ ГАБАРИТИ ДРОНА ----
+    // Пропелери розташовані на відстані sqrt(1.4²+1.4²)+0.65 ≈ 2.63 від центру.
+    // Використовуємо консервативне значення як мінімальний зазор до будь-якої поверхні.
+    const DRONE_RADIUS = 2.6; // радіус габаритної сфери дрона
 
     // ---- ДОПОМІЖНІ ФУНКЦІЇ ЗІТКНЕНЬ ----
     function enforceHardCollisions(entity, radius) {
@@ -297,7 +559,49 @@
                     }
                 }
             }
-        }
+            // Пілон над прогоном: box з явними minY/maxY
+            else if (obs.type === 'box_minY') {
+                const hW = obs.w / 2 + radius;
+                const hD = obs.d / 2 + radius;
+                const minX = obs.position.x - hW, maxX = obs.position.x + hW;
+                const minZ = obs.position.z - hD, maxZ = obs.position.z + hD;
+                if (entity.position.x > minX && entity.position.x < maxX &&
+                    entity.position.z > minZ && entity.position.z < maxZ &&
+                    entity.position.y > obs.minY - radius && entity.position.y < obs.maxY + radius) {
+                    // Виштовхуємо з найменшою проникністю по горизонталі
+                    const penLeft  = entity.position.x - minX;
+                    const penRight = maxX - entity.position.x;
+                    const penFront = entity.position.z - minZ;
+                    const penBack  = maxZ - entity.position.z;
+                    const minPen = Math.min(penLeft, penRight, penFront, penBack);
+                    if (minPen === penLeft)       { entity.position.x = minX; if (entity.velocity) entity.velocity.x = Math.min(0, entity.velocity.x); }
+                    else if (minPen === penRight) { entity.position.x = maxX; if (entity.velocity) entity.velocity.x = Math.max(0, entity.velocity.x); }
+                    else if (minPen === penFront) { entity.position.z = minZ; if (entity.velocity) entity.velocity.z = Math.min(0, entity.velocity.z); }
+                    else                          { entity.position.z = maxZ; if (entity.velocity) entity.velocity.z = Math.max(0, entity.velocity.z); }
+                }
+            }
+            // Ванта / розпірка: перешкода у вигляді відрізку в 3D
+            else if (obs.type === 'cable') {
+                // Швидке відхилення по відстані до середини відрізку
+                const qx = entity.position.x - obs.mid.x;
+                const qy = entity.position.y - obs.mid.y;
+                const qz = entity.position.z - obs.mid.z;
+                if (qx*qx + qy*qy + qz*qz > obs.halfSpan * obs.halfSpan) continue;
+                const closest = closestPointOnSegment(entity.position, obs.from, obs.to);
+                const diff = entity.position.clone().sub(closest);
+                const dist = diff.length();
+                const minDist = obs.radius + radius;
+                if (dist < minDist && dist > 0.001) {
+                    // Виштовхуємо перпендикулярно від вант
+                    entity.position.addScaledVector(diff.normalize(), minDist - dist);
+                    if (entity.velocity) {
+                        const n = diff.clone().normalize();
+                        const dot = entity.velocity.dot(n);
+                        if (dot < 0) entity.velocity.addScaledVector(n, -dot * 0.8);
+                    }
+                }
+            }
+        } // end for (const obs of obstacles)
         // обмеження карти
         if (entity.position.y > CONFIG.ceilingHeight) entity.position.y = CONFIG.ceilingHeight;
         if (entity.position.y < CONFIG.floorHeight) entity.position.y = CONFIG.floorHeight;
@@ -320,8 +624,11 @@
         mesh.castShadow = true;
         mesh.receiveShadow = false;
         scene.add(mesh);
+        worldMeshes.push(mesh);
+        mesh.userData.obstacleIdx = obstacles.length;
         obstacleMeshes.push(mesh);
-        obstacles.push({ type: 'box', position: new THREE.Vector3(x, h/2, z), w, h, d });
+        obstacles.push({ type: 'box', position: new THREE.Vector3(x, h/2, z),
+                         w, h, d, rotation: 0, primaryMesh: mesh });
     }
 
     function addPipe(x, z, rBottom, rTop, h) {
@@ -330,39 +637,183 @@
         mesh.position.set(x, h/2, z);
         mesh.castShadow = true;
         scene.add(mesh);
+        worldMeshes.push(mesh);
+        mesh.userData.obstacleIdx = obstacles.length;
         obstacleMeshes.push(mesh);
-        obstacles.push({ type: 'cylinder', position: new THREE.Vector3(x, h/2, z), radius: rBottom, height: h });
+        obstacles.push({ type: 'cylinder', position: new THREE.Vector3(x, h/2, z),
+                         radius: rBottom, height: h, rotation: 0, primaryMesh: mesh });
     }
 
     function addBridge(x, z, length, width, deckHeight, isAlignedX = true, numPillars = 5) {
+        // === ПРОГІН (DECK) ===
         const deckW = isAlignedX ? length : width;
         const deckD = isAlignedX ? width : length;
-        const deckH = 2.3;
+        const deckH = 2.6;
+
         const deckGeo = new THREE.BoxGeometry(deckW, deckH, deckD);
         const deckMesh = new THREE.Mesh(deckGeo, bridgeMat);
         deckMesh.position.set(x, deckHeight, z);
         deckMesh.castShadow = true;
+        deckMesh.receiveShadow = true;
         scene.add(deckMesh);
+        worldMeshes.push(deckMesh);
         obstacleMeshes.push(deckMesh);
         obstacles.push({ type: 'bridge_deck', position: new THREE.Vector3(x, deckHeight, z), w: deckW, h: deckH, d: deckD });
 
-        const pRadius = 1.4;
-        const pHeight = deckHeight - deckH/2;
-        const pGeo = new THREE.CylinderGeometry(pRadius, pRadius, pHeight, 10);
+        // Дорожнє покриття поверх прогону
+        const roadSurfW = isAlignedX ? deckW - 0.5 : deckW * 0.72;
+        const roadSurfD = isAlignedX ? deckD * 0.72 : deckD - 0.5;
+        const roadSurf = new THREE.Mesh(new THREE.BoxGeometry(roadSurfW, 0.22, roadSurfD), roadMat2);
+        roadSurf.position.set(x, deckHeight + deckH/2 + 0.11, z);
+        scene.add(roadSurf);
+        worldMeshes.push(roadSurf);
+
+        // Центральна розмітка (жовта лінія)
+        const markW = isAlignedX ? deckW * 0.88 : 0.38;
+        const markD = isAlignedX ? 0.38 : deckD * 0.88;
+        const markMesh = new THREE.Mesh(new THREE.BoxGeometry(markW, 0.08, markD), markMat);
+        markMesh.position.set(x, deckHeight + deckH/2 + 0.35, z);
+        scene.add(markMesh);
+        worldMeshes.push(markMesh);
+
+        // === БОКОВІ ПАРАПЕТИ ===
+        const rH = 1.3, rT = 0.28;
+        const sideHalf = (isAlignedX ? deckD : deckW) / 2 - rT / 2;
+        const rGeoX = new THREE.BoxGeometry(isAlignedX ? deckW : rT, rH, isAlignedX ? rT : deckD);
+        for (const sgn of [-1, 1]) {
+            const rail = new THREE.Mesh(rGeoX, railMat);
+            rail.position.set(
+                x + (isAlignedX ? 0 : sgn * sideHalf),
+                deckHeight + deckH/2 + rH/2,
+                z + (isAlignedX ? sgn * sideHalf : 0)
+            );
+            rail.castShadow = true;
+            scene.add(rail);
+            worldMeshes.push(rail);
+        }
+
+        // Вертикальні балюстради через кожні ~6 одиниць
+        const bStep = 6.2, bH = rH * 0.75, bR = 0.18;
+        const bGeo = new THREE.CylinderGeometry(bR, bR, bH, 6);
+        const bCount = Math.floor(length / bStep);
+        for (let bi = 0; bi <= bCount; bi++) {
+            const bOff = -length/2 + bi * (length / bCount);
+            for (const sgn of [-1, 1]) {
+                const bx = isAlignedX ? x + bOff : x + sgn * sideHalf;
+                const bz = isAlignedX ? z + sgn * sideHalf : z + bOff;
+                const b = new THREE.Mesh(bGeo, railMat);
+                b.position.set(bx, deckHeight + deckH/2 + bH/2, bz);
+                scene.add(b);
+                worldMeshes.push(b);
+            }
+        }
+
+        // === ОПОРНІ СТОВПИ (ПІЛОНИ) ===
         const halfL = length / 2;
-        const margin = length * 0.07;
-        const activeSpan = length - (margin * 2);
+        const pRadius = 1.45, pHeight = deckHeight - deckH/2;
+        const margin = length * 0.08;
+        const activeSpan = length - margin * 2;
         const step = activeSpan / (numPillars - 1);
         for (let i = 0; i < numPillars; i++) {
-            const offset = -halfL + margin + (i * step);
-            const px = isAlignedX ? x + offset : x;
-            const pz = isAlignedX ? z : z + offset;
+            const off = -halfL + margin + i * step;
+            const px = isAlignedX ? x + off : x;
+            const pz = isAlignedX ? z : z + off;
+            const pGeo = new THREE.CylinderGeometry(pRadius * 0.75, pRadius * 1.15, pHeight, 10);
             const pillar = new THREE.Mesh(pGeo, bridgeMat);
             pillar.position.set(px, pHeight/2, pz);
             pillar.castShadow = true;
             scene.add(pillar);
+            worldMeshes.push(pillar);
             obstacleMeshes.push(pillar);
             obstacles.push({ type: 'cylinder', position: new THREE.Vector3(px, pHeight/2, pz), radius: pRadius, height: pHeight });
+        }
+
+        // === PYLОНИ ВАНТОВОГО МОСТУ ===
+        const towerH = deckHeight * 0.95;     // висота пілона над прогоном
+        const towerW = 2.0;
+        const towerFrac = 0.26;               // позиція пілона від центру (частка halfL)
+
+        for (const tSide of [-1, 1]) {
+            const tOff = tSide * halfL * towerFrac;
+            const tx = isAlignedX ? x + tOff : x;
+            const tz = isAlignedX ? z : z + tOff;
+
+            // Основа пілона (від землі до прогону) — реєструємо як перешкоду
+            const baseH = deckHeight - deckH/2;
+            const baseGeo = new THREE.BoxGeometry(towerW * 1.15, baseH, towerW * 1.15);
+            const baseMesh = new THREE.Mesh(baseGeo, pylonMat);
+            baseMesh.position.set(tx, baseH/2, tz);
+            baseMesh.castShadow = true;
+            scene.add(baseMesh);
+            worldMeshes.push(baseMesh);
+            obstacleMeshes.push(baseMesh);
+            obstacles.push({ type: 'box', position: new THREE.Vector3(tx, baseH/2, tz), w: towerW * 1.15, h: baseH, d: towerW * 1.15 });
+
+            // Пілон над прогоном — реєструємо як вертикальний циліндр-перешкода
+            const pilonAboveGeo = new THREE.BoxGeometry(towerW, towerH, towerW);
+            const pilonAbove = new THREE.Mesh(pilonAboveGeo, pylonMat);
+            const pilonAboveY = deckHeight + deckH/2 + towerH/2;
+            pilonAbove.position.set(tx, pilonAboveY, tz);
+            pilonAbove.castShadow = true;
+            scene.add(pilonAbove);
+            worldMeshes.push(pilonAbove);
+            // Пілон вище прогону — додаємо як box з явним minY
+            obstacleMeshes.push(pilonAbove);
+            obstacles.push({ type: 'box_minY', position: new THREE.Vector3(tx, pilonAboveY, tz),
+                             w: towerW, h: towerH, d: towerW,
+                             minY: deckHeight + deckH/2, maxY: deckHeight + deckH/2 + towerH });
+
+            // Поперечна балка нагорі пілона (А-образна шапка)
+            const capGeo = new THREE.BoxGeometry(towerW * 4.5, towerW * 0.7, towerW * 0.7);
+            const cap = new THREE.Mesh(capGeo, pylonMat);
+            cap.position.set(tx, deckHeight + deckH/2 + towerH - towerW * 0.35, tz);
+            scene.add(cap);
+            worldMeshes.push(cap);
+
+            // === ВАНТИ (STAY CABLES) ===
+            const towerTopY = deckHeight + deckH/2 + towerH;
+            const numCables = 6;
+            const cableRepRadius = 5.0; // зона м'якого відштовхування від вант
+            for (let k = 1; k <= numCables; k++) {
+                for (const cDir of [-1, 1]) {
+                    const frac = k / (numCables + 1);
+                    const cOff = cDir * frac * halfL * 0.88;
+                    const ex = isAlignedX ? x + cOff : x;
+                    const ez = isAlignedX ? z : z + cOff;
+                    const ey  = deckHeight + deckH/2;
+                    const from = new THREE.Vector3(tx, towerTopY, tz);
+                    const to   = new THREE.Vector3(ex, ey, ez);
+                    const cMesh = addStick(scene, from, to, 0.13, cableMat);
+                    if (cMesh) cMesh.castShadow = false;
+                    // Реєструємо ванту як перешкоду для зіткнень
+                    const mid = from.clone().add(to).multiplyScalar(0.5);
+                    const halfSpan = from.distanceTo(to) * 0.5 + cableRepRadius + DRONE_RADIUS;
+                    obstacles.push({ type: 'cable', from: from.clone(), to: to.clone(),
+                                     radius: 0.13, mid, halfSpan });
+                }
+            }
+
+            // Підкосні розпірки між двома частинами парапету біля пілона
+            const sprOff = towerW * 2.0;
+            for (const sgn of [-1, 1]) {
+                const sFrom = new THREE.Vector3(
+                    isAlignedX ? tx : tx + sgn * sprOff,
+                    deckHeight + deckH/2,
+                    isAlignedX ? tz + sgn * sprOff : tz
+                );
+                const sTo = new THREE.Vector3(
+                    isAlignedX ? tx : tx + sgn * sprOff,
+                    deckHeight + deckH/2 + towerH * 0.4,
+                    isAlignedX ? tz + sgn * sprOff : tz
+                );
+                const spr = addStick(scene, sFrom, sTo, 0.18, pylonMat);
+                if (spr) spr.castShadow = false;
+                // Розпірки теж — перешкода
+                const mid2 = sFrom.clone().add(sTo).multiplyScalar(0.5);
+                const hs2 = sFrom.distanceTo(sTo) * 0.5 + DRONE_RADIUS + 1.0;
+                obstacles.push({ type: 'cable', from: sFrom.clone(), to: sTo.clone(),
+                                 radius: 0.18, mid: mid2, halfSpan: hs2 });
+            }
         }
     }
 
@@ -375,8 +826,139 @@
         return { x: rx, z: rz };
     }
 
+    // ── Рестарт: скидаємо дронів без перегенерації світу ────────────────────────
+    function restartSimulation() {
+        const positions = [];
+        for (const d of drones) {
+            scene.remove(d.mesh);
+            const pos = new THREE.Vector3(
+                (Math.random() - 0.5) * 60,
+                CONFIG.floorHeight + 3 + Math.random() * 18,
+                (Math.random() - 0.5) * 60
+            );
+            positions.push(pos);
+        }
+        drones.length = 0;
+        applyDroneCount(CONFIG.droneCount);
+    }
+
+    // ── Вибір та маніпуляція перешкодами (Ctrl+drag / стрілки) ──────────────
+    function selectObstacle(obs, mesh) {
+        deselectObstacle();
+        selectedObs = { obs, mesh };
+        if (!selHelper) { selHelper = new THREE.BoxHelper(mesh, 0xfbbf24); scene.add(selHelper); }
+        else             { selHelper.setFromObject(mesh); scene.add(selHelper); }
+        document.getElementById('sel-hint').style.display = 'block';
+    }
+    function deselectObstacle() {
+        if (selHelper) { scene.remove(selHelper); selHelper = null; }
+        selectedObs = null;
+        document.getElementById('sel-hint').style.display = 'none';
+    }
+    function rotateSelectedObs(delta) {
+        if (!selectedObs) return;
+        const { obs, mesh } = selectedObs;
+        obs.rotation = (obs.rotation || 0) + delta;
+        mesh.rotation.y = obs.rotation;
+        if (selHelper) selHelper.setFromObject(mesh);
+    }
+    function moveSelectedObs(newX, newZ) {
+        if (!selectedObs) return;
+        const { obs, mesh } = selectedObs;
+        mesh.position.x = newX;
+        mesh.position.z = newZ;
+        obs.position.x = newX;
+        obs.position.z = newZ;
+        if (selHelper) selHelper.setFromObject(mesh);
+    }
+
+    // ── Ctrl+drag event handlers ─────────────────────────────────────────────
+    const _dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+    const _dragPt    = new THREE.Vector3();
+    const _raycasterD = new THREE.Raycaster();
+
+    function getWorldPosOnPlane(clientX, clientY, planeY) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        const ndc = new THREE.Vector2(
+            ((clientX - rect.left)  / rect.width)  * 2 - 1,
+            -((clientY - rect.top) / rect.height) * 2 + 1
+        );
+        _raycasterD.setFromCamera(ndc, camera);
+        _dragPlane.constant = -planeY;
+        _raycasterD.ray.intersectPlane(_dragPlane, _dragPt);
+        return _dragPt.clone();
+    }
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+        if (!moveMode || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = renderer.domElement.getBoundingClientRect();
+        const ndc = new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(ndc, camera);
+        const hits = ray.intersectObjects(obstacleMeshes, false);
+        if (hits.length === 0) { deselectObstacle(); return; }
+        const hitMesh = hits[0].object;
+        const idx = hitMesh.userData.obstacleIdx;
+        if (idx === undefined) { deselectObstacle(); return; }
+        const obs = obstacles[idx];
+        if (obs.type !== 'box' && obs.type !== 'cylinder') { deselectObstacle(); return; }
+        selectObstacle(obs, hitMesh);
+        isDragging = true;
+        // controls вже вимкнено moveMode-ом, але на всяк випадок
+        controls.enabled = false;
+        dragPlaneY = obs.position.y;
+        const startPt = getWorldPosOnPlane(e.clientX, e.clientY, dragPlaneY);
+        dragWorldStart.copy(startPt);
+        dragObsStart.set(obs.position.x, obs.position.y, obs.position.z);
+    }, true);
+
+    renderer.domElement.addEventListener('mousemove', (e) => {
+        if (!isDragging || !selectedObs) return;
+        e.preventDefault();
+        const pt = getWorldPosOnPlane(e.clientX, e.clientY, dragPlaneY);
+        const nx = dragObsStart.x + (pt.x - dragWorldStart.x);
+        const nz = dragObsStart.z + (pt.z - dragWorldStart.z);
+        moveSelectedObs(nx, nz);
+    }, true);
+
+    const onMouseUp = () => {
+        if (isDragging) {
+            isDragging = false;
+            // Повертаємо controls тільки якщо не в режимі переміщення
+            if (!moveMode) controls.enabled = true;
+        }
+    };
+    renderer.domElement.addEventListener('mouseup',    onMouseUp, true);
+    renderer.domElement.addEventListener('mouseleave', onMouseUp, true);
+
+    // ── Keyboard: стрілки — поворот, Esc — скасувати / вийти з режиму ────────
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            deselectObstacle();
+            if (moveMode) {
+                moveMode = false;
+                controls.enabled = true;
+                const btn = document.getElementById('btn-move-mode');
+                btn.classList.remove('active');
+                btn.textContent = '✋ Рухати об\'єкти';
+                document.getElementById('mode-overlay').style.display = 'none';
+            }
+            return;
+        }
+        if (!selectedObs) return;
+        if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown')  { e.preventDefault(); rotateSelectedObs(-Math.PI/12); }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp')    { e.preventDefault(); rotateSelectedObs( Math.PI/12); }
+    });
+
     function generateWorld() {
-        obstacleMeshes.forEach(mesh => scene.remove(mesh));
+        // Видаляємо ВСІ меші попереднього світу (будівлі + мости + ванти + декор)
+        worldMeshes.forEach(m => scene.remove(m));
+        worldMeshes = [];
         obstacles = [];
         obstacleMeshes = [];
 
@@ -490,14 +1072,70 @@
             this.mesh = createDroneMesh();
             this.mesh.position.copy(this.position);
             scene.add(this.mesh);
+            // --- БУФЕРНА ПАМ'ЯТЬ (проти застрягання в U-будівлях) ---
+            this.visitedCells = new Map(); // "cx,cz" -> кількість відвідувань
+            this._memoryFrame = 0;
+            this._CELL = CONFIG.memCellSize;        // розмір комірки пам'яті (world-units)
+            this._MEM_DECAY = 12;  // частота загасання (кадрів)
+            this._MEM_DEC_AMT = 4; // на скільки знижується кожне загасання
+            this._MEM_MAX = 90;    // максимальне накопичення
         }
+
+        // оновлення просторової пам'яті
+        _updateMemory() {
+            const cx = Math.round(this.position.x / this._CELL);
+            const cz = Math.round(this.position.z / this._CELL);
+            const key = cx + ',' + cz;
+            const prev = this.visitedCells.get(key) || 0;
+            this.visitedCells.set(key, Math.min(this._MEM_MAX, prev + 1));
+
+            this._memoryFrame++;
+            if (this._memoryFrame >= this._MEM_DECAY) {
+                this._memoryFrame = 0;
+                for (const [k, v] of this.visitedCells) {
+                    const nv = v - this._MEM_DEC_AMT;
+                    if (nv <= 0) this.visitedCells.delete(k);
+                    else this.visitedCells.set(k, nv);
+                }
+            }
+        }
+
+        // сила відштовхування від нещодавно відвіданих зон
+        getMemoryRepulsion() {
+            const force = new THREE.Vector3();
+            for (const [key, count] of this.visitedCells) {
+                if (count < 8) continue;
+                const [kcx, kcz] = key.split(',').map(Number);
+                const cellCX = kcx * this._CELL;
+                const cellCZ = kcz * this._CELL;
+                const dx = this.position.x - cellCX;
+                const dz = this.position.z - cellCZ;
+                const dist = Math.hypot(dx, dz);
+                const reach = this._CELL * 2.2;
+                if (dist < reach) {
+                    const strength = (count / this._MEM_MAX) * (1 - dist / reach);
+                    if (dist > 0.2) {
+                        force.x += (dx / dist) * strength;
+                        force.z += (dz / dist) * strength;
+                    }
+                    // випадкова девіація — виштовхує рій з "пастки"
+                    const dev = strength * 1.8;
+                    force.x += (Math.random() - 0.5) * dev;
+                    force.z += (Math.random() - 0.5) * dev;
+                    force.y += (Math.random() - 0.5) * dev * 0.7;
+                }
+            }
+            return force;
+        }
+
         applyForce(force) { this.acceleration.add(force); }
         update() {
+            this._updateMemory();
             this.acceleration.clampLength(0, CONFIG.maxForce);
             this.velocity.add(this.acceleration);
             this.velocity.clampLength(0, CONFIG.maxSpeed);
             this.position.add(this.velocity);
-            enforceHardCollisions(this, 1.25);
+            enforceHardCollisions(this, DRONE_RADIUS);
             this.mesh.position.copy(this.position);
             if (this.velocity.length() > 0.05) this.mesh.lookAt(this.position.clone().add(this.velocity));
             if (this.mesh.userData.rotors) {
@@ -507,13 +1145,26 @@
         }
     }
 
+    const MAX_DRONES = 120;
     const drones = [];
     for (let i=0; i<CONFIG.droneCount; i++) {
         drones.push(new Drone((Math.random()-0.5)*28, 4 + Math.random()*6, (Math.random()-0.5)*28));
     }
 
+    // Динамічна зміна кількості дронів
+    function applyDroneCount(newCount) {
+        while (drones.length > newCount) {
+            const d = drones.pop();
+            scene.remove(d.mesh);
+        }
+        while (drones.length < newCount) {
+            drones.push(new Drone((Math.random()-0.5)*28, 4 + Math.random()*6, (Math.random()-0.5)*28));
+        }
+        CONFIG.droneCount = newCount;
+    }
+
     // ---- ЛІНІЇ ЗВ'ЯЗКУ МІЖ ДРОНАМИ ----
-    const maxEdges = CONFIG.droneCount * (CONFIG.droneCount - 1);
+    const maxEdges = MAX_DRONES * (MAX_DRONES - 1);
     const linePositions = new Float32Array(maxEdges * 2 * 3);
     const lineGeom = new THREE.BufferGeometry();
     lineGeom.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
@@ -561,7 +1212,8 @@
                     const obstaclesHit = ray.intersectObjects(obstacleMeshes);
                     if (obstaclesHit.length === 0) {
                         neighbors++;
-                        if (dist < 4.2) {
+                        // Зона розділення = 2.5× габаритний радіус дрона
+                        if (dist < DRONE_RADIUS * 2.5) {
                             const diff = a.position.clone().sub(b.position);
                             diff.divideScalar(Math.max(0.3, dist));
                             sep.add(diff);
@@ -594,25 +1246,38 @@
 
             let totalRep = new THREE.Vector3();
             for (const obs of obstacles) {
-                if (obs.type === 'box') {
-                    const closestX = Math.max(obs.position.x - obs.w/2, Math.min(a.position.x, obs.position.x + obs.w/2));
-                    const closestZ = Math.max(obs.position.z - obs.d/2, Math.min(a.position.z, obs.position.z + obs.d/2));
-                    const dx = a.position.x - closestX, dz = a.position.z - closestZ;
+                if (obs.type === 'box' || obs.type === 'box_minY') {
+                    // Обчислюємо найближчу точку в локальному просторі (враховуємо поворот)
+                    const rot  = obs.rotation || 0;
+                    const cosR = Math.cos(-rot), sinR = Math.sin(-rot);
+                    const relX = a.position.x - obs.position.x;
+                    const relZ = a.position.z - obs.position.z;
+                    const lx = relX * cosR - relZ * sinR; // локальні координати
+                    const lz = relX * sinR + relZ * cosR;
+                    const clx = Math.max(-obs.w/2, Math.min(obs.w/2, lx));
+                    const clz = Math.max(-obs.d/2, Math.min(obs.d/2, lz));
+                    // Повертаємо у світовий простір
+                    const cosF = Math.cos(rot), sinF = Math.sin(rot);
+                    const cx = obs.position.x + clx * cosF - clz * sinF;
+                    const cz = obs.position.z + clx * sinF + clz * cosF;
+                    const dx = a.position.x - cx, dz = a.position.z - cz;
                     const dist2D = Math.hypot(dx, dz);
-                    if (a.position.y < obs.h + 2.2 && dist2D < CONFIG.safeRadius) {
+                    const obsTopY   = obs.type === 'box_minY' ? obs.maxY : obs.h;
+                    const obsFloorY = obs.type === 'box_minY' ? obs.minY : 0;
+                    if (a.position.y < obsTopY + DRONE_RADIUS && a.position.y > obsFloorY - DRONE_RADIUS && dist2D < CONFIG.safeRadius) {
                         let norm = new THREE.Vector3(dx, 0, dz);
                         if (dist2D > 0.01) norm.normalize(); else norm.set(1,0,0);
                         const intensity = Math.exp(-(dist2D / CONFIG.safeRadius)) * weights.repulsion;
                         totalRep.add(norm.multiplyScalar(intensity));
                         const tangent = new THREE.Vector3(-norm.z, 0, norm.x);
                         totalRep.add(tangent.multiplyScalar(intensity * 1.2));
-                        if (obs.h - a.position.y < 5.5) totalRep.add(new THREE.Vector3(0, intensity*1.2, 0));
+                        if (obsTopY - a.position.y < 5.5) totalRep.add(new THREE.Vector3(0, intensity*1.2, 0));
                     }
                 } else if (obs.type === 'cylinder') {
                     const dx = a.position.x - obs.position.x, dz = a.position.z - obs.position.z;
                     const dist2D = Math.hypot(dx, dz);
                     const edge = dist2D - obs.radius;
-                    if (a.position.y < obs.height + 2.2 && edge < CONFIG.safeRadius) {
+                    if (a.position.y < obs.height + DRONE_RADIUS && edge < CONFIG.safeRadius) {
                         let norm = new THREE.Vector3(dx, 0, dz);
                         if (dist2D > 0.01) norm.normalize(); else norm.set(1,0,0);
                         const intensity = Math.exp(-(edge / CONFIG.safeRadius)) * weights.repulsion;
@@ -632,6 +1297,21 @@
                             totalRep.add(new THREE.Vector3(0, (deltaY > 0 ? 1 : -1) * intensity, 0));
                         }
                     }
+                } else if (obs.type === 'cable') {
+                    // Швидке відхилення
+                    const qx = a.position.x - obs.mid.x;
+                    const qy = a.position.y - obs.mid.y;
+                    const qz = a.position.z - obs.mid.z;
+                    if (qx*qx + qy*qy + qz*qz > obs.halfSpan * obs.halfSpan) continue;
+                    const closest = closestPointOnSegment(a.position, obs.from, obs.to);
+                    const diff = a.position.clone().sub(closest);
+                    const dist = diff.length();
+                    const cableRepR = 5.0;
+                    if (dist < cableRepR) {
+                        const intensity = Math.exp(-(dist / cableRepR)) * weights.repulsion * 0.8;
+                        if (dist > 0.01) totalRep.add(diff.normalize().multiplyScalar(intensity));
+                        else totalRep.addScaledVector(new THREE.Vector3(0, 1, 0), intensity);
+                    }
                 }
             }
 
@@ -641,6 +1321,9 @@
             a.applyForce(targetForce.multiplyScalar(weights.target));
             a.applyForce(swarmPull.multiplyScalar(weights.swarmPull));
             a.applyForce(totalRep);
+            // буферна пам'ять — відштовхування від нещодавно відвіданих зон
+            const memRep = a.getMemoryRepulsion();
+            if (memRep.lengthSq() > 0.001) a.applyForce(memRep.multiplyScalar(weights.memory));
         }
 
         for (let k=lineIdx; k<posAttr.count; k++) posAttr.setXYZ(k, 0,0,0);
@@ -698,25 +1381,287 @@
 
     // ---- АНІМАЦІЯ ТА РУХ ЦІЛІ (ОРБІТА ВІДНОСНО targetCenter) ----
     let lastTimestamp = 0;
-    function animate() {
-        const now = performance.now();
-        let dt = Math.min(0.033, (now - (lastTimestamp || now)) / 1000);
-        lastTimestamp = now;
-        dt = Math.max(0.016, dt);
-        targetPhase += dt * CONFIG.targetSpeed * 0.52;
-        // Обчислюємо нову позицію цілі навколо центру (динамічний рух)
+
+    function physicsStep() {
+        targetPhase += 0.016 * CONFIG.targetSpeed * 0.52;
         const orbitX = targetCenter.x + Math.sin(targetPhase) * 16;
         const orbitZ = targetCenter.z + Math.cos(targetPhase * 0.65) * 16;
         const orbitY = targetCenter.y + 6.5 + Math.sin(targetPhase * 1.4) * 5;
         targetMesh.position.set(orbitX, orbitY, orbitZ);
-        // Колізія цілі з перешкодами
         enforceHardCollisions(targetMesh, 2.5);
-        // Оновлення сил рою
         calculateSwarmForces();
         for (let drone of drones) drone.update();
+        // Тверде відштовхування дрон-дрон
+        const minDD = DRONE_RADIUS * 2.0;
+        for (let i = 0; i < drones.length; i++) {
+            for (let j = i + 1; j < drones.length; j++) {
+                const diff = drones[i].position.clone().sub(drones[j].position);
+                const dist = diff.length();
+                if (dist < minDD && dist > 0.001) {
+                    const correction = diff.normalize().multiplyScalar((minDD - dist) * 0.5);
+                    drones[i].position.add(correction);
+                    drones[j].position.sub(correction);
+                    drones[i].mesh.position.copy(drones[i].position);
+                    drones[j].mesh.position.copy(drones[j].position);
+                    const n = correction.clone().normalize();
+                    const relV = drones[i].velocity.dot(n) - drones[j].velocity.dot(n);
+                    if (relV < 0) {
+                        drones[i].velocity.addScaledVector(n, -relV * 0.35);
+                        drones[j].velocity.addScaledVector(n,  relV * 0.35);
+                    }
+                }
+            }
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (autoSimRunning) {
+            // Під час автосимуляції animate лише рендерить (якщо треба)
+            controls.update();
+            if (!document.getElementById('cb-as-norender').checked) renderer.render(scene, camera);
+            return;
+        }
+        if (!paused) {
+            // Виконуємо stepsPerFrame кроків фізики за один кадр
+            const steps = Math.max(1, Math.round(stepsPerFrame));
+            for (let s = 0; s < steps; s++) physicsStep();
+        }
+        // Оновлюємо helper виділення
+        if (selHelper && selectedObs) selHelper.setFromObject(selectedObs.mesh);
+        // Слідкування камери
+        if (CONFIG.followSwarm && drones.length > 0) {
+            const swarmCenter = new THREE.Vector3();
+            for (const d of drones) swarmCenter.add(d.position);
+            swarmCenter.divideScalar(drones.length);
+            controls.target.lerp(swarmCenter, 0.04);
+        }
         controls.update();
         renderer.render(scene, camera);
-        requestAnimationFrame(animate);
+    }
+
+    // ── Auto-simulation ─────────────────────────────────────────────────────────
+    const AS_REACH_DIST = 7.0; // відстань "досяг цілі"
+
+    function asFixedTargetPos() {
+        // Заморожуємо ціль на поточній позиції
+        return targetMesh.position.clone();
+    }
+
+    function asResetDrones(n, fixedTargetPos) {
+        // Видаляємо існуючих дронів
+        for (const d of drones) scene.remove(d.mesh);
+        drones.length = 0;
+        // Спавнимо n нових дронів
+        const savedCount = CONFIG.droneCount;
+        CONFIG.droneCount = n;
+        applyDroneCount(n);
+        CONFIG.droneCount = savedCount;
+        // Розставляємо навколо центру сцени
+        drones.forEach((d, i) => {
+            const angle = (i / n) * Math.PI * 2;
+            const r = 10 + Math.random() * 20;
+            d.position.set(
+                Math.cos(angle) * r + (Math.random()-0.5)*8,
+                CONFIG.floorHeight + 4 + Math.random() * 14,
+                Math.sin(angle) * r + (Math.random()-0.5)*8
+            );
+            enforceHardCollisions(d, DRONE_RADIUS);
+            d.mesh.position.copy(d.position);
+            d.velocity.set((Math.random()-0.5)*0.3, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.3);
+            d._memGrid = {};
+        });
+    }
+
+    function asRunStep(fixedTargetPos) {
+        // Один крок без оновлення орбіти цілі
+        targetMesh.position.copy(fixedTargetPos);
+        enforceHardCollisions(targetMesh, 2.5);
+        calculateSwarmForces();
+        for (const d of drones) d.update();
+        // Drone-drone push
+        const minDD = DRONE_RADIUS * 2.0;
+        for (let i = 0; i < drones.length; i++) {
+            for (let j = i+1; j < drones.length; j++) {
+                const diff = drones[i].position.clone().sub(drones[j].position);
+                const dist = diff.length();
+                if (dist < minDD && dist > 0.001) {
+                    const cor = diff.normalize().multiplyScalar((minDD-dist)*0.5);
+                    drones[i].position.add(cor); drones[j].position.sub(cor);
+                    drones[i].mesh.position.copy(drones[i].position);
+                    drones[j].mesh.position.copy(drones[j].position);
+                }
+            }
+        }
+    }
+
+    function asCheckReached(fixedTargetPos) {
+        for (const d of drones) {
+            if (d.position.distanceTo(fixedTargetPos) < AS_REACH_DIST) return true;
+        }
+        return false;
+    }
+
+    function drawAutoSimChart(results) {
+        const canvas = document.getElementById('autosim-chart');
+        canvas.style.display = 'block';
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const PAD = { t:18, r:14, b:36, l:46 };
+        const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#f8fafc'; ctx.fillRect(0,0,W,H);
+
+        const finite = results.filter(r => isFinite(r.avg));
+        if (finite.length === 0) return;
+
+        const ns   = results.map(r => r.n);
+        const maxN = Math.max(...ns);
+        const minN = 1;
+        const maxT = Math.max(...finite.map(r => r.avg)) * 1.12;
+        const minT = 0;
+
+        const xLog = n  => PAD.l + (Math.log2(n) / Math.log2(maxN)) * cw;
+        const yLin = t  => PAD.t + ch - (t / maxT) * ch;
+
+        // Grid
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+        const ySteps = 4;
+        for (let i = 0; i <= ySteps; i++) {
+            const t = (i / ySteps) * maxT;
+            const y = yLin(t);
+            ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l+cw, y); ctx.stroke();
+            ctx.fillStyle='#94a3b8'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+            ctx.fillText(t.toFixed(0), PAD.l-4, y+3);
+        }
+
+        // X labels (N values)
+        ctx.textAlign = 'center';
+        for (const r of results) {
+            const x = xLog(r.n);
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t+ch); ctx.stroke();
+            ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif';
+            ctx.fillText(r.n, x, PAD.t+ch+12);
+        }
+
+        // Axis labels
+        ctx.fillStyle='#475569'; ctx.font='bold 9px sans-serif';
+        ctx.textAlign='center';
+        ctx.fillText('N дронів', PAD.l+cw/2, H-2);
+        ctx.save(); ctx.translate(11, PAD.t+ch/2); ctx.rotate(-Math.PI/2);
+        ctx.fillText('кроки', 0, 0); ctx.restore();
+
+        // Error bars (min/max range of trials)
+        for (const r of results) {
+            if (!isFinite(r.avg) || r.times.length < 2) continue;
+            const tFin = r.times.filter(t => isFinite(t));
+            if (tFin.length < 2) continue;
+            const tMin = Math.min(...tFin), tMax = Math.max(...tFin);
+            const x = xLog(r.n);
+            ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(x, yLin(tMin)); ctx.lineTo(x, yLin(tMax)); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-3, yLin(tMin)); ctx.lineTo(x+3, yLin(tMin)); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-3, yLin(tMax)); ctx.lineTo(x+3, yLin(tMax)); ctx.stroke();
+        }
+
+        // Main line
+        ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        let first = true;
+        for (const r of results) {
+            if (!isFinite(r.avg)) continue;
+            const x = xLog(r.n), y = yLin(r.avg);
+            if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Points
+        for (const r of results) {
+            const x = xLog(r.n);
+            if (isFinite(r.avg)) {
+                ctx.beginPath(); ctx.arc(x, yLin(r.avg), 4, 0, Math.PI*2);
+                ctx.fillStyle = '#2563eb'; ctx.fill();
+                ctx.fillStyle = '#1e293b'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
+                ctx.fillText(r.avg.toFixed(0), x, yLin(r.avg)-7);
+            } else {
+                // DNF marker
+                ctx.fillStyle = '#ef4444'; ctx.font='bold 9px sans-serif'; ctx.textAlign='center';
+                ctx.fillText('DNF', x, PAD.t+10);
+            }
+        }
+    }
+
+    async function runAutoSim() {
+        autoSimRunning = true;
+        autoSimAbort   = false;
+        document.getElementById('btn-as-run').disabled   = true;
+        document.getElementById('btn-as-abort').disabled = false;
+        document.getElementById('autosim-chart').style.display = 'none';
+
+        const maxN      = Math.max(1, parseInt(document.getElementById('v-as-maxn').value)   || 32);
+        const trials    = Math.max(1, parseInt(document.getElementById('v-as-trials').value)  || 3);
+        const maxSteps  = Math.max(200, parseInt(document.getElementById('v-as-steps').value) || 4000);
+        const noRender  = document.getElementById('cb-as-norender').checked;
+        const BATCH     = 80; // кроків між await
+        const progEl    = document.getElementById('autosim-progress');
+
+        const savedDroneCount = CONFIG.droneCount;
+        const fixedTP = asFixedTargetPos();
+        const results = [];
+
+        let nList = [];
+        for (let n = 1; n <= maxN; n *= 2) nList.push(n);
+        if (nList[nList.length-1] !== maxN) nList.push(maxN);
+
+        for (const n of nList) {
+            if (autoSimAbort) break;
+            const times = [];
+
+            for (let t = 0; t < trials; t++) {
+                if (autoSimAbort) break;
+                asResetDrones(n, fixedTP);
+                targetMesh.position.copy(fixedTP);
+
+                let steps = 0, reached = false;
+                while (steps < maxSteps && !reached) {
+                    for (let b = 0; b < BATCH && steps < maxSteps && !reached; b++) {
+                        asRunStep(fixedTP);
+                        steps++;
+                        if (asCheckReached(fixedTP)) reached = true;
+                    }
+                    // Yield to browser
+                    await new Promise(r => setTimeout(r, 0));
+                    if (!noRender) { controls.update(); renderer.render(scene, camera); }
+                    const pct = Math.round(steps/maxSteps*100);
+                    progEl.textContent =
+                        `N=${n}  проба ${t+1}/${trials}  крок ${steps}/${maxSteps} (${pct}%) ${reached?'✅ досяг':'⏳'}`;
+                    if (autoSimAbort) break;
+                }
+                times.push(reached ? steps : Infinity);
+            }
+
+            const finite = times.filter(t => isFinite(t));
+            const avg    = finite.length > 0 ? finite.reduce((a,b)=>a+b,0)/finite.length : Infinity;
+            results.push({ n, times, avg });
+            drawAutoSimChart(results);
+            if (autoSimAbort) break;
+        }
+
+        // Відновлюємо нормальну симуляцію
+        asResetDrones(savedDroneCount, fixedTP);
+        CONFIG.droneCount = savedDroneCount;
+        document.getElementById('v-drone-count').value = savedDroneCount;
+        const fin = results.filter(r=>isFinite(r.avg));
+        progEl.textContent = autoSimAbort
+            ? `⛔ Перервано. Зібрано ${results.length} точок.`
+            : `✅ Завершено. Оптимум: N=${fin.length ? fin.reduce((a,b)=>a.avg<b.avg?a:b).n : '?'} (${fin.length ? fin.reduce((a,b)=>a.avg<b.avg?a:b).avg.toFixed(0) : '?'} кроків)`;
+
+        autoSimRunning = false;
+        document.getElementById('btn-as-run').disabled   = false;
+        document.getElementById('btn-as-abort').disabled = true;
     }
 
     // Генерація першого світу та старт
@@ -727,6 +1672,10 @@
 	targetMesh.position.set(-190, 15, 40);
     enforceHardCollisions(targetMesh, 2.5);
     animate();
+
+    // ── Wiring нових кнопок ──────────────────────────────────────────────────
+    document.getElementById('btn-as-run').addEventListener('click', runAutoSim);
+    document.getElementById('btn-as-abort').addEventListener('click', () => { autoSimAbort = true; });
 })();
 </script>
 </body>
