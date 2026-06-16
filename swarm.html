@@ -41,9 +41,27 @@
             box-sizing: border-box;
         }
         h3 { margin: 0 0 10px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; color: #1e293b; font-weight: 600; }
-        .control-group { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-        label { font-size: 12px; color: #334155; font-weight: 600; flex: 1; }
-        input[type="range"] { width: 140px; accent-color: #3b82f6; cursor: pointer; }
+        .control-group { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        label { font-size: 12px; color: #334155; font-weight: 600; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+        input[type="range"] { width: 90px; accent-color: #3b82f6; cursor: pointer; }
+        .val-badge {
+            display: inline-block; min-width: 34px; text-align: center; font-size: 11px;
+            font-weight: 700; color: #1e40af; background: #eff6ff; border-radius: 8px;
+            padding: 2px 5px; font-family: 'SF Mono', 'Consolas', monospace; flex-shrink: 0;
+        }
+        /* ── інфо-іконка з підказкою (працює на дотик і наведення) ── */
+        .info-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%; background: #cbd5e1; color: #fff;
+            font-size: 10px; font-weight: 700; font-style: normal; cursor: help;
+            flex-shrink: 0; user-select: none; line-height: 1;
+        }
+        .info-icon:hover, .info-icon.tip-active { background: #3b82f6; }
+        #tooltip-popup {
+            position: fixed; z-index: 10000; max-width: 220px; background: #1e293b; color: #f1f5f9;
+            font-size: 11px; font-weight: 500; line-height: 1.4; padding: 8px 10px; border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none; display: none;
+        }
         button {
             width: 100%;
             padding: 10px;
@@ -113,6 +131,26 @@
         .small-btn:hover { background: linear-gradient(135deg, #2563eb, #1e3a8a); transform: scale(0.97); }
         .checkbox-row { display: flex; align-items: center; gap: 8px; }
         .checkbox-row input[type=checkbox] { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; }
+        /* ── amoeba mode toggle ── */
+        .amoeba-toggle { display: flex; gap: 4px; flex: 1; }
+        .amoeba-toggle-btn {
+            flex: 1; margin: 0; padding: 6px 4px; font-size: 11px; font-weight: 700;
+            border-radius: 10px; border: 1px solid #cbd5e1; background: #f8fafc; color: #64748b;
+            cursor: pointer; box-shadow: none; letter-spacing: 0; transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .amoeba-toggle-btn:hover { background: #eef2f7; transform: none; }
+        .amoeba-toggle-btn.active {
+            border-color: transparent; color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        }
+        .amoeba-toggle-btn[data-mode="off"].active  { background: linear-gradient(135deg,#3b82f6,#1e40af); }
+        .amoeba-toggle-btn[data-mode="auto"].active { background: linear-gradient(135deg,#10b981,#047857); }
+        .amoeba-toggle-btn[data-mode="on"].active   { background: linear-gradient(135deg,#f59e0b,#b45309); }
+        /* підсвітка "Авто", коли амеба активна в авто-режимі */
+        .amoeba-toggle-btn[data-mode="auto"].auto-live {
+            background: linear-gradient(135deg,#fbbf24,#d97706); color:#1c1917; border-color: transparent;
+        }
         @media (max-width: 600px) {
             #ui-panel { transform: scale(0.9); transform-origin: top left; top: 5px; left: 5px; max-width: 260px; padding: 12px; }
             .control-group { margin-bottom: 8px; }
@@ -165,6 +203,7 @@
 <body>
 
 <div id="mode-overlay">✋ Режим переміщення &nbsp;·&nbsp; Esc — вийти</div>
+<div id="tooltip-popup"></div>
 
 <div id="ui-panel">
     <div id="panel-header" onclick="togglePanel()">
@@ -178,30 +217,48 @@
         <button id="btn-restart" title="Скинути позиції дронів у поточному світі">↺ Рестарт</button>
         <button id="btn-pause"   title="Пауза/продовження">⏸ Пауза</button>
     </div>
-    <button id="btn-move-mode" title="Ввімкнути режим переміщення будівель мишею">✋ Рухати об'єкти</button>
+    <button id="btn-move-mode" title="Ввімкнути режим переміщення будівель, труб і мостів (миша або дотик)">✋ Рухати об'єкти</button>
     <div class="control-group" style="margin-top:8px;">
-        <label>🚀 Швидкість:</label>
-        <input type="range" id="v-sim-speed" min="0" max="6" step="1" value="0" style="width:120px;">
+        <label>🚀 Швидкість:<i class="info-icon" data-tip="Множник швидкості симуляції — скільки кроків фізики виконується за один кадр анімації.">i</i></label>
+        <input type="range" id="v-sim-speed" min="0" max="6" step="1" value="0" style="width:90px;">
         <span class="speed-val" id="v-sim-speed-lbl">1×</span>
     </div>
     <hr class="sec-div">
     <!-- ── Boids ── -->
     <div class="sec-label">Параметри рою</div>
-    <div class="control-group"><label>📌 Розділення:</label><input type="range" id="w-sep" min="0" max="5" step="0.1" value="3.5"></div>
-    <div class="control-group"><label>🔄 Вирівнювання:</label><input type="range" id="w-ali" min="0" max="3" step="0.1" value="1.0"></div>
-    <div class="control-group"><label>🎯 Згуртованість:</label><input type="range" id="w-coh" min="0" max="3" step="0.1" value="1.0"></div>
-    <div class="control-group"><label>✨ Потяг до цілі:</label><input type="range" id="w-tar" min="0" max="5" step="0.1" value="2.0"></div>
-    <div class="control-group"><label>⚡ Швидкість цілі:</label><input type="range" id="v-tar-speed" min="0" max="2" step="0.1" value="0"></div>
-    <div class="control-group"><label>💥 Відштовхування:</label><input type="range" id="w-rep" min="0" max="10" step="0.5" value="6.0"></div>
+    <div class="control-group"><label>📌 Розділення:<i class="info-icon" data-tip="Наскільки сильно дрони уникають занадто близького зближення один з одним.">i</i></label><input type="range" id="w-sep" min="0" max="5" step="0.1" value="3.5"><span class="val-badge" id="w-sep-val">3.5</span></div>
+    <div class="control-group"><label>🔄 Вирівнювання:<i class="info-icon" data-tip="Прагнення дрона летіти в тому ж напрямку, що й сусідні дрони рою.">i</i></label><input type="range" id="w-ali" min="0" max="3" step="0.1" value="1.0"><span class="val-badge" id="w-ali-val">1.0</span></div>
+    <div class="control-group"><label>🎯 Згуртованість:<i class="info-icon" data-tip="Прагнення дрона тримаючись разом, рухатись до центру мас найближчих сусідів.">i</i></label><input type="range" id="w-coh" min="0" max="3" step="0.1" value="1.0"><span class="val-badge" id="w-coh-val">1.0</span></div>
+    <div class="control-group"><label>✨ Потяг до цілі:<i class="info-icon" data-tip="Сила, що тягне дронів у напрямку поточної цілі рою.">i</i></label><input type="range" id="w-tar" min="0" max="5" step="0.1" value="2.0"><span class="val-badge" id="w-tar-val">2.0</span></div>
+    <div class="control-group"><label>⚡ Швидкість цілі:<i class="info-icon" data-tip="Швидкість, з якою ціль рухається по своїй орбітальній траєкторії. 0 — ціль нерухома.">i</i></label><input type="range" id="v-tar-speed" min="0" max="2" step="0.1" value="0"><span class="val-badge" id="v-tar-speed-val">0.0</span></div>
+    <div class="control-group"><label>💥 Відштовхування:<i class="info-icon" data-tip="Сила, з якою дрони відштовхуються від будівель, труб, мостів та інших перешкод.">i</i></label><input type="range" id="w-rep" min="0" max="20" step="0.5" value="10.0"><span class="val-badge" id="w-rep-val">10.0</span></div>
     <hr class="sec-div">
-    <!-- ── Agent memory ── -->
+    <!-- ── Amoeba mode ── -->
+    <div class="sec-label">Режим "Амеба" (при застряганні)</div>
+    <div class="control-group"><label>⏳ Час до амеби (кадри):<i class="info-icon" data-tip="Скільки кадрів без прогресу до цілі мають пройти, перш ніж рій автоматично перейде в режим амеби.">i</i></label><input type="range" id="v-amoeba-stag" min="30" max="600" step="10" value="180"><span class="val-badge" id="v-amoeba-stag-val">180</span></div>
+    <div class="control-group"><label>🔁 Кадрів прогресу для виходу:<i class="info-icon" data-tip="Скільки кадрів підряд має фіксуватись прогрес до цілі, щоб рій вийшов з режиму амеби назад у штатний.">i</i></label><input type="range" id="v-amoeba-resume" min="1" max="60" step="1" value="15"><span class="val-badge" id="v-amoeba-resume-val">15</span></div>
+    <div class="control-group"><label>🧱 Радіус прилипання до стін:<i class="info-icon" data-tip="На якій відстані від стіни/труби в режимі амеби дрон починає 'прилипати' до неї та ковзати вздовж поверхні.">i</i></label><input type="range" id="v-wall-stick" min="2" max="30" step="0.5" value="16.0"><span class="val-badge" id="v-wall-stick-val">16.0</span></div>
+    <div class="control-group"><label>🦠 Сила прилипання:<i class="info-icon" data-tip="Інтенсивність сили, що притягує дрона до стіни та змушує його ковзати вздовж неї в режимі амеби.">i</i></label><input type="range" id="w-wallstick" min="0" max="20" step="0.5" value="10.0"><span class="val-badge" id="w-wallstick-val">10.0</span></div>
+    <div class="control-group" style="align-items:flex-start;">
+        <label style="margin-top:6px;">Режим:</label>
+        <div class="amoeba-toggle" id="amoeba-toggle">
+            <button type="button" class="amoeba-toggle-btn" data-mode="off"  id="amb-btn-off">Штатний</button>
+            <button type="button" class="amoeba-toggle-btn" data-mode="auto" id="amb-btn-auto">Авто</button>
+            <button type="button" class="amoeba-toggle-btn" data-mode="on"   id="amb-btn-on">Амеба</button>
+        </div>
+    </div>
+    <div class="control-group">
+        <label>🧫 Дві амеби:<i class="info-icon" data-tip="Рій ділиться навпіл: перша половина тримає стіну праворуч (сині ротори), друга — ліворуч (янтарні ротори). Ефективно при 4+ дронах — два напрями пошуку одночасно.">i</i></label>
+        <div class="checkbox-row"><input type="checkbox" id="cb-two-amoebas"></div>
+    </div>
+    <hr class="sec-div">
     <div class="sec-label">Пам'ять агента</div>
-    <div class="control-group"><label>📐 Розмір комірки:</label><input type="range" id="v-mem-cell" min="2" max="20" step="1" value="7"></div>
-    <div class="control-group"><label>💫 Сила пам'яті:</label><input type="range" id="w-mem" min="0" max="10" step="0.25" value="3.3"></div>
+    <div class="control-group"><label>📐 Розмір комірки:<i class="info-icon" data-tip="Розмір просторової комірки, яку дрон 'запам'ятовує' як нещодавно відвідану, щоб уникати повторного облітання тих самих зон.">i</i></label><input type="range" id="v-mem-cell" min="2" max="20" step="1" value="7"><span class="val-badge" id="v-mem-cell-val">7</span></div>
+    <div class="control-group"><label>💫 Сила пам'яті:<i class="info-icon" data-tip="Наскільки сильно дрон уникає нещодавно відвіданих зон — допомагає рівномірніше досліджувати простір.">i</i></label><input type="range" id="w-mem" min="0" max="10" step="0.25" value="3.3"><span class="val-badge" id="w-mem-val">3.3</span></div>
     <hr class="sec-div">
     <!-- ── World ── -->
     <div class="sec-label">Світ</div>
-    <div class="control-group"><label>🏙️ Щільність:</label><input type="range" id="v-density" min="4" max="50" step="1" value="30"></div>
+    <div class="control-group"><label>🏙️ Щільність:<i class="info-icon" data-tip="Кількість будівель, труб і мостів, які буде створено при генерації нового світу.">i</i></label><input type="range" id="v-density" min="4" max="50" step="1" value="30"><span class="val-badge" id="v-density-val">30</span></div>
     <div class="control-group">
         <label>🚁 Дронів:</label>
         <div class="drone-count-row">
@@ -214,6 +271,11 @@
         <div class="checkbox-row"><input type="checkbox" id="cb-follow-swarm"></div>
     </div>
     <button id="btn-regen">🏗️ Новий світ</button>
+    <div style="display:flex; gap:6px; margin:5px 0 0 0;">
+        <button id="btn-save" style="flex:1; margin:0; padding:7px 4px; font-size:11px; border-radius:10px;">💾 Зберегти</button>
+        <button id="btn-load" style="flex:1; margin:0; padding:7px 4px; font-size:11px; border-radius:10px;">📂 Завантажити</button>
+    </div>
+    <div id="save-toast" style="display:none; margin-top:5px; padding:5px 8px; background:#10b981; color:#fff; border-radius:8px; font-size:11px; text-align:center;"></div>
     <div id="sel-hint">✅ Виділено · Стрілки — поворот · Esc — скасувати</div>
     <hr class="sec-div">
     <!-- ── Auto-simulation ── -->
@@ -269,10 +331,15 @@
         density: 30,
         followSwarm: false,
         memCellSize: 7,       // розмір комірки просторової пам'яті агента
+        // --- Режим "амеба" (при застряганні роя) ---
+        amoebaStagnationFrames: 180, // через скільки кадрів без прогресу до цілі рій переходить у режим амеби
+        amoebaResumeFrames: 15,      // скільки кадрів підряд має фіксуватись прогрес до цілі, щоб вийти з амеби
+        wallStickRadius: 16.0,       // на якій відстані від стіни увімкнеться "прилипання" в режимі амеби
+        twoAmoebas: false,           // якщо true — рій ділиться на дві групи з протилежними знаками тангенту
     };
 
     const weights = { separation: 3.5, alignment: 1.0, cohesion: 1.0, target: 2.0,
-                      repulsion: 6.0, swarmPull: 1.5, memory: 3.3 };
+                      repulsion: 10.0, swarmPull: 1.5, memory: 3.3, wallStick: 10.0 };
 
     // ---- СТАН СИМУЛЯЦІЇ ----
     let paused = false;
@@ -291,6 +358,63 @@
     // ---- СТАН АВТОСИМУЛЯЦІЇ ----
     let autoSimRunning = false;
     let autoSimAbort   = false;
+
+    // ---- СТАН РЕЖИМУ "АМЕБА" ----
+    let amoebaMode = false;          // ЕФЕКТИВНИЙ поточний стан (те, що реально застосовується до сил)
+    let bestDistEver = Infinity;     // найкраща (мінімальна) відстань найближчого дрона до цілі, зафіксована за час застою
+    let stagnationCounter = 0;       // скільки кадрів підряд немає прогресу
+    let progressCounter = 0;         // скільки кадрів підряд є прогрес (для виходу з амеби)
+    // amoebaForceMode: 'auto' — автоматичне перемикання за таймаутами (стандартна поведінка)
+    //                  'on'   — режим амеби форсовано увімкнено вручну
+    //                  'off'  — режим амеби форсовано вимкнено вручну (завжди штатний)
+    let amoebaForceMode = 'auto';
+
+    function resetAmoebaState() {
+        amoebaMode = false;
+        bestDistEver = Infinity;
+        stagnationCounter = 0;
+        progressCounter = 0;
+        applyAmoebaForceMode();
+    }
+
+    // Застосовує поточний amoebaForceMode до amoebaMode та оновлює підсвітку кнопок-перемикача
+    function applyAmoebaForceMode() {
+        if (amoebaForceMode === 'on')  amoebaMode = true;
+        if (amoebaForceMode === 'off') amoebaMode = false;
+        // 'auto' — amoebaMode керується таймаутами в calculateSwarmForces, нічого не змінюємо тут
+        updateAmoebaToggleUI();
+    }
+
+    function updateAmoebaToggleUI() {
+        const btnOff  = document.getElementById('amb-btn-off');
+        const btnAuto = document.getElementById('amb-btn-auto');
+        const btnOn   = document.getElementById('amb-btn-on');
+        if (!btnOff || !btnAuto || !btnOn) return;
+        btnOff.classList.toggle('active',  amoebaForceMode === 'off');
+        btnOn.classList.toggle('active',   amoebaForceMode === 'on');
+        btnAuto.classList.toggle('active', amoebaForceMode === 'auto');
+        // У режимі "Авто" підсвічуємо кнопку інакше, якщо рій ЗАРАЗ фактично в амебі
+        btnAuto.classList.toggle('auto-live', amoebaForceMode === 'auto' && amoebaMode);
+    }
+
+    window.setAmoebaForceMode = function(mode) {
+        amoebaForceMode = mode;
+        if (mode === 'auto') {
+            // Повертаємось до авто: скидаємо лічильники, щоб не перемкнулось миттєво
+            stagnationCounter = 0;
+            progressCounter = 0;
+            bestDistEver = Infinity;
+        } else if (mode === 'on') {
+            amoebaMode = true;
+        } else if (mode === 'off') {
+            amoebaMode = false;
+        }
+        updateAmoebaToggleUI();
+    };
+    document.getElementById('amb-btn-off').addEventListener('click',  () => window.setAmoebaForceMode('off'));
+    document.getElementById('amb-btn-auto').addEventListener('click', () => window.setAmoebaForceMode('auto'));
+    document.getElementById('amb-btn-on').addEventListener('click',   () => window.setAmoebaForceMode('on'));
+    updateAmoebaToggleUI();
 
     // ---- СПОЙЛЕР ПАНЕЛІ ----
     window.togglePanel = function() {
@@ -339,6 +463,12 @@
     document.getElementById('v-tar-speed').addEventListener('input', (e) => CONFIG.targetSpeed = parseFloat(e.target.value));
     document.getElementById('w-rep').addEventListener('input', (e) => weights.repulsion  = parseFloat(e.target.value));
 
+    // ── Amoeba mode ──
+    document.getElementById('v-amoeba-stag').addEventListener('input', (e) => CONFIG.amoebaStagnationFrames = parseInt(e.target.value));
+    document.getElementById('v-amoeba-resume').addEventListener('input', (e) => CONFIG.amoebaResumeFrames = parseInt(e.target.value));
+    document.getElementById('v-wall-stick').addEventListener('input', (e) => CONFIG.wallStickRadius = parseFloat(e.target.value));
+    document.getElementById('w-wallstick').addEventListener('input', (e) => weights.wallStick = parseFloat(e.target.value));
+
     // ── Memory sliders ──
     document.getElementById('v-mem-cell').addEventListener('input', (e) => { CONFIG.memCellSize = parseInt(e.target.value); });
     document.getElementById('w-mem').addEventListener('input', (e) => { weights.memory = parseFloat(e.target.value); });
@@ -346,10 +476,83 @@
     // ── World ──
     document.getElementById('v-density').addEventListener('input', (e) => { CONFIG.density = parseInt(e.target.value); generateWorld(); });
     document.getElementById('cb-follow-swarm').addEventListener('change', (e) => { CONFIG.followSwarm = e.target.checked; });
+    document.getElementById('cb-two-amoebas').addEventListener('change', (e) => {
+        CONFIG.twoAmoebas = e.target.checked;
+        assignAmoebaGroups();
+    });
+
+    // ── Числові індикатори значень слайдерів ──
+    // Для кожного <input type="range">, що має сусідній .val-badge, синхронізуємо текст
+    // при кожній зміні. Кількість знаків після крапки визначається з атрибута "step".
+    (function initSliderValueBadges() {
+        document.querySelectorAll('input[type="range"]').forEach((slider) => {
+            const badge = slider.parentElement.querySelector('.val-badge');
+            if (!badge) return;
+            const step = parseFloat(slider.getAttribute('step') || '1');
+            const decimals = (step.toString().split('.')[1] || '').length;
+            const fmt = (v) => parseFloat(v).toFixed(decimals);
+            badge.textContent = fmt(slider.value);
+            slider.addEventListener('input', (e) => { badge.textContent = fmt(e.target.value); });
+        });
+    })();
+
+    // ── Підказки для інфо-іконок (ⓘ): hover на десктопі, дотик на мобільних ──
+    (function initInfoTooltips() {
+        const popup = document.getElementById('tooltip-popup');
+        if (!popup) return;
+        let activeIcon = null;
+
+        function showTip(icon) {
+            const text = icon.getAttribute('data-tip');
+            if (!text) return;
+            popup.textContent = text;
+            popup.style.display = 'block';
+            const rect = icon.getBoundingClientRect();
+            const popRect = popup.getBoundingClientRect();
+            let left = rect.left + rect.width/2 - popRect.width/2;
+            left = Math.max(6, Math.min(left, window.innerWidth - popRect.width - 6));
+            let top = rect.bottom + 8;
+            if (top + popRect.height > window.innerHeight - 6) top = rect.top - popRect.height - 8;
+            popup.style.left = left + 'px';
+            popup.style.top  = top + 'px';
+            icon.classList.add('tip-active');
+            activeIcon = icon;
+        }
+        function hideTip() {
+            popup.style.display = 'none';
+            if (activeIcon) activeIcon.classList.remove('tip-active');
+            activeIcon = null;
+        }
+
+        document.querySelectorAll('.info-icon').forEach((icon) => {
+            icon.addEventListener('mouseenter', () => showTip(icon));
+            icon.addEventListener('mouseleave', hideTip);
+            icon.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (activeIcon === icon) hideTip();
+                else showTip(icon);
+            });
+            icon.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (activeIcon === icon) hideTip();
+                else showTip(icon);
+            }, { passive: false });
+        });
+        // Закриваємо підказку при дотику/кліку поза іконкою
+        document.addEventListener('click', (e) => {
+            if (activeIcon && !e.target.classList.contains('info-icon')) hideTip();
+        });
+        document.addEventListener('touchstart', (e) => {
+            if (activeIcon && !e.target.classList.contains('info-icon')) hideTip();
+        }, { passive: true });
+    })();
     document.getElementById('btn-apply-drones').addEventListener('click', () => {
         const newCount = Math.max(1, Math.min(120, parseInt(document.getElementById('v-drone-count').value) || 25));
         document.getElementById('v-drone-count').value = newCount;
         applyDroneCount(newCount);
+        assignAmoebaGroups(); // перерозподілити групи після зміни кількості дронів
     });
 
     // ---- СЦЕНА ТА ГРАФІКА ----
@@ -410,6 +613,8 @@
 
     // Матеріали споруд
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x5f6c84, roughness: 0.7 });
+    // Дахи будівель, вищих за стелю дронів (CONFIG.ceilingHeight) — недоступні зверху, фарбуємо сірим
+    const roofMatBlocked = new THREE.MeshStandardMaterial({ color: 0x8a8f99, roughness: 0.85 });
     const pipeMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, metalness: 0.45, roughness: 0.35 });
     const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a99ae, roughness: 0.6 });
     const cableMat  = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.75, roughness: 0.22 });
@@ -441,6 +646,125 @@
         return from.clone().addScaledVector(ab, t);
     }
 
+    // Обирає напрямок дотичної (вздовж стіни/циліндра) у бік, що краще наближає до цілі.
+    // norm — нормаль "від перешкоди до дрона" (у площині XZ, нормалізована).
+    // dirToTarget — напрямок "від дрона до цілі" (у площині XZ, нормалізована).
+    // drone — якщо передано, зберігає попередній вибір сторони (drone.wallSign) і змінює його
+    //         лише за наявності помітної переваги (гістерезис), щоб уникнути тремтіння кадр-у-кадр,
+    //         коли обидва варіанти майже рівнозначні (саме це спричиняло "застигання" дронів у кутах).
+    function pickTangent(norm, dirToTarget, drone) {
+        const tA = new THREE.Vector3(-norm.z, 0, norm.x);
+        const tB = new THREE.Vector3( norm.z, 0, -norm.x);
+        const dotA = tA.x * dirToTarget.x + tA.z * dirToTarget.z;
+        const dotB = tB.x * dirToTarget.x + tB.z * dirToTarget.z;
+        if (!drone) return dotA >= dotB ? tA : tB;
+
+        const HYSTERESIS = 0.15; // мінімальна перевага, щоб перемкнути сторону
+        const diff = dotA - dotB; // >0 -> tA краще, <0 -> tB краще
+        if (drone.wallSign === 0) {
+            drone.wallSign = diff >= 0 ? 1 : -1;
+        } else if (drone.wallSign === 1 && diff < -HYSTERESIS) {
+            drone.wallSign = -1;
+        } else if (drone.wallSign === -1 && diff > HYSTERESIS) {
+            drone.wallSign = 1;
+        }
+        return drone.wallSign === 1 ? tA : tB;
+    }
+
+    // Знаходить найближчу бокову поверхню перешкоди до довільної точки (px, py, pz).
+    // Повертає {dist, norm} або null.
+    // dist  — відстань від точки до поверхні (для циліндра — до бічної стінки).
+    // norm  — нормалізований вектор "від поверхні до точки" у площині XZ.
+    // Використовується wall-follower-ом у режимі амеби (поточна позиція + look-ahead).
+    function findClosestWallAtPos(px, py, pz) {
+        let bestDist = Infinity, bestNorm = null;
+        for (const obs of obstacles) {
+            let dist, norm;
+            if (obs.type === 'box' || obs.type === 'box_minY') {
+                const obsTopY   = obs.type === 'box_minY' ? obs.maxY : obs.h;
+                const obsFloorY = obs.type === 'box_minY' ? obs.minY : 0;
+                if (py < obsFloorY - DRONE_RADIUS || py > obsTopY + DRONE_RADIUS) continue;
+                const rot  = obs.rotation || 0;
+                const cosR = Math.cos(-rot), sinR = Math.sin(-rot);
+                const relX = px - obs.position.x, relZ = pz - obs.position.z;
+                const lx = relX * cosR - relZ * sinR;
+                const lz = relX * sinR + relZ * cosR;
+                const clx = Math.max(-obs.w/2, Math.min(obs.w/2, lx));
+                const clz = Math.max(-obs.d/2, Math.min(obs.d/2, lz));
+                const cosF = Math.cos(rot), sinF = Math.sin(rot);
+                const cpx = obs.position.x + clx * cosF - clz * sinF;
+                const cpz = obs.position.z + clx * sinF + clz * cosF;
+                const ddx = px - cpx, ddz = pz - cpz;
+                dist = Math.hypot(ddx, ddz);
+                if (dist < 0.01) continue;
+                norm = new THREE.Vector3(ddx / dist, 0, ddz / dist);
+            } else if (obs.type === 'cylinder') {
+                if (py > obs.height + DRONE_RADIUS) continue;
+                const ddx = px - obs.position.x, ddz = pz - obs.position.z;
+                const d = Math.hypot(ddx, ddz);
+                if (d < 0.01) continue;
+                dist = d - obs.radius;
+                norm = new THREE.Vector3(ddx / d, 0, ddz / d);
+            } else {
+                continue;
+            }
+            if (dist < bestDist) { bestDist = dist; bestNorm = norm.clone(); }
+        }
+        return bestDist < Infinity ? { dist: bestDist, norm: bestNorm } : null;
+    }
+
+    // Повертає тангент, зафіксований до групи (wallSign ігнорується, dirToTarget ігнорується).
+    // group  1 → правостороннє ковзання (стіна праворуч від напрямку руху)
+    // group -1 → лівостороннє ковзання (стіна ліворуч)
+    function groupTangent(norm, group) {
+        const tA = new THREE.Vector3(-norm.z, 0,  norm.x);
+        const tB = new THREE.Vector3( norm.z, 0, -norm.x);
+        return group === 1 ? tA : tB;
+    }
+
+    // Встановлює колір роторів дрона відповідно до групи.
+    // Група  1 → сині ротори (за замовчуванням)
+    // Група -1 → янтарні ротори (ліва амеба)
+    // Група  0 → скидання до синіх роторів
+    function applyDroneGroupColor(drone, group) {
+        const rotors = drone.mesh.userData.rotors;
+        if (!rotors || rotors.length === 0) return;
+        const isAmber = (group === -1);
+        // Один shared-клон матеріалу на всі 4 ротори цього дрона
+        const mat = rotors[0].material.clone();
+        if (isAmber) {
+            mat.color.set(0xfbbf24);
+            mat.emissive.set(0x7c3a00);
+        } else {
+            mat.color.set(0x93c5fd);
+            mat.emissive.set(0x1e3a8a);
+        }
+        rotors.forEach(r => { r.material = mat; });
+    }
+
+    // Розподіляє дронів на дві групи та фарбує їх ротори.
+    // Викликається при зміні чекбоксу або кількості дронів.
+    function assignAmoebaGroups() {
+        const n = drones.length;
+        if (!CONFIG.twoAmoebas || n < 4) {
+            // Режим вимкнено: скидаємо всіх до групи 0
+            for (const d of drones) {
+                d.amoebaGroup = 0;
+                d.wallSign = 0;
+                applyDroneGroupColor(d, 0);
+            }
+            return;
+        }
+        const half = Math.ceil(n / 2);
+        for (let i = 0; i < n; i++) {
+            const g = i < half ? 1 : -1;
+            drones[i].amoebaGroup = g;
+            drones[i].wallSign = g;           // миттєве фіксування знаку
+            drones[i].wallSignFlipCooldown = 0;
+            applyDroneGroupColor(drones[i], g);
+        }
+    }
+
     function createWindowTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -467,6 +791,7 @@
     let obstacles = [];      // фізичні дані
     let obstacleMeshes = []; // меші для рейкастингу
     let worldMeshes   = []; // УСІ меші світу (для повного очищення при регені)
+    let bridges = [];        // композитні об'єкти "міст" (для переміщення/повороту як цілого)
 
     // ---- ФІЗИЧНІ ГАБАРИТИ ДРОНА ----
     // Пропелери розташовані на відстані sqrt(1.4²+1.4²)+0.65 ≈ 2.63 від центру.
@@ -618,7 +943,9 @@
         tex.repeat.set(Math.max(1, Math.floor(w/5)), Math.max(1, Math.floor(h/6)));
         tex.needsUpdate = true;
         const wallMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35, metalness: 0.1 });
-        const mats = [wallMat, wallMat, roofMat, roofMat, wallMat, wallMat];
+        // Якщо дах вищий за стелю дронів — його не можна облетіти згори, фарбуємо сірим
+        const topMat = h > CONFIG.ceilingHeight ? roofMatBlocked : roofMat;
+        const mats = [wallMat, wallMat, topMat, topMat, wallMat, wallMat];
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
         mesh.position.set(x, h/2, z);
         mesh.castShadow = true;
@@ -641,10 +968,21 @@
         mesh.userData.obstacleIdx = obstacles.length;
         obstacleMeshes.push(mesh);
         obstacles.push({ type: 'cylinder', position: new THREE.Vector3(x, h/2, z),
-                         radius: rBottom, height: h, rotation: 0, primaryMesh: mesh });
+                         radius: rBottom, rTop: rTop, height: h, rotation: 0, primaryMesh: mesh });
     }
 
     function addBridge(x, z, length, width, deckHeight, isAlignedX = true, numPillars = 5) {
+        // Композитний запис мосту: всі меші та індекси перешкод цього мосту,
+        // щоб можна було переміщувати/повертати міст як єдиний об'єкт.
+        const bridgeRecord = {
+            type: 'bridge',
+            x, z, length, width, deckHeight, isAlignedX, numPillars,
+            meshes: [],        // усі THREE.Mesh цього мосту (для трансляції при перетягуванні)
+            obstacleIdxs: [],  // індекси в obstacles[], що належать цьому мосту
+        };
+        const trackMesh = (m) => { bridgeRecord.meshes.push(m); return m; };
+        const trackObs  = () => { bridgeRecord.obstacleIdxs.push(obstacles.length - 1); };
+
         // === ПРОГІН (DECK) ===
         const deckW = isAlignedX ? length : width;
         const deckD = isAlignedX ? width : length;
@@ -658,7 +996,10 @@
         scene.add(deckMesh);
         worldMeshes.push(deckMesh);
         obstacleMeshes.push(deckMesh);
+        deckMesh.userData.obstacleIdx = obstacles.length;
+        deckMesh.userData.bridgeRecord = bridgeRecord; // тег для виявлення мосту при рейкастингу
         obstacles.push({ type: 'bridge_deck', position: new THREE.Vector3(x, deckHeight, z), w: deckW, h: deckH, d: deckD });
+        trackMesh(deckMesh); trackObs();
 
         // Дорожнє покриття поверх прогону
         const roadSurfW = isAlignedX ? deckW - 0.5 : deckW * 0.72;
@@ -667,6 +1008,7 @@
         roadSurf.position.set(x, deckHeight + deckH/2 + 0.11, z);
         scene.add(roadSurf);
         worldMeshes.push(roadSurf);
+        trackMesh(roadSurf);
 
         // Центральна розмітка (жовта лінія)
         const markW = isAlignedX ? deckW * 0.88 : 0.38;
@@ -675,6 +1017,7 @@
         markMesh.position.set(x, deckHeight + deckH/2 + 0.35, z);
         scene.add(markMesh);
         worldMeshes.push(markMesh);
+        trackMesh(markMesh);
 
         // === БОКОВІ ПАРАПЕТИ ===
         const rH = 1.3, rT = 0.28;
@@ -690,6 +1033,7 @@
             rail.castShadow = true;
             scene.add(rail);
             worldMeshes.push(rail);
+            trackMesh(rail);
         }
 
         // Вертикальні балюстради через кожні ~6 одиниць
@@ -705,6 +1049,7 @@
                 b.position.set(bx, deckHeight + deckH/2 + bH/2, bz);
                 scene.add(b);
                 worldMeshes.push(b);
+                trackMesh(b);
             }
         }
 
@@ -725,7 +1070,10 @@
             scene.add(pillar);
             worldMeshes.push(pillar);
             obstacleMeshes.push(pillar);
+            pillar.userData.obstacleIdx = obstacles.length;
+            pillar.userData.bridgeRecord = bridgeRecord;
             obstacles.push({ type: 'cylinder', position: new THREE.Vector3(px, pHeight/2, pz), radius: pRadius, height: pHeight });
+            trackMesh(pillar); trackObs();
         }
 
         // === PYLОНИ ВАНТОВОГО МОСТУ ===
@@ -747,7 +1095,10 @@
             scene.add(baseMesh);
             worldMeshes.push(baseMesh);
             obstacleMeshes.push(baseMesh);
+            baseMesh.userData.obstacleIdx = obstacles.length;
+            baseMesh.userData.bridgeRecord = bridgeRecord;
             obstacles.push({ type: 'box', position: new THREE.Vector3(tx, baseH/2, tz), w: towerW * 1.15, h: baseH, d: towerW * 1.15 });
+            trackMesh(baseMesh); trackObs();
 
             // Пілон над прогоном — реєструємо як вертикальний циліндр-перешкода
             const pilonAboveGeo = new THREE.BoxGeometry(towerW, towerH, towerW);
@@ -759,9 +1110,12 @@
             worldMeshes.push(pilonAbove);
             // Пілон вище прогону — додаємо як box з явним minY
             obstacleMeshes.push(pilonAbove);
+            pilonAbove.userData.obstacleIdx = obstacles.length;
+            pilonAbove.userData.bridgeRecord = bridgeRecord;
             obstacles.push({ type: 'box_minY', position: new THREE.Vector3(tx, pilonAboveY, tz),
                              w: towerW, h: towerH, d: towerW,
                              minY: deckHeight + deckH/2, maxY: deckHeight + deckH/2 + towerH });
+            trackMesh(pilonAbove); trackObs();
 
             // Поперечна балка нагорі пілона (А-образна шапка)
             const capGeo = new THREE.BoxGeometry(towerW * 4.5, towerW * 0.7, towerW * 0.7);
@@ -769,6 +1123,7 @@
             cap.position.set(tx, deckHeight + deckH/2 + towerH - towerW * 0.35, tz);
             scene.add(cap);
             worldMeshes.push(cap);
+            trackMesh(cap);
 
             // === ВАНТИ (STAY CABLES) ===
             const towerTopY = deckHeight + deckH/2 + towerH;
@@ -784,12 +1139,13 @@
                     const from = new THREE.Vector3(tx, towerTopY, tz);
                     const to   = new THREE.Vector3(ex, ey, ez);
                     const cMesh = addStick(scene, from, to, 0.13, cableMat);
-                    if (cMesh) cMesh.castShadow = false;
+                    if (cMesh) { cMesh.castShadow = false; trackMesh(cMesh); }
                     // Реєструємо ванту як перешкоду для зіткнень
                     const mid = from.clone().add(to).multiplyScalar(0.5);
                     const halfSpan = from.distanceTo(to) * 0.5 + cableRepRadius + DRONE_RADIUS;
                     obstacles.push({ type: 'cable', from: from.clone(), to: to.clone(),
                                      radius: 0.13, mid, halfSpan });
+                    trackObs();
                 }
             }
 
@@ -807,15 +1163,20 @@
                     isAlignedX ? tz + sgn * sprOff : tz
                 );
                 const spr = addStick(scene, sFrom, sTo, 0.18, pylonMat);
-                if (spr) spr.castShadow = false;
+                if (spr) { spr.castShadow = false; trackMesh(spr); }
                 // Розпірки теж — перешкода
                 const mid2 = sFrom.clone().add(sTo).multiplyScalar(0.5);
                 const hs2 = sFrom.distanceTo(sTo) * 0.5 + DRONE_RADIUS + 1.0;
                 obstacles.push({ type: 'cable', from: sFrom.clone(), to: sTo.clone(),
                                  radius: 0.18, mid: mid2, halfSpan: hs2 });
+                trackObs();
             }
         }
+
+        bridges.push(bridgeRecord);
+        return bridgeRecord;
     }
+
 
     function getValidSpatialCoord(minRadius = 38) {
         let rx, rz;
@@ -840,15 +1201,47 @@
         }
         drones.length = 0;
         applyDroneCount(CONFIG.droneCount);
+        resetAmoebaState();
     }
 
     // ── Вибір та маніпуляція перешкодами (Ctrl+drag / стрілки) ──────────────
+    // selectedObs: { kind:'simple', obs, mesh }  — звичайна перешкода (будівля/труба)
+    //            | { kind:'bridge', bridge, mesh } — композитний міст (mesh = клікнута частина)
     function selectObstacle(obs, mesh) {
         deselectObstacle();
-        selectedObs = { obs, mesh };
-        if (!selHelper) { selHelper = new THREE.BoxHelper(mesh, 0xfbbf24); scene.add(selHelper); }
-        else             { selHelper.setFromObject(mesh); scene.add(selHelper); }
-        document.getElementById('sel-hint').style.display = 'block';
+        selectedObs = { kind: 'simple', obs, mesh };
+        selHelper = new THREE.BoxHelper(mesh, 0xfbbf24);
+        scene.add(selHelper);
+        const hint = document.getElementById('sel-hint');
+        hint.textContent = '✅ Виділено · Стрілки — поворот · Esc — скасувати';
+        hint.style.display = 'block';
+    }
+    function selectBridge(bridge, mesh) {
+        deselectObstacle();
+        selectedObs = { kind: 'bridge', bridge, mesh };
+        const box = computeBridgeBoundingBox(bridge);
+        selHelper = new THREE.Box3Helper(box, 0xfbbf24);
+        scene.add(selHelper);
+        const hint = document.getElementById('sel-hint');
+        hint.textContent = '✅ Виділено міст · Стрілки — поворот на 90° · Esc — скасувати';
+        hint.style.display = 'block';
+    }
+    function computeBridgeBoundingBox(bridge) {
+        const box = new THREE.Box3();
+        const tmp = new THREE.Box3();
+        for (const m of bridge.meshes) {
+            tmp.setFromObject(m);
+            box.union(tmp);
+        }
+        return box;
+    }
+    function refreshSelectionHelper() {
+        if (!selHelper || !selectedObs) return;
+        if (selectedObs.kind === 'bridge') {
+            selHelper.box.copy(computeBridgeBoundingBox(selectedObs.bridge));
+        } else {
+            selHelper.setFromObject(selectedObs.mesh);
+        }
     }
     function deselectObstacle() {
         if (selHelper) { scene.remove(selHelper); selHelper = null; }
@@ -857,22 +1250,105 @@
     }
     function rotateSelectedObs(delta) {
         if (!selectedObs) return;
+        if (selectedObs.kind === 'bridge') {
+            rotateBridge90(selectedObs.bridge);
+            refreshSelectionHelper();
+            return;
+        }
         const { obs, mesh } = selectedObs;
         obs.rotation = (obs.rotation || 0) + delta;
         mesh.rotation.y = obs.rotation;
-        if (selHelper) selHelper.setFromObject(mesh);
+        refreshSelectionHelper();
     }
     function moveSelectedObs(newX, newZ) {
         if (!selectedObs) return;
+        if (selectedObs.kind === 'bridge') {
+            moveBridge(selectedObs.bridge, newX, newZ);
+            refreshSelectionHelper();
+            return;
+        }
         const { obs, mesh } = selectedObs;
         mesh.position.x = newX;
         mesh.position.z = newZ;
         obs.position.x = newX;
         obs.position.z = newZ;
-        if (selHelper) selHelper.setFromObject(mesh);
+        refreshSelectionHelper();
     }
 
-    // ── Ctrl+drag event handlers ─────────────────────────────────────────────
+    // ── Переміщення мосту як цілого: трансляція всіх мешів та перешкод на (dx, dz) ──
+    function moveBridge(bridge, newX, newZ) {
+        const dx = newX - bridge.x;
+        const dz = newZ - bridge.z;
+        if (dx === 0 && dz === 0) return;
+        for (const m of bridge.meshes) {
+            m.position.x += dx;
+            m.position.z += dz;
+        }
+        for (const idx of bridge.obstacleIdxs) {
+            const obs = obstacles[idx];
+            if (!obs) continue;
+            if (obs.position) { obs.position.x += dx; obs.position.z += dz; }
+            if (obs.from) { obs.from.x += dx; obs.from.z += dz; }
+            if (obs.to)   { obs.to.x   += dx; obs.to.z   += dz; }
+            if (obs.mid)  { obs.mid.x  += dx; obs.mid.z  += dz; }
+        }
+        bridge.x = newX;
+        bridge.z = newZ;
+    }
+
+    // ── Поворот мосту на 90°: перебудовуємо геометрію з протилежною орієнтацією осі ──
+    function rotateBridge90(bridge) {
+        // Видаляємо старі меші та перешкоди цього мосту
+        for (const m of bridge.meshes) {
+            scene.remove(m);
+            const wi = worldMeshes.indexOf(m);
+            if (wi !== -1) worldMeshes.splice(wi, 1);
+            const oi = obstacleMeshes.indexOf(m);
+            if (oi !== -1) obstacleMeshes.splice(oi, 1);
+        }
+        removeObstaclesByIndices(bridge.obstacleIdxs);
+        const bi = bridges.indexOf(bridge);
+        if (bi !== -1) bridges.splice(bi, 1);
+
+        // Перебудовуємо міст з протилежним вирівнюванням осі (90° поворот)
+        addBridge(bridge.x, bridge.z, bridge.length, bridge.width, bridge.deckHeight, !bridge.isAlignedX, bridge.numPillars);
+        const newBridge = bridges[bridges.length - 1];
+
+        // Оновлюємо вибір на новостворений міст (та його перший меш для дальшого рейкастингу)
+        if (selectedObs && selectedObs.kind === 'bridge') {
+            selectedObs.bridge = newBridge;
+            selectedObs.mesh = newBridge.meshes[0];
+        }
+    }
+
+    // ── Видалення набору перешкод за індексами з переіндексацією mesh.userData.obstacleIdx ──
+    function removeObstaclesByIndices(indices) {
+        if (!indices || indices.length === 0) return;
+        const removeSet = new Set(indices);
+        const oldToNew = new Map();
+        const newObstacles = [];
+        for (let i = 0; i < obstacles.length; i++) {
+            if (removeSet.has(i)) continue;
+            oldToNew.set(i, newObstacles.length);
+            newObstacles.push(obstacles[i]);
+        }
+        obstacles = newObstacles;
+        // Переприв'язуємо userData.obstacleIdx для всіх мешів, що залишились
+        for (const m of obstacleMeshes) {
+            if (m.userData.obstacleIdx === undefined) continue;
+            const newIdx = oldToNew.get(m.userData.obstacleIdx);
+            if (newIdx === undefined) m.userData.obstacleIdx = undefined;
+            else m.userData.obstacleIdx = newIdx;
+        }
+        // Та для bridgeRecord.obstacleIdxs усіх інших мостів
+        for (const br of bridges) {
+            br.obstacleIdxs = br.obstacleIdxs
+                .map(i => oldToNew.get(i))
+                .filter(i => i !== undefined);
+        }
+    }
+
+    // ── Ctrl+drag event handlers (миша + дотик) ──────────────────────────────
     const _dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
     const _dragPt    = new THREE.Vector3();
     const _raycasterD = new THREE.Raycaster();
@@ -889,14 +1365,12 @@
         return _dragPt.clone();
     }
 
-    renderer.domElement.addEventListener('mousedown', (e) => {
-        if (!moveMode || e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
+    // Спільна логіка початку перетягування (миша та дотик)
+    function startDragAt(clientX, clientY) {
         const rect = renderer.domElement.getBoundingClientRect();
         const ndc = new THREE.Vector2(
-            ((e.clientX - rect.left) / rect.width)  * 2 - 1,
-            -((e.clientY - rect.top) / rect.height) * 2 + 1
+            ((clientX - rect.left) / rect.width)  * 2 - 1,
+            -((clientY - rect.top) / rect.height) * 2 + 1
         );
         const ray = new THREE.Raycaster();
         ray.setFromCamera(ndc, camera);
@@ -906,35 +1380,103 @@
         const idx = hitMesh.userData.obstacleIdx;
         if (idx === undefined) { deselectObstacle(); return; }
         const obs = obstacles[idx];
-        if (obs.type !== 'box' && obs.type !== 'cylinder') { deselectObstacle(); return; }
-        selectObstacle(obs, hitMesh);
+
+        let dragOrigin; // {x,y,z} — точка відліку для перетягування по XZ
+        if (hitMesh.userData.bridgeRecord) {
+            const bridge = hitMesh.userData.bridgeRecord;
+            selectBridge(bridge, hitMesh);
+            dragOrigin = { x: bridge.x, y: obs.position.y, z: bridge.z };
+        } else if (obs.type === 'box' || obs.type === 'cylinder') {
+            selectObstacle(obs, hitMesh);
+            dragOrigin = { x: obs.position.x, y: obs.position.y, z: obs.position.z };
+        } else {
+            deselectObstacle();
+            return;
+        }
+
         isDragging = true;
         // controls вже вимкнено moveMode-ом, але на всяк випадок
         controls.enabled = false;
-        dragPlaneY = obs.position.y;
-        const startPt = getWorldPosOnPlane(e.clientX, e.clientY, dragPlaneY);
+        dragPlaneY = dragOrigin.y;
+        const startPt = getWorldPosOnPlane(clientX, clientY, dragPlaneY);
         dragWorldStart.copy(startPt);
-        dragObsStart.set(obs.position.x, obs.position.y, obs.position.z);
-    }, true);
+        dragObsStart.set(dragOrigin.x, dragOrigin.y, dragOrigin.z);
+    }
 
-    renderer.domElement.addEventListener('mousemove', (e) => {
+    // Спільна логіка переміщення під час перетягування (миша та дотик)
+    function updateDragAt(clientX, clientY) {
         if (!isDragging || !selectedObs) return;
-        e.preventDefault();
-        const pt = getWorldPosOnPlane(e.clientX, e.clientY, dragPlaneY);
+        const pt = getWorldPosOnPlane(clientX, clientY, dragPlaneY);
         const nx = dragObsStart.x + (pt.x - dragWorldStart.x);
         const nz = dragObsStart.z + (pt.z - dragWorldStart.z);
         moveSelectedObs(nx, nz);
-    }, true);
+    }
 
-    const onMouseUp = () => {
+    function endDrag() {
         if (isDragging) {
             isDragging = false;
             // Повертаємо controls тільки якщо не в режимі переміщення
             if (!moveMode) controls.enabled = true;
         }
-    };
-    renderer.domElement.addEventListener('mouseup',    onMouseUp, true);
-    renderer.domElement.addEventListener('mouseleave', onMouseUp, true);
+    }
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+        if (!moveMode || e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        startDragAt(e.clientX, e.clientY);
+    }, true);
+
+    renderer.domElement.addEventListener('mousemove', (e) => {
+        if (!isDragging || !selectedObs) return;
+        e.preventDefault();
+        updateDragAt(e.clientX, e.clientY);
+    }, true);
+
+    renderer.domElement.addEventListener('mouseup',    endDrag, true);
+    renderer.domElement.addEventListener('mouseleave', endDrag, true);
+
+    // ── Підтримка тачскринів: один палець = той самий функціонал, що й ЛКМ ──
+    // (переміщення об'єктів у режимі "Рухати об'єкти" + подвійний дотик = телепорт цілі)
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    const DOUBLE_TAP_MS = 350;
+    const DOUBLE_TAP_DIST = 30; // px
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (moveMode) {
+            e.preventDefault();
+            startDragAt(t.clientX, t.clientY);
+            return;
+        }
+        // Перевірка подвійного дотику (телепорт цілі), коли НЕ в режимі переміщення
+        const now = Date.now();
+        const dx = t.clientX - lastTapX, dy = t.clientY - lastTapY;
+        const isDouble = (now - lastTapTime) < DOUBLE_TAP_MS && Math.hypot(dx, dy) < DOUBLE_TAP_DIST;
+        if (isDouble) {
+            e.preventDefault();
+            onDoubleClickHandler({ clientX: t.clientX, clientY: t.clientY,
+                preventDefault: () => {}, stopPropagation: () => {} });
+            lastTapTime = 0; // запобігаємо потрійному спрацюванню
+        } else {
+            lastTapTime = now;
+            lastTapX = t.clientX;
+            lastTapY = t.clientY;
+        }
+    }, { passive: false });
+
+    renderer.domElement.addEventListener('touchmove', (e) => {
+        if (!isDragging || !selectedObs) return;
+        if (e.touches.length !== 1) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        updateDragAt(t.clientX, t.clientY);
+    }, { passive: false });
+
+    renderer.domElement.addEventListener('touchend',    endDrag, true);
+    renderer.domElement.addEventListener('touchcancel', endDrag, true);
 
     // ── Keyboard: стрілки — поворот, Esc — скасувати / вийти з режиму ────────
     document.addEventListener('keydown', (e) => {
@@ -961,6 +1503,7 @@
         worldMeshes = [];
         obstacles = [];
         obstacleMeshes = [];
+        bridges = [];
 
         const bridgeCount = Math.max(1, Math.floor(CONFIG.density * 0.28));
         for (let i=0; i<bridgeCount; i++) {
@@ -1028,6 +1571,7 @@
                 d.mesh.position.copy(d.position);
             });
         }
+        resetAmoebaState();
     }
 
     // -------- ЦІЛЬ (ЧЕРВОНА СФЕРА) ----------
@@ -1069,6 +1613,9 @@
             this.position = new THREE.Vector3(x, y, z);
             this.velocity = new THREE.Vector3((Math.random()-0.5)*1.4, (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.4).normalize().multiplyScalar(CONFIG.maxSpeed);
             this.acceleration = new THREE.Vector3(0,0,0);
+            this.wallSign = 0; // персистентна "сторона" ковзання вздовж стіни (-1/+1/0=не визначено), щоб уникати тремтіння
+            this.wallSignFlipCooldown = 0; // кадрів до наступного дозволеного перевертання знаку (антидзвін)
+            this.amoebaGroup = 0; // 0=єдиний рій, 1=права стіна (сині ротори), -1=ліва стіна (янтарні ротори)
             this.mesh = createDroneMesh();
             this.mesh.position.copy(this.position);
             scene.add(this.mesh);
@@ -1197,10 +1744,51 @@
             }
         }
 
+        // ---- ЛОГІКА РЕЖИМУ "АМЕБА" (виявлення застою та переходу) ----
+        // Прогрес оцінюємо за найкращою (мінімальною) відстанню найближчого дрона до цілі.
+        // Автоматичне перемикання працює лише в режимі 'auto'; 'on'/'off' форсують стан вручну.
+        if (amoebaForceMode === 'auto') {
+            if (minDistToTarget < bestDistEver - 0.05) {
+                // Є прогрес у напрямку цілі
+                bestDistEver = minDistToTarget;
+                stagnationCounter = 0;
+                progressCounter++;
+            } else {
+                stagnationCounter++;
+                progressCounter = 0;
+            }
+
+            let changed = false;
+            if (!amoebaMode && stagnationCounter >= CONFIG.amoebaStagnationFrames) {
+                amoebaMode = true;
+                progressCounter = 0;
+                changed = true;
+            } else if (amoebaMode && progressCounter >= CONFIG.amoebaResumeFrames) {
+                amoebaMode = false;
+                stagnationCounter = 0;
+                bestDistEver = minDistToTarget;
+                changed = true;
+            }
+            if (changed) updateAmoebaToggleUI();
+        }
+
         for (let i=0; i<drones.length; i++) {
             const a = drones[i];
             let sep = new THREE.Vector3(), ali = new THREE.Vector3(), coh = new THREE.Vector3();
             let neighbors = 0, avgVel = new THREE.Vector3(), avgPos = new THREE.Vector3();
+
+            // ---- Перевірка прямої видимості цілі для цього дрона ----
+            const distToTarget = a.position.distanceTo(targetMesh.position);
+            let hasLOS = false;
+            let dirToTarget = new THREE.Vector3(0, 0, 1); // напрямок до цілі (для вибору сторони ковзання вздовж стін)
+            if (distToTarget > 0.05) {
+                dirToTarget = targetMesh.position.clone().sub(a.position).normalize();
+                const losRay = new THREE.Raycaster(a.position, dirToTarget, 0, distToTarget);
+                const losHits = losRay.intersectObjects(obstacleMeshes);
+                hasLOS = losHits.length === 0;
+            } else {
+                hasLOS = true;
+            }
 
             for (let j=0; j<drones.length; j++) {
                 if (i===j) continue;
@@ -1237,12 +1825,21 @@
                 coh = desiredCoh.sub(a.velocity);
             }
 
+            // ---- Сила атаки (пряма видимість цілі) ----
+            let attackForce = new THREE.Vector3();
+            if (hasLOS) {
+                attackForce = targetMesh.position.clone().sub(a.position).normalize().multiplyScalar(CONFIG.maxSpeed).sub(a.velocity);
+            }
+
             const targetForce = targetMesh.position.clone().sub(a.position).normalize().multiplyScalar(CONFIG.maxSpeed).sub(a.velocity);
             let swarmPull = new THREE.Vector3();
             if (bestDrone && bestDrone !== a) {
                 swarmPull = bestDrone.position.clone().sub(a.position);
                 if (swarmPull.length() > 0.2) swarmPull.normalize().multiplyScalar(CONFIG.maxSpeed).sub(a.velocity);
             }
+
+            // ---- Сила "прилипання" до стін (режим амеба) ----
+            let wallStick = new THREE.Vector3();
 
             let totalRep = new THREE.Vector3();
             for (const obs of obstacles) {
@@ -1315,15 +1912,99 @@
                 }
             }
 
-            a.applyForce(sep.multiplyScalar(weights.separation));
-            a.applyForce(ali.multiplyScalar(weights.alignment));
-            a.applyForce(coh.multiplyScalar(weights.cohesion));
-            a.applyForce(targetForce.multiplyScalar(weights.target));
-            a.applyForce(swarmPull.multiplyScalar(weights.swarmPull));
-            a.applyForce(totalRep);
-            // буферна пам'ять — відштовхування від нещодавно відвіданих зон
-            const memRep = a.getMemoryRepulsion();
-            if (memRep.lengthSq() > 0.001) a.applyForce(memRep.multiplyScalar(weights.memory));
+            // ── Режим амеба: wall-follower з обходом випуклих кутів ─────────────────
+            // Єдиний wall-follower замість пер-грані потенційного поля:
+            //  • знаходимо найближчу стіну до поточної позиції (findClosestWallAtPos);
+            //  • підтримуємо постійну відстань від неї (радіальна корекція);
+            //  • ковзаємо у стабільному напрямку (wallSign, гістерезис у pickTangent);
+            //  • look-ahead: якщо попереду стіна обривається (випуклий кут) —
+            //    штовхаємо дрон у бік стіни, щоб він "завернув" за кут;
+            //  • зондуємо "за кутом" для плавного переходу на наступну грань.
+            if (amoebaMode && !hasLOS) {
+                const ws = findClosestWallAtPos(a.position.x, a.position.y, a.position.z);
+                if (ws && ws.dist < CONFIG.wallStickRadius && ws.dist > CONFIG.safeRadius * 0.7) {
+                    const norm    = ws.norm;
+                    // Якщо дрон належить до зафіксованої групи (twoAmoebas) — тангент не залежить від цілі
+                    const tangent = (CONFIG.twoAmoebas && a.amoebaGroup !== 0)
+                        ? groupTangent(norm, a.amoebaGroup)
+                        : pickTangent(norm, dirToTarget, a);
+
+                    // 1. Радіальна корекція: тримати дрон на заданій відстані від стіни
+                    const targetDist = CONFIG.safeRadius * 0.92;
+                    wallStick.add(norm.clone().multiplyScalar(-(ws.dist - targetDist) * 1.1));
+
+                    // 2. Тангенційний рух вздовж стіни (основна рушійна сила)
+                    wallStick.add(tangent.clone().multiplyScalar(1.0));
+
+                    // 3. Look-ahead: виявлення випуклого кута ───────────────────────
+                    //    Зондуємо точку попереду вздовж поточного напрямку ковзання.
+                    //    Якщо там немає стіни — стіна повертає (випуклий кут).
+                    const LOOK = CONFIG.wallStickRadius * 1.6;
+                    const laX  = a.position.x + tangent.x * LOOK;
+                    const laZ  = a.position.z + tangent.z * LOOK;
+                    const laWs = findClosestWallAtPos(laX, a.position.y, laZ);
+
+                    if (!laWs || laWs.dist > CONFIG.wallStickRadius) {
+                        // Випуклий кут: штовхаємо у бік стіни (-norm = всередину),
+                        // щоб дрон почав завертати ще до того, як стіна зникне
+                        wallStick.add(norm.clone().negate().multiplyScalar(0.85));
+
+                        // Зондуємо "за кутом" (look-ahead + зміщення у бік стіни)
+                        const cornerX = laX - norm.x * LOOK * 0.55;
+                        const cornerZ = laZ - norm.z * LOOK * 0.55;
+                        const cWs = findClosestWallAtPos(cornerX, a.position.y, cornerZ);
+                        if (cWs && cWs.dist < CONFIG.wallStickRadius) {
+                            // Знайшли наступну грань — підмішуємо її тангенту для плавного переходу
+                            const nextTan = (CONFIG.twoAmoebas && a.amoebaGroup !== 0)
+                                ? groupTangent(cWs.norm, a.amoebaGroup)
+                                : pickTangent(cWs.norm, dirToTarget, null);
+                            wallStick.add(nextTan.clone().multiplyScalar(0.5));
+                        }
+                    }
+                } else if (ws) {
+                    // Дрон поза зоною прилипання — слабкий компас до цілі
+                    wallStick.add(dirToTarget.clone().multiplyScalar(0.45));
+                }
+            }
+
+            if (hasLOS) {
+                // --- Режим прямої атаки: ціль у прямій видимості — вимикаємо сили роя ---
+                a.applyForce(attackForce.multiplyScalar(weights.target * 1.5));
+                a.applyForce(totalRep);
+            } else if (amoebaMode) {
+                // --- Режим "амеба": чистий wall-follower.
+                //     Вимикаємо стандартну фізику (alignment, cohesion, target, swarmPull).
+                //     Залишаємо: розділення (щоб дрони не злипались) + тверде відштовхування
+                //     + wall-follower (wallStick, обчислений вище) + пам'ять (уникнення тупиків).
+                //     Перевертання wallSign за пам'яттю: якщо рій зайшов у тупик і пам'ять
+                //     "кричить" — один раз міняємо знак напряму, потім кулдаун ~3-4 сек. ---
+                a.applyForce(sep.multiplyScalar(weights.separation * 0.7));
+                a.applyForce(totalRep);
+                a.applyForce(wallStick.multiplyScalar(weights.wallStick));
+                const memRep = a.getMemoryRepulsion();
+                if (memRep.lengthSq() > 0.001) a.applyForce(memRep.multiplyScalar(weights.memory));
+                // Перевертання знаку при тупику (антидзвін через кулдаун)
+                // У режимі двох амеб знак зафіксовано — не перевертаємо, щоб групи не змішувались
+                if (!CONFIG.twoAmoebas || a.amoebaGroup === 0) {
+                    if (a.wallSignFlipCooldown > 0) {
+                        a.wallSignFlipCooldown--;
+                    } else if (memRep.lengthSq() > 5.0) {
+                        a.wallSign = (a.wallSign === 0 ? -1 : -a.wallSign);
+                        a.wallSignFlipCooldown = 110; // ~3.5 сек при 30 fps
+                    }
+                }
+            } else {
+                // --- Штатний режим ---
+                a.applyForce(sep.multiplyScalar(weights.separation));
+                a.applyForce(ali.multiplyScalar(weights.alignment));
+                a.applyForce(coh.multiplyScalar(weights.cohesion));
+                a.applyForce(targetForce.multiplyScalar(weights.target));
+                a.applyForce(swarmPull.multiplyScalar(weights.swarmPull));
+                a.applyForce(totalRep);
+                // буферна пам'ять — відштовхування від нещодавно відвіданих зон
+                const memRep = a.getMemoryRepulsion();
+                if (memRep.lengthSq() > 0.001) a.applyForce(memRep.multiplyScalar(weights.memory));
+            }
         }
 
         for (let k=lineIdx; k<posAttr.count; k++) posAttr.setXYZ(k, 0,0,0);
@@ -1353,6 +2034,7 @@
             targetPhase = 0;
             // Додатково гарантуємо, що ціль не застрягне всередині перешкоди
             enforceHardCollisions(targetMesh, 2.3);
+            resetAmoebaState();
             // Невеликий візуальний ефект (миттєве оновлення)
             console.log(`🎯 Ціль телепортовано на (${targetMesh.position.x.toFixed(1)}, ${targetMesh.position.y.toFixed(1)}, ${targetMesh.position.z.toFixed(1)})`);
             // Запобігаємо стандартній поведінці та спливанню до OrbitControls
@@ -1368,6 +2050,7 @@
                 targetCenter.copy(targetMesh.position);
                 targetPhase = 0;
                 enforceHardCollisions(targetMesh, 2.3);
+                resetAmoebaState();
                 event.preventDefault();
                 event.stopPropagation();
             }
@@ -1664,9 +2347,213 @@
         document.getElementById('btn-as-abort').disabled = true;
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    //  ЗБЕРЕЖЕННЯ / ЗАВАНТАЖЕННЯ  (localStorage + ручні кнопки)
+    // ══════════════════════════════════════════════════════════════════
+    const LS_KEY = 'swarmSim_v2';
+
+    // Серіалізує поточний стан світу (без Three.js-об'єктів).
+    function serializeWorld() {
+        // Збираємо індекси перешкод, що належать мостам
+        const bridgeIdxSet = new Set();
+        for (const br of bridges) {
+            for (const idx of (br.obstacleIdxs || [])) bridgeIdxSet.add(idx);
+        }
+        // Рецепти мостів
+        const bridgesSave = bridges.map(br => ({
+            x: br.x, z: br.z, length: br.length, width: br.width,
+            deckHeight: br.deckHeight, isAlignedX: br.isAlignedX, numPillars: br.numPillars
+        }));
+        // Окремі будівлі та труби (не частини мостів)
+        const standaloneSave = [];
+        for (let i = 0; i < obstacles.length; i++) {
+            if (bridgeIdxSet.has(i)) continue;
+            const obs = obstacles[i];
+            if (obs.type === 'box') {
+                standaloneSave.push({
+                    type: 'box',
+                    x: parseFloat(obs.position.x.toFixed(3)),
+                    z: parseFloat(obs.position.z.toFixed(3)),
+                    w: parseFloat(obs.w.toFixed(3)),
+                    h: parseFloat(obs.h.toFixed(3)),
+                    d: parseFloat(obs.d.toFixed(3)),
+                    rotation: parseFloat((obs.rotation || 0).toFixed(5))
+                });
+            } else if (obs.type === 'cylinder') {
+                standaloneSave.push({
+                    type: 'cylinder',
+                    x: parseFloat(obs.position.x.toFixed(3)),
+                    z: parseFloat(obs.position.z.toFixed(3)),
+                    rBottom: parseFloat(obs.radius.toFixed(3)),
+                    rTop: parseFloat((obs.rTop || obs.radius * 0.35).toFixed(3)),
+                    height: parseFloat(obs.height.toFixed(3))
+                });
+            }
+            // bridge_deck, box_minY, cable — ігноруємо (відтворюються через bridges)
+        }
+        return { bridges: bridgesSave, standalone: standaloneSave };
+    }
+
+    // Відтворює світ зі збереженого стану (без перегенерації).
+    function loadWorldFromSave(worldSave) {
+        worldMeshes.forEach(m => scene.remove(m));
+        worldMeshes = [];
+        obstacles = [];
+        obstacleMeshes = [];
+        bridges = [];
+        // Мости
+        for (const br of (worldSave.bridges || [])) {
+            addBridge(br.x, br.z, br.length, br.width, br.deckHeight, br.isAlignedX, br.numPillars);
+        }
+        // Окремі перешкоди
+        for (const obs of (worldSave.standalone || [])) {
+            if (obs.type === 'box') {
+                addBoxBuilding(obs.x, obs.z, obs.w, obs.h, obs.d);
+                if (obs.rotation) {
+                    const added = obstacles[obstacles.length - 1];
+                    added.rotation = obs.rotation;
+                    if (added.primaryMesh) added.primaryMesh.rotation.y = obs.rotation;
+                }
+            } else if (obs.type === 'cylinder') {
+                addPipe(obs.x, obs.z, obs.rBottom, obs.rTop, obs.height);
+            }
+        }
+    }
+
+    // Збирає повний знімок стану для збереження.
+    function collectState() {
+        const cfgSnap = {};
+        for (const k of Object.keys(CONFIG)) cfgSnap[k] = CONFIG[k];
+        return {
+            v: 2,
+            config:      cfgSnap,
+            weights:     { ...weights },
+            amoebaMode:  amoebaForceMode,
+            simSpeed:    parseInt(document.getElementById('v-sim-speed').value) || 0,
+            world:       serializeWorld()
+        };
+    }
+
+    // Застосовує знімок стану до симуляції та UI.
+    function applyState(data) {
+        if (!data || data.v !== 2) return false;
+
+        // CONFIG
+        Object.assign(CONFIG, data.config);
+        // weights
+        Object.assign(weights, data.weights);
+
+        // Оновлення слайдерів та чекбоксів (dispatch input, щоб спрацювали слухачі)
+        const setSlider = (id, val) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.value = val;
+            el.dispatchEvent(new Event('input'));
+        };
+        setSlider('w-sep',          data.weights.separation);
+        setSlider('w-ali',          data.weights.alignment);
+        setSlider('w-coh',          data.weights.cohesion);
+        setSlider('w-tar',          data.weights.target);
+        setSlider('w-rep',          data.weights.repulsion);
+        setSlider('w-mem',          data.weights.memory);
+        setSlider('w-wallstick',    data.weights.wallStick);
+        setSlider('v-tar-speed',    data.config.targetSpeed);
+        setSlider('v-amoeba-stag',  data.config.amoebaStagnationFrames);
+        setSlider('v-amoeba-resume',data.config.amoebaResumeFrames);
+        setSlider('v-wall-stick',   data.config.wallStickRadius);
+        setSlider('v-mem-cell',     data.config.memCellSize);
+        setSlider('v-density',      data.config.density);
+        setSlider('v-sim-speed',    data.simSpeed || 0);
+
+        const setCB = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+        setCB('cb-follow-swarm', data.config.followSwarm);
+        setCB('cb-two-amoebas',  data.config.twoAmoebas);
+
+        const dcEl = document.getElementById('v-drone-count');
+        if (dcEl) dcEl.value = data.config.droneCount;
+
+        // Режим амеби
+        if (data.amoebaMode) window.setAmoebaForceMode(data.amoebaMode);
+
+        // Світ
+        if (data.world) loadWorldFromSave(data.world);
+
+        // Дрони
+        applyDroneCount(CONFIG.droneCount);
+        resetAmoebaState();
+        assignAmoebaGroups();
+        return true;
+    }
+
+    // Зберігає стан у localStorage.
+    function saveToLS() {
+        try {
+            localStorage.setItem(LS_KEY, JSON.stringify(collectState()));
+            return true;
+        } catch(e) { console.warn('Збереження не вдалося:', e); return false; }
+    }
+
+    // Завантажує стан з localStorage. Повертає true при успіху.
+    function loadFromLS() {
+        try {
+            const raw = localStorage.getItem(LS_KEY);
+            if (!raw) return false;
+            return applyState(JSON.parse(raw));
+        } catch(e) { console.warn('Завантаження не вдалося:', e); return false; }
+    }
+
+    // Показує спалах-підтвердження під кнопками save/load.
+    function showToast(msg, ok = true) {
+        const el = document.getElementById('save-toast');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.background = ok ? '#10b981' : '#ef4444';
+        el.style.display = 'block';
+        clearTimeout(el._tid);
+        el._tid = setTimeout(() => { el.style.display = 'none'; }, 2200);
+    }
+
     // Генерація першого світу та старт
-    generateWorld();
+    if (!loadFromLS()) {
+        generateWorld();
+    }
     document.getElementById('btn-regen').addEventListener('click', () => { generateWorld(); });
+    document.getElementById('btn-save').addEventListener('click', () => {
+        try {
+            const json = JSON.stringify(collectState(), null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'swarm-' + new Date().toISOString().slice(0,19).replace(/[T:]/g,'-') + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('💾 Файл збережено!');
+        } catch(e) { showToast('❌ Помилка: ' + e.message, false); }
+    });
+    document.getElementById('btn-load').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type   = 'file';
+        input.accept = '.json,application/json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (applyState(data)) showToast('📂 ' + file.name + ' завантажено!');
+                    else showToast('❌ Невідомий формат файлу', false);
+                } catch(err) { showToast('❌ Помилка читання: ' + err.message, false); }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    });
+    // Авто-збереження при згортанні/закритті вкладки
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveToLS();
+    });
     // Початкове положення цілі
     targetCenter.set(-190, 12, 40);
 	targetMesh.position.set(-190, 15, 40);
