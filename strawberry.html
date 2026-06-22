@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моделювання динамічного ціноутворення швидкопсувних товарів</title>
+    <!-- Стабільні версії фундаментальних CDN бібліотек -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen font-sans antialiased">
+
+    <!-- Науково-освітня експлікація (Модальне вікно) -->
+    <div id="intro-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-white border border-gray-200 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl">📊</span>
+                <h2 class="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Динамічна оптимізація цін</h2>
+            </div>
+            
+            <div class="space-y-4 text-gray-600 text-sm md:text-base leading-relaxed">
+                <p>
+                    <strong class="text-gray-900">Об'єкт дослідження:</strong> Процес реалізації обмеженої партії швидкопсувної продукції (на прикладі садової суниці) в умовах безперервної деградації її якісних характеристик. Початковий обсяг закупленої партії становить <span class="text-amber-700 font-bold">I₀ кг</span>.
+                </p>
+                <p>
+                    <strong class="text-gray-900">Фактор ендогенного ризику:</strong> Біологічне псування товару. Функція якості утримує початкове плато лише протягом обмеженого часу, після чого стрімко знижується за принципом «зсуненого водоспада». У термінальний момент часу <span class="text-rose-600 font-bold">T_{rot}</span> товар повністю втрачає споживчу цінність.
+                </p>
+                <p>
+                    <strong class="text-gray-900">Оптимізаційне завдання:</strong> Знаходження такої безперервної траєкторії керування ціною <span class="text-gray-950 font-mono">p*(t)</span>, яка забезпечує максимізацію інтегрального виторгу (цільової функції) за умови повного або максимально можливого очищення складу до настання моменту утилізації.
+                </p>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button onclick="closeModal()" class="px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-xl shadow-lg transition-all transform hover:scale-[1.01]">
+                    Перейти до моделювання
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Головна робоча область -->
+    <div class="max-w-7xl mx-auto p-4 md:p-6">
+        <header class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-6">
+            <div>
+                   <h1 class="text-2xl md:text-3xl font-black text-gray-900 tracking-tight mt-1">
+                    Оптимізація траєкторій збуту швидкопсувних запасів
+                </h1>
+            </div>
+            <div class="bg-white border border-gray-200 px-5 py-3 rounded-xl text-center md:text-right h-fit shadow-sm">
+                <span class="block text-xs text-gray-500 font-semibold uppercase tracking-wider">Тіньова ціна ресурсу (&lambda;):</span>
+                <span id="val-lambda" class="text-2xl font-mono font-bold text-emerald-600">0.0000</span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- ЛІВА КОЛОНКА: Панель параметрів + Статичний закон попиту -->
+            <div class="lg:col-span-4 space-y-6">
+                
+                <!-- Блок конфігурації -->
+                <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm space-y-5">
+                    <div class="border-b border-gray-100 pb-2">
+                        <h2 class="text-md font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wider text-xs">
+                            <span>⚙️</span> Вхідні параметри моделі
+                        </h2>
+                    </div>
+
+                    <!-- Модель функції попиту -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Специфікація попиту (d)</label>
+                        <select id="param-model" class="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer font-medium">
+                            <option value="quadratic">Квадратична нелінійна: d = A·q - B·p²</option>
+                            <option value="linear">Класична лінійна: d = A·q - B·p</option>
+                        </select>
+                    </div>
+
+                    <hr class="border-gray-100">
+
+                    <!-- Параметри стану ринку -->
+                    <div class="space-y-4">
+                        <h3 class="text-xs font-extrabold uppercase tracking-widest text-indigo-600">Стан ринку та початковий запас</h3>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Початковий обсяг партії (I₀):</span>
+                                <span id="val-I0" class="font-mono text-indigo-600 font-bold">125 кг</span>
+                            </div>
+                            <input type="range" id="param-I0" min="20" max="300" value="125" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Максимальний потенціал попиту (A):</span>
+                                <span id="val-A" class="font-mono text-indigo-600 font-bold">35</span>
+                            </div>
+                            <input type="range" id="param-A" min="10" max="80" value="35" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Коефіцієнт еластичності до ціни (B):</span>
+                                <span id="val-B" class="font-mono text-indigo-600 font-bold">0.14</span>
+                            </div>
+                            <input type="range" id="param-B" min="0.02" max="0.6" step="0.01" value="0.14" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+                    </div>
+
+                    <hr class="border-gray-100">
+
+                    <!-- Біологічні параметри -->
+                    <div class="space-y-4">
+                        <h3 class="text-xs font-extrabold uppercase tracking-widest text-rose-600">Кінетика біологічного розпаду</h3>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Тривалість плато свіжості (t₀):</span>
+                                <span id="val-t0" class="font-mono text-rose-600 font-bold">14 год</span>
+                            </div>
+                            <input type="range" id="param-t0" min="4" max="24" value="14" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-600">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Точка повної деградації (T_rot):</span>
+                                <span id="val-Trot" class="font-mono text-rose-600 font-bold">24 год</span>
+                            </div>
+                            <input type="range" id="param-Trot" min="16" max="36" value="24" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-600">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-600">Інтенсивність спаду (&beta;):</span>
+                                <span id="val-beta" class="font-mono text-rose-600 font-bold">0.5</span>
+                            </div>
+                            <input type="range" id="param-beta" min="0.1" max="2.0" step="0.05" value="0.5" class="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-600">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Відновлений графік закону попиту -->
+                <div id="plot-demand" class="bg-white border border-gray-200 p-4 rounded-2xl h-64 shadow-sm"></div>
+            </div>
+
+            <!-- ПРАВА КОЛОНКА: Вертикальний каскад часових графіків (Єдина вісь X) -->
+            <div class="lg:col-span-8 space-y-4">
+                <div id="plot-quality" class="bg-white border border-gray-200 p-3 rounded-2xl h-52 shadow-sm"></div>
+                <div id="plot-price" class="bg-white border border-gray-200 p-3 rounded-2xl h-52 shadow-sm"></div>
+                <div id="plot-inventory" class="bg-white border border-gray-200 p-3 rounded-2xl h-52 shadow-sm"></div>
+            </div>
+        </div>
+
+        <!-- НАУКОВО-ТЕОРЕТИЧНИЙ СУПРОВІД (Відновлені аналітичні матеріали) -->
+        <div class="mt-8 space-y-4">
+            
+            <!-- Математичний апарат -->
+            <details open class="group bg-white border border-gray-200 rounded-2xl overflow-hidden transition-all duration-300">
+                <summary class="flex items-center justify-between p-5 font-bold text-gray-800 cursor-pointer hover:bg-gray-50 list-none">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xl text-indigo-600 group-open:rotate-90 transition-transform">🔬</span>
+                        <span class="text-base md:text-lg">1) Математичний апарат динамічного керування (Теоретичний аналіз)</span>
+                    </div>
+                    <span class="text-xs text-gray-400 uppercase tracking-widest group-open:hidden">Розгорнути</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-widest hidden group-open:block">Згорнути</span>
+                </summary>
+                <div class="p-6 border-t border-gray-100 bg-gray-50/50 text-gray-700 text-sm leading-relaxed space-y-4">
+                    <p>Задача оптимізації темпів реалізації обмеженого ресурсу відноситься до класу задач <strong>неперервного оптимального керування з термінальними обмеженнями на фазові координати</strong>. Для її аналітичного розв'язання застосовано принцип максимуму Понтрягіна.</p>
+                    
+                    <h3 class="text-gray-900 font-bold border-b border-gray-200 pb-1 mt-4">1. Аналітична модель кінетики біологічного в'янення</h3>
+                    <p>Для математичного моделювання ефекту «водоспадного» падіння споживчих властивостей розроблено нормалізовану функцію на основі урізаного арктангенса. Вона забезпечує суворе виконання початкових умов \(q(0)=1\) та термінальних умов \(q(t) = 0\) при \(t \ge T_{rot}\):
+                        \[q(t) = \begin{cases} \frac{\arctan(\beta(T_{rot} - t_0)) - \arctan(\beta(t - t_0))}{\arctan(\beta(T_{rot} - t_0)) + \arctan(\beta t_0)}, & 0 \le t < T_{rot} \\ 0, & t \ge T_{rot} \end{cases}\]
+                    Така специфікація дозволяє гнучко моделювати тривалість збереження товарного вигляду та крутизну подальшого обвалу ринкової привабливості.</p>
+
+                    <h3 class="text-gray-950 font-bold border-b border-gray-200 pb-1 mt-4">2. Формалізація задачі математичного програмування</h3>
+                    <p>Нехай \(I(t)\) — поточний обсяг складських залишків (фазова змінна), а \(p(t)\) — цінова стратегія (керування). Потрібно максимізувати функціонал сумарного виторгу:
+                        \[\max_{p(t)} \int_0^{T_{rot}} p(t) \cdot d(p(t), q(t)) \, dt\]
+                    За умови диференціального обмеження на швидкість зміни залишків: \(\frac{dI}{dt} = -d(p(t), q(t))\) при граничних умовах \(I(0) = I_0\) та \(I(T_{rot}) \ge 0\).</p>
+
+                    <h3 class="text-gray-950 font-bold border-b border-gray-200 pb-1 mt-4">3. Побудова функції Гамільтона та спряжений стан</h3>
+                    <p>Введемо сопряжену змінну \(\lambda(t)\), що відображає динамічну оцінку дефіцитності або <strong>тіньову ціну одиниці залишку (Shadow Price)</strong>. Функція Гамільтона має вигляд:
+                        \[H = p(t) \cdot d(p(t), q(t)) - \lambda(t) \cdot d(p(t), q(t)) = (p(t) - \lambda(t)) \cdot d(p(t), q(t))\]
+                    Оскільки \(H\) явно не залежить від обсягу залишків \(I\), рівняння для сопряженої змінної набуває вигляду: \(\frac{d\lambda}{dt} = -\frac{\partial H}{\partial I} = 0 \implies \lambda = \text{const}\). Сталість тіньової ціни спрощує обчислювальний алгоритм пошуку оптимального керування.</p>
+
+                    <h3 class="text-gray-950 font-bold border-b border-gray-200 pb-1 mt-4">4. Аналітичне виведення оптимального керування \(p^*(t)\)</h3>
+                    <p>Застосовуючи необхідну умову екстремуму першого порядку за керуючою змінною (\(\frac{\partial H}{\partial p} = 0\)), отримуємо явні розв'язки:</p>
+                    <ul class="list-disc list-inside space-y-2 pl-2">
+                        <li><strong>При лінійній функції попиту (\(d = A\cdot q - B\cdot p\)):</strong> \[p^*(t) = \frac{A \cdot q(t) + B \cdot \lambda}{2B}\]</li>
+                        <li><strong>При квадратичній нелінійній функції попиту (\(d = A\cdot q - B\cdot p^2\)):</strong> \[p^*(t) = \frac{\lambda + \sqrt{\lambda^2 + 3 \frac{A}{B} q(t)}}{3}\]</li>
+                    </ul>
+                    <p class="text-xs text-gray-500 mt-2">Числове значення константи \(\lambda\) знаходиться за допомогою ітераційного методу дихотомії (бісекції) з метою точного виконання крайової умови \(I(T_{rot}) = 0\).</p>
+                </div>
+            </details>
+
+            <!-- Експрес-довідка по інтерпретації -->
+            <details class="group bg-white border border-gray-200 rounded-2xl overflow-hidden transition-all duration-300">
+                <summary class="flex items-center justify-between p-5 font-bold text-gray-800 cursor-pointer hover:bg-gray-50 list-none">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xl text-amber-500 group-open:rotate-90 transition-transform">📖</span>
+                        <span class="text-base md:text-lg">2) Методичні вказівки з інтерпретації результатів</span>
+                    </div>
+                    <span class="text-xs text-gray-400 uppercase tracking-widest group-open:hidden">Розгорнути</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-widest hidden group-open:block">Згорнути</span>
+                </summary>
+                <div class="p-6 border-t border-gray-100 bg-gray-50/50 text-gray-700 text-sm space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="text-indigo-900 font-bold mb-2">Вплив вхідних екзогенних параметрів:</h4>
+                            <ul class="space-y-2 pl-2 border-l-2 border-indigo-500/30 text-gray-600">
+                                <li><strong>Параметр I₀ (Початковий запас):</strong> Збільшення обсягу змушує алгоритм знижувати базовий рівень цін для прискорення темпів реалізації.</li>
+                                <li><strong>Коефіцієнт A (Потенціал попиту):</strong> Відображає місткість ринку. Високі значення дозволяють утримувати преміальне ціноутворення довше.</li>
+                                <li><strong>Коефіцієнт B (Чутливість):</strong> Характеризує цінову еластичність ринку. Чим більший показник, тим чутливіший попит до найменшого підвищення ціни.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-rose-900 font-bold mb-2">Аналіз взаємозв'язку графіків:</h4>
+                            <ul class="space-y-2 pl-2 border-l-2 border-rose-500/30 text-gray-600">
+                                <li><strong>Графік деградації якості:</strong> Задає фундаментальний тренд зниження споживчої корисності в часі.</li>
+                                <li><strong>Динаміка оптимальної ціни:</strong> Демонструє еластичну реакцію керування. На етапі плато ціна знижується плавно (компенсація зменшення загального запасу), а в момент обвалу якості — падає синхронно з нею.</li>
+                                <li><strong>Залишки складу:</strong> Крива демонструє швидкість евакуації продукції. Оптимальна траєкторія гарантує плавний вихід на нуль точно до моменту остаточного зіпсування продукції.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <!-- Обчислювальний скрипт симулятора -->
+    <script>
+        const SIM_HORIZON = 36; 
+        const STEPS = 240;      
+        const DT = SIM_HORIZON / STEPS;
+
+        function closeModal() {
+            const modal = document.getElementById('intro-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.remove(), 300);
+        }
+
+        function calculateQuality(t, beta, t0, Trot) {
+            if (t >= Trot) return 0.0;
+            const normDenom = Math.atan(beta * (Trot - t0)) - Math.atan(beta * (0 - t0));
+            const num = Math.atan(beta * (Trot - t0)) - Math.atan(beta * (t - t0));
+            return Math.max(0, num / normDenom);
+        }
+
+        function calculateDemand(p, q, A, B, isQuadratic) {
+            if (q <= 0) return 0;
+            const rawDemand = isQuadratic ? (A * q - B * p * p) : (A * q - B * p);
+            return Math.max(0, rawDemand);
+        }
+
+        function calculateOptimalPrice(lambda, q, A, B, isQuadratic) {
+            if (q <= 0) return 0;
+            if (isQuadratic) {
+                const insideSqrt = lambda * lambda + 3 * (A / B) * q;
+                return (lambda + Math.sqrt(insideSqrt)) / 3;
+            } else {
+                return (A * q + B * lambda) / (2 * B);
+            }
+        }
+
+        function runBisection(I0, beta, t0, Trot, A, B, isQuadratic) {
+            let lMin = 0;
+            let lMax = 4000; 
+            let lambda = 0;
+
+            for (let iter = 0; iter < 90; iter++) {
+                lambda = (lMin + lMax) / 2;
+                let currentInv = I0;
+                let soldOutEarly = false;
+
+                for (let i = 0; i < STEPS; i++) {
+                    let t = i * DT;
+                    let q = calculateQuality(t, beta, t0, Trot);
+                    let p = calculateOptimalPrice(lambda, q, A, B, isQuadratic);
+                    let d = calculateDemand(p, q, A, B, isQuadratic);
+
+                    let sales = Math.min(currentInv, d * DT);
+                    currentInv -= sales;
+
+                    if (currentInv <= 0 && t < Trot) {
+                        soldOutEarly = true;
+                        break;
+                    }
+                }
+
+                if (soldOutEarly) {
+                    lMin = lambda; 
+                } else {
+                    lMax = lambda; 
+                }
+            }
+            return lambda;
+        }
+
+        function renderSimulation() {
+            const modelType = document.getElementById('param-model').value;
+            const isQuadratic = (modelType === 'quadratic');
+
+            const I0 = parseFloat(document.getElementById('param-I0').value);
+            const A = parseFloat(document.getElementById('param-A').value);
+            const B = parseFloat(document.getElementById('param-B').value);
+            const t0 = parseFloat(document.getElementById('param-t0').value);
+            let Trot = parseFloat(document.getElementById('param-Trot').value);
+            const beta = parseFloat(document.getElementById('param-beta').value);
+
+            if (Trot <= t0) {
+                Trot = t0 + 0.5;
+                document.getElementById('param-Trot').value = Trot;
+            }
+
+            // Оновлення числових індикаторів інтерфейсу
+            document.getElementById('val-I0').innerText = `${I0} кг`;
+            document.getElementById('val-A').innerText = `${A}`;
+            document.getElementById('val-B').innerText = `${B}`;
+            document.getElementById('val-t0').innerText = `${t0} год`;
+            document.getElementById('val-Trot').innerText = `${Trot} год`;
+            document.getElementById('val-beta').innerText = `${beta}`;
+
+            const lambda = runBisection(I0, beta, t0, Trot, A, B, isQuadratic);
+            document.getElementById('val-lambda').innerText = lambda.toFixed(4);
+
+            let times = [], qualities = [], prices = [], inventories = [];
+            let currentInv = I0;
+
+            for (let i = 0; i < STEPS; i++) {
+                let t = i * DT;
+                let q = calculateQuality(t, beta, t0, Trot);
+                let p = calculateOptimalPrice(lambda, q, A, B, isQuadratic);
+                let d = calculateDemand(p, q, A, B, isQuadratic);
+
+                if (currentInv > 0 && q > 0) {
+                    let sales = Math.min(currentInv, d * DT);
+                    currentInv -= sales;
+                }
+
+                times.push(t);
+                qualities.push(q);
+                prices.push(currentInv > 0 && q > 0 ? p : 0);
+                inventories.push(currentInv);
+            }
+
+            // Стандартизована світла тема для графіків
+            const lightThemeLayout = {
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                font: {color: '#111827', family: 'sans-serif'},
+                xaxis: {gridcolor: '#E5E7EB', tickfont: {color: '#4B5563'}, titlefont: {color: '#4B5563'}},
+                yaxis: {gridcolor: '#E5E7EB', tickfont: {color: '#4B5563'}, titlefont: {color: '#4B5563'}}
+            };
+
+            // Синхронізований бічний відступ для вертикального стека графіків
+            const timeSeriesLayout = {
+                ...lightThemeLayout,
+                margin: {t: 35, b: 30, l: 60, r: 20},
+                xaxis: {
+                    ...lightThemeLayout.xaxis,
+                    range: [0, SIM_HORIZON],
+                    title: {text: 'Часовий інтервал моделювання (години)', font: {size: 10, color: '#9CA3AF'}}
+                }
+            };
+
+            // ВІДНОВЛЕНИЙ ГРАФІК: Статичний закон попиту d = f(p)
+            let testPrices = [], demandFresh = [], demandMid = [];
+            const maxPriceTest = isQuadratic ? Math.sqrt(A / B) * 1.2 : (A / B) * 1.2;
+            for (let p = 0; p <= maxPriceTest; p += maxPriceTest / 60) {
+                testPrices.push(p);
+                demandFresh.push(calculateDemand(p, 1.0, A, B, isQuadratic));
+                demandMid.push(calculateDemand(p, calculateQuality(t0, beta, t0, Trot), A, B, isQuadratic));
+            }
+
+            Plotly.newPlot('plot-demand', [
+                {x: testPrices, y: demandFresh, mode: 'lines', line: {color: '#3B82F6', dash: 'dash'}, name: 'Свіжа партія (q=1.0)'},
+                {x: testPrices, y: demandMid, mode: 'lines', line: {color: '#EF4444'}, name: `В'янення (t=${t0} год)`}
+            ], {
+                ...lightThemeLayout,
+                title: {text: 'Статична функція попиту d = f(p)', font: {size: 12, bold: true, color: '#111827'}, x: 0.02},
+                margin: {t: 40, b: 35, l: 45, r: 15},
+                legend: {font: {size: 9}, orientation: 'h', x: 0, y: -0.35}
+            }, {displayModeBar: false});
+
+
+            // СТЕК ГРАФІКІВ 1: Динаміка якості q(t)
+            Plotly.newPlot('plot-quality', [{
+                x: times, y: qualities, mode: 'lines',
+                line: {color: '#EC4899', width: 3},
+                name: 'Якість q(t)'
+            }], {
+                ...timeSeriesLayout,
+                title: {text: '1. Кінетика деградації споживчої якості q(t) (Модель водоспада)', font: {size: 12}, x: 0.01},
+                yaxis: {...timeSeriesLayout.yaxis, title: 'Індекс якості', range: [-0.05, 1.05]}
+            }, {responsive: true, displayModeBar: false});
+
+            // СТЕК ГРАФІКІВ 2: Динаміка оптимального керування ціною p*(t)
+            Plotly.newPlot('plot-price', [{
+                x: times, y: prices, mode: 'lines',
+                line: {color: '#10B981', width: 3},
+                name: 'Ціна p*(t)'
+            }], {
+                ...timeSeriesLayout,
+                title: {text: '2. Траєкторія оптимального керування ціною p*(t)', font: {size: 12}, x: 0.01},
+                yaxis: {...timeSeriesLayout.yaxis, title: 'Ціна (грн/кг)'}
+            }, {responsive: true, displayModeBar: false});
+
+            // СТЕК ГРАФІКІВ 3: Динаміка фазової змінної запасу I(t)
+            Plotly.newPlot('plot-inventory', [{
+                x: times, y: inventories, mode: 'lines',
+                line: {color: '#F59E0B', width: 3},
+                name: 'Запас I(t)'
+            }], {
+                ...timeSeriesLayout,
+                title: {text: '3. Евакуація складського залишку продукції I(t)', font: {size: 12}, x: 0.01},
+                yaxis: {...timeSeriesLayout.yaxis, title: 'Залишок (кг)'}
+            }, {responsive: true, displayModeBar: false});
+        }
+
+        // Автоматична реєстрація подій введення даних
+        const controlIds = ['param-I0', 'param-A', 'param-B', 'param-t0', 'param-Trot', 'param-beta', 'param-model'];
+        controlIds.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('input', renderSimulation);
+                el.addEventListener('change', renderSimulation);
+            }
+        });
+
+        // Первинний запуск моделі
+        renderSimulation();
+    </script>
+</body>
+</html>
