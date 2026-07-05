@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Зоопарк розподілів імовірностей</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+
+<style>
+  :root{
+    --bg: #eef3f6;
+    --panel: #ffffff;
+    --panel-2: #eef2ea;
+    --paper: #1c2e26;
+    --paper-dim: #5c6d64;
+    --ink: #14231c;
+    --chalk: #f4efdd;
+    --brass-light: #d9a441;
+    --brass: #9c6f1d;
+    --brass-dark: #6e4d14;
+    --moss: #3f7a37;
+    --moss-dark: #2b5626;
+    --clay: #b85a35;
+    --clay-dark: #8a3f22;
+    --chimera: #7a4f8c;
+    --chimera-dark: #5b3968;
+    --grid-line: rgba(28,58,49,0.07);
+    --grid-line-strong: rgba(28,58,49,0.18);
+    --shadow: rgba(30,45,38,0.12);
+    --radius: 14px;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--paper);
+    font-family: var(--font-body);
+    line-height: 1.55;
+    min-height: 100vh;
+    padding: 28px 16px 60px;
+  }
+
+  a{ color: var(--brass-dark); }
+
+  .app-shell{ max-width: 1080px; margin: 0 auto; }
+
+  /* ---------- HEADER ---------- */
+  header.hero{
+    text-align:center;
+    padding: 18px 10px 30px;
+    border-bottom: 1px dashed var(--grid-line-strong);
+    margin-bottom: 26px;
+  }
+  .eyebrow{
+    font-family: var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    color: var(--brass);
+    margin-bottom: 10px;
+  }
+  h1.title{
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    margin: 0 0 12px;
+    color: var(--paper);
+    letter-spacing: -0.01em;
+  }
+  h1.title .accent{ color: var(--brass-dark); font-style: italic; font-weight: 500;}
+  p.subtitle{ max-width: 620px; margin: 0 auto; color: var(--paper-dim); font-size: 1.02rem; }
+
+  .top-bar{ display:flex; justify-content:flex-end; margin-bottom: 16px; }
+  .help-btn{
+    font-family: var(--font-mono); font-size: 0.82rem; background: var(--panel);
+    border: 1.5px solid var(--grid-line-strong); color: var(--paper-dim);
+    padding: 8px 16px; border-radius: 999px; cursor:pointer; transition: all 0.15s ease;
+  }
+  .help-btn:hover{ border-color: var(--brass); color: var(--paper); }
+  .welcome-image{ display:block; max-width:100%; border-radius:10px; margin-top:10px; border:1px solid var(--grid-line-strong); }
+  .modal-box p{ margin: 0 0 14px; font-size: 0.97rem; color: var(--paper); }
+  .modal-box p:last-of-type{ margin-bottom: 0; }
+
+  /* ---------- CATEGORY TABS ---------- */
+  .tabs{ display:flex; justify-content:center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab-btn{
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1.5px solid var(--grid-line-strong);
+    background: var(--panel);
+    color: var(--paper-dim);
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .tab-btn:hover{ border-color: var(--brass); color: var(--paper); }
+  .tab-btn.active[data-cat="discrete"]{ background: linear-gradient(180deg, var(--clay), var(--clay-dark)); border-color: var(--clay-dark); color: #fff5ee; }
+  .tab-btn.active[data-cat="continuous"]{ background: linear-gradient(180deg, var(--moss), var(--moss-dark)); border-color: var(--moss-dark); color: #f2fbee; }
+  .tab-btn.active[data-cat="chimera"]{ background: linear-gradient(180deg, var(--chimera), var(--chimera-dark)); border-color: var(--chimera-dark); color: #faf3fb; }
+
+  /* ---------- SPECIES CHIPS ---------- */
+  .species-rail{ display:flex; gap: 10px; overflow-x: auto; padding: 4px 4px 14px; margin-bottom: 22px; scrollbar-width: thin; }
+  .species-rail::-webkit-scrollbar{ height: 6px; }
+  .species-rail::-webkit-scrollbar-thumb{ background: var(--brass-dark); border-radius: 4px; }
+
+  .chip{
+    flex: 0 0 auto; display:flex; align-items:center; gap: 8px;
+    background: var(--panel); border: 1.5px solid var(--grid-line-strong);
+    padding: 9px 16px 9px 10px; border-radius: 999px; cursor: pointer;
+    font-size: 0.92rem; color: var(--paper-dim); transition: all 0.15s ease; white-space: nowrap;
+  }
+  .chip .chip-emoji{ width: 30px; height: 30px; display:flex; align-items:center; justify-content:center; border-radius: 50%; background: var(--ink); font-size: 1.05rem; }
+  .chip:hover{ border-color: var(--brass); color: var(--paper); transform: translateY(-1px); }
+  .chip.active{ background: var(--panel-2); border-color: var(--brass); color: var(--paper); box-shadow: 0 0 0 1px var(--brass) inset; }
+
+  /* ---------- SPECIMEN CARD ---------- */
+  .specimen-card{
+    background: var(--panel); border: 1px solid var(--grid-line-strong); border-radius: var(--radius);
+    padding: 28px; box-shadow: 0 18px 40px var(--shadow); position: relative; overflow: hidden;
+  }
+  .specimen-card::before{
+    content:""; position:absolute; inset:0;
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 26px 26px; opacity: 0.6; pointer-events:none;
+  }
+
+  .card-grid{ display:grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 30px; position: relative; align-items: stretch; }
+  @media (max-width: 860px){ .card-grid{ grid-template-columns: 1fr; } }
+
+  .medallion-row{ display:flex; align-items:center; gap: 16px; margin-bottom: 14px; }
+  .medallion{
+    width: 64px; height:64px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--brass-light), var(--brass-dark) 75%);
+    display:flex; align-items:center; justify-content:center; font-size: 2rem;
+    box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px var(--ink), 0 6px 14px var(--shadow);
+    flex-shrink:0;
+  }
+  .name-block .sci-name{ font-family: var(--font-display); font-style: italic; font-weight: 500; color: var(--brass-dark); font-size: 0.85rem; }
+  .name-block h2{ font-family: var(--font-display); font-size: 1.55rem; margin: 2px 0 0; color: var(--paper); }
+
+  .tagline{ color: var(--paper-dim); font-size: 0.98rem; margin: 4px 0 14px; padding-left: 12px; border-left: 3px solid var(--brass-dark); }
+
+  .origin-btn{
+    display:inline-flex; align-items:center; gap:6px; margin: 0 0 18px;
+    font-family: var(--font-mono); font-size: 0.82rem; background: var(--panel-2);
+    border:1.5px dashed var(--brass-dark); color: var(--brass-dark); padding:8px 14px;
+    border-radius:999px; cursor:pointer; transition: all .15s ease;
+  }
+  .origin-btn:hover{ background: var(--brass-dark); color:#fff9ef; border-style:solid; }
+
+  .formula-box{
+    background: var(--ink); color: var(--chalk); border: 1px solid var(--brass-dark);
+    border-radius: 10px; padding: 16px 14px; margin-bottom: 18px; overflow-x: auto; text-align:center;
+  }
+  .formula-box .katex{ font-size: 1.02em; }
+  .support-line{ font-family: var(--font-mono); font-size: 0.8rem; color: var(--paper-dim); text-align:center; margin-top: -10px; margin-bottom: 18px; }
+
+  .param-row{ margin-bottom: 16px; }
+  .param-label{ display:flex; justify-content:space-between; align-items:baseline; font-family: var(--font-mono); font-size: 0.85rem; color: var(--paper-dim); margin-bottom: 6px; }
+  .param-label .val{ color: var(--brass-dark); font-weight: 700; }
+  input[type=range]{ -webkit-appearance:none; width:100%; height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--brass-light), var(--grid-line-strong)); outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width: 20px; height:20px; border-radius:50%; background: radial-gradient(circle at 35% 30%, var(--brass-light), var(--brass-dark)); border: 2px solid var(--panel); box-shadow: 0 2px 6px var(--shadow); cursor:pointer; }
+  input[type=range]::-moz-range-thumb{ width: 18px; height:18px; border-radius:50%; background: radial-gradient(circle at 35% 30%, var(--brass-light), var(--brass-dark)); border: 2px solid var(--panel); cursor:pointer; }
+
+  .chart-panel{ position:relative; display:flex; flex-direction:column; height:100%; }
+  .chart-wrap{ background: var(--panel); border: 1px solid var(--grid-line-strong); border-radius: 10px; padding: 10px; flex: 1 1 auto; min-height: 340px; display:flex; }
+  canvas#chart{ width:100%; height: 100%; display:block; border-radius: 6px; }
+  .readout{ font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-dim); text-align:center; margin-top: 10px; min-height: 1.2em; }
+  .readout .hl{ color: var(--brass-dark); font-weight:600; }
+  .chart-caption{ font-family: var(--font-mono); font-size: 0.74rem; color: var(--paper-dim); text-align:center; margin-top: 6px; font-style: italic; }
+
+  details.dossier{ margin-top: 26px; border-top: 1px dashed var(--grid-line-strong); padding-top: 18px; position:relative; }
+  details.dossier > summary{ cursor:pointer; list-style:none; font-family: var(--font-mono); font-weight:600; font-size: 0.92rem; color: var(--brass-dark); display:flex; align-items:center; gap:8px; user-select:none; }
+  details.dossier > summary::-webkit-details-marker{ display:none; }
+  details.dossier > summary::before{ content: "▸"; display:inline-block; transition: transform 0.15s ease; }
+  details.dossier[open] > summary::before{ transform: rotate(90deg); }
+
+  .stat-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
+  .stat-item{ background: var(--panel-2); border: 1px solid var(--grid-line-strong); border-radius: 10px; padding: 12px 14px; }
+  .stat-item .stat-label{ font-family: var(--font-mono); font-size: 0.72rem; text-transform:uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 6px; }
+  .stat-item .stat-formula{ margin-bottom: 6px; overflow-x:auto; max-width:100%; }
+  .stat-item.wide{ grid-column: 1 / -1; }
+  .stat-item .stat-value{ font-family: var(--font-mono); color: var(--brass-dark); font-size: 0.95rem; font-weight:600; }
+
+  .section-title{ font-family: var(--font-display); font-size: 1.15rem; color: var(--paper); margin: 28px 0 12px; display:flex; align-items:center; gap:8px; }
+
+  .relations-section .relation-item{
+    background: var(--panel-2); border-radius: 8px; padding: 10px 14px; margin: 0 0 10px; font-size: 0.93rem; color: var(--paper);
+  }
+
+  .xref-pill{ display:inline-block; padding: 1px 10px; border-radius: 999px; font-family: var(--font-mono); font-size: 0.85em; font-weight:600; margin: 0 1px; vertical-align: baseline; }
+  .xref-pill.enabled{ background: var(--panel); border: 1.5px solid var(--brass); color: var(--brass-dark); cursor:pointer; transition: all .15s ease; }
+  .xref-pill.enabled:hover{ background: var(--brass-dark); color:#fff9ef; border-color: var(--brass-dark); }
+  .xref-pill.disabled{ background: transparent; border: 1.5px dashed var(--grid-line-strong); color: var(--paper-dim); cursor: default; opacity:0.8; }
+
+  .examples-row{ display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }
+  .example-card{ background: var(--panel-2); border-left: 3px solid var(--moss); border-radius: 8px; padding: 12px 14px; font-size: 0.92rem; color: var(--paper); }
+  .tab-context-discrete .example-card{ border-left-color: var(--clay); }
+  .tab-context-chimera .example-card{ border-left-color: var(--chimera); }
+
+  .notes-list{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px; }
+  .notes-list li{ position:relative; padding: 10px 14px 10px 34px; background: var(--panel-2); border-radius: 8px; font-size: 0.93rem; color: var(--paper); }
+  .notes-list li::before{ content: "📌"; position:absolute; left:10px; top:10px; font-size: 0.85rem; }
+
+  footer.foot{ text-align:center; margin-top: 40px; color: var(--paper-dim); font-family: var(--font-mono); font-size: 0.78rem; }
+
+  .random-btn{
+    display:block; margin: 0 auto 22px; font-family: var(--font-mono); font-size: 0.82rem;
+    background: var(--panel); border: 1px dashed var(--brass-dark); color: var(--paper-dim);
+    padding: 8px 16px; border-radius: 999px; cursor:pointer; transition: all 0.15s ease;
+  }
+  .random-btn:hover{ border-color: var(--brass-dark); color: var(--brass-dark); }
+
+  /* ---------- MODAL: Походження видів ---------- */
+  .modal-overlay{ position:fixed; inset:0; background: rgba(20,35,28,0.55); display:none; align-items:center; justify-content:center; z-index:1000; padding:20px; }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{ background: var(--panel); border-radius:16px; max-width:640px; width:100%; max-height:85vh; overflow-y:auto; padding:32px 30px; position:relative; box-shadow:0 30px 70px rgba(20,30,25,0.35); border:1px solid var(--grid-line-strong); }
+  .modal-close{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; background:var(--panel-2); border:1px solid var(--grid-line-strong); cursor:pointer; font-size:1rem; color: var(--paper-dim); line-height:1; }
+  .modal-close:hover{ color: var(--paper); border-color: var(--brass); }
+  .modal-eyebrow{ font-family: var(--font-mono); letter-spacing:0.14em; text-transform:uppercase; font-size:0.7rem; color: var(--brass); margin-bottom:6px; }
+  .modal-box h2{ font-family: var(--font-display); font-size:1.5rem; margin: 0 0 18px; color: var(--paper); }
+  .modal-story{ margin-bottom: 22px; padding-bottom:20px; border-bottom: 1px dashed var(--grid-line-strong); }
+  .modal-story:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .modal-story h3{ font-family: var(--font-display); font-size:1.1rem; color: var(--brass-dark); margin: 0 0 10px; }
+  .modal-story p{ margin:0; font-size:0.96rem; color: var(--paper); }
+
+  :focus-visible{ outline: 2px solid var(--brass-dark); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce){ *{ transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div class="top-bar">
+    <button class="help-btn" id="helpBtn">❓ Як цим користуватись</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn" data-cat="discrete">🦔 Дискретні</button>
+    <button class="tab-btn" data-cat="continuous">🐫 Неперервні</button>
+    <button class="tab-btn" data-cat="chimera">🦄 Хімери</button>
+  </div>
+
+  <div class="species-rail" id="speciesRail"></div>
+
+  <button class="random-btn" id="randomBtn">🎲 показати випадкового мешканця вольєра</button>
+
+  <main class="specimen-card" id="card"></main>
+
+  <footer class="foot">Пілотна версія v0.7 — 28 мешканців у зоопарку. Кандидати на майбутнє: більше хімер, розподіл Пуассона-Дірихле та інші екзотичні звірі — пишіть, кого ще додати.</footer>
+
+</div>
+
+<div class="modal-overlay" id="welcomeOverlay">
+  <div class="modal-box">
+    <button class="modal-close" id="welcomeClose">✕</button>
+    
+    <h2>Зоопарк розподілів імовірностей</h2>
+    <p>Це інтерактивний довідник з мешканців теорії ймовірностей — все честно, з формулами, але з історіями.</p>
+    <p><strong>Три вольєри</strong> нагорі: 🦔 Дискретні, 🐫 Неперервні, 🦄 Хімери (мішані розподіли — атом плюс неперервна крива в одному звірі). Обери вольєр, а потім — конкретного мешканця з ряду карток під ним.</p>
+    <p>На кожній картці рухай повзунки — графік ізначення параметрів в спойлері «Досьє натураліста» оновлюються на льоту. Не забудь заглянути в <strong>«🔗 Родинні зв’язки»</strong> — там мешканці посилаються один на одного, і можна клікнути прямо на ім’я родича, щоб перестрибнути до нього. А де є кнопка <strong>«🧬 Походження видів»</strong> — обов’язково натисни: там пояснено, як один розподіл перетворюється на інший.</p>
+       <img src="normrasp.png" alt="Нормальний розподіл" class="welcome-image" onerror="this.style.display='none'">
+    <button class="origin-btn" id="welcomeStartBtn" style="margin-top:16px;">Поїхали →</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose">✕</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script>
+/* ======================= МАТЕМАТИЧНІ ПОМІЧНИКИ ======================= */
+
+// Гамма-функція, наближення Ланцоша
+function gammaFn(x){
+  const p = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
+  const g = 7;
+  if (x < 0.5) return Math.PI / (Math.sin(Math.PI * x) * gammaFn(1 - x));
+  x -= 1;
+  let a = p[0];
+  const t = x + g + 0.5;
+  for (let i = 1; i < g + 2; i++) a += p[i] / (x + i);
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, x + 0.5) * Math.exp(-t) * a;
+}
+
+// Бета-функція через гамма-функцію
+function betaFn(a, b){ return gammaFn(a) * gammaFn(b) / gammaFn(a + b); }
+
+// Логарифм гамма-функції (щоб не переповнювати double на великих n у Біноміальному)
+function lnGammaFn(x){
+  const p = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
+  const g = 7;
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGammaFn(1 - x);
+  x -= 1;
+  let a = p[0];
+  const t = x + g + 0.5;
+  for (let i = 1; i < g + 2; i++) a += p[i] / (x + i);
+  return 0.5*Math.log(2*Math.PI) + (x+0.5)*Math.log(t) - t + Math.log(a);
+}
+
+// log C(n,k) через lnGammaFn, і pmf Біноміального в лог-просторі (не боїться n у сотнях)
+function lnChoose(n,k){ return lnGammaFn(n+1) - lnGammaFn(k+1) - lnGammaFn(n-k+1); }
+
+function fmt(n, digits){
+  if (!isFinite(n)) return "—";
+  digits = digits === undefined ? 3 : digits;
+  const r = Math.round(n * Math.pow(10, digits)) / Math.pow(10, digits);
+  return r.toString();
+}
+
+/* ======================= ДАНІ ПРО МЕШКАНЦІВ ======================= */
+
+const CHIMERA_CDF_TEX = "F(x)=\\sum_{x_i \\le x} p_i \\;+\\; \\Big(1-\\textstyle\\sum p_i\\Big)\\,F_{\\text{непер.}}(x)";
+
+const DISTRIBUTIONS = {
+
+  /* ======================= ДИСКРЕТНІ ======================= */
+
+  uniform_discrete: {
+    id: "uniform_discrete", category: "discrete", emoji: "🎲",
+    name: "Рівномірний дискретний розподіл", sciName: "Democratia discreta",
+    tagline: "Демократія у чистому вигляді: усі значення рівноправні, і жодне не має привілеїв.",
+    support: "k \\in \\{a, a{+}1, \\dots, a{+}n{-}1\\}",
+    pdfTex: "P(X=k) = \\dfrac{1}{n}",
+    cdfTex: "F(k) = \\dfrac{\\lfloor k \\rfloor - a + 1}{n}",
+    meanTex: "\\mathbb{E}[X] = a + \\dfrac{n-1}{2}",
+    varTex: "\\mathbb{D}[X] = \\dfrac{n^2-1}{12}",
+    skewTex: "\\gamma_1 = 0",
+    kurtTex: "\\gamma_2 = -\\dfrac{6(n^2+1)}{5(n^2-1)}",
+    modeTex: "\\text{всі рівноймовірні}",
+    charFnTex: "\\varphi(t) = \\dfrac{e^{iat}(1-e^{int})}{n(1-e^{it})}",
+    params: [
+      { key:"a", label:"a — початкове значення", min:0, max:10, step:1, default:1 },
+      { key:"n", label:"n — кількість значень", min:2, max:12, step:1, default:6 }
+    ],
+    pmf: (k,p) => (k>=p.a && k<=p.a+p.n-1) ? 1/p.n : 0,
+    domain: [0, 22],
+    yMax: 0.53,
+    stats: {
+      mean: p => p.a + (p.n-1)/2, variance: p => (p.n*p.n-1)/12,
+      skew: () => 0, kurt: p => -6*(p.n*p.n+1)/(5*(p.n*p.n-1))
+    },
+    relations: [
+      "Сума кількох незалежних рівномірних дискретних доданків дуже швидко (вже за 3-4 доданки) починає скидатися на {{normal:Нормальний}} — Центральна гранична теорема не робить винятків навіть для найпростіших доданків.",
+      "Номер першого успіху при рівних шансах на кожен з n варіантів — це вже {{geometric:Геометричний}}, а не рівномірний."
+    ],
+    examples: [
+      "Кидок звичайного шестигранного кубика (a=1, n=6).",
+      "Остання цифра номера телефону випадкового абонента (a=0, n=10).",
+      "Номер вагона поїзда, який тобі дістався випадково з n вагонів."
+    ],
+    notes: [
+      "Це найпростіший можливий дискретний розподіл — усі результати рівноправні, як у чесній лотереї.",
+      "У програмуванні саме цей розподіл ховається за функцією random(a,b) — і горе тому, хто випадково зробить його не рівномірним через баг округлення.",
+      "Цікавий мутант-родич: перша значуща цифра у величезних масивах реальних чисел (населення міст, банківські транзакції, курси валют) підкоряється не рівномірному, а закону Бенфорда — там одиниця трапляється як перша цифра в ~30% випадків, а дев’ятка — лише в ~5%. Останню цифру це не стосується, лише першу."
+    ]
+  },
+
+  bernoulli: {
+    id: "bernoulli", category: "discrete", emoji: "🪙",
+    name: "Розподіл Бернуллі", sciName: "Atomos bernoullii",
+    tagline: "Атом усієї теорії ймовірностей: один-єдиний підкид монетки, з якого при бажанні збирають весь інший зоопарк.",
+    support: "k \\in \\{0,1\\}",
+    pdfTex: "P(X=k)=p^k(1-p)^{1-k}",
+    cdfTex: "F(k)=\\begin{cases}0,&k<0\\\\1-p,&0\\le k<1\\\\1,&k\\ge1\\end{cases}",
+    meanTex: "\\mathbb{E}[X]=p",
+    varTex: "\\mathbb{D}[X]=p(1-p)",
+    skewTex: "\\gamma_1=\\dfrac{1-2p}{\\sqrt{p(1-p)}}",
+    kurtTex: "\\gamma_2=\\dfrac{1-6p(1-p)}{p(1-p)}",
+    modeTex: "\\mathrm{Mode}=[p>0.5]",
+    charFnTex: "\\varphi(t)=1-p+pe^{it}",
+    params: [ { key:"p", label:"p — шанс на успіх", min:0.05, max:0.95, step:0.01, default:0.5 } ],
+    pmf: (k,p) => k===1 ? p.p : (k===0 ? 1-p.p : 0),
+    domain: [0, 1],
+    yMax: 1.01,
+    stats: { mean: p => p.p, variance: p => p.p*(1-p.p), skew: p => (1-2*p.p)/Math.sqrt(p.p*(1-p.p)), kurt: p => (1-6*p.p*(1-p.p))/(p.p*(1-p.p)) },
+    relations: [
+      "Сума n незалежних Бернуллі — це {{binomial:Біноміальний}} розподіл.",
+      "Номер першої вдалої спроби в послідовності Бернуллі — це {{geometric:Геометричний}} розподіл."
+    ],
+    examples: [
+      "Підкидання монетки: орел чи решка.",
+      "Чи клікнув користувач на банер (клікнув / не клікнув).",
+      "Чи здав студент іспит з першої спроби."
+    ],
+    notes: [
+      "Найпростіший можливий розподіл — по суті, це просто зважена монетка, записана мовою математики.",
+      "Будь-яка складна дискретна історія (Біноміальне, Геометричне, Від’ємне біноміальне) десь у фундаменті ховає купу оцих Бернуллі."
+    ]
+  },
+
+  binomial: {
+    id: "binomial", category: "discrete", emoji: "🎯",
+    name: "Біноміальний розподіл", sciName: "Multitudo bernoulliana",
+    tagline: "n монеток одразу — і вже на сотому кидку факторіали вилазять із проблемами, яких боїться навіть калькулятор.",
+    support: "k \\in \\{0,1,\\dots,n\\}",
+    pdfTex: "P(X=k)=\\dbinom{n}{k}p^k(1-p)^{n-k}",
+    cdfTex: "F(k)=\\displaystyle\\sum_{i=0}^{\\lfloor k\\rfloor}\\dbinom{n}{i}p^i(1-p)^{n-i}",
+    meanTex: "\\mathbb{E}[X]=np",
+    varTex: "\\mathbb{D}[X]=np(1-p)",
+    skewTex: "\\gamma_1=\\dfrac{1-2p}{\\sqrt{np(1-p)}}",
+    kurtTex: "\\gamma_2=\\dfrac{1-6p(1-p)}{np(1-p)}",
+    modeTex: "\\mathrm{Mode}=\\lfloor (n+1)p \\rfloor",
+    charFnTex: "\\varphi(t)=\\left(1-p+pe^{it}\\right)^n",
+    params: [
+      { key:"n", label:"n — кількість випробувань", min:5, max:100, step:1, default:20 },
+      { key:"p", label:"p — шанс успіху в одному", min:0.05, max:0.95, step:0.01, default:0.5 }
+    ],
+    pmf: (k,p) => {
+      const n=p.n, pr=p.p;
+      if (k<0||k>n) return 0;
+      if (pr<=0) return k===0?1:0;
+      if (pr>=1) return k===n?1:0;
+      return Math.exp(lnChoose(n,k) + k*Math.log(pr) + (n-k)*Math.log(1-pr));
+    },
+    domain: [0, 100],
+    yMax: 0.82,
+    stats: {
+      mean: p => p.n*p.p, variance: p => p.n*p.p*(1-p.p),
+      skew: p => (1-2*p.p)/Math.sqrt(p.n*p.p*(1-p.p)), kurt: p => (1-6*p.p*(1-p.p))/(p.n*p.p*(1-p.p))
+    },
+    relations: [
+      "При n→∞, p→0, np=λ=const — вироджується в {{poisson:Пуассона}}.",
+      "При великих n (і не надто екстремальному p) стає майже невідмінним від {{normal:Нормального}} — обидва напрямки з умовами дивись у «Походженні видів».",
+      "Сума n незалежних {{bernoulli:Бернуллі}} випробувань.",
+      "Вибірка БЕЗ повернення на ту саму тему — це вже {{hypergeometric:Гіпергеометричний}} розподіл."
+    ],
+    originStories: [
+      { title: "Куди тікає Біноміальне, коли стає завеликим",
+        body: "При n=600 і p=0.5 треба порахувати 601 коефіцієнт C(600,k), і найбільший із них, C(600,300), — число десь із 180 нулями. Рахувати таке в лоб — самогубство, тож Біноміальне завжди тікає до когось простішого, а до кого саме — залежить від того, що саме зростає. Якщо n росте, а p одночасно зменшується так, щоб добуток λ=np лишався сталим (типовий приклад: рідкісна подія в довгій серії) — Біноміальне вироджується в {{poisson:Пуассона}}: P(X=k)→λᵏe⁻λ/k!. Але якщо замість цього великими стають ОБИДВА добутки np і n(1-p) одночасно (грубе правило: обидва ≥5-10, як у нашому прикладі з n=600, p=0.5) — Біноміальне вироджується в {{normal:Нормальний}} розподіл із μ=np, σ²=np(1-p) — це теорема Муавра — Лапласа. Один предок, а доріг спрощення — дві, і ведуть вони в геть різні боки зоопарку." }
+    ],
+    examples: [
+      "Кількість орлів у 20 підкиданнях монетки.",
+      "Кількість бракованих деталей у партії зі 100 штук, якщо шлюб трапляється з однаковим шансом для кожної.",
+      "Кількість виграшних білетів лотереї серед n куплених, якщо шанс виграшу однаковий для кожного."
+    ],
+    notes: [
+      "Формула з C(n,k) виглядає невинно, поки n не переростає в сотні — тоді факторіали вибухають швидше за калькулятор, і рятує або логарифмування (як зроблено в цьому вольєрі), або перехід до Нормального наближення.",
+      "У нашому вольєрі n обмежене сотнею — далі краще користуватися Нормальним наближенням, ніж рахувати коефіцієнти в лоб."
+    ]
+  },
+
+  geometric: {
+    id: "geometric", category: "discrete", emoji: "🎯",
+    name: "Геометричний розподіл", sciName: "Geometrica sisyphae",
+    tagline: "Дискретний кузен експоненційного: рахує не час, а кількість спроб до першої вдачі.",
+    support: "k \\in \\{1,2,3,\\dots\\}",
+    pdfTex: "P(X=k) = (1-p)^{\\,k-1}\\,p",
+    cdfTex: "F(k) = 1-(1-p)^{k}",
+    meanTex: "\\mathbb{E}[X] = \\dfrac{1}{p}",
+    varTex: "\\mathbb{D}[X] = \\dfrac{1-p}{p^2}",
+    skewTex: "\\gamma_1 = \\dfrac{2-p}{\\sqrt{1-p}}",
+    kurtTex: "\\gamma_2 = 6 + \\dfrac{p^2}{1-p}",
+    modeTex: "\\mathrm{Mode} = 1",
+    charFnTex: "\\varphi(t) = \\dfrac{p\\,e^{it}}{1-(1-p)e^{it}}",
+    params: [ { key:"p", label:"p — шанс на успіх", min:0.15, max:0.9, step:0.01, default:0.3 } ],
+    pmf: (k,p) => k<1 ? 0 : Math.pow(1-p.p, k-1) * p.p,
+    domain: [1, 32],
+    yMax: 0.96,
+    stats: { mean: p => 1/p.p, variance: p => (1-p.p)/(p.p**2), skew: p => (2-p.p)/Math.sqrt(1-p.p), kurt: p => 6 + (p.p**2)/(1-p.p) },
+    relations: [
+      "Дискретний аналог {{exponential:Експоненційного}} розподілу — та сама відсутність пам’яті, тільки замість неперервного часу рахуємо цілі спроби.",
+      "Сума k незалежних Геометричних дає {{negative_binomial:Від’ємний біноміальний}} розподіл — геометричний є його найпростішим окремим випадком (k=1).",
+      "По суті, це «номер першої вдалої спроби» в послідовності випробувань {{bernoulli:Бернуллі}}."
+    ],
+    examples: [
+      "Кількість спроб скласти залік з вищої математики, перш ніж пощастить із білетом.",
+      "Кількість дітей у родині до народження першого хлопчика (якщо шанс хлопчик/дівчинка — фіфті-фіфті, як і належить чесній монеті).",
+      "Кількість кидків кубика до першої шістки — класика для настільних ігор і теорії ігор."
+    ],
+    notes: [
+      "У геометричного розподілу немає пам’яті: байдуже, скільки разів ти вже провалився — шанс на успіх у наступній спробі завжди той самий p. Психологи називають віру в протилежне «помилкою гравця», а геометричний розподіл — просто своїм визначенням.",
+      "На цьому будується половина бізнес-моделі казино: гравець упевнений, що «зараз точно пощастить», а кубику на це начхати.",
+      "Є ще версія «з нуля» — кількість невдач до першого успіху (k=0,1,2,…). Не переплутай її з нашою: дисперсія та сама, а от матем. сподівання відрізняється на одиницю."
+    ]
+  },
+
+  negative_binomial: {
+    id: "negative_binomial", category: "discrete", emoji: "🎰",
+    name: "Від’ємне біноміальне", sciName: "Geometrica multiplex",
+    tagline: "Геометричний, який вирішив не зупинятися на одному успіху: рахуємо спроби до r-го, а не першого.",
+    support: "k \\in \\{r, r{+}1, r{+}2, \\dots\\}",
+    pdfTex: "P(X=k)=\\dbinom{k-1}{r-1}p^{r}(1-p)^{k-r}",
+    cdfTex: "F(k)=\\displaystyle\\sum_{i=r}^{\\lfloor k\\rfloor}\\dbinom{i-1}{r-1}p^{r}(1-p)^{i-r}",
+    meanTex: "\\mathbb{E}[X]=\\dfrac{r}{p}",
+    varTex: "\\mathbb{D}[X]=\\dfrac{r(1-p)}{p^2}",
+    skewTex: "\\gamma_1=\\dfrac{2-p}{\\sqrt{r(1-p)}}",
+    kurtTex: "\\gamma_2=\\dfrac6r+\\dfrac{p^2}{r(1-p)}",
+    modeTex: "\\mathrm{Mode}=\\left\\lfloor\\dfrac{(r-1)(1-p)}{p}\\right\\rfloor+r",
+    charFnTex: "\\varphi(t)=\\left(\\dfrac{p\\,e^{it}}{1-(1-p)e^{it}}\\right)^{r}",
+    params: [
+      { key:"r", label:"r — скільки успіхів чекаємо", min:1, max:6, step:1, default:3 },
+      { key:"p", label:"p — шанс на успіх", min:0.25, max:0.9, step:0.01, default:0.4 }
+    ],
+    pmf: (k,pr) => k<pr.r ? 0 : Math.exp(lnChoose(k-1,pr.r-1) + pr.r*Math.log(pr.p) + (k-pr.r)*Math.log(1-pr.p)),
+    domain: [1, 58],
+    yMax: 0.95,
+    stats: {
+      mean: p => p.r/p.p, variance: p => p.r*(1-p.p)/(p.p**2),
+      skew: p => (2-p.p)/Math.sqrt(p.r*(1-p.p)), kurt: p => 6/p.r + (p.p**2)/(p.r*(1-p.p))
+    },
+    relations: [
+      "При r=1 — це наш {{geometric:Геометричний}} розподіл.",
+      "Сума r незалежних {{geometric:Геометричних}} величин.",
+      "Суміш {{poisson:Пуассона}} з {{gamma:Гамма}}-розподіленою λ дає саме цей розподіл — уже згадувалось і на картці Пуассона, і на картці Гамми."
+    ],
+    examples: [
+      "Скільки матчів треба зіграти, щоб отримати рівно 3 перемоги, якщо шанс перемоги в кожному 40%.",
+      "Скільки пацієнтів треба залучити в клінічне випробування, щоб набрати r успішних випадків лікування.",
+      "Скільки разів закинути невід, щоб впіймати рівно r риб, якщо шанс улову з одного закиду сталий."
+    ],
+    notes: [
+      "Це узагальнення Геометричного: замість чекати ПЕРШОГО успіху, чекаємо r-го. При r=1 формули збігаються тютелька в тютельку.",
+      "Одна з небагатьох тварин зоопарку з подвійною природою: одночасно суміш (Пуассон + Гамма) і сума (r Геометричних) — залежно від того, з якого боку зайти."
+    ]
+  },
+
+  poisson: {
+    id: "poisson", category: "discrete", emoji: "📮",
+    name: "Розподіл Пуассона", sciName: "Eventus rarus poissonii",
+    tagline: "Кількість звернень у сервісний центр за певний період часу — а λ тут і є та сама середня кількість звернень за цей період.",
+    support: "k \\in \\{0,1,2,3,\\dots\\}",
+    pdfTex: "P(X=k) = \\dfrac{\\lambda^{k}\\,e^{-\\lambda}}{k!}",
+    cdfTex: "F(k) = e^{-\\lambda}\\displaystyle\\sum_{i=0}^{\\lfloor k \\rfloor}\\dfrac{\\lambda^{i}}{i!}",
+    meanTex: "\\mathbb{E}[X] = \\lambda",
+    varTex: "\\mathbb{D}[X] = \\lambda",
+    skewTex: "\\gamma_1 = \\lambda^{-1/2}",
+    kurtTex: "\\gamma_2 = \\lambda^{-1}",
+    modeTex: "\\mathrm{Mode} = \\lfloor \\lambda \\rfloor",
+    charFnTex: "\\varphi(t) = e^{\\lambda\\left(e^{it}-1\\right)}",
+    params: [ { key:"lambda", label:"λ — середня частота", min:0.1, max:15, step:0.1, default:4 } ],
+    pmf: (k,p) => { let val = Math.exp(-p.lambda); for (let i=1;i<=k;i++) val *= p.lambda/i; return val; },
+    domain: [0, 32],
+    yMax: 0.96,
+    stats: { mean: p => p.lambda, variance: p => p.lambda, skew: p => 1/Math.sqrt(p.lambda), kurt: p => 1/p.lambda },
+    relations: [
+      "Час між послідовними подіями пуассонівського потоку розподілений {{exponential:Експоненційно}} — якщо події «рідкісні й пуассонівські», то паузи між ними підкоряються саме цьому розподілу.",
+      "Якщо інтенсивність λ сама випадкова й має Гамма-розподіл, суміш дає {{negative_binomial:Від’ємний біноміальний}} — а {{gamma:Гамма}} для цього навіть нікуди не йде, вона вже тут, у сусідньому вольєрі."
+    ],
+    originStories: [
+      { title: "Як Пуассон відколовся від Біноміального",
+        body: "Якщо в {{binomial:Біноміальному}} n випробувань і кожне має мізерний шанс успіху p, а добуток λ=np лишається сталим, поки n летить у нескінченність, — Біноміальний перетворюється на Пуассона: P(X=k)→λᵏe⁻λ/k!. Тут важлива саме УМОВА: n має бути великим, а p — маленьким (правило на пальцях: n≥50-100, p≤0.05-0.1). Якщо ж замість цього великими стають ОБИДВА добутки np і n(1-p) одночасно (наприклад, p=0.5 і n=200) — Біноміальний тікає не до Пуассона, а до {{normal:Нормального}} (те, що описано на його картці). Тобто напрямок вироджування залежить від того, що саме росте: n при фіксованому λ=np → Пуассон; np і n(1-p) обидва великі одночасно → Нормальний." }
+    ],
+    examples: [
+      "Кількість друкарських помилок на випадковій сторінці товстої книги.",
+      "Кількість розпадів ядер у шматку слаборадіоактивної руди за одну секунду.",
+      "Найзнаменитіший приклад в історії статистики — підрахунок солдатів прусської армії, яких на смерть хвицнув кінь (реальне дослідження, Борткевич, 1898)."
+    ],
+    notes: [
+      "У Пуассона матем. сподівання та дисперсія — це те саме число λ. Економія на змінних, краса для лінивих.",
+      "Якщо в підтримку сьогодні прилетіло вдвічі більше тікетів, ніж зазвичай, — це не змова конкурентів, це просто Пуассон кинув кубик не в той бік.",
+      "При великих λ Пуассон сам починає поводитися пристойно і підозріло скидатися на нормальний розподіл — мода на нормальність не оминула навіть дискретних звірів."
+    ]
+  },
+
+  hypergeometric: {
+    id: "hypergeometric", category: "discrete", emoji: "🎓",
+    name: "Гіпергеометричний розподіл", sciName: "Multitudo sine reditu",
+    tagline: "Біноміальний, який рахує по-чесному: щойно витяг один елемент — назад у скриньку вже не кладе.",
+    support: "k \\in \\{\\max(0,n{-}N{+}K),\\dots,\\min(n,K)\\}",
+    pdfTex: "P(X=k)=\\dfrac{\\dbinom{K}{k}\\dbinom{N-K}{n-k}}{\\dbinom{N}{n}}",
+    cdfTex: "F(k)=\\displaystyle\\sum_{i=0}^{\\lfloor k\\rfloor}\\dfrac{\\dbinom{K}{i}\\dbinom{N-K}{n-i}}{\\dbinom{N}{n}}",
+    meanTex: "\\mathbb{E}[X]=n\\dfrac{K}{N}",
+    varTex: "\\mathbb{D}[X]=n\\dfrac{K}{N}\\left(1-\\dfrac{K}{N}\\right)\\dfrac{N-n}{N-1}",
+    skewTex: "\\gamma_1 \\text{ — довга формула, дивись підручник}",
+    kurtTex: "\\gamma_2 \\text{ — ще довша формула}",
+    modeTex: "\\mathrm{Mode}=\\left\\lfloor\\dfrac{(n+1)(K+1)}{N+2}\\right\\rfloor",
+    charFnTex: "\\text{виражається через} \\,{}_2F_1 \\text{(гіпергеометричну функцію — не дарма і назва така)}",
+    params: [
+      { key:"N", label:"N — розмір популяції", min:5, max:40, step:1, default:20 },
+      { key:"K", label:"K — «потрібних» елементів у популяції", min:0, max:40, step:1, default:10 },
+      { key:"n", label:"n — розмір вибірки (скільки перевіряємо)", min:1, max:40, step:1, default:8 }
+    ],
+    pmf: (k,p) => {
+      const N=p.N, K=Math.min(p.K,N), n=Math.min(p.n,N);
+      if (k<0||k>n||k>K||(n-k)>(N-K)) return 0;
+      return Math.exp(lnChoose(K,k)+lnChoose(N-K,n-k)-lnChoose(N,n));
+    },
+    domain: [0, 40],
+    yMax: 1.06,
+    stats: {
+      mean: p => { const N=p.N,K=Math.min(p.K,N),n=Math.min(p.n,N); return n*K/N; },
+      variance: p => { const N=p.N,K=Math.min(p.K,N),n=Math.min(p.n,N); if(N<=1) return 0; return n*(K/N)*(1-K/N)*((N-n)/(N-1)); },
+      skew: () => NaN, kurt: () => NaN
+    },
+    relations: [
+      "При N→∞ (і K/N=p=const) вироджується в {{binomial:Біноміальний}} — вибірка без повернення з нескінченної скриньки не відрізняється від вибірки з поверненням."
+    ],
+    examples: [
+      "З 20 студентів домашку зробили лише 10. Викладач навмання перевіряє 8 робіт — яка ймовірність, що серед них виявиться рівно x ледачих?",
+      "Вибірковий контроль якості: у партії з N деталей K бракованих, дістаємо навмання n штук без повернення — скільки браку попаде у вибірку?",
+      "Соціологічне опитування без повторень: із N виборців K підтримують кандидата, опитуємо n навмання — скільки з них підтримають?"
+    ],
+    notes: [
+      "Головна відмінність від Біноміального — вибірка БЕЗ повернення: щойно перевірив одну роботу, шанси для решти вже трохи змінилися. При N→∞ (велика популяція, маленька вибірка) ця відмінність стає непомітною, і Гіпергеометричний практично зливається з Біноміальним.",
+      "Класична пастка на іспиті: студенти плутають цей розподіл із Біноміальним рівно тому, що забувають про оце «без повернення»."
+    ]
+  },
+
+  /* ======================= НЕПЕРЕРВНІ ======================= */
+
+  uniform_continuous: {
+    id: "uniform_continuous", category: "continuous", emoji: "📏",
+    name: "Рівномірний неперервний розподіл", sciName: "Democratia continua",
+    tagline: "Математичний прародитель усіх неперервних розподілів у комп’ютері — хоча сам генератор випадкових чисел, якщо чесно, працює дискретно, просто з дуже дрібним кроком.",
+    support: "x \\in [a,\\,b]",
+    pdfTex: "f(x) = \\dfrac{1}{b-a}",
+    cdfTex: "F(x) = \\dfrac{x-a}{b-a}",
+    meanTex: "\\mathbb{E}[X] = \\dfrac{a+b}{2}",
+    varTex: "\\mathbb{D}[X] = \\dfrac{(b-a)^2}{12}",
+    skewTex: "\\gamma_1 = 0",
+    kurtTex: "\\gamma_2 = -\\dfrac{6}{5}",
+    modeTex: "\\text{будь-яке } x\\in[a,b]",
+    charFnTex: "\\varphi(t) = \\dfrac{e^{ibt}-e^{iat}}{it(b-a)}",
+    params: [
+      { key:"a", label:"a — ліва межа", min:-5, max:5, step:0.5, default:0 },
+      { key:"width", label:"ширина (b−a)", min:0.5, max:10, step:0.5, default:2 }
+    ],
+    pdf: (x,p) => (x>=p.a && x<=p.a+p.width) ? 1/p.width : 0,
+    domain: [-6, 16],
+    yMax: 2.12,
+    stats: { mean: p => p.a+p.width/2, variance: p => (p.width**2)/12, skew: () => 0, kurt: () => -1.2 },
+    relations: [
+      "Якщо F — функція розподілу будь-якої неперервної випадкової величини X, то F(X) має рівномірний розподіл на [0,1] — на цьому фокусі побудований метод обернених функцій для генерації випадкових чисел.",
+      "Сума кількох незалежних рівномірних доданків швидко скидається на {{normal:Нормальний}} (той самий трюк, що й у дискретної версії)."
+    ],
+    examples: [
+      "Похибка округлення при перетворенні аналогового сигналу в цифровий (у межах одного кванта).",
+      "Час прибуття автобуса всередині інтервалу руху, якщо ти геть нічого не знаєш про розклад.",
+      "Кут випадкового повороту рулетки (в межах одного оберту)."
+    ],
+    notes: [
+      "Ексцес тут завжди рівно -1.2, хоч би які були a і b — рідкісний випадок, коли форма розподілу не залежить від масштабу взагалі.",
+      "Справжні генератори випадкових чисел у комп’ютері насправді дискретні — видають одне з 2^53 (чи скільки там бітів) рівновіддалених дробових чисел, а не істинно неперервну величину. Це не заважає їм бути чудовим наближенням: кроків так багато, що для практичних цілей різниця непомітна."
+    ]
+  },
+
+  normal: {
+    id: "normal", category: "continuous", emoji: "🔔",
+    name: "Нормальний розподіл", sciName: "Campana gaussiana",
+    tagline: "Найпопулярніший розподіл у Всесвіті. Якщо науковець не знає, який розподіл насправді, він припускає, що той нормальний. І в 99.7% випадків він правий!",
+    support: "x \\in (-\\infty,\\ +\\infty)",
+    pdfTex: "f(x) = \\dfrac{1}{\\sigma\\sqrt{2\\pi}}\\; e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}",
+    cdfTex: "F(x) = \\dfrac{1}{2}\\left[1 + \\operatorname{erf}\\!\\left(\\dfrac{x-\\mu}{\\sigma\\sqrt{2}}\\right)\\right]",
+    meanTex: "\\mathbb{E}[X] = \\mu",
+    varTex: "\\mathbb{D}[X] = \\sigma^2",
+    skewTex: "\\gamma_1 = 0",
+    kurtTex: "\\gamma_2 = 0",
+    modeTex: "\\mathrm{Mode} = \\mu",
+    charFnTex: "\\varphi(t) = e^{\\,i\\mu t - \\frac{1}{2}\\sigma^2 t^2}",
+    params: [
+      { key:"mu", label:"μ — середнє", min:-8, max:8, step:0.5, default:0 },
+      { key:"sigma", label:"σ — розкид", min:0.5, max:3, step:0.1, default:1.5 }
+    ],
+    pdf: (x,p) => (1/(p.sigma*Math.sqrt(2*Math.PI))) * Math.exp(-((x-p.mu)**2)/(2*p.sigma**2)),
+    domain: [-20, 20],
+    yMax: 0.85,
+    stats: { mean: p => p.mu, variance: p => p.sigma**2, skew: () => 0, kurt: () => 0 },
+    relations: [
+      "Відношення двох незалежних стандартних Нормальних величин дає {{cauchy:Коші}} — того самого зайду, що любить тролити студентів на іспиті.",
+      "У парі з незалежним {{chi2:Хі-квадрат}}-родичем стандартна Нормальна дає розподіл Стьюдента (t) — але це вже зовсім інша історія й інший вольєр."
+    ],
+    originStories: [
+      { title: "Як народився Дзвін: історія Біноміального, що не витримав власної ваги",
+        body: "Уяви: кидаєш грубий кубик 600 разів і рахуєш кількість шісток. За означенням це {{binomial:Біноміальний}} розподіл: P(X=k)=C(600,k)·pᵏ·(1-p)⁶⁰⁰⁻ᵏ. Але число C(600,300) — це число десь із 180 нулями, і порахувати всі 601 таких коефіцієнтів вручну не змогла б навіть ціла шафа суперкомп’ютерів. Добра новина: при такому n {{binomial:Біноміальний}} сам «здається» і перевтілюється у звичайнісінький дзвін із параметрами μ=np, σ²=np(1-p) — без жодного факторіала в формулі. Це теорема Муавра — Лапласа, історично перший окремий випадок Центральної граничної теореми." },
+      { title: "Кого породив Дзвін: вимерлий предок на ім’я Хі",
+        body: "Візьми жменю незалежних стандартних Нормальних величин, зведи кожну в квадрат і додай — отримаєш {{chi2:Хі-квадрат}} (χ²), про якого всі чули. Добудь із цієї суми корінь — і перед тобою розподіл із затишною назвою просто «Хі» (без квадрата). Але чистого «Хі» в дикій природі ти практично не зустрінеш — у підручниках він завжди ховається під псевдонімами: візьми лише ДВІ нормальні координати (наприклад, швидкість молекули по x та y) — і корінь суми квадратів — це {{rayleigh:Релей}}. Візьми ТРИ координати (x, y, z — як і належить справжній тривимірній швидкості молекули газу) — і той самий трюк дасть {{maxwell:Максвелла}}. «Хі» тут — як скелет динозавра в музеї: сам по собі не дуже видовищний, зате всі нащадки (Релей, Максвелл) цілком живі й активно працюють у фізиці. Зверни увагу: Релей і Максвелл — діти саме «Хі» (кореня із суми квадратів), а не {{chi2:Хі-квадрат}} напряму (тієї самої суми, але без кореня) — це різні звірі, хоч і близькі родичі." }
+    ],
+    examples: [
+      "Зріст випадково обраної дорослої людини: більшість тупцює біля середнього, а рідкісні баскетболісти й хобіти йдуть у хвости.",
+      "Похибка вимірювання приладом — термометром, вагами, штангенциркулем. Шум майже завжди «гаусівський».",
+      "Вага пачки печива на конвеєрі: виробник цілиться в 200 г, а по факту то трохи більше, то трохи менше — рівно 200 буває рідко."
+    ],
+    notes: [
+      "Народна прикмета статистиків: «фізики вірять, що нормальність доведена математиками, математики — що підтверджена експериментально». Ідеального Гауса в природі не існує — є лише дуже хороші наближення.",
+      "Уся справа в Центральній граничній теоремі: додай достатньо незалежних випадкових доданків — і майже завжди отримаєш цей дзвін, незалежно від того, з чого все починалося.",
+      "Правило 68-95-99.7: стільки відсотків значень лежить у межах 1σ, 2σ і 3σ від середнього. Завчи як мантру — знадобиться частіше, ніж здається."
+    ]
+  },
+
+  logistic: {
+    id: "logistic", category: "continuous", emoji: "🤖",
+    name: "Логістичний розподіл", sciName: "Sigmoidea integrabilis",
+    tagline: "Улюбленець економістів, а ще математиків — бо його функція розподілу чудово інтегрується.",
+    support: "x \\in (-\\infty,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{e^{-(x-\\mu)/s}}{s\\left(1+e^{-(x-\\mu)/s}\\right)^2}",
+    cdfTex: "F(x)=\\dfrac{1}{1+e^{-(x-\\mu)/s}}",
+    meanTex: "\\mathbb{E}[X]=\\mu",
+    varTex: "\\mathbb{D}[X]=\\dfrac{s^2\\pi^2}{3}",
+    skewTex: "\\gamma_1=0",
+    kurtTex: "\\gamma_2=\\dfrac{6}{5}",
+    modeTex: "\\mathrm{Mode}=\\mu",
+    charFnTex: "\\varphi(t)=e^{i\\mu t}\\dfrac{\\pi s t}{\\sinh(\\pi s t)}",
+    params: [
+      { key:"mu", label:"μ — центр", min:-5, max:5, step:0.5, default:0 },
+      { key:"s", label:"s — масштаб", min:0.3, max:3, step:0.1, default:1 }
+    ],
+    pdf: (x,p) => { const z=(x-p.mu)/p.s; const e=Math.exp(-z); return e/(p.s*(1+e)**2); },
+    domain: [-27, 27],
+    yMax: 0.9,
+    stats: { mean: p => p.mu, variance: p => (p.s**2)*(Math.PI**2)/3, skew: () => 0, kurt: () => 1.2 },
+    relations: [
+      "Функція розподілу — та сама сигмоїда, на якій тримається логістична регресія і активація в найпростіших нейронах.",
+      "Формою нагадує {{normal:Нормальний}}, але з важчими хвостами: ексцес тут завжди +1.2 (а не 0)."
+    ],
+    examples: [
+      "Логістична регресія: імовірність «успіху» моделюється саме через цю CDF.",
+      "Ріст популяції з обмеженим ресурсом — логістична крива це і є CDF цього розподілу.",
+      "Різниця рейтингів (Ело чи подібні системи) двох гравців часто моделюється саме логістично."
+    ],
+    notes: [
+      "CDF цього розподілу — та сама сигмоїда σ(x)=1/(1+e⁻ˣ), яку кожен, хто вчив нейромережі, бачив тисячу разів, часто не підозрюючи, що це чиясь функція розподілу.",
+      "Економісти люблять його за схожість із Нормальним (те саме дзвоноподібне) при значно простіших формулах — CDF виражається елементарно, на відміну від Нормального erf."
+    ]
+  },
+
+  exponential: {
+    id: "exponential", category: "continuous", emoji: "💡",
+    name: "Експоненційний розподіл", sciName: "Oblivio continua",
+    tagline: "Єдиний неперервний розподіл із амнезією: не пам’ятає, скільки вже чекав, і щохвилини «починає життя заново».",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x) = \\lambda e^{-\\lambda x}",
+    cdfTex: "F(x) = 1-e^{-\\lambda x}",
+    meanTex: "\\mathbb{E}[X] = \\dfrac{1}{\\lambda}",
+    varTex: "\\mathbb{D}[X] = \\dfrac{1}{\\lambda^2}",
+    skewTex: "\\gamma_1 = 2",
+    kurtTex: "\\gamma_2 = 6",
+    modeTex: "\\mathrm{Mode} = 0",
+    charFnTex: "\\varphi(t) = \\dfrac{\\lambda}{\\lambda-it}",
+    params: [ { key:"lambda", label:"λ — інтенсивність", min:0.3, max:3, step:0.1, default:1 } ],
+    pdf: (x,p) => x<=0 ? 0 : p.lambda*Math.exp(-p.lambda*x),
+    domain: [0, 17],
+    yMax: 3.02,
+    stats: { mean: p => 1/p.lambda, variance: p => 1/(p.lambda**2), skew: () => 2, kurt: () => 6 },
+    relations: [
+      "При k=1 це вироджена {{gamma:Гамма}}.",
+      "Час між подіями {{poisson:Пуассонівського}} потоку.",
+      "Дискретний родич — {{geometric:Геометричний}} розподіл: та сама відсутність пам’яті, тільки на цілих числах."
+    ],
+    examples: [
+      "Час до першого спам-дзвінка на новий номер телефону — тільки дочекався одного, і лічильник миттю обнулився: наступного знову чекай «з нуля».",
+      "Час між двома послідовними клацаннями лічильника Гейгера.",
+      "Час очікування таксі, якщо машини з’являються повністю випадково й незалежно."
+    ],
+    notes: [
+      "Класичний анекдот про контрінтуїтивність: фізик чекає розпаду ядра. Питають: «Скільки ще чекати?» — «У середньому ще півгодини». Минає 29 хвилин, ядро й не думало розпадатися. Питають знову — відповідь та сама: «У середньому ще півгодини». Це не жарт заради жарту: ядру справді байдуже, скільки воно вже «прожило» — так і працює відсутність пам’яті.",
+      "Це неперервний близнюк Геометричного розподілу — той самий принцип, тільки на речовій осі, а не на цілих числах."
+    ]
+  },
+
+  weibull: {
+    id: "weibull", category: "continuous", emoji: "⚙️",
+    name: "Розподіл Вейбулла", sciName: "Ruina weibullii",
+    tagline: "Улюбленець інженерів з надійності: параметр k визначає, чи техніка ламається через дитячі хвороби (k<1), чи через старече зношування (k>1) — масштаб λ тут ні до чого.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{k}{\\lambda}\\left(\\dfrac{x}{\\lambda}\\right)^{k-1}e^{-(x/\\lambda)^k}",
+    cdfTex: "F(x)=1-e^{-(x/\\lambda)^k}",
+    meanTex: "\\mathbb{E}[X]=\\lambda\\,\\Gamma\\!\\left(1+\\dfrac1k\\right)",
+    varTex: "\\mathbb{D}[X]=\\lambda^2\\!\\left[\\Gamma\\!\\left(1+\\dfrac2k\\right)-\\Gamma\\!\\left(1+\\dfrac1k\\right)^2\\right]",
+    skewTex: "\\gamma_1 \\text{ — через } \\Gamma(1{+}3/k), \\text{ дивись джерело}",
+    kurtTex: "\\gamma_2 \\text{ — через } \\Gamma(1{+}4/k), \\text{ ще довша формула}",
+    modeTex: "\\mathrm{Mode}=\\lambda\\!\\left(\\dfrac{k-1}{k}\\right)^{1/k}\\ (k>1),\\ \\text{інакше } 0",
+    charFnTex: "\\text{не виражається в елементарних функціях}",
+    params: [
+      { key:"k", label:"k — форма", min:0.8, max:5, step:0.1, default:1.5 },
+      { key:"lambda", label:"λ — масштаб", min:0.8, max:3, step:0.1, default:1 }
+    ],
+    pdf: (x,p) => x<=0 ? 0 : (p.k/p.lambda)*Math.pow(x/p.lambda,p.k-1)*Math.exp(-Math.pow(x/p.lambda,p.k)),
+    domain: [0, 20],
+    yMax: 4.7,
+    stats: {
+      mean: p => p.lambda*gammaFn(1+1/p.k),
+      variance: p => (p.lambda**2)*(gammaFn(1+2/p.k)-gammaFn(1+1/p.k)**2),
+      skew: p => {
+        const m1=gammaFn(1+1/p.k), m2=gammaFn(1+2/p.k), m3=gammaFn(1+3/p.k);
+        const varr=m2-m1*m1, mu3=(m3-3*m1*m2+2*m1**3);
+        return mu3/Math.pow(varr,1.5);
+      },
+      kurt: p => {
+        const m1=gammaFn(1+1/p.k), m2=gammaFn(1+2/p.k), m3=gammaFn(1+3/p.k), m4=gammaFn(1+4/p.k);
+        const varr=m2-m1*m1, mu4=(m4-4*m1*m3+6*m1*m1*m2-3*m1**4);
+        return mu4/(varr*varr)-3;
+      }
+    },
+    relations: [
+      "При k=1 — це просто {{exponential:Експоненційний}} розподіл.",
+      "При k=2 — це {{rayleigh:Релей}} з невеликим перепараметруванням.",
+      "У Хімері «Опади» саме вона грає роль неперервної частини."
+    ],
+    examples: [
+      "Час напрацювання на відмову підшипника чи лампи розжарювання.",
+      "Швидкість вітру для оцінки потенціалу вітрогенераторів — класичне застосування в енергетиці.",
+      "«Крива ванни» надійності техніки: k<1 — дитячі хвороби виробу, k=1 — випадкові відмови, k>1 — старече зношування."
+    ],
+    notes: [
+      "Параметр k — це буквально перемикач фізичного сценарію відмови: k<1 означає, що ризик відмови ЗМЕНШУЄТЬСЯ з часом (типово для «вимирання» бракованих виробів на початку), k>1 — що ризик РОСТЕ (типове зношування).",
+      "При k=1 формула згортається рівно в Експоненційне — «сталий ризик відмови» це лише окремий випадок, а не типова поведінка."
+    ]
+  },
+
+  gamma: {
+    id: "gamma", category: "continuous", emoji: "⏳",
+    name: "Гамма-розподіл", sciName: "Gamma expectans",
+    tagline: "Пуассон, який вирішив не дрібнитися: чекаємо не одну рідкісну подію, а одразу k штук підряд.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x) = \\dfrac{x^{\\,k-1}\\, e^{-x/\\theta}}{\\Gamma(k)\\,\\theta^{k}}",
+    cdfTex: "F(x) = \\dfrac{\\gamma(k,\\, x/\\theta)}{\\Gamma(k)}",
+    meanTex: "\\mathbb{E}[X] = k\\theta",
+    varTex: "\\mathbb{D}[X] = k\\theta^2",
+    skewTex: "\\gamma_1 = \\dfrac{2}{\\sqrt{k}}",
+    kurtTex: "\\gamma_2 = \\dfrac{6}{k}",
+    modeTex: "\\mathrm{Mode} = (k-1)\\theta,\\ \\ k \\ge 1",
+    charFnTex: "\\varphi(t) = (1 - i\\theta t)^{-k}",
+    params: [
+      { key:"k", label:"k — форма", min:1, max:6, step:0.1, default:2 },
+      { key:"theta", label:"θ — масштаб", min:0.5, max:2.5, step:0.1, default:1 }
+    ],
+    pdf: (x,p) => x<=0 ? 0 : Math.pow(x,p.k-1) * Math.exp(-x/p.theta) / (gammaFn(p.k) * Math.pow(p.theta,p.k)),
+    domain: [0, 40],
+    yMax: 1.96,
+    stats: { mean: p => p.k*p.theta, variance: p => p.k*p.theta**2, skew: p => 2/Math.sqrt(p.k), kurt: p => 6/p.k },
+    relations: [
+      "При k=1 Гамма перетворюється на {{exponential:Експоненційний}} розподіл.",
+      "При цілому k=n/2 і θ=2 — це {{chi2:Хі-квадрат}} з n ступенями свободи — детальніше в «Походженні видів».",
+      "Якщо λ у Пуассона сама випадкова і має Гамма-розподіл, суміш дає {{negative_binomial:Від’ємний біноміальний}} розподіл — а фокус у тому, що {{poisson:Пуассон}} живе тут-таки, у сусідньому вольєрі."
+    ],
+    originStories: [
+      { title: "Як з розпадів ядер зібрали Гамму",
+        body: "Знаємо {{exponential:Експоненційне}} — час до розпаду одного радіоактивного ядра (чи до одного клацання лічильника Гейгера — тут важливо, що це справді випадково, без жодного розкладу, на відміну від автобусів). Тепер візьми цілу пачку з k таких незалежних експоненційно розподілених очікувань і додай одне до одного — тобто чекай, поки розпадеться РІВНО k ядер підряд. Сума вже не буде експоненційною (немає властивості «без пам’яті» — ти ж пам’ятаєш, скільки ядер уже розпалося!) — вона перетворюється на Гамма-розподіл із цілим параметром форми k. У такому вбранні (лише з цілим k) її частіше називають розподілом Ерланга — бо чекати «розпаду трьох із половиною ядер» це дещо дивний експеримент для будь-кого, крім математика, який просто підставив дробове k у формулу і не зморгнув." },
+      { title: "Чому Хі-квадрат — це теж Гамма",
+        body: "Візьми n незалежних стандартних {{normal:Нормальних}} величин, зведи кожну в квадрат і додай: Y=X₁²+X₂²+⋯+Xₙ². Результат — {{chi2:Хі-квадрат}} з n ступенями свободи, а насправді це просто Гамма з k=n/2 і θ=2 — той самий звір, тільки в іншому костюмі. Тож коли на цій картці бачиш k=1.5 чи k=5 — знай, що при k=n/2 (для цілого чи напівцілого n) ти дивишся саме на χ²." }
+    ],
+    examples: [
+      "Час очікування автобуса на зупинці, де маршрутки ходять «середньо-паршиво» — не строго за розкладом, але й не чистий пуассонівський хаос.",
+      "Сумарний час до k-го дзвінка в колцентр, якщо дзвінки утворюють пуассонівський потік.",
+      "Місячна сума опадів у метеомоделі — улюблений інструмент кліматологів для дощової статистики."
+    ],
+    notes: [
+      "При k=1 гамма-розподіл згортається у звичайний експоненційний — ніби автобусу залишили лише один внутрішній будильник.",
+      "Ціле k — це буквально сума k незалежних експоненційних часів очікування підряд. Дробове k — той випадок, коли факторіал у формулі замінили на гамма-функцію, і формула продовжила працювати як нізвідки.",
+      "У нашому вольєрі k починається з 1 — при k<1 крива тікає у нескінченність біля нуля, мов кіт, що стрибає у двері, щойно ті прочиняються."
+    ]
+  },
+
+  erlang: {
+    id: "erlang", category: "continuous", emoji: "📞",
+    name: "Розподіл Ерланга", sciName: "Gamma erlangii",
+    tagline: "Інженер зв’язку, який приборкав Гамму: те саме математично, але n тут завжди ціле й рахує цілком конкретні послідовні етапи.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{\\lambda^{n}x^{n-1}e^{-\\lambda x}}{(n-1)!}",
+    cdfTex: "F(x)=1-e^{-\\lambda x}\\displaystyle\\sum_{i=0}^{n-1}\\dfrac{(\\lambda x)^i}{i!}",
+    meanTex: "\\mathbb{E}[X]=\\dfrac{n}{\\lambda}",
+    varTex: "\\mathbb{D}[X]=\\dfrac{n}{\\lambda^2}",
+    skewTex: "\\gamma_1=\\dfrac{2}{\\sqrt n}",
+    kurtTex: "\\gamma_2=\\dfrac6n",
+    modeTex: "\\mathrm{Mode}=\\dfrac{n-1}{\\lambda}",
+    charFnTex: "\\varphi(t)=\\left(1-\\dfrac{it}{\\lambda}\\right)^{-n}",
+    params: [
+      { key:"n", label:"n — кількість послідовних етапів", min:1, max:8, step:1, default:3 },
+      { key:"lambda", label:"λ — швидкість кожного етапу", min:0.5, max:3, step:0.1, default:1 }
+    ],
+    pdf: (x,p) => x<=0 ? 0 : Math.pow(p.lambda,p.n)*Math.pow(x,p.n-1)*Math.exp(-p.lambda*x)/gammaFn(p.n),
+    domain: [0, 40],
+    yMax: 3.1,
+    stats: { mean: p => p.n/p.lambda, variance: p => p.n/(p.lambda**2), skew: p => 2/Math.sqrt(p.n), kurt: p => 6/p.n },
+    relations: [
+      "Це буквально {{gamma:Гамма}} з цілим параметром форми — окрема картка існує лише тому, що інженери зв’язку й теорії черг обожнюють саме цілі n.",
+      "Сума n незалежних {{exponential:Експоненційних}} величин з однаковим λ."
+    ],
+    examples: [
+      "Час до n-го вхідного дзвінка на АТС — класична задача теорії масового обслуговування, звідки й пішла назва.",
+      "Час, за який система з n послідовними резервними компонентами (кожен незалежно виходить з ладу за Експоненційним законом) остаточно відмовить.",
+      "Час обробки запиту, що проходить через n послідовних незалежних етапів однакової швидкості."
+    ],
+    notes: [
+      "Названий на честь Агнера Ерланга, датського інженера, який вивів цю математику для розрахунку телефонних станцій ще 1909 року — задовго до того, як «Гамма-розподіл» стала загальною назвою.",
+      "Одиниця вимірювання навантаження в телекомунікаціях досі називається «ерланг» — рідкий випадок, коли розподіл подарував своє ім’я одиниці вимірювання, а не навпаки."
+    ]
+  },
+
+  chi2: {
+    id: "chi2", category: "continuous", emoji: "🦴",
+    name: "Розподіл хі-квадрат", sciName: "Chi quadratus fossilis",
+    tagline: "Улюблений інструмент перевірки гіпотез про інші розподіли (критерії узгодженості).",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{x^{n/2-1}e^{-x/2}}{2^{n/2}\\Gamma(n/2)}",
+    cdfTex: "F(x)=\\dfrac{\\gamma(n/2,\\,x/2)}{\\Gamma(n/2)}",
+    meanTex: "\\mathbb{E}[X]=n",
+    varTex: "\\mathbb{D}[X]=2n",
+    skewTex: "\\gamma_1=\\sqrt{\\dfrac{8}{n}}",
+    kurtTex: "\\gamma_2=\\dfrac{12}{n}",
+    modeTex: "\\mathrm{Mode}=\\max(n-2,0)",
+    charFnTex: "\\varphi(t)=(1-2it)^{-n/2}",
+    params: [ { key:"n", label:"n — ступені свободи", min:1, max:20, step:1, default:3 } ],
+    pdf: (x,p) => x<=0 ? 0 : Math.pow(x,p.n/2-1)*Math.exp(-x/2)/(Math.pow(2,p.n/2)*gammaFn(p.n/2)),
+    domain: [0, 46],
+    yMax: 1.93,
+    stats: { mean: p => p.n, variance: p => 2*p.n, skew: p => Math.sqrt(8/p.n), kurt: p => 12/p.n },
+    relations: [
+      "Окремий випадок {{gamma:Гамма}} з k=n/2, θ=2.",
+      "Спільний предок «Хі» (корінь із χ², а не сама сума) породжує {{maxwell:Максвелла}} (n=3) і {{rayleigh:Релея}} (n=2) — вони родичі χ², а не його прямі нащадки.",
+      "У парі зі стандартною {{normal:Нормальною}} дає розподіл Стьюдента (t)."
+    ],
+    originStories: [
+      { title: "Як зібрати Хі-квадрат із Нормальних",
+        body: "Візьми n незалежних стандартних {{normal:Нормальних}} величин X₁, X₂, …, Xₙ і склади суму їхніх квадратів: Y=X₁²+X₂²+⋯+Xₙ². Ось ця сума Y і має розподіл χ² з n ступенями свободи. Жодних хитрощів — просто квадрати й додавання, без кореня. Якщо ж узяти корінь із цієї самої суми (√Y замість Y), вийде зовсім інша історія — розподіл «Хі» без квадрата, вимерлий предок {{maxwell:Максвелла}} і {{rayleigh:Релея}} — дивись «Походження видів» на картці Нормального." }
+    ],
+    examples: [
+      "Статистика критерію Пірсона χ² для перевірки узгодженості спостережень із теоретичним розподілом.",
+      "Довірчий інтервал для дисперсії нормальної вибірки.",
+      "Сума квадратів n незалежних похибок вимірювання (кожна — стандартна Нормальна)."
+    ],
+    notes: [
+      "При n=2 хі-квадрат — це просто Експоненційний розподіл із λ=1/2 (проста Гамма-арифметика: k=1, θ=2).",
+      "Це той самий «скелет динозавра Хі» з картки Нормального, тільки в квадраті — тому в реальному житті ти зустрічаєш саме χ², а не голого «Хі»."
+    ]
+  },
+
+  maxwell: {
+    id: "maxwell", category: "continuous", emoji: "💨",
+    name: "Розподіл Максвелла", sciName: "Velocitas maxwelliana",
+    tagline: "Рідний брат Релея: обидва — нащадки вимерлого предка «Хі», тільки Максвелл виріс у тривимірному просторі, а Релей — на площині.",
+    support: "v \\in (0,\\ +\\infty)",
+    pdfTex: "f(v)=\\sqrt{\\dfrac{2}{\\pi}}\\,\\dfrac{v^2 e^{-v^2/(2a^2)}}{a^3}",
+    cdfTex: "F(v)=\\operatorname{erf}\\!\\left(\\dfrac{v}{a\\sqrt2}\\right)-\\sqrt{\\dfrac2\\pi}\\,\\dfrac{v}{a}\\,e^{-v^2/(2a^2)}",
+    meanTex: "\\mathbb{E}[V]=2a\\sqrt{\\dfrac2\\pi}",
+    varTex: "\\mathbb{D}[V]=\\dfrac{a^2(3\\pi-8)}{\\pi}",
+    skewTex: "\\gamma_1\\approx0.4857",
+    kurtTex: "\\gamma_2\\approx0.1082",
+    modeTex: "\\mathrm{Mode}=a\\sqrt2",
+    charFnTex: "\\text{(складна, не в елементарних функціях)}",
+    params: [ { key:"a", label:"a — масштаб швидкості", min:0.5, max:3, step:0.1, default:1 } ],
+    pdf: (v,p) => v<=0 ? 0 : Math.sqrt(2/Math.PI)*v*v*Math.exp(-v*v/(2*p.a*p.a))/Math.pow(p.a,3),
+    domain: [0, 14],
+    yMax: 1.25,
+    stats: {
+      mean: p => 2*p.a*Math.sqrt(2/Math.PI), variance: p => p.a*p.a*(3*Math.PI-8)/Math.PI,
+      skew: () => 0.4857, kurt: () => 0.1082
+    },
+    relations: [
+      "Тривимірний окремий випадок вимерлого предка «Хі» (кореня із суми квадратів) — тому доводиться родичем {{chi2:Хі-квадрат}} (тій самій сумі, але без кореня), а не його прямим нащадком.",
+      "Двовимірний молодший брат — {{rayleigh:Релей}}."
+    ],
+    originStories: [
+      { title: "Як зібрати Максвелла з Нормальних",
+        body: "Візьми три незалежні стандартні {{normal:Нормальні}} величини X, Y, Z (наприклад, три компоненти швидкості молекули газу за трьома осями) і обчисли корінь із суми квадратів: V=√(X²+Y²+Z²). Оце V і має розподіл Максвелла. Зверни увагу: це корінь, а не сама сума — сума квадратів без кореня дала б {{chi2:Хі-квадрат}} із 3 ступенями свободи, зовсім інший звір. Максвелл — тривимірний окремий випадок того самого вимерлого предка «Хі» (без квадрата), про якого детальніше — на картці Нормального." }
+    ],
+    examples: [
+      "Розподіл швидкостей молекул ідеального газу за кінетичною теорією.",
+      "Швидкість частинок пилу в броунівському русі (наближено).",
+      "Модуль тривимірного випадкового вектора з незалежними Нормальними компонентами."
+    ],
+    notes: [
+      "Це не просто «ще один розподіл із фізики» — середня кінетична енергія молекул напряму випливає з форми цієї кривої.",
+      "У 2D-версії (по площині) той самий трюк дає Релея — тому в підручниках з оптики й радіотехніки він зустрічається частіше, ніж Максвелла."
+    ]
+  },
+
+  rayleigh: {
+    id: "rayleigh", category: "continuous", emoji: "📡",
+    name: "Розподіл Релея", sciName: "Amplitudo rayleighii",
+    tagline: "Максвелл на дієті: та сама ідея модуля випадкового вектора, тільки в плоскому двовимірному світі радарів і GPS.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{x}{\\sigma^2}e^{-x^2/(2\\sigma^2)}",
+    cdfTex: "F(x)=1-e^{-x^2/(2\\sigma^2)}",
+    meanTex: "\\mathbb{E}[X]=\\sigma\\sqrt{\\dfrac\\pi2}",
+    varTex: "\\mathbb{D}[X]=\\dfrac{\\sigma^2(4-\\pi)}{2}",
+    skewTex: "\\gamma_1\\approx0.6311",
+    kurtTex: "\\gamma_2\\approx0.2451",
+    modeTex: "\\mathrm{Mode}=\\sigma",
+    charFnTex: "\\text{(складна, не в елементарних функціях)}",
+    params: [ { key:"sigma", label:"σ — масштаб", min:0.5, max:3, step:0.1, default:1 } ],
+    pdf: (x,p) => x<=0 ? 0 : (x/(p.sigma**2))*Math.exp(-(x*x)/(2*p.sigma*p.sigma)),
+    domain: [0, 12],
+    yMax: 1.29,
+    stats: {
+      mean: p => p.sigma*Math.sqrt(Math.PI/2), variance: p => p.sigma*p.sigma*(4-Math.PI)/2,
+      skew: () => 0.6311, kurt: () => 0.2451
+    },
+    relations: [
+      "Двовимірний окремий випадок того самого вимерлого предка «Хі» — тому доводиться родичем {{chi2:Хі-квадрат}}, а не його прямим нащадком.",
+      "Тривимірний старший брат — {{maxwell:Максвелла}}."
+    ],
+    originStories: [
+      { title: "Як зібрати Релея з Нормальних",
+        body: "Візьми ДВІ незалежні стандартні {{normal:Нормальні}} величини X, Y (наприклад, похибку прицілювання по двох осях) і обчисли корінь із суми квадратів: R=√(X²+Y²). Оце R і має розподіл Релея — двовимірний молодший брат {{maxwell:Максвелла}}. І знову: корінь, а не сама сума — без кореня вийшов би {{chi2:Хі-квадрат}} із 2 ступенями свободи. Обидва — Релей і Максвелл — насправді часткові випадки того самого вимерлого предка «Хі», про якого докладніше розказано на картці Нормального." }
+    ],
+    examples: [
+      "Модуль похибки GPS-навігатора в горизонтальній площині (x та y — незалежні Нормальні).",
+      "Амплітуда сигналу після проходження через канал типу Релея (Rayleigh fading) — класика радіозв’язку.",
+      "Відстань від центру мішені до влучення дротика, якщо влучення розсіяні Нормально по обох осях."
+    ],
+    notes: [
+      "Це 2D-версія тієї самої історії, що й Максвелл, тільки на площині, а не в просторі — тому Релей значно частіше зустрічається в радіотехніці й навігації, ніж у термодинаміці.",
+      "При піднесенні Релея до квадрата отримуєш звичайнісінький Експоненційний розподіл — ще один неочікуваний родич.",
+      "Щодо імені: в українських джерелах трапляються і «Рейлі», і «Релея» — тут обрано форму «Релей/Релея» для узгодження з іншими вченими зоопарку (Пуассона, Максвелла)."
+    ]
+  },
+
+  chi: {
+    id: "chi", category: "continuous", emoji: "🦕",
+    name: "Розподіл Хі (без квадрата)", sciName: "Chi vulgaris extinctus",
+    tagline: "Кістяк динозавра в цьому музеї: сам розподіл ти в підручниках майже не зустрінеш, зате два його прямі нащадки (Релей і Максвелл) працюють щодня.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{2^{1-k/2}}{\\Gamma(k/2)}\\,x^{k-1}e^{-x^2/2}",
+    cdfTex: "F(x)=\\dfrac{\\gamma(k/2,\\,x^2/2)}{\\Gamma(k/2)}",
+    meanTex: "\\mathbb{E}[X]=\\sqrt2\\,\\dfrac{\\Gamma((k+1)/2)}{\\Gamma(k/2)}",
+    varTex: "\\mathbb{D}[X]=k-\\mathbb{E}[X]^2",
+    skewTex: "\\gamma_1 \\text{ — виражається через } \\mathbb{E}[X] \\text{ і } \\mathbb{D}[X]",
+    kurtTex: "\\gamma_2 \\text{ — аналогічно, довга формула}",
+    modeTex: "\\mathrm{Mode}=\\sqrt{k-1}\\ \\ (k\\ge1)",
+    charFnTex: "\\text{не виражається в елементарних функціях}",
+    params: [ { key:"k", label:"k — ступені свободи", min:1, max:10, step:1, default:4 } ],
+    pdf: (x,p) => x<=0 ? 0 : Math.pow(2,1-p.k/2)/gammaFn(p.k/2) * Math.pow(x,p.k-1)*Math.exp(-x*x/2),
+    domain: [0, 6],
+    yMax: 0.85,
+    stats: {
+      mean: p => Math.sqrt(2)*gammaFn((p.k+1)/2)/gammaFn(p.k/2),
+      variance: p => { const m=Math.sqrt(2)*gammaFn((p.k+1)/2)/gammaFn(p.k/2); return p.k-m*m; },
+      skew: () => NaN, kurt: () => NaN
+    },
+    relations: [
+      "При k=1 — це модуль стандартної {{normal:Нормальної}} величини (просто |Z|), інколи званий «напівнормальним».",
+      "При k=2 — це {{rayleigh:Релей}}.",
+      "При k=3 — це {{maxwell:Максвелла}}.",
+      "Якщо цей розподіл звести в квадрат — вийде {{chi2:Хі-квадрат}} з тими самими k ступенями свободи."
+    ],
+    examples: [
+      "Сама конструкція: корінь із суми k квадратів незалежних стандартних Нормальних величин.",
+      "Евклідова довжина (норма) випадкового вектора в k-вимірному просторі з незалежними Нормальними координатами.",
+      "Узагальнений «модуль швидкості» у просторі довільної розмірності — не лише 2D-Релей чи 3D-Максвелл."
+    ],
+    notes: [
+      "Це буквально музейний експонат зоопарку: сам по собі рідко фігурує в підручниках під власним ім’ям, зате майже кожен фізик і статистик користується його дітьми (χ², Релей, Максвелл), не завжди підозрюючи про існування батька.",
+      "На відміну від χ² (сума квадратів без кореня), тут узятий КОРІНЬ із суми — тому й крива, і формули виглядають інакше, хоч спорідненість щонайтісніша.",
+      "У асиметрії й ексцесу тут навмисно не виписані закриті формули — вони виражаються через ту саму комбінацію гамма-функцій, що й середнє, і виглядають громіздкіше, ніж дають користі."
+    ]
+  },
+
+  beta: {
+    id: "beta", category: "continuous", emoji: "🎚️",
+    name: "Бета-розподіл", sciName: "Forma proteus",
+    tagline: "Хамелеон зоопарку: залежно від параметрів прикидається то дзвоном, то ванною, то навіть Рівномірним.",
+    support: "x \\in (0,\\ 1)",
+    pdfTex: "f(x)=\\dfrac{x^{a-1}(1-x)^{b-1}}{B(a,b)}",
+    cdfTex: "F(x)=\\dfrac{B(x;a,b)}{B(a,b)}\\ \\text{(неповна бета-функція)}",
+    meanTex: "\\mathbb{E}[X]=\\dfrac{a}{a+b}",
+    varTex: "\\mathbb{D}[X]=\\dfrac{ab}{(a+b)^2(a+b+1)}",
+    skewTex: "\\gamma_1=\\dfrac{2(b-a)\\sqrt{a+b+1}}{(a+b+2)\\sqrt{ab}}",
+    kurtTex: "\\gamma_2=\\dfrac{6\\left[(a-b)^2(a+b+1)-ab(a+b+2)\\right]}{ab(a+b+2)(a+b+3)}",
+    modeTex: "\\mathrm{Mode}=\\dfrac{a-1}{a+b-2}\\ \\ (a,b>1)",
+    charFnTex: "\\text{виражається через} \\,{}_1F_1 \\text{(конфлюентну гіпергеометричну)}",
+    params: [
+      { key:"a", label:"a — форма ліворуч", min:0.8, max:5, step:0.1, default:2 },
+      { key:"b", label:"b — форма праворуч", min:0.8, max:5, step:0.1, default:2 }
+    ],
+    pdf: (x,p) => { if (x<=0||x>=1) return 0; return Math.pow(x,p.a-1)*Math.pow(1-x,p.b-1)/betaFn(p.a,p.b); },
+    domain: [0, 1],
+    yMax: 16.5,
+    stats: {
+      mean: p => p.a/(p.a+p.b), variance: p => (p.a*p.b)/(((p.a+p.b)**2)*(p.a+p.b+1)),
+      skew: p => 2*(p.b-p.a)*Math.sqrt(p.a+p.b+1)/((p.a+p.b+2)*Math.sqrt(p.a*p.b)),
+      kurt: p => 6*(((p.a-p.b)**2)*(p.a+p.b+1)-p.a*p.b*(p.a+p.b+2))/(p.a*p.b*(p.a+p.b+2)*(p.a+p.b+3))
+    },
+    relations: [
+      "При a=b=1 — це просто {{uniform_continuous:Рівномірний}} на [0,1].",
+      "X/(X+Y), де X, Y — незалежні {{gamma:Гамма}} з однаковим θ, має саме Бета-розподіл.",
+      "У Хімерах «Батарея» і «Пиво» саме вона грає роль неперервної частини."
+    ],
+    examples: [
+      "Частка виборців, які підтримують кандидата, з погляду баєсівської статистики — Бета тут улюблений «прайор» для ймовірностей.",
+      "Оцінка конверсії A/B-тесту, поки даних ще мало.",
+      "Частка часу, яку сервер простоює за добу."
+    ],
+    notes: [
+      "Чи не найгнучкіший звір зоопарку: підбираючи a і b, можна зобразити дзвін, U-подібну ванну, монотонне зростання чи спадання, чи навіть ідеальну рівність (a=b=1 — Рівномірний).",
+      "Класика баєсівської статистики: якщо «прайор» про ймовірність p — це Бета, а дані — Біноміальні, то «постеріор» теж вийде Бета. Ідеальна пара, яка не створює зайвого головного болю."
+    ]
+  },
+
+  pareto: {
+    id: "pareto", category: "continuous", emoji: "💰",
+    name: "Розподіл Парето", sciName: "Vilfredo paretoi",
+    tagline: "Всім відомо, що 20% любителів пива випивають 80% усього виробленого пива — і це не жарт, а рівно розподіл Парето з α≈1.16.",
+    support: "x \\in [x_m,\\ +\\infty)",
+    pdfTex: "f(x) = \\dfrac{\\alpha\\,x_m^{\\alpha}}{x^{\\alpha+1}}",
+    cdfTex: "F(x) = 1-\\left(\\dfrac{x_m}{x}\\right)^{\\alpha}",
+    meanTex: "\\mathbb{E}[X]=\\dfrac{\\alpha x_m}{\\alpha-1}\\ \\ (\\alpha>1,\\text{ інакше не існує})",
+    varTex: "\\mathbb{D}[X]=\\dfrac{x_m^2\\alpha}{(\\alpha-1)^2(\\alpha-2)}\\ \\ (\\alpha>2)",
+    skewTex: "\\gamma_1=\\dfrac{2(1+\\alpha)}{\\alpha-3}\\sqrt{\\dfrac{\\alpha-2}{\\alpha}}\\ \\ (\\alpha>3)",
+    kurtTex: "\\gamma_2=\\dfrac{6(\\alpha^3+\\alpha^2-6\\alpha-2)}{\\alpha(\\alpha-3)(\\alpha-4)}\\ \\ (\\alpha>4)",
+    modeTex: "\\mathrm{Mode}=x_m",
+    charFnTex: "\\text{виражається через неповну гамма-функцію}",
+    params: [
+      { key:"xm", label:"xₘ — мінімальне значення", min:0.5, max:3, step:0.1, default:1 },
+      { key:"alpha", label:"α — форма («хвостатість»)", min:0.5, max:5, step:0.02, default:1.16 }
+    ],
+    pdf: (x,p) => x<p.xm ? 0 : p.alpha*Math.pow(p.xm,p.alpha)/Math.pow(x,p.alpha+1),
+    domain: [0, 15],
+    yMax: 10.6,
+    stats: {
+      mean: p => p.alpha>1 ? p.alpha*p.xm/(p.alpha-1) : NaN,
+      variance: p => p.alpha>2 ? (p.xm**2*p.alpha)/((p.alpha-1)**2*(p.alpha-2)) : NaN,
+      skew: p => p.alpha>3 ? (2*(1+p.alpha)/(p.alpha-3))*Math.sqrt((p.alpha-2)/p.alpha) : NaN,
+      kurt: p => p.alpha>4 ? (6*(p.alpha**3+p.alpha**2-6*p.alpha-2))/(p.alpha*(p.alpha-3)*(p.alpha-4)) : NaN
+    },
+    extraStats: [
+      { label: "Частка обсягу в руках топ-20% (за формулою 0.2^(1-1/α))", value: p => p.alpha>1 ? Math.pow(0.2, 1-1/p.alpha)*100 : NaN, suffix:"%" }
+    ],
+    relations: [
+      "Логарифм Парето-розподіленої величини має {{exponential:Експоненційний}} розподіл — простенька заміна змінної, і важкий хвіст магічно зникає.",
+      "При α≤1 навіть мат. сподівання йде в нескінченність — на цій межі Парето поводиться майже як {{cauchy:Коші}}, тільки з одного боку."
+    ],
+    examples: [
+      "Улюблена ілюстрація: 20% найзапекліших любителів пива випивають 80% усього виробленого пива.",
+      "20% багатіїв володіють 80% усього багатства світу — те, з чого Вільфредо Парето (італійський економіст) 1896 року все й почав, розглядаючи розподіл землі в Італії.",
+      "80% багів у коді походять із 20% модулів — улюблена відмазка тімліда на щоденному стендапі.",
+      "20% відвідувачів сайту генерують 80% усіх звернень у підтримку (і це завжди ті самі три людини).",
+      "Розмір міст: кілька мегаполісів і величезний хвіст крихітних селищ — населення підкоряється Парето значно частіше, ніж здається."
+    ],
+    notes: [
+      "Ім’я на честь Вільфредо Парето, який помітив, що 80% землі в Італії належить 20% населення — і не здогадувався, що відкриває цілий новий рід для економістів, айтішників і тімлідів.",
+      "При α≤1 навіть мат. сподівання йде в нескінченність — тобто «середній» мільярдер із таким розподілом статків не існує як число, хоч би скільки мільярдерів ти опитав.",
+      "Дефолтне значення α≈1.16 у цьому вольєрі обране не випадково — це рівно те α, при якому 20% населення тримають рівно 80% ресурсу. Посунь повзунок і подивись, як змінюється це співвідношення в досьє натураліста."
+    ]
+  },
+
+  lognormal: {
+    id: "lognormal", category: "continuous", emoji: "📈",
+    name: "Логнормальний розподіл", sciName: "Productus normalis",
+    tagline: "Головний конкурент Парето за право рахувати мільярдерів — тільки цей росте не додаванням, а множенням.",
+    support: "x \\in (0,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{1}{x\\sigma\\sqrt{2\\pi}}\\,e^{-\\frac{(\\ln x-\\mu)^2}{2\\sigma^2}}",
+    cdfTex: "F(x)=\\dfrac12\\left[1+\\operatorname{erf}\\!\\left(\\dfrac{\\ln x-\\mu}{\\sigma\\sqrt2}\\right)\\right]",
+    meanTex: "\\mathbb{E}[X]=e^{\\mu+\\sigma^2/2}",
+    varTex: "\\mathbb{D}[X]=\\left(e^{\\sigma^2}-1\\right)e^{2\\mu+\\sigma^2}",
+    skewTex: "\\gamma_1=\\left(e^{\\sigma^2}+2\\right)\\sqrt{e^{\\sigma^2}-1}",
+    kurtTex: "\\gamma_2=e^{4\\sigma^2}+2e^{3\\sigma^2}+3e^{2\\sigma^2}-6",
+    modeTex: "\\mathrm{Mode}=e^{\\mu-\\sigma^2}",
+    charFnTex: "\\text{не виражається в елементарних функціях}",
+    params: [
+      { key:"mu", label:"μ — середнє логарифма", min:-0.5, max:1.2, step:0.1, default:0 },
+      { key:"sigma", label:"σ — розкид логарифма", min:0.3, max:1.0, step:0.05, default:0.5 }
+    ],
+    pdf: (x,p) => x<=0 ? 0 : (1/(x*p.sigma*Math.sqrt(2*Math.PI)))*Math.exp(-((Math.log(x)-p.mu)**2)/(2*p.sigma*p.sigma)),
+    domain: [0, 35],
+    yMax: 2.5,
+    stats: {
+      mean: p => Math.exp(p.mu+p.sigma**2/2),
+      variance: p => (Math.exp(p.sigma**2)-1)*Math.exp(2*p.mu+p.sigma**2),
+      skew: p => (Math.exp(p.sigma**2)+2)*Math.sqrt(Math.exp(p.sigma**2)-1),
+      kurt: p => Math.exp(4*p.sigma**2)+2*Math.exp(3*p.sigma**2)+3*Math.exp(2*p.sigma**2)-6
+    },
+    relations: [
+      "Якщо ln(X) ~ {{normal:Нормальний}}, то X ~ Логнормальний — тому й назва.",
+      "Добуток багатьох незалежних додатних величин прямує до Логнормального — це як Центральна гранична теорема, тільки для множення, а не додавання.",
+      "Головний суперник {{pareto:Парето}} за право описувати розподіл багатства — економісти досі сваряться, який із них чесніший."
+    ],
+    examples: [
+      "Розмір статків населення (частіше моделюють саме так, а не Парето — хвіст менш екстремальний).",
+      "Час обслуговування запиту в IT-системі під навантаженням.",
+      "Концентрація забруднювача в довкіллі — вимірювання рідко бувають від’ємними, зате «розгін» майже завжди мультиплікативний."
+    ],
+    notes: [
+      "Ключова відмінність від Нормального: тут «складають» не самі величини, а їхні множники (чи логарифми множників) — тому й хвіст важчий і завжди з правого боку.",
+      "На відміну від Парето, тут завжди є і мат. сподівання, і дисперсія — тому економісти, яким не подобається ідея «нескінченного багатства», часто обирають саме цей розподіл."
+    ]
+  },
+
+  cauchy: {
+    id: "cauchy", category: "continuous", emoji: "😈",
+    name: "Розподіл Коші", sciName: "Trollus cauchyanus",
+    tagline: "Розподіл без мат. сподівання, без дисперсії й без жодного сорому.",
+    support: "x \\in (-\\infty,\\ +\\infty)",
+    pdfTex: "f(x) = \\dfrac{1}{\\pi\\gamma\\left[1+\\left(\\frac{x-x_0}{\\gamma}\\right)^2\\right]}",
+    cdfTex: "F(x) = \\dfrac{1}{\\pi}\\arctan\\!\\left(\\dfrac{x-x_0}{\\gamma}\\right)+\\dfrac12",
+    meanTex: "\\text{не існує}",
+    varTex: "\\text{не існує}",
+    skewTex: "\\text{не існує}",
+    kurtTex: "\\text{не існує}",
+    modeTex: "\\mathrm{Mode} = x_0",
+    charFnTex: "\\varphi(t) = e^{\\,ix_0t-\\gamma|t|}",
+    params: [
+      { key:"x0", label:"x₀ — положення", min:-5, max:5, step:0.5, default:0 },
+      { key:"gamma", label:"γ — масштаб", min:0.3, max:3, step:0.1, default:1 }
+    ],
+    pdf: (x,p) => 1/(Math.PI*p.gamma*(1+((x-p.x0)/p.gamma)**2)),
+    domain: [-17, 17],
+    yMax: 1.13,
+    stats: { mean: () => NaN, variance: () => NaN, skew: () => NaN, kurt: () => NaN },
+    relations: [
+      "Відношення двох незалежних стандартних {{normal:Нормальних}} величин.",
+      "Насправді це {{student_t:розподіл Стьюдента}} (t) з однією-єдиною ступенню свободи — межовий, найтовстіший хвіст усієї родини t-розподілів."
+    ],
+    examples: [
+      "Кут, під яким видно точку на стіні від лазерної указки, що обертається з постійною кутовою швидкістю на фіксованій відстані.",
+      "Відношення двох незалежних похибок вимірювання приладів.",
+      "Профіль Лоренца в спектроскопії та оптиці — фізики зустрічають Коші щодня, просто не завжди впізнають його під псевдонімом."
+    ],
+    notes: [
+      "Улюблений козир викладача, що хоче потролити студентів: попроси порахувати вибіркове середнє з Коші — воно не сходиться до жодного числа, хоч би скільки спостережень ти назбирав.",
+      "Закон великих чисел тут офіційно не працює: середнє вибірки стрибає так само дико, як і один-єдиний вимір, незалежно від розміру вибірки.",
+      "Хвости настільки важкі, що навіть дисперсія розходиться (інтеграл ∫x²f(x)dx = ∞) — тому в «Досьє натураліста» там чесне «не існує», а не помилка застосунку."
+    ]
+  },
+
+  student_t: {
+    id: "student_t", category: "continuous", emoji: "🧪",
+    name: "Розподіл Стьюдента (t)", sciName: "Gossetia anonyma",
+    tagline: "Нормальний, який ще не наївся даних: чим менше спостережень, тим товщі хвости — і тільки при ν→∞ він остаточно стає дзвоном.",
+    support: "x \\in (-\\infty,\\ +\\infty)",
+    pdfTex: "f(x)=\\dfrac{\\Gamma\\!\\left(\\frac{\\nu+1}{2}\\right)}{\\sqrt{\\nu\\pi}\\,\\Gamma\\!\\left(\\frac{\\nu}{2}\\right)}\\left(1+\\dfrac{x^2}{\\nu}\\right)^{-\\frac{\\nu+1}{2}}",
+    cdfTex: "F(x) \\text{ — через неповну бета-функцію, у явному вигляді не пишеться}",
+    meanTex: "\\mathbb{E}[X]=0\\ \\ (\\nu>1)",
+    varTex: "\\mathbb{D}[X]=\\dfrac{\\nu}{\\nu-2}\\ \\ (\\nu>2)",
+    skewTex: "\\gamma_1=0\\ \\ (\\nu>3)",
+    kurtTex: "\\gamma_2=\\dfrac{6}{\\nu-4}\\ \\ (\\nu>4)",
+    modeTex: "\\mathrm{Mode}=0",
+    charFnTex: "\\text{виражається через функцію Бесселя}",
+    params: [ { key:"nu", label:"ν — ступені свободи", min:1, max:30, step:1, default:5 } ],
+    pdf: (x,p) => gammaFn((p.nu+1)/2)/(Math.sqrt(p.nu*Math.PI)*gammaFn(p.nu/2)) * Math.pow(1+x*x/p.nu, -(p.nu+1)/2),
+    domain: [-15, 15],
+    yMax: 0.42,
+    stats: {
+      mean: p => p.nu>1 ? 0 : NaN,
+      variance: p => p.nu>2 ? p.nu/(p.nu-2) : NaN,
+      skew: p => p.nu>3 ? 0 : NaN,
+      kurt: p => p.nu>4 ? 6/(p.nu-4) : NaN
+    },
+    relations: [
+      "При ν=1 — це точно {{cauchy:Коші}}.",
+      "При ν→∞ стає невідмінним від {{normal:Нормального}}.",
+      "Народжується, коли беремо {{normal:Нормальну}} і ділимо на корінь із незалежного {{chi2:Хі-квадрат}}, поділеного на його ступені свободи — класична конструкція для оцінки середнього при невідомій дисперсії."
+    ],
+    examples: [
+      "Перевірка гіпотези про середнє, коли дисперсія популяції невідома — той самий t-тест з першого курсу статистики.",
+      "Малі вибірки в експериментальній фізиці чи медицині: коли даних мало, «справжній» розподіл товщий за Нормальний.",
+      "Фінансові дохідності активів — реальні хвости товщі за Нормальні, і t-розподіл із малим ν часто підходить краще."
+    ],
+    notes: [
+      "Ім’я «Стьюдент» — це псевдонім! Автор, Вільям Госсет, публікувався під ним, бо пивоварня Guinness, де він працював, не дозволяла співробітникам підписуватися справжніми іменами в наукових статтях.",
+      "При ν≤1 навіть середнього не існує (як і в Коші), при 1<ν≤2 дисперсія вже нескінченна — товщина хвоста тане поступово зі зростанням ν, а не одним стрибком."
+    ]
+  },
+
+  /* ======================= ХІМЕРИ (мішані розподіли) ======================= */
+  queue: {
+    id: "queue", category: "chimera", emoji: "🛒",
+    name: "Очікування в черзі", sciName: "Exponentia interrupta",
+    tagline: "Суміш атома в нулі («черги нема — це щастя») та Експоненційного розподілу («черга є — чекай, скільки Бог пошле»).",
+    mixtureFormulaTex: "f(x)=p_0\\,\\delta(x)\\;+\\;(1-p_0)\\,\\lambda e^{-\\lambda x}\\cdot[x>0]",
+    xUnit: " хв",
+    params: [
+      { key:"p0", label:"p₀ — шанс на нульове очікування", min:0, max:0.9, step:0.01, default:0.3 },
+      { key:"lambda", label:"λ — інтенсивність обслуговування", min:0.3, max:3, step:0.1, default:1 }
+    ],
+    getAtoms: p => [ { x:0, p:p.p0, label:"без черги" } ],
+    continuousPdf: (x,p) => x<=0 ? 0 : p.lambda*Math.exp(-p.lambda*x),
+    domain: [0, 17],
+    yMaxDensity: 3.1, probAxisMax: 0.99,
+    yMaxDensity: 3.2,
+    meanFn: p => (1-p.p0)*(1/p.lambda),
+    varFn: p => { const ex2 = (1-p.p0)*(2/(p.lambda**2)); const m = (1-p.p0)*(1/p.lambda); return ex2 - m*m; },
+    examples: [
+      "Прийшов у супермаркет о 23:58 — і жодного покупця перед тобою: миттєве обслуговування, x=0.",
+      "Прийшов у розпал акції на новий iPhone — доведеться почекати, і час очікування вже підкоряється Експоненційному закону."
+    ],
+    notes: [
+      "Це не «зіпсований Експоненційний», а чесна суміш: з імовірністю p₀ ти взагалі не чекаєш (атом у нулі), а з імовірністю (1-p₀) чекаєш за Експоненційним законом. Густина такої тварини — наполовину стовпчик, наполовину крива, тому в жоден підручник вона акуратно не влазить.",
+      "Схожий трюк ховається за кожним разом, коли статистики міряють «час до події, яка могла й не статися взагалі» — час простою обладнання, час до повторного звернення в підтримку тощо."
+    ]
+  },
+
+  rainfall: {
+    id: "rainfall", category: "chimera", emoji: "🌧️",
+    name: "Добова кількість опадів", sciName: "Nihil aut Weibullus",
+    tagline: "Суміш атома в нулі («сухо, як і обіцяли синоптики») та розподілу Вейбулла («а якщо таки ллє — тримайся, там уже своя фізика»).",
+    mixtureFormulaTex: "f(x)=p_0\\,\\delta(x)\\;+\\;(1-p_0)\\dfrac{k}{\\lambda}\\Big(\\dfrac{x}{\\lambda}\\Big)^{k-1}e^{-(x/\\lambda)^k}\\cdot[x>0]",
+    xUnit: " мм",
+    params: [
+      { key:"p0", label:"p₀ — шанс на суху добу", min:0, max:0.9, step:0.01, default:0.6 },
+      { key:"k", label:"k — форма", min:1, max:3, step:0.1, default:1.5 },
+      { key:"scale", label:"λ — масштаб, мм", min:1, max:6, step:0.5, default:4 }
+    ],
+    getAtoms: p => [ { x:0, p:p.p0, label:"без опадів" } ],
+    continuousPdf: (x,p) => x<=0 ? 0 : (p.k/p.scale)*Math.pow(x/p.scale,p.k-1)*Math.exp(-Math.pow(x/p.scale,p.k)),
+    domain: [0, 30],
+    yMaxDensity: 1.29, probAxisMax: 0.99,
+    yMaxDensity: 1.5,
+    meanFn: p => (1-p.p0)*p.scale*gammaFn(1+1/p.k),
+    varFn: p => { const cw=1-p.p0; const ex2=cw*p.scale*p.scale*gammaFn(1+2/p.k); const m=cw*p.scale*gammaFn(1+1/p.k); return ex2-m*m; },
+    examples: [
+      "Літній день у степовій зоні: «сухо» — це не окремий сценарій, а буквально атом імовірності в нулі.",
+      "Якщо дощ таки пішов — скільки міліметрів випаде, вирішує вже неперервна частина (тут — Вейбулла), а не монетка «дощ/без дощу»."
+    ],
+    notes: [
+      "Вейбулла обрана не випадково: на відміну від Експоненційного, вона вміє «розганятися» поступово (пік густини не обов’язково в нулі), що краще описує реальні дощі — рідко ллє миттєво на повну силу.",
+      "Кліматологи взагалі люблять домішувати сюди ще й другий атом — на верхній межі виміру приладу («занадто багато, прилад захлинувся»), але для пілотної версії зоопарку обійдемось одним атомом."
+    ]
+  },
+
+  steering: {
+    id: "steering", category: "chimera", emoji: "🛞",
+    name: "Положення керма", sciName: "Triplex punctum normale",
+    tagline: "Суміш трьох атомів (центр і два упори до кінця) та Нормального розподілу — для всього, що трапляється між ними.",
+    mixtureFormulaTex: "f(x)=p_{\\pm}\\big[\\delta(x{+}1)+\\delta(x{-}1)\\big]+p_0\\,\\delta(x)+(1-p_0-2p_{\\pm})\\dfrac{1}{\\sigma\\sqrt{2\\pi}}e^{-x^2/2\\sigma^2}",
+    params: [
+      { key:"pCenter", label:"p₀ — додатковий атом точно по центру", min:0, max:0.6, step:0.01, default:0.25 },
+      { key:"pExtreme", label:"p± — шанс на кожен крайній вивіх", min:0, max:0.2, step:0.01, default:0.05 },
+      { key:"sigma", label:"σ — розкид неперервної частини", min:0.1, max:0.4, step:0.01, default:0.15 }
+    ],
+    getAtoms: p => [ { x:-1, p:p.pExtreme, label:"лівий упор" }, { x:0, p:p.pCenter, label:"центр" }, { x:1, p:p.pExtreme, label:"правий упор" } ],
+    continuousPdf: (x,p) => (1/(p.sigma*Math.sqrt(2*Math.PI))) * Math.exp(-(x*x)/(2*p.sigma*p.sigma)),
+    domain: [-1.3, 1.3],
+    yMaxDensity: 4.39, probAxisMax: 0.66,
+    yMaxDensity: 4.2,
+    meanFn: () => 0,
+    varFn: p => { const cw = 1 - p.pCenter - 2*p.pExtreme; return 2*p.pExtreme*1*1 + cw*p.sigma*p.sigma; },
+    examples: [
+      "Траса, круїз-контроль, порожня смуга: кермо годинами сидить точно по центру — це і є той «зайвий» атом у нулі понад звичайний неперервний розкид.",
+      "Паркування заднім ходом у дворі: кермо викручується до упору в один із крайніх атомів і застигає там, поки ти виглядаєш у дзеркала.",
+      "Звичайна їзда звивистою дорогою — ось де працює неперервна (Нормальна) частина: дрібні постійні корекції курсу навколо центру."
+    ],
+    notes: [
+      "Чесно попереджаємо: неперервну частину тут узято «як є», без обрізання хвостів рівно по межах ±1 — для реального керма це наближення, зате для ілюстрації суміші воно чесно показує суть.",
+      "Три атоми одразу — це вже своя маленька родина: більшість підручникових прикладів обмежуються одним атомом у нулі, а тут у нас повний комплект."
+    ]
+  },
+
+  battery: {
+    id: "battery", category: "chimera", emoji: "🔋",
+    name: "Заряд акумулятора смартфона", sciName: "Beta bimodalis extremis",
+    tagline: "Суміш двох атомів (0% і 100%) та Бета-розподілу — для всього того драматичного «десь посередині».",
+    mixtureFormulaTex: "f(x)=p_0\\,\\delta(x)+p_{100}\\,\\delta(x{-}100)+(1-p_0-p_{100})\\dfrac{1}{100\\,B(a,b)}\\Big(\\dfrac{x}{100}\\Big)^{a-1}\\Big(1-\\dfrac{x}{100}\\Big)^{b-1}",
+    xUnit: "%",
+    params: [
+      { key:"p0", label:"p₀ — шанс упіймати на 0%", min:0, max:0.5, step:0.01, default:0.15 },
+      { key:"p100", label:"p₁₀₀ — шанс упіймати на 100%", min:0, max:0.5, step:0.01, default:0.25 },
+      { key:"a", label:"a — форма Бети", min:0.3, max:5, step:0.1, default:0.7 },
+      { key:"b", label:"b — форма Бети", min:0.3, max:5, step:0.1, default:0.7 }
+    ],
+    getAtoms: p => [ { x:0, p:p.p0, label:"0%" }, { x:100, p:p.p100, label:"100%" } ],
+    continuousPdf: (x,p) => { const t=x/100; if (t<=0||t>=1) return 0; return Math.pow(t,p.a-1)*Math.pow(1-t,p.b-1)/betaFn(p.a,p.b)/100; },
+    domain: [0, 100],
+    yMaxDensity: 0.625, probAxisMax: 0.55,
+    yMaxDensity: 0.3,
+    meanFn: p => { const cw=1-p.p0-p.p100; const bm=(p.a/(p.a+p.b))*100; return p.p100*100 + cw*bm; },
+    varFn: p => {
+      const cw = 1-p.p0-p.p100;
+      const bm = (p.a/(p.a+p.b))*100;
+      const bv = 100*100*(p.a*p.b)/(((p.a+p.b)**2)*(p.a+p.b+1));
+      const ex2 = p.p100*10000 + cw*(bv+bm*bm);
+      const mean = p.p100*100 + cw*bm;
+      return ex2 - mean*mean;
+    },
+    examples: [
+      "Заснув із телефоном на зарядці — ранковий атом рівно на 100%.",
+      "Забув зарядку вдома, і робочий день видався насиченим — вечірній атом рівно на 0% (і легка паніка на додачу).",
+      "Звичайний робочий день без крайнощів — десь посередині працює неперервна (за замовчуванням — U-подібна) Бета-частина: телефон або «ще норм», або «вже треба щось робити», а рівно 50% ловиться на диво рідко."
+    ],
+    notes: [
+      "При a,b<1 неперервна частина Бети сама стає U-подібною — густина тікає у нескінченність біля 0% і 100%. Тобто навіть «неперервна» частина заряду підозріло любить триматися країв, а не середини.",
+      "Це вже друга тварина в зоопарку з двома атомами одразу (див. також керма із трьома) — здається, реальний світ куди менш «чисто неперервний», ніж здається з підручника."
+    ]
+  },
+
+  beer: {
+    id: "beer", category: "chimera", emoji: "🍺",
+    name: "Обсяг налитого пива", sciName: "Beta generosa bartenderi",
+    tagline: "Суміш атома «по вінця» та Бета-розподілу — для всього, що бармен не дотягнув до країв.",
+    mixtureFormulaTex: "f(x)=p_1\\,\\delta(x{-}1)+(1-p_1)\\dfrac{x^{a-1}(1-x)^{b-1}}{B(a,b)}\\cdot[0<x<1]",
+    params: [
+      { key:"pFull", label:"p₁ — шанс налити рівно до країв", min:0, max:0.6, step:0.01, default:0.2 },
+      { key:"a", label:"a — форма (щедрість)", min:1, max:6, step:0.1, default:3 },
+      { key:"b", label:"b — форма (стриманість)", min:1, max:6, step:0.1, default:1.5 }
+    ],
+    getAtoms: p => [ { x:1, p:p.pFull, label:"по вінця" } ],
+    continuousPdf: (x,p) => { if (x<=0||x>=1) return 0; return Math.pow(x,p.a-1)*Math.pow(1-x,p.b-1)/betaFn(p.a,p.b); },
+    domain: [0, 1.15],
+    yMaxDensity: 6.57, probAxisMax: 0.66,
+    yMaxDensity: 6.5,
+    meanFn: p => { const cw=1-p.pFull; const bm=p.a/(p.a+p.b); return p.pFull*1 + cw*bm; },
+    varFn: p => {
+      const cw = 1-p.pFull;
+      const bm = p.a/(p.a+p.b);
+      const bv = (p.a*p.b)/(((p.a+p.b)**2)*(p.a+p.b+1));
+      const ex2 = p.pFull*1 + cw*(bv+bm*bm);
+      const mean = p.pFull*1 + cw*bm;
+      return ex2 - mean*mean;
+    },
+    examples: [
+      "Досвідчений бармен наливає точно до лінії на кухлі — і робить так частіше, ніж здається: це і є атом імовірності при x=1 (по вінця).",
+      "П’яна вечірка, бармен уже сам добряче хильнув: розкид наливу зростає, зате атом «по вінця» стає ще товщим — руки тремтять, щедрість не має меж.",
+      "Тверезий і акуратний бармен ранньої зміни: неперервна частина зсунута ближче до «трошки недоналив, зате точно» — параметр a менший за b."
+    ],
+    notes: [
+      "Форма Бети тут обрана не випадково: на відміну від Нормальної, вона живе рівно на відрізку [0,1] і не вимагає жодного «обрізання хвостів» — кухоль просто фізично не може вміщати більше або менше.",
+      "Чесний претендент на звання «найлогічніший розподіл зоопарку»: атом у крайній точці тут має цілком фізичне пояснення (переливається через край), а не є штучним припущенням моделі."
+    ]
+  }
+
+};
+
+/* ======================= СТАН ДОДАТКУ ======================= */
+
+let state = { category: "continuous", distId: "normal", params: {} };
+
+function currentParams(){ return state.params[state.distId]; }
+
+function initParams(dist){
+  if (!state.params[dist.id]){
+    const p = {};
+    dist.params.forEach(pr => p[pr.key] = pr.default);
+    state.params[dist.id] = p;
+  }
+}
+
+/* ======================= РЕНДЕР: ТАБИ ТА ЧІПИ ======================= */
+
+function renderTabs(){
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.classList.toggle("active", btn.dataset.cat === state.category);
+    btn.onclick = () => {
+      state.category = btn.dataset.cat;
+      const firstOfCat = Object.values(DISTRIBUTIONS).find(d=>d.category===state.category);
+      selectDistribution(firstOfCat.id);
+    };
+  });
+}
+
+function renderChips(){
+  const rail = document.getElementById("speciesRail");
+  rail.innerHTML = "";
+  Object.values(DISTRIBUTIONS)
+    .filter(d => d.category === state.category)
+    .forEach(d=>{
+      const chip = document.createElement("button");
+      chip.className = "chip" + (d.id===state.distId ? " active" : "");
+      chip.innerHTML = `<span class="chip-emoji">${d.emoji}</span><span>${d.name}</span>`;
+      chip.onclick = () => selectDistribution(d.id);
+      rail.appendChild(chip);
+    });
+}
+
+/* ======================= ДОПОМІЖНЕ: KaTeX ТА КРОС-ПОСИЛАННЯ ======================= */
+
+function renderMath(container, tex, displayMode){
+  try{ katex.render(tex, container, { throwOnError:false, displayMode: displayMode !== false }); }
+  catch(e){ container.textContent = tex; }
+}
+
+// Замінює {{targetId:Ярлик}} на клікабельну (чи неактивну) пігулку-посилання
+function parseRelationTemplate(text){
+  return text.replace(/\{\{(\w+):([^}]+)\}\}/g, (match, target, label)=>{
+    if (DISTRIBUTIONS[target]) {
+      return `<button type="button" class="xref-pill enabled" data-target="${target}">${label}</button>`;
+    }
+    return `<span class="xref-pill disabled" title="Ще не в зоопарку">${label}</span>`;
+  });
+}
+
+function attachXrefHandlers(container){
+  container.querySelectorAll(".xref-pill.enabled").forEach(btn=>{
+    btn.onclick = () => {
+      const target = btn.dataset.target;
+      if (DISTRIBUTIONS[target]){
+        closeModal();
+        selectDistribution(target);
+        document.getElementById("card").scrollIntoView({ behavior:"smooth", block:"start" });
+      }
+    };
+  });
+}
+
+/* ======================= МОДАЛ: ПОХОДЖЕННЯ ВИДІВ ======================= */
+
+function openOriginModal(distId){
+  const dist = DISTRIBUTIONS[distId];
+  const content = document.getElementById("modalContent");
+  content.innerHTML = `
+    <div class="modal-eyebrow">🧬 Походження видів</div>
+    <h2>${dist.name}</h2>
+    ${dist.originStories.map(story => `
+      <div class="modal-story">
+        <h3>${story.title}</h3>
+        <p>${parseRelationTemplate(story.body)}</p>
+      </div>
+    `).join("")}
+  `;
+  attachXrefHandlers(content);
+  document.getElementById("modalOverlay").classList.add("open");
+}
+
+function closeModal(){
+  document.getElementById("modalOverlay").classList.remove("open");
+}
+
+document.getElementById("modalClose").addEventListener("click", closeModal);
+document.getElementById("modalOverlay").addEventListener("click", (e)=>{
+  if (e.target.id === "modalOverlay") closeModal();
+});
+document.addEventListener("keydown", (e)=>{
+  if (e.key === "Escape"){ closeModal(); closeWelcome(); }
+});
+
+function openWelcome(){ document.getElementById("welcomeOverlay").classList.add("open"); }
+function closeWelcome(){ document.getElementById("welcomeOverlay").classList.remove("open"); }
+document.getElementById("welcomeClose").addEventListener("click", closeWelcome);
+document.getElementById("welcomeStartBtn").addEventListener("click", closeWelcome);
+document.getElementById("helpBtn").addEventListener("click", openWelcome);
+document.getElementById("welcomeOverlay").addEventListener("click", (e)=>{
+  if (e.target.id === "welcomeOverlay") closeWelcome();
+});
+
+/* ======================= РЕНДЕР: КАРТКА ======================= */
+
+function selectDistribution(id){
+  state.distId = id;
+  state.category = DISTRIBUTIONS[id].category;
+  initParams(DISTRIBUTIONS[id]);
+  renderTabs();
+  renderChips();
+  renderCard();
+}
+
+function renderCard(){
+  const dist = DISTRIBUTIONS[state.distId];
+  const params = currentParams();
+  const card = document.getElementById("card");
+  card.className = "specimen-card tab-context-" + dist.category;
+
+  const isChimera = dist.category === "chimera";
+  const hasOrigin = dist.originStories && dist.originStories.length;
+  const hasRelations = dist.relations && dist.relations.length;
+
+  card.innerHTML = `
+    <div class="card-grid">
+      <div class="card-left">
+        <div class="medallion-row">
+          <div class="medallion">${dist.emoji}</div>
+          <div class="name-block">
+            <div class="sci-name">${dist.sciName}</div>
+            <h2>${dist.name}</h2>
+          </div>
+        </div>
+        <p class="tagline">${dist.tagline}</p>
+        ${hasOrigin ? `<button class="origin-btn" id="originBtn">🧬 Походження видів</button>` : ""}
+        <div class="formula-box" id="pdfFormula"></div>
+        ${isChimera ? "" : `<div class="support-line" id="supportLine"></div>`}
+        <div id="paramsHost"></div>
+      </div>
+      <div class="card-right chart-panel">
+        <div class="chart-wrap">
+          <canvas id="chart"></canvas>
+        </div>
+        <div class="readout" id="readout">Наведи курсор на графік, щоб побачити значення →</div>
+        ${isChimera ? `<div class="chart-caption">Палиці з кружком — імовірність атома, шкала P зліва. Крива — густина неперервної частини, шкала f справа. Це різні одиниці вимірювання, тому шкали різні.</div>` : ""}
+      </div>
+    </div>
+
+    ${hasRelations ? `
+    <div class="section-title relations-section-title">🔗 Родинні зв’язки</div>
+    <div class="relations-section" id="relationsBox"></div>
+    ` : ""}
+
+    <details class="dossier" id="dossier">
+      <summary>Досьє натураліста: функція розподілу, моменти та інша матчастина</summary>
+      <div class="stat-grid" id="statGrid"></div>
+    </details>
+
+    <div class="section-title">🧭 Де зустрічається в дикій природі</div>
+    <div class="examples-row" id="examplesRow"></div>
+
+    <div class="section-title">📎 Польові нотатки</div>
+    <ul class="notes-list" id="notesList"></ul>
+  `;
+
+  renderMath(document.getElementById("pdfFormula"), isChimera ? dist.mixtureFormulaTex : dist.pdfTex, true);
+  if (!isChimera) renderMath(document.getElementById("supportLine"), dist.support, false);
+
+  if (hasOrigin){
+    document.getElementById("originBtn").addEventListener("click", ()=> openOriginModal(dist.id));
+  }
+
+  if (hasRelations){
+    const box = document.getElementById("relationsBox");
+    dist.relations.forEach(text=>{
+      const p = document.createElement("p");
+      p.className = "relation-item";
+      p.innerHTML = parseRelationTemplate(text);
+      box.appendChild(p);
+    });
+    attachXrefHandlers(box);
+  }
+
+  // повзунки
+  const host = document.getElementById("paramsHost");
+  dist.params.forEach(pr=>{
+    const row = document.createElement("div");
+    row.className = "param-row";
+    row.innerHTML = `
+      <div class="param-label"><span>${pr.label}</span><span class="val" id="val-${pr.key}">${fmt(params[pr.key],2)}</span></div>
+      <input type="range" id="slider-${pr.key}" min="${pr.min}" max="${pr.max}" step="${pr.step}" value="${params[pr.key]}">
+    `;
+    host.appendChild(row);
+    row.querySelector("input").addEventListener("input", (e)=>{
+      params[pr.key] = parseFloat(e.target.value);
+      document.getElementById(`val-${pr.key}`).textContent = fmt(params[pr.key], 2);
+      drawChart();
+      renderStats();
+    });
+  });
+
+  // приклади
+  const exRow = document.getElementById("examplesRow");
+  dist.examples.forEach(ex=>{
+    const div = document.createElement("div");
+    div.className = "example-card";
+    div.textContent = ex;
+    exRow.appendChild(div);
+  });
+
+  // нотатки
+  const notesList = document.getElementById("notesList");
+  dist.notes.forEach(n=>{
+    const li = document.createElement("li");
+    li.textContent = n;
+    notesList.appendChild(li);
+  });
+
+  renderStats();
+  drawChart();
+
+  document.getElementById("dossier").addEventListener("toggle", drawChart);
+  attachChartInteraction();
+}
+
+function renderStats(){
+  const dist = DISTRIBUTIONS[state.distId];
+  const params = currentParams();
+  const grid = document.getElementById("statGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  if (dist.category === "chimera"){
+    const atoms = dist.getAtoms(params);
+    const continuousWeight = 1 - atoms.reduce((s,a)=>s+a.p, 0);
+    const items = [
+      { label:"Функція розподілу (CDF)", tex: CHIMERA_CDF_TEX, value:null },
+      { label:"Матем. сподівання (суміші)", tex:null, value: dist.meanFn(params) },
+      { label:"Дисперсія (суміші)", tex:null, value: dist.varFn(params) }
+    ];
+    atoms.forEach(a=>{ items.push({ label:`Ймовірність атома: ${a.label} (x=${fmt(a.x,2)})`, tex:null, value: a.p }); });
+    items.push({ label:"Вага неперервної частини", tex:null, value: continuousWeight });
+
+    items.forEach((it,idx)=>{
+      const div = document.createElement("div");
+      div.className = "stat-item" + (idx===0 ? " wide" : "");
+      const showValue = it.value !== null && isFinite(it.value);
+      div.innerHTML = `
+        <div class="stat-label">${it.label}</div>
+        <div class="stat-formula"></div>
+        ${showValue ? `<div class="stat-value">= ${fmt(it.value,3)}</div>` : ""}
+      `;
+      grid.appendChild(div);
+      if (it.tex) renderMath(div.querySelector(".stat-formula"), it.tex, true);
+    });
+    return;
+  }
+
+  const items = [
+    { label:"Функція розподілу (CDF)", tex: dist.cdfTex, value: null, wide:true },
+    { label:"Матем. сподівання", tex: dist.meanTex, value: dist.stats.mean(params) },
+    { label:"Дисперсія", tex: dist.varTex, value: dist.stats.variance(params) },
+    { label:"Асиметрія", tex: dist.skewTex, value: dist.stats.skew(params) },
+    { label:"Ексцес (надлишковий)", tex: dist.kurtTex, value: dist.stats.kurt(params) },
+    { label:"Мода", tex: dist.modeTex, value: null },
+    { label:"Характеристична функція", tex: dist.charFnTex, value: null, wide:true }
+  ];
+
+  items.forEach(it=>{
+    const div = document.createElement("div");
+    div.className = "stat-item" + (it.wide ? " wide" : "");
+    const showValue = it.value !== null && isFinite(it.value);
+    div.innerHTML = `
+      <div class="stat-label">${it.label}</div>
+      <div class="stat-formula"></div>
+      ${showValue ? `<div class="stat-value">= ${fmt(it.value,3)}</div>` : ""}
+    `;
+    grid.appendChild(div);
+    renderMath(div.querySelector(".stat-formula"), it.tex, true);
+  });
+
+  if (dist.extraStats && dist.extraStats.length){
+    dist.extraStats.forEach(es=>{
+      const val = es.value(params);
+      const div = document.createElement("div");
+      div.className = "stat-item wide";
+      div.innerHTML = `
+        <div class="stat-label">🔥 ${es.label}</div>
+        ${isFinite(val) ? `<div class="stat-value">= ${fmt(val,2)}${es.suffix||""}</div>` : ""}
+      `;
+      grid.appendChild(div);
+    });
+  }
+}
+
+/* ======================= ГРАФІК ======================= */
+
+function getCss(varName){ return getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); }
+
+function setupCanvas(){
+  const canvas = document.getElementById("chart");
+  const wrap = canvas.parentElement;
+  const cssW = wrap.clientWidth - 20;
+  const cssH = Math.max(wrap.clientHeight - 20, 300);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+  return { canvas, ctx, cssW, cssH };
+}
+
+function drawGrid(ctx, padL, padT, plotW, plotH){
+  ctx.strokeStyle = getCss("--grid-line");
+  ctx.lineWidth = 1;
+  const gridStepX = plotW/10, gridStepY = plotH/6;
+  for(let i=0;i<=10;i++){
+    const x = padL + i*gridStepX;
+    ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,padT+plotH); ctx.stroke();
+  }
+  for(let j=0;j<=6;j++){
+    const y = padT + j*gridStepY;
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+plotW,y); ctx.stroke();
+  }
+}
+
+function drawChart(){
+  const dist = DISTRIBUTIONS[state.distId];
+  const params = currentParams();
+  if (dist.category === "chimera") drawChimeraChart(dist, params);
+  else drawPureChart(dist, params);
+}
+
+function drawPureChart(dist, params){
+  const canvas = document.getElementById("chart");
+  if (!canvas) return;
+  const { ctx, cssW, cssH } = setupCanvas();
+  const padL = 46, padR = 16, padT = 16, padB = 30;
+  const plotW = cssW - padL - padR;
+  const plotH = cssH - padT - padB;
+
+  const accent = dist.category === "discrete" ? getCss("--clay") : getCss("--moss");
+  const accentBright = dist.category === "discrete" ? getCss("--clay-dark") : getCss("--moss-dark");
+
+  drawGrid(ctx, padL, padT, plotW, plotH);
+
+  const [xMin, xMax] = dist.domain;
+  let rawPoints = [];
+
+  if (dist.category === "continuous"){
+    const N = 240;
+    for(let i=0;i<=N;i++){
+      const x = xMin + (xMax-xMin)*i/N;
+      rawPoints.push([x, dist.pdf(x, params)]);
+    }
+  } else {
+    for(let k=Math.ceil(xMin); k<=Math.floor(xMax); k++){
+      rawPoints.push([k, dist.pmf(k, params)]);
+    }
+  }
+
+  // фіксований максимум по Y: обчислений заздалегідь як пік по всіх можливих значеннях слайдерів.
+  // Завдяки цьому висота кривої чесно показує зміну густини/ймовірності — наприклад, розширюючи
+  // рівномірний розподіл, бачиш, як висота падає (а площа лишається = 1), а не завжди «б'є в стелю».
+  const maxVal = dist.yMax;
+  const points = rawPoints.map(([x,y])=>[x, Math.min(y,maxVal)]);
+
+  function toPx(x){ return padL + (x-xMin)/(xMax-xMin) * plotW; }
+  function toPy(y){ return padT + plotH - (y/maxVal) * plotH; }
+
+  ctx.fillStyle = getCss("--paper-dim");
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  for(let i=0;i<=5;i++){
+    let x = xMin + (xMax-xMin)*i/5;
+    if (dist.category === "discrete") x = Math.round(x);
+    ctx.fillText(fmt(x, dist.category==="discrete" ? 0 : 1) + (dist.xUnit||""), toPx(x), padT+plotH+16);
+  }
+  ctx.textAlign = "right";
+  ctx.fillText(fmt(maxVal,2), padL-8, padT+10);
+  ctx.fillText("0", padL-8, padT+plotH+4);
+
+  const mean = dist.stats.mean(params);
+  if (mean >= xMin && mean <= xMax){
+    ctx.strokeStyle = getCss("--brass-dark");
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(toPx(mean), padT); ctx.lineTo(toPx(mean), padT+plotH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = getCss("--brass-dark");
+    ctx.textAlign = "center";
+    ctx.fillText("E[X]", toPx(mean), padT>12?padT-4:10);
+  }
+
+  if (dist.category === "continuous"){
+    ctx.beginPath();
+    ctx.moveTo(toPx(points[0][0]), toPy(0));
+    points.forEach(([x,y])=> ctx.lineTo(toPx(x), toPy(y)));
+    ctx.lineTo(toPx(points[points.length-1][0]), toPy(0));
+    ctx.closePath();
+    ctx.fillStyle = accent + "2e";
+    ctx.fill();
+
+    ctx.beginPath();
+    points.forEach(([x,y],i)=>{ if (i===0) ctx.moveTo(toPx(x),toPy(y)); else ctx.lineTo(toPx(x),toPy(y)); });
+    ctx.strokeStyle = accentBright;
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+  } else {
+    const barW = Math.max(3, plotW/(xMax-xMin+1) * 0.6);
+    points.forEach(([k,y])=>{
+      const x = toPx(k);
+      ctx.fillStyle = accent + "cc";
+      ctx.fillRect(x-barW/2, toPy(y), barW, plotH-(toPy(y)-padT));
+      ctx.fillStyle = accentBright;
+      ctx.fillRect(x-barW/2, toPy(y), barW, 2.5);
+    });
+  }
+
+  canvas._chartData = { kind:"pure", points, xMin, xMax, maxVal, padL, padT, plotW, plotH, dist, params };
+}
+
+function drawChimeraChart(dist, params){
+  const canvas = document.getElementById("chart");
+  if (!canvas) return;
+  const { ctx, cssW, cssH } = setupCanvas();
+  const padL = 46, padR = 16, padT = 16, padB = 30;
+  const plotW = cssW - padL - padR;
+  const plotH = cssH - padT - padB;
+
+  drawGrid(ctx, padL, padT, plotW, plotH);
+
+  const [xMin, xMax] = dist.domain;
+  const atoms = dist.getAtoms(params);
+  const continuousWeight = 1 - atoms.reduce((s,a)=>s+a.p, 0);
+
+  // фіксовані максимуми (обчислені заздалегідь перебором усіх слайдерів), щоб висота
+  // атома/кривої чесно відображала зміну ймовірності/густини, а не завжди «впиралась у стелю»
+  const N = 240;
+  let rawCurve = [];
+  for(let i=0;i<=N;i++){
+    const x = xMin + (xMax-xMin)*i/N;
+    rawCurve.push([x, continuousWeight * dist.continuousPdf(x, params)]);
+  }
+  const yMaxDensity = dist.yMaxDensity;
+  const probAxisMax = dist.probAxisMax;
+
+  function toPx(x){ return padL + (x-xMin)/(xMax-xMin) * plotW; }
+  function toPyDensity(y){ return padT + plotH - (y/yMaxDensity) * plotH; }
+  function toPyProb(p){ return padT + plotH - (p/probAxisMax) * plotH; }
+
+  // осі: ліва підпис — шкала ймовірності атомів (P), права — шкала густини кривої (f)
+  ctx.font = "600 11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = getCss("--paper-dim");
+  for(let i=0;i<=5;i++){
+    const x = xMin + (xMax-xMin)*i/5;
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.fillText(fmt(x,1) + (dist.xUnit||""), toPx(x), padT+plotH+16);
+  }
+  ctx.font = "600 11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.fillStyle = getCss("--chimera-dark");
+  ctx.fillText("P≤" + fmt(probAxisMax,2), padL-8, padT+10);
+  ctx.textAlign = "right";
+  ctx.fillStyle = getCss("--chimera");
+  ctx.fillText("f≤" + fmt(yMaxDensity,2), padL+plotW-4, padT+10);
+  ctx.textAlign = "right";
+  ctx.fillStyle = getCss("--paper-dim");
+  ctx.fillText("0", padL-8, padT+plotH+4);
+
+  // неперервна частина (власна шкала густини)
+  const curvePoints = rawCurve.map(([x,y])=>[x, Math.min(y,yMaxDensity)]);
+  ctx.beginPath();
+  ctx.moveTo(toPx(curvePoints[0][0]), toPyDensity(0));
+  curvePoints.forEach(([x,y])=> ctx.lineTo(toPx(x), toPyDensity(y)));
+  ctx.lineTo(toPx(curvePoints[curvePoints.length-1][0]), toPyDensity(0));
+  ctx.closePath();
+  ctx.fillStyle = getCss("--chimera") + "26";
+  ctx.fill();
+
+  ctx.beginPath();
+  curvePoints.forEach(([x,y],i)=>{ if(i===0) ctx.moveTo(toPx(x),toPyDensity(y)); else ctx.lineTo(toPx(x),toPyDensity(y)); });
+  ctx.strokeStyle = getCss("--chimera");
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  // атоми (шкала ймовірності 0..1)
+  atoms.forEach(a=>{
+    const x = toPx(a.x);
+    const yTop = toPyProb(Math.min(a.p, probAxisMax));
+    const yBase = toPyProb(0);
+    ctx.strokeStyle = getCss("--chimera-dark");
+    ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
+    ctx.fillStyle = getCss("--chimera-dark");
+    ctx.beginPath(); ctx.arc(x, yTop, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = getCss("--paper");
+    ctx.font = "600 11px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    const labelY = yTop - 10 > padT+8 ? yTop - 10 : padT + 12;
+    ctx.fillText(`${a.label} (${fmt(a.p,2)})`, x, labelY);
+  });
+
+  // лінія середнього
+  const mean = dist.meanFn(params);
+  if (mean >= xMin && mean <= xMax){
+    ctx.strokeStyle = getCss("--brass-dark");
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(toPx(mean), padT); ctx.lineTo(toPx(mean), padT+plotH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  canvas._chartData = { kind:"chimera", xMin, xMax, padL, padT, plotW, plotH, dist, params, atoms, continuousWeight, yMaxDensity };
+}
+
+function attachChartInteraction(){
+  const canvas = document.getElementById("chart");
+  const readout = document.getElementById("readout");
+  if (!canvas) return;
+
+  canvas.onmousemove = (e)=>{
+    const d = canvas._chartData;
+    if (!d) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const relX = (px - d.padL) / d.plotW;
+    if (relX < 0 || relX > 1) return;
+    const xVal = d.xMin + relX*(d.xMax-d.xMin);
+
+    if (d.kind === "pure"){
+      if (d.dist.category === "continuous"){
+        const y = d.dist.pdf(xVal, d.params);
+        readout.innerHTML = `x = <span class="hl">${fmt(xVal,2)}</span> &nbsp;→&nbsp; f(x) = <span class="hl">${fmt(y,4)}</span>`;
+      } else {
+        const k = Math.round(xVal);
+        const y = d.dist.pmf(k, d.params);
+        readout.innerHTML = `k = <span class="hl">${k}</span> &nbsp;→&nbsp; P(X=k) = <span class="hl">${fmt(y,4)}</span>`;
+      }
+      return;
+    }
+
+    // хімера: перевіряємо, чи курсор близько до атома
+    const tolPx = 10;
+    let hitAtom = null;
+    d.atoms.forEach(a=>{
+      const ax = d.padL + (a.x - d.xMin)/(d.xMax-d.xMin) * d.plotW;
+      if (Math.abs(ax - px) < tolPx) hitAtom = a;
+    });
+    if (hitAtom){
+      readout.innerHTML = `атом «${hitAtom.label}» при x=${fmt(hitAtom.x,2)}${d.dist.xUnit||""} &nbsp;→&nbsp; P = <span class="hl">${fmt(hitAtom.p,4)}</span>`;
+    } else {
+      const y = d.continuousWeight * d.dist.continuousPdf(xVal, d.params);
+      readout.innerHTML = `x = <span class="hl">${fmt(xVal,2)}${d.dist.xUnit||""}</span> &nbsp;→&nbsp; густина ≈ <span class="hl">${fmt(y,4)}</span>`;
+    }
+  };
+
+  canvas.onmouseleave = ()=>{ readout.textContent = "Наведи курсор на графік, щоб побачити значення →"; };
+}
+
+/* ======================= ІНІЦІАЛІЗАЦІЯ ======================= */
+
+document.getElementById("randomBtn").addEventListener("click", ()=>{
+  const pool = Object.values(DISTRIBUTIONS).filter(d=>d.category===state.category);
+  const pick = pool[Math.floor(Math.random()*pool.length)];
+  selectDistribution(pick.id);
+});
+
+window.addEventListener("resize", ()=>{ drawChart(); });
+
+selectDistribution("normal");
+openWelcome();
+</script>
+</body>
+</html>
