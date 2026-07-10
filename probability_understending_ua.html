@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Види ймовірності — матриця</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f4ee;
+    --paper-line:#dcd8cc;
+    --ink:#242220;
+    --ink-soft:#66625a;
+    --classical:#5b5850;
+    --classical-fill:#eceae3;
+    --quantum:#0f6e56;
+    --quantum-fill:#e1f5ee;
+    --quantum-deep:#04342c;
+    --card-shadow: 0 1px 0 rgba(36,34,32,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Newsreader', serif;
+    padding:48px 20px 80px;
+  }
+  .wrap{max-width:880px;margin:0 auto;}
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 8px;
+  }
+  h1{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+  .sub{
+    font-size:16px;
+    font-style:italic;
+    color:var(--ink-soft);
+    margin:0 0 40px;
+    max-width:60ch;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: 168px 1fr 1fr;
+    border-top:1.5px solid var(--ink);
+    border-left:1.5px solid var(--ink);
+  }
+  .cell{
+    border-right:1.5px solid var(--ink);
+    border-bottom:1.5px solid var(--ink);
+    padding:18px 16px;
+    position:relative;
+  }
+  .corner{background:var(--paper);}
+  .col-head{
+    background:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.01em;
+    display:flex;
+    align-items:center;
+  }
+  .col-head.classical{color:var(--classical);}
+  .col-head.quantum{color:var(--quantum-deep);}
+  .row-head{
+    background:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    font-weight:500;
+    color:var(--ink);
+  }
+  .row-head .note{
+    display:block;
+    font-family:'Newsreader', serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+  .data.classical{background:var(--classical-fill);}
+  .data.quantum{background:var(--quantum-fill);}
+  .chips{display:flex;flex-direction:column;gap:8px;}
+  .chip{
+    all:unset;
+    cursor:pointer;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13.5px;
+    font-weight:500;
+    padding:9px 12px;
+    border-radius:3px;
+    background:var(--paper);
+    box-shadow:var(--card-shadow);
+    border:1px solid transparent;
+    transition:transform 0.12s ease, border-color 0.12s ease;
+    display:block;
+    width:100%;
+    text-align:left;
+  }
+  .data.classical .chip{color:var(--classical);}
+  .data.quantum .chip{color:var(--quantum-deep);}
+  .chip:hover{transform:translateY(-1px);border-color:currentColor;}
+  .chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .chip::after{
+    content:'→';
+    float:right;
+    opacity:0.5;
+  }
+  .legend{
+    margin-top:22px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    display:flex;
+    gap:24px;
+    flex-wrap:wrap;
+  }
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .swatch.classical{background:var(--classical-fill);border:1px solid var(--classical);}
+  .swatch.quantum{background:var(--quantum-fill);border:1px solid var(--quantum);}
+
+  .overlay{
+    position:fixed;inset:0;
+    background:rgba(36,34,32,0.4);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+    opacity:0;pointer-events:none;
+    transition:opacity 0.15s ease;
+    z-index:10;
+  }
+  .overlay.open{opacity:1;pointer-events:auto;}
+  .modal{
+    background:var(--paper);
+    border:1.5px solid var(--ink);
+    max-width:460px;
+    width:100%;
+    padding:28px 28px 24px;
+    transform:translateY(8px) scale(0.98);
+    transition:transform 0.15s ease;
+  }
+  .overlay.open .modal{transform:translateY(0) scale(1);}
+  .modal-tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .modal-tag.classical{color:var(--classical);}
+  .modal-tag.quantum{color:var(--quantum-deep);}
+  .modal h2{
+    font-family:'JetBrains Mono', monospace;
+    font-size:17px;
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  .modal p{
+    font-size:16.5px;
+    line-height:1.55;
+    font-style:italic;
+    margin:0;
+  }
+  .modal-close{
+    all:unset;
+    cursor:pointer;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:20px;
+    display:inline-block;
+  }
+  .modal-close:hover{color:var(--ink);}
+  .modal-close:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+
+  @media (max-width:640px){
+    .grid{grid-template-columns:110px 1fr 1fr;}
+    .cell{padding:12px 10px;}
+    .col-head{font-size:11.5px;}
+    .row-head{font-size:11.5px;}
+    .chip{font-size:12px;padding:8px 9px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>види ймовірності</h1>
+  <p class="sub">рядки — як ми рахуємо число, стовпці — що насправді відбувається. клацни клітинку.</p>
+
+  <div class="grid">
+    <div class="cell corner"></div>
+    <div class="cell col-head classical">детерміновано<br>(просто не знаємо)</div>
+    <div class="cell col-head quantum">справжня випадковість*<br>(квантова механіка)</div>
+
+    <div class="cell row-head">симетрія<span class="note">(апріорі, без досвіду)</span></div>
+    <div class="cell data classical"><div class="chips">
+      <button class="chip" data-key="cube-ideal">ідеальний кубик</button>
+    </div></div>
+    <div class="cell data quantum"><div class="chips">
+      <button class="chip" data-key="polarizer">поляризатор, 45°</button>
+    </div></div>
+
+    <div class="cell row-head">частота<span class="note">(реальні повтори)</span></div>
+    <div class="cell data classical"><div class="chips">
+      <button class="chip" data-key="cube-real">реальний кубик</button>
+      <button class="chip" data-key="lefty-census">шульга (перепис)</button>
+    </div></div>
+    <div class="cell data quantum"><div class="chips">
+      <button class="chip" data-key="halflife">період напіврозпаду</button>
+    </div></div>
+
+    <div class="cell row-head">ансамбль симуляцій<span class="note">(не реальні повтори)</span></div>
+    <div class="cell data classical"><div class="chips">
+      <button class="chip" data-key="rain">дощ завтра</button>
+      <button class="chip" data-key="lefty-future">шульга (у майбутньому)</button>
+    </div></div>
+    <div class="cell data quantum"><div class="chips">
+      <button class="chip" data-key="everett">гілки Еверетта</button>
+    </div></div>
+
+    <div class="cell row-head">байєсівська<span class="note">(ступінь впевненості)</span></div>
+    <div class="cell data classical"><div class="chips">
+      <button class="chip" data-key="neighbor">сусід у барі</button>
+    </div></div>
+    <div class="cell data quantum"><div class="chips">
+      <button class="chip" data-key="qbism">QBism (два фотони)</button>
+    </div></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch classical"></i>детерміновано, просто не знаємо всіх деталей</span>
+    <span><i class="swatch quantum"></i>усі приклади — квантова механіка, ймовірно фундаментальна випадковість</span>
+  </div>
+  <p style="font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-soft); margin-top:14px; line-height:1.6;">
+    * «справжня випадковість» тримається на виборі інтерпретації. Копенгаген / GRW — об'єктивний колапс, випадковість справді фундаментальна. Бомівська механіка — приховані змінні, увесь стовпець тоді переїжджає ліворуч. Еверетт — колапсу нема взагалі, а що означає «ймовірність» гілки — відкрите питання (див. «гілки Еверетта»).
+  </p>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <p class="modal-tag" id="modal-tag"></p>
+    <h2 id="modal-title"></h2>
+    <p id="modal-body"></p>
+    <button class="modal-close" id="modal-close">esc — закрити</button>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  "cube-ideal": {tag:"симетрія · детерміновано", title:"ідеальний кубик",
+    body:"Демон Лапласа сидить у кутку і нудьгує: тут його гігантський мозок і нескінченна розрядність узагалі не потрібні. Шість граней, повна симетрія — можна навіть жодного разу не кидати кубик, просто глянути на нього і одразу написати 1/6."},
+  "cube-real": {tag:"частота · детерміновано", title:"реальний кубик",
+    body:"Той самий кубик, але зі сколотим кутиком, який хоче заважати. Тепер 1/6 — не факт, а гіпотеза, і її треба перевіряти: кидай тисячу разів і дивись, чи не випадає потрібна грань трохи рідше. Демон Лапласа знову пожвавішав."},
+  "lefty-census": {tag:"частота · детерміновано", title:"шульга (перепис)",
+    body:"Хочеш дізнатися частку шульг на Землі — можна або переписати всіх 8 мільярдів (дорого і нестерпно нудно), або взяти вибірку й оцінити. Це вже не ймовірність у чистому вигляді, а статистика, яка старанно вдає, що вона ймовірність."},
+  "rain": {tag:"ансамбль симуляцій · детерміновано", title:"дощ завтра",
+    body:"Точне завтра не можна кинути вдруге — другого такого завтра просто не буває. Тому ганяємо тисячу трохи різних всесвітів у комп'ютері й дивимось, у скількох іде дощ. Не ворожіння — просто в нас немає запасного набору костей саме для цього дня."},
+  "lefty-future": {tag:"ансамбль симуляцій · детерміновано", title:"шульга (у майбутньому)",
+    body:"Діти, які народяться за рік, ще не існують — тож навіть перепис не допоможе, тільки демографічна модель і надія, що тренд не зламається саме цього року. Демон Лапласа йде курити, згадавши, що йому треба починати вираховувати кожен атом від народження Всесвіту."},
+  "neighbor": {tag:"байєсівська · детерміновано", title:"сусід у барі",
+    body:"« - Мій сусід, напевно (70%), зараз дивиться фінал ЧС з футболу в барі. — Так він же буддист, практикує йогу і медитацію. — Оце так. Тоді 0.7%». Всесвіт не змінився ні на йоту, сусід не ворухнув і пальцем (він у медитативному трансі) — змінилась тільки моя голова, яка дізналась новий факт."},
+  "polarizer": {tag:"симетрія · справжня випадковість", title:"поляризатор, 45°",
+    body:"Фотон уже пройшов вертикальний поляризатор, тепер летить на поляризатор під 45°. Пройде чи ні — 50/50, і це число не зі статистики тисяч фотонів, а прямо із симетрії хвильової функції. Це квантова монетка: демон Лапласа тут безсилий не тому, що йому ліньки рахувати, а тому, що сама квантова природа фотона не залишає йому що рахувати — до вимірювання жодного «насправді» значення просто немає (якщо вірити Копенгагенській інтерпретації)."},
+  "halflife": {tag:"частота · справжня випадковість", title:"період напіврозпаду",
+    body:"Запитай, чи розпадеться цей конкретний атом урану наступної секунди — доведеться рахувати частоту розпадів по величезному ансамблю таких самих атомів. Метод — найзвичайніший, статистичний. А от підсумкове число філософи все одно називають «справді випадковим», а не просто «ми погано знаємо початкові умови»."},
+  "everett": {tag:"ансамбль симуляцій · справжня випадковість", title:"гілки Еверетта",
+    body:"Якщо віриш у множинність світів, кожен наслідок розпаду реалізується — просто в різних гілках мультивсесвіту. Тоді «ймовірність 50%» — не шанс, що щось станеться, а щось на кшталт частки твоїх власних копій, які це побачать. Тут і починається ЛСД-трип, у якому тоне сама ідея ймовірності."},
+  "qbism": {tag:"байєсівська · справжня випадковість", title:"QBism, два фотони",
+    body:"Два фотони народжуються разом (наприклад, у нелінійному кристалі) і описуються не двома окремими станами, а одним спільним, заплутаним. До вимірювання жоден з них не має визначеної поляризації — і це не «ми просто не знаємо», і не прихована змінна: локальних прихованих параметрів немає (саме це перевіряють Белл-тести). Пара — синглет: особливий заплутаний стан, який дає гарантовано протилежні результати на будь-якій спільній осі вимірювання. У Аліси і в Боба по фотону з цієї пари. Аліса вимірює свій уздовж якоїсь осі й отримує «вгору» — і саме в цю мить, щойно дізнавшись власний результат, її оцінка того, що Боб (мірявши по тій самій осі) отримає «вниз», стрибає рівно до 100%. Жоден сигнал нікуди не летів швидше за світло — оновилась лише цифра в голові Аліси"}
+};
+
+const overlay = document.getElementById('overlay');
+const modalTag = document.getElementById('modal-tag');
+const modalTitle = document.getElementById('modal-title');
+const modalBody = document.getElementById('modal-body');
+const closeBtn = document.getElementById('modal-close');
+let lastFocused = null;
+
+function openModal(key){
+  const d = DATA[key];
+  if(!d) return;
+  modalTag.textContent = d.tag;
+  modalTitle.textContent = d.title;
+  modalBody.textContent = d.body;
+  overlay.classList.add('open');
+  lastFocused = document.activeElement;
+  closeBtn.focus();
+}
+function closeModal(){
+  overlay.classList.remove('open');
+  if(lastFocused) lastFocused.focus();
+}
+
+document.querySelectorAll('.chip').forEach(btn=>{
+  btn.addEventListener('click', ()=>openModal(btn.dataset.key));
+});
+closeBtn.addEventListener('click', closeModal);
+overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && overlay.classList.contains('open')) closeModal(); });
+</script>
+</body>
+</html>
