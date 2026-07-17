@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Зона Френеля для Димы</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #info {
+      position: absolute; top: 20px; left: 20px;
+      background: rgba(0,0,0,0.75); color: white; padding: 12px 20px;
+      border-radius: 8px; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    #controls {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,20,20,0.9); backdrop-filter: blur(10px); color: #eee;
+      padding: 20px 30px; border-radius: 16px; display: flex; flex-wrap: wrap;
+      gap: 25px; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 10;
+    }
+    .slider-group {
+      display: flex; flex-direction: column; align-items: center; min-width: 130px;
+    }
+    .slider-group label { font-size: 13px; margin-bottom: 5px; font-weight: 500; }
+    .slider-group input[type=range] { width: 140px; cursor: pointer; }
+    .slider-group span { font-size: 12px; margin-top: 4px; color: #aaa; }
+    @media (max-width: 800px) {
+      #controls { flex-direction: column; gap: 15px; padding: 15px 25px; }
+      .slider-group { flex-direction: row; justify-content: space-between; width: 100%; }
+      .slider-group input[type=range] { width: 100px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h2>Первая зона Френеля и эффективная область</h2>
+    <p>Синий эллипсоид – 1-я зона (Δ = λ/2)<br>
+    <span style="color:#ffaa00;">Оранжевая "капля" – реальный поток энергии</span></p>
+  </div>
+
+  <div id="controls">
+    <div class="slider-group">
+      <label>Ширина луча TX (°)</label>
+      <input type="range" id="beamTX" min="1" max="180" value="10" step="0.5">
+      <span id="beamTXValue">10°</span>
+    </div>
+    <div class="slider-group">
+      <label>Ширина луча RX (°)</label>
+      <input type="range" id="beamRX" min="1" max="180" value="40" step="0.5">
+      <span id="beamRXValue">40°</span>
+    </div>
+    <div class="slider-group">
+      <label>Расстояние (м)</label>
+      <input type="range" id="distance" min="1" max="100" value="50" step="0.1">
+      <span id="distValue">50 м</span>
+    </div>
+    <div class="slider-group">
+      <label>Длина волны (м)</label>
+      <input type="range" id="wavelength" min="0.1" max="10" value="1" step="0.01">
+      <span id="waveValue">1 м</span>
+    </div>
+    <div class="slider-group">
+      <label>Эффективная энергия (%)</label>
+      <input type="range" id="energyPercent" min="10" max="99" value="80" step="1">
+      <span id="energyValue">80%</span>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }}
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ---------- Сцена ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    scene.fog = new THREE.Fog(0x1a1a2e, 15, 150);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 200);
+    camera.position.set(0, 10, 20); // Немного отдалил камеру, чтобы сразу видеть всю сцену по центру
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
+    controls.update();
+
+    // ---------- Свет ----------
+    scene.add(new THREE.AmbientLight(0x404066));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(20, 30, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 100;
+    dirLight.shadow.camera.left = -25;
+    dirLight.shadow.camera.right = 25;
+    dirLight.shadow.camera.top = 25;
+    dirLight.shadow.camera.bottom = -25;
+    scene.add(dirLight);
+
+    // ---------- Земля ----------
+    const gridHelper = new THREE.GridHelper(30, 30, 0x888888, 0x444444);
+    scene.add(gridHelper);
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 30),
+      new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.8, metalness: 0.3 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.5;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ---------- Антенны ----------
+    const txSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 32, 16),
+      new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x330000 })
+    );
+    txSphere.castShadow = true;
+    scene.add(txSphere);
+
+    const rxSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.25, 32, 16),
+      new THREE.MeshStandardMaterial({ color: 0x33ff33, emissive: 0x003300 })
+    );
+    rxSphere.castShadow = true;
+    scene.add(rxSphere);
+
+    // ---------- Первая зона Френеля (синий эллипсоид) ----------
+    const fresnelMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 72, 36),
+      new THREE.MeshStandardMaterial({
+        color: 0x3399ff, transparent: true, opacity: 0.4,
+        roughness: 0.3, metalness: 0.1, depthWrite: false,
+      })
+    );
+    fresnelMesh.castShadow = true;
+    fresnelMesh.receiveShadow = true;
+    scene.add(fresnelMesh);
+
+    // ---------- Эффективная зона (капля) ----------
+    let effectiveMesh = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshStandardMaterial({
+        color: 0xffaa00, roughness: 0.4, metalness: 0.2,
+        transparent: true, opacity: 0.97, side: THREE.DoubleSide, depthWrite: true,
+      })
+    );
+    effectiveMesh.castShadow = true;
+    effectiveMesh.receiveShadow = true;
+    scene.add(effectiveMesh);
+
+    // ---------- Параметры ----------
+    const VISUAL_LENGTH = 15; // Фиксированная визуальная ширина сцены для рендера
+    const txPos = new THREE.Vector3(-VISUAL_LENGTH / 2, 0, 0);
+    const rxPos = new THREE.Vector3(VISUAL_LENGTH / 2, 0, 0);
+
+    // ---------- Вспомогательные функции ----------
+    function exactFresnelRadius(x, D, lambda) {
+      if (x <= 0 || x >= D) return 0;
+      const a = (D + lambda / 2) / 2;
+      const c = D / 2;
+      const b = Math.sqrt(Math.max(0, a * a - c * c));
+      
+      const cx = x - c; 
+      const val = 1 - (cx * cx) / (a * a);
+      if (val <= 0) return 0;
+      return b * Math.sqrt(val);
+    }
+
+    function gainCosN(angle, n) {
+      if (n === 0) return 1;
+      if (angle >= Math.PI / 2) return 0;
+      return Math.pow(Math.cos(angle), n);
+    }
+
+    function computeEffectiveRadius(x, D, lambda, nTX, nRX, energyPercent) {
+      const R1 = exactFresnelRadius(x, D, lambda);
+      if (R1 <= 0) return 0;
+
+      const intensity = (r) => {
+        const dTX_sq = x * x + r * r;
+        const dRX_sq = (D - x) * (D - x) + r * r;
+        
+        const phiTX = Math.atan2(r, x);
+        const phiRX = Math.atan2(r, D - x);
+        
+        const gainTX = gainCosN(phiTX, nTX);
+        const gainRX = gainCosN(phiRX, nRX);
+        
+        return (gainTX * gainRX) / (dTX_sq * dRX_sq);
+      };
+
+      const STEPS = 100;
+      const dr = R1 / STEPS;
+      let totalEnergy = 0;
+      const energies = new Float64Array(STEPS + 1);
+
+      for (let i = 1; i <= STEPS; i++) {
+        const r = i * dr;
+        const r_prev = (i - 1) * dr;
+        const dE = 0.5 * (intensity(r) * r + intensity(r_prev) * r_prev) * dr;
+        totalEnergy += dE;
+        energies[i] = totalEnergy;
+      }
+
+      if (totalEnergy === 0) return 0;
+
+      const targetEnergy = totalEnergy * (energyPercent / 100);
+
+      for (let i = 1; i <= STEPS; i++) {
+        if (energies[i] >= targetEnergy) {
+          const prevE = energies[i - 1];
+          const currE = energies[i];
+          // Защита от деления на ноль, если прирост энергии равен 0
+          const t = (currE === prevE) ? 0 : (targetEnergy - prevE) / (currE - prevE);
+          return (i - 1 + t) * dr;
+        }
+      }
+      return R1;
+    }
+
+    function buildEffectiveGeometry(D, lambda, beamTXDeg, beamRXDeg, energyPercent) {
+      const profile = [];
+      const N = 120; 
+
+      const toN = (beamDeg) => {
+        if (beamDeg >= 180) return 0;
+        const half = THREE.MathUtils.degToRad(beamDeg / 2);
+        if (half <= 0) return 1000;
+        return -Math.log(2) / Math.log(Math.cos(half));
+      };
+      
+      const nTX = toN(beamTXDeg);
+      const nRX = toN(beamRXDeg);
+
+      profile.push(new THREE.Vector2(0, 0));
+
+      // Интегрируем только для внутренних точек, чтобы не поймать деление на 0 на краях X=0 и X=D
+      for (let i = 1; i < N; i++) {
+        const x = (i / N) * D;
+        const r = computeEffectiveRadius(x, D, lambda, nTX, nRX, energyPercent);
+        profile.push(new THREE.Vector2(r, x));
+      }
+
+      profile.push(new THREE.Vector2(0, D));
+
+      const geometry = new THREE.LatheGeometry(profile, 72);
+      geometry.computeVertexNormals();
+      return geometry;
+    }
+
+    // ---------- Обновление ----------
+    function updateScene() {
+      const beamTX = parseFloat(document.getElementById('beamTX').value);
+      const beamRX = parseFloat(document.getElementById('beamRX').value);
+      const distance = parseFloat(document.getElementById('distance').value);
+      const wavelength = parseFloat(document.getElementById('wavelength').value);
+      const energyPercent = parseFloat(document.getElementById('energyPercent').value);
+
+      document.getElementById('beamTXValue').textContent = beamTX.toFixed(1) + '°';
+      document.getElementById('beamRXValue').textContent = beamRX.toFixed(1) + '°';
+      document.getElementById('distValue').textContent = distance.toFixed(1) + ' м';
+      document.getElementById('waveValue').textContent = wavelength.toFixed(2) + ' м';
+      document.getElementById('energyValue').textContent = energyPercent + '%';
+
+      const vScale = VISUAL_LENGTH / distance;
+
+      txSphere.position.copy(txPos);
+      rxSphere.position.copy(rxPos);
+
+      const d = distance;
+      const lambda = wavelength;
+      
+      const a1 = (d + lambda / 2) / 2;
+      const c = d / 2;
+      const b1 = Math.sqrt(Math.max(0, a1 * a1 - c * c));
+
+      const midpoint = new THREE.Vector3(0, 0, 0);
+      const dir = new THREE.Vector3(1, 0, 0); 
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+
+      fresnelMesh.position.copy(midpoint);
+      fresnelMesh.quaternion.copy(quat);
+      fresnelMesh.scale.set(b1 * vScale, b1 * vScale, a1 * vScale);
+
+      const newGeo = buildEffectiveGeometry(d, lambda, beamTX, beamRX, energyPercent);
+      effectiveMesh.geometry.dispose();
+      effectiveMesh.geometry = newGeo;
+      
+      effectiveMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      effectiveMesh.position.copy(txPos); 
+      effectiveMesh.scale.set(vScale, vScale, vScale);
+
+      controls.target.copy(midpoint);
+    }
+
+    updateScene();
+
+    // ---------- Слушатели ----------
+    document.getElementById('beamTX').addEventListener('input', updateScene);
+    document.getElementById('beamRX').addEventListener('input', updateScene);
+    document.getElementById('distance').addEventListener('input', updateScene);
+    document.getElementById('wavelength').addEventListener('input', updateScene);
+    document.getElementById('energyPercent').addEventListener('input', updateScene);
+
+    // ---------- Цикл ----------
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
