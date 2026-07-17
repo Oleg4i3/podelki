@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Симулятор радиотрассы (Привязка к оси Френеля)</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; }
+    
+    #info {
+      position: absolute; top: 15px; left: 15px;
+      background: rgba(10,10,20,0.85); color: white; padding: 15px 20px;
+      border-radius: 12px; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);
+      width: 280px; z-index: 10;
+    }
+    #info h2 { margin: 0 0 10px 0; font-size: 16px; color: #fff; }
+    
+    .budget-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+    .budget-row span:nth-child(2) { font-weight: bold; font-family: monospace; }
+    .text-green { color: #44ff44; }
+    .text-red { color: #ff5555; }
+    .budget-total { 
+      display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; 
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); color: #ffaa00; 
+    }
+
+    #controls-container {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,20,25,0.9); backdrop-filter: blur(10px); color: #eee;
+      padding: 20px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.8); z-index: 10;
+      border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 15px;
+      width: 85%; max-width: 950px;
+    }
+    .sliders-row { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    
+    .slider-group { display: flex; flex-direction: column; align-items: center; min-width: 120px; }
+    .slider-group label { font-size: 12px; margin-bottom: 5px; font-weight: 500; color: #bbb; }
+    .slider-group input[type=range] { width: 130px; cursor: pointer; accent-color: #3399ff; }
+    .slider-group span { font-size: 12px; margin-top: 4px; color: #fff; font-family: monospace; }
+    
+    .environment-row {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding-top: 15px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .env-block {
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+      background: rgba(255,255,255,0.03); padding: 10px 15px; border-radius: 8px;
+    }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; font-weight: bold; }
+    .checkbox-group input { cursor: pointer; accent-color: #ffaa00; width: 16px; height: 16px; }
+    
+    .env-subslider {
+      display: flex; align-items: center; justify-content: space-between; width: 100%;
+      opacity: 0.3; pointer-events: none; transition: opacity 0.2s; gap: 8px;
+    }
+    .env-subslider label { font-size: 11px; margin: 0; color: #ccc; }
+    .env-subslider input[type=range] { cursor: pointer; accent-color: #ffaa00; }
+    .val-span { font-size:11px; color:#fff; min-width: 20px; text-align: right; }
+
+    #drag-hint { position: absolute; top: 15px; right: 15px; color: #aaa; font-size: 12px; pointer-events: none; text-align: right; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  
+  <div id="info">
+    <h2>Бюджет радиолинии</h2>
+    <div class="budget-row"><span>Высота подвеса TX:</span> <span id="valHeightTX">30.0 м</span></div>
+    <div class="budget-row"><span>Высота подвеса RX:</span> <span id="valHeightRX">30.0 м</span></div>
+    <div class="budget-row" style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;"><span>Мощность TX:</span> <span>0.0 dBm</span></div>
+    <div class="budget-row text-green"><span>Усиление TX:</span> <span id="valGainTX">+0.0 dB</span></div>
+    <div class="budget-row text-green"><span>Усиление RX:</span> <span id="valGainRX">+0.0 dB</span></div>
+    <div class="budget-row text-red"><span>FSPL (Трасса):</span> <span id="valFSPL">-0.0 dB</span></div>
+    <div class="budget-row text-red"><span>Затухание (Погода):</span> <span id="valRain">-0.0 dB</span></div>
+    <div class="budget-row text-red"><span>Дифракция (Лес):</span> <span id="valTree">-0.0 dB</span></div>
+    <div class="budget-row text-red"><span>Дифракция (Здание):</span> <span id="valBuild">-0.0 dB</span></div>
+    <div class="budget-total"><span>ИТОГ (Уровень RX):</span> <span id="valTotal">-0.0 dBm</span></div>
+  </div>
+
+  <div id="drag-hint">
+    💡 <b>Центр экрана привязан к оси Френеля</b><br>
+    • Препятствия — влево / вправо по ходу трассы<br>
+    • Антенны (сферы) — вверх / вниз (меняют высоту мачты)
+  </div>
+
+  <div id="controls-container">
+    <div class="sliders-row">
+      <div class="slider-group">
+        <label>Ширина луча TX (°)</label>
+        <input type="range" id="beamTX" min="1" max="10" value="10" step="1">
+        <span id="beamTXValue">10°</span>
+      </div>
+      <div class="slider-group">
+        <label>Ширина луча RX (°)</label>
+        <input type="range" id="beamRX" min="1" max="180" value="180" step="1">
+        <span id="beamRXValue">180°</span>
+      </div>
+      <div class="slider-group">
+        <label>Расстояние (м)</label>
+        <input type="range" id="distance" min="10" max="1000" value="60" step="10">
+        <span id="distValue">60 м</span>
+      </div>
+      <div class="slider-group">
+        <label>Длина волны (м)</label>
+        <input type="range" id="wavelength" min="0.01" max="5" value="0.6" step="0.01">
+        <span id="waveValue">0.6 м</span>
+      </div>
+      <div class="slider-group">
+        <label>Доля мощности (%)</label>
+        <input type="range" id="energyPercent" min="10" max="99" value="90" step="1">
+        <span id="energyValue">90%</span>
+      </div>
+    </div>
+
+    <div class="environment-row">
+      <!-- Блок Леса -->
+      <div class="env-block">
+        <label class="checkbox-group">
+          <input type="checkbox" id="checkTree"> Лес (Препятствие)
+        </label>
+        <div class="env-subslider" id="treeCountBlock">
+          <label>Кол-во</label>
+          <input type="range" id="treeCount" min="1" max="50" value="45" style="width: 50px;">
+          <label style="margin-left:5px;">Выс.(м)</label>
+          <input type="range" id="treeHeight" min="1" max="50" value="25" step="1" style="width: 50px;">
+          <span id="treeHeightVal" class="val-span">25</span>
+        </div>
+      </div>
+      
+      <!-- Блок Здания -->
+      <div class="env-block">
+        <label class="checkbox-group">
+          <input type="checkbox" id="checkBuild"> Здание (Препятствие)
+        </label>
+        <div class="env-subslider" id="buildSizeBlock">
+          <label>Высота (м)</label>
+          <input type="range" id="buildHeight" min="1" max="100" value="20" step="1" style="width: 100px;">
+          <span id="buildHeightVal" class="val-span">20</span>
+        </div>
+      </div>
+
+      <!-- Блок Дождя -->
+      <div class="env-block">
+        <label class="checkbox-group">
+          <input type="checkbox" id="checkRain"> Ливень / Гроза
+        </label>
+        <div class="env-subslider" id="rainIntensityBlock">
+          <label>Интенсивн.</label>
+          <input type="range" id="rainIntensity" min="1" max="100" value="50" style="width: 100px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }}
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { DragControls } from 'three/addons/controls/DragControls.js';
+    import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+    let realHeightTX = 30; 
+    let realHeightRX = 30; 
+    let visualGroundY = -6; 
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    scene.fog = new THREE.Fog(0x1a1a2e, 15, 100);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 200);
+    camera.position.set(0, 4, 22);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const orbitControls = new OrbitControls(camera, renderer.domElement);
+    orbitControls.enableDamping = true;
+    orbitControls.dampingFactor = 0.05;
+    orbitControls.target.set(0, 0, 0);
+
+    const gridHelper = new THREE.GridHelper(40, 40, 0x555555, 0x333333);
+    scene.add(gridHelper);
+
+    scene.add(new THREE.AmbientLight(0x404066, 1.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(10, 20, 15);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    const txSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 32, 16),
+      new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x330000 })
+    );
+    scene.add(txSphere);
+
+    const rxSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 32, 16),
+      new THREE.MeshStandardMaterial({ color: 0x33ff33, emissive: 0x003300 })
+    );
+    scene.add(rxSphere);
+
+    const fresnelMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 72, 36),
+      new THREE.MeshStandardMaterial({
+        color: 0x3399ff, transparent: true, opacity: 0.15,
+        roughness: 0.3, metalness: 0.1, depthWrite: false,
+        side: THREE.DoubleSide
+      })
+    );
+    scene.add(fresnelMesh);
+
+    let effectiveMesh = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshStandardMaterial({
+        color: 0xffaa00, roughness: 0.4, metalness: 0.2,
+        transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: true,
+      })
+    );
+    scene.add(effectiveMesh);
+
+    const treeGeometries = [];
+    const trunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 2);
+    trunkGeo.translate(0, 1, 0); 
+    treeGeometries.push(trunkGeo);
+    for (let i = 0; i < 3; i++) {
+      const cone = new THREE.ConeGeometry(1.5 - i * 0.3, 2.5);
+      cone.translate(0, 2.5 + i * 1.5, 0);
+      treeGeometries.push(cone);
+    }
+    const mergedTreeGeo = BufferGeometryUtils.mergeGeometries(treeGeometries);
+    const treeMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+    
+    const treeInstancedMesh = new THREE.InstancedMesh(mergedTreeGeo, treeMat, 50);
+    treeInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    treeInstancedMesh.visible = false;
+    scene.add(treeInstancedMesh);
+
+    // ИСПРАВЛЕНИЕ ГЕОМЕТРИИ ЗДАНИЯ
+    // Геометрия здания 1x1x1 со сдвигом 0.5 гарантирует, что нижнее основание находится в Y=0, а верхнее ровно в Y=1.
+    // При масштабировании (Scale) высоты на H верхушка окажется ровно на H.
+    const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
+    buildingGeo.translate(0, 0.5, 0); 
+    
+    const buildingMesh = new THREE.Mesh(
+      buildingGeo,
+      new THREE.MeshStandardMaterial({ color: 0x888899, roughness: 0.9, metalness: 0.1 })
+    );
+    buildingMesh.visible = false;
+    scene.add(buildingMesh);
+
+    const draggables = [treeInstancedMesh, buildingMesh, txSphere, rxSphere];
+    const dragControls = new DragControls(draggables, camera, renderer.domElement);
+    
+    dragControls.addEventListener('dragstart', function () {
+      orbitControls.enabled = false;
+    });
+    
+    dragControls.addEventListener('drag', function (event) {
+      const distance = parseFloat(document.getElementById('distance').value);
+      const vScale = VISUAL_LENGTH / distance;
+      const avgHeight = (realHeightTX + realHeightRX) / 2;
+      const currentVisualGroundY = -avgHeight * vScale;
+
+      if (event.object === treeInstancedMesh || event.object === buildingMesh) {
+        event.object.position.y = currentVisualGroundY;
+        event.object.position.z = 0; 
+      } else if (event.object === txSphere) {
+        event.object.position.x = txFixedX;
+        event.object.position.z = 0;
+        realHeightTX = realHeightRX + 2 * (event.object.position.y / vScale);
+        if (realHeightTX < 0) realHeightTX = 0;
+      } else if (event.object === rxSphere) {
+        event.object.position.x = rxFixedX;
+        event.object.position.z = 0;
+        realHeightRX = realHeightTX + 2 * (event.object.position.y / vScale);
+        if (realHeightRX < 0) realHeightRX = 0;
+      }
+      updateScene();
+    });
+    
+    dragControls.addEventListener('dragend', function () {
+      orbitControls.enabled = true;
+    });
+
+    const rainCount = 2000;
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPos = new Float32Array(rainCount * 3);
+    for(let i=0; i<rainCount; i++) {
+      rainPos[i*3] = (Math.random() - 0.5) * 30;
+      rainPos[i*3+1] = Math.random() * 25 - 10;
+      rainPos[i*3+2] = (Math.random() - 0.5) * 15;
+    }
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    const rainMat = new THREE.PointsMaterial({ color: 0x88bbff, size: 0.1, transparent: true, opacity: 0.6 });
+    const rainSystem = new THREE.Points(rainGeo, rainMat);
+    rainSystem.visible = false;
+    scene.add(rainSystem);
+
+    const VISUAL_LENGTH = 20; 
+    const txFixedX = -VISUAL_LENGTH / 2;
+    const rxFixedX = VISUAL_LENGTH / 2;
+
+    function exactFresnelRadius(x, D, lambda) {
+      if (x <= 0 || x >= D) return 0;
+      const a = (D + lambda / 2) / 2;
+      const c = D / 2;
+      const b = Math.sqrt(Math.max(0, a * a - c * c));
+      const cx = x - c; 
+      const val = 1 - (cx * cx) / (a * a);
+      if (val <= 0) return 0;
+      return b * Math.sqrt(val);
+    }
+
+    function gainCosN(angle, n) {
+      if (n === 0) return 1;
+      if (angle >= Math.PI / 2) return 0;
+      return Math.pow(Math.cos(angle), n);
+    }
+
+    function computeEffectiveRadius(x, D, lambda, nTX, nRX, energyPercent) {
+      const R1 = exactFresnelRadius(x, D, lambda);
+      if (R1 <= 0) return 0;
+
+      const intensity = (r) => {
+        const dTX_sq = x * x + r * r;
+        const dRX_sq = (D - x) * (D - x) + r * r;
+        const phiTX = Math.atan2(r, x);
+        const phiRX = Math.atan2(r, D - x);
+        return (gainCosN(phiTX, nTX) * gainCosN(phiRX, nRX)) / (dTX_sq * dRX_sq);
+      };
+
+      const STEPS = 80;
+      const dr = R1 / STEPS;
+      let totalEnergy = 0;
+      const energies = new Float64Array(STEPS + 1);
+
+      for (let i = 1; i <= STEPS; i++) {
+        const r = i * dr;
+        const r_prev = (i - 1) * dr;
+        const dE = 0.5 * (intensity(r) * r + intensity(r_prev) * r_prev) * dr;
+        totalEnergy += dE;
+        energies[i] = totalEnergy;
+      }
+
+      if (totalEnergy === 0) return 0;
+      const targetEnergy = totalEnergy * (energyPercent / 100);
+
+      for (let i = 1; i <= STEPS; i++) {
+        if (energies[i] >= targetEnergy) {
+          const prevE = energies[i - 1];
+          const currE = energies[i];
+          const t = (currE === prevE) ? 0 : (targetEnergy - prevE) / (currE - prevE);
+          return (i - 1 + t) * dr;
+        }
+      }
+      return R1;
+    }
+
+    function buildEffectiveGeometry(D, lambda, beamTXDeg, beamRXDeg, energyPercent) {
+      const profile = [];
+      const N = 100; 
+      const toN = (beamDeg) => {
+        if (beamDeg >= 180) return 0;
+        const half = THREE.MathUtils.degToRad(beamDeg / 2);
+        if (half <= 0) return 1000;
+        return -Math.log(2) / Math.log(Math.cos(half));
+      };
+      const nTX = toN(beamTXDeg);
+      const nRX = toN(beamRXDeg);
+
+      profile.push(new THREE.Vector2(0, 0));
+      for (let i = 1; i < N; i++) {
+        const x = (i / N) * D;
+        const r = computeEffectiveRadius(x, D, lambda, nTX, nRX, energyPercent);
+        profile.push(new THREE.Vector2(r, x));
+      }
+      profile.push(new THREE.Vector2(0, D));
+
+      const geometry = new THREE.LatheGeometry(profile, 64);
+      geometry.computeVertexNormals();
+      return geometry;
+    }
+
+    function getFresnelBlockageLoss(visualObj, heightMeters, maxLossDb, vScale, distance, wavelength, nTX, nRX, energyPercent) {
+      const pos = new THREE.Vector3();
+      visualObj.getWorldPosition(pos); 
+      
+      const realX = (pos.x - txFixedX) / vScale;
+      if (realX <= 0 || realX >= distance) return 0;
+      
+      const realLOS_Y = realHeightTX + (realHeightRX - realHeightTX) * (realX / distance);
+      const h = heightMeters - realLOS_Y;
+      
+      const R_eff = computeEffectiveRadius(realX, distance, wavelength, nTX, nRX, energyPercent);
+      if (R_eff <= 0) return 0;
+
+      let fraction = 0;
+      if (h <= -R_eff) {
+        fraction = 0; 
+      } else if (h >= R_eff) {
+        fraction = 1; 
+      } else {
+        const y = h / R_eff; 
+        fraction = (y * Math.sqrt(1 - y * y) + Math.asin(y) + Math.PI / 2) / Math.PI;
+      }
+
+      const t = Math.max(0, Math.min(1, fraction));
+      const sCurve = 3 * t * t - 2 * t * t * t;
+      
+      return sCurve * maxLossDb;
+    }
+
+    // ИСПРАВЛЕНИЕ МАСШТАБОВ ЛЕСА
+    function updateForest() {
+      const count = parseInt(document.getElementById('treeCount').value);
+      treeInstancedMesh.count = count;
+      const dummy = new THREE.Object3D();
+      
+      for (let i = 0; i < count; i++) {
+        if (i === 0) {
+          dummy.position.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+        } else {
+          const r = Math.sin(i * 123.45) * 10000;
+          const randX = (r - Math.floor(r)) * 6 - 3; 
+          const r2 = Math.sin(i * 678.90) * 10000;
+          const randZ = (r2 - Math.floor(r2)) * 4 - 2; 
+          const r3 = Math.sin(i * 345.67) * 10000;
+          const scaleXZ = 0.6 + (r3 - Math.floor(r3)) * 0.6; 
+          // Высота деревьев теперь максимально приближена к 1.0 (теоретической высоте), чтобы не вызывать визуальных несоответствий 
+          const scaleY = 0.85 + (r3 - Math.floor(r3)) * 0.15; 
+          dummy.position.set(randX, 0, randZ);
+          dummy.scale.set(scaleXZ, scaleY, scaleXZ);
+        }
+        dummy.updateMatrix();
+        treeInstancedMesh.setMatrixAt(i, dummy.matrix);
+      }
+      treeInstancedMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function updateLinkBudget() {
+      const beamTX = parseFloat(document.getElementById('beamTX').value);
+      const beamRX = parseFloat(document.getElementById('beamRX').value);
+      const distance = parseFloat(document.getElementById('distance').value);
+      const wavelength = parseFloat(document.getElementById('wavelength').value);
+      
+      const hasTree = document.getElementById('checkTree').checked;
+      const treeCount = parseInt(document.getElementById('treeCount').value);
+      
+      const hasBuild = document.getElementById('checkBuild').checked;
+      const hasRain = document.getElementById('checkRain').checked;
+      const rainInt = parseFloat(document.getElementById('rainIntensity').value);
+
+      const vScale = VISUAL_LENGTH / distance;
+      const fspl = 20 * Math.log10((4 * Math.PI * distance) / wavelength);
+      const calcGain = (angle) => angle >= 180 ? 0 : Math.max(0, 10 * Math.log10(30000 / (angle * angle)));
+      const gainTX = calcGain(beamTX);
+      const gainRX = calcGain(beamRX);
+
+      const energyPercent = parseFloat(document.getElementById('energyPercent').value);
+      const toN = (beamDeg) => {
+        if (beamDeg >= 180) return 0;
+        const half = THREE.MathUtils.degToRad(beamDeg / 2);
+        if (half <= 0) return 1000;
+        return -Math.log(2) / Math.log(Math.cos(half));
+      };
+      const nTX = toN(beamTX);
+      const nRX = toN(beamRX);
+
+      let rainLoss = 0;
+      if (hasRain) {
+        const freqGHz = 0.3 / wavelength; 
+        
+        let k_rain, alpha_rain;
+        if (freqGHz < 2) {
+          k_rain = 0.00001; alpha_rain = 1.0;
+        } else if (freqGHz < 10) {
+          let t = (freqGHz - 2) / 8;
+          k_rain = 0.0001 * Math.pow(100, t);
+          alpha_rain = 1.0 + 0.18 * t;
+        } else if (freqGHz < 30) {
+          let t = (freqGHz - 10) / 20;
+          k_rain = 0.01 * Math.pow(25, t);
+          alpha_rain = 1.18 - 0.18 * t;
+        } else {
+          let t = Math.min(1, (freqGHz - 30) / 70);
+          k_rain = 0.25 + 0.75 * t;
+          alpha_rain = 1.0 - 0.15 * t;
+        }
+
+        const specificAttenuation = k_rain * Math.pow(rainInt, alpha_rain);
+        let pureAtmosphericLoss = specificAttenuation * (distance / 1000);
+        let localWettingLoss = (rainInt / 100) * 4.5; 
+
+        rainLoss = pureAtmosphericLoss + localWettingLoss;
+      }
+
+      let treeLoss = 0;
+      if (hasTree) {
+        const treeHeightM = parseFloat(document.getElementById('treeHeight').value);
+        const maxTreeLoss = hasRain ? 48 : 22; 
+        let tLoss = getFresnelBlockageLoss(treeInstancedMesh, treeHeightM, maxTreeLoss, vScale, distance, wavelength, nTX, nRX, energyPercent);
+        if (tLoss > 0 && treeCount > 1) {
+          tLoss += (treeCount * (hasRain ? 0.35 : 0.15)); 
+        }
+        treeLoss = tLoss;
+      }
+
+      let buildLoss = 0;
+      if (hasBuild) {
+        const buildHeightM = parseFloat(document.getElementById('buildHeight').value);
+        const maxBuildLoss = hasRain ? 52 : 38;
+        buildLoss = getFresnelBlockageLoss(buildingMesh, buildHeightM, maxBuildLoss, vScale, distance, wavelength, nTX, nRX, energyPercent);
+      }
+
+      const rxPower = 0 + gainTX + gainRX - fspl - rainLoss - treeLoss - buildLoss;
+
+      document.getElementById('valGainTX').textContent = `+${gainTX.toFixed(1)} dB`;
+      document.getElementById('valGainRX').textContent = `+${gainRX.toFixed(1)} dB`;
+      document.getElementById('valFSPL').textContent = `-${fspl.toFixed(1)} dB`;
+      document.getElementById('valRain').textContent = `-${rainLoss.toFixed(1)} dB`;
+      document.getElementById('valTree').textContent = `-${treeLoss.toFixed(1)} dB`;
+      document.getElementById('valBuild').textContent = `-${buildLoss.toFixed(1)} dB`;
+      document.getElementById('valTotal').textContent = `${rxPower.toFixed(1)} dBm`;
+      
+      document.getElementById('valHeightTX').textContent = `${realHeightTX.toFixed(1)} м`;
+      document.getElementById('valHeightRX').textContent = `${realHeightRX.toFixed(1)} м`;
+    }
+
+    function updateScene() {
+      const beamTX = parseFloat(document.getElementById('beamTX').value);
+      const beamRX = parseFloat(document.getElementById('beamRX').value);
+      const distance = parseFloat(document.getElementById('distance').value);
+      const wavelength = parseFloat(document.getElementById('wavelength').value);
+      const energyPercent = parseFloat(document.getElementById('energyPercent').value);
+
+      document.getElementById('beamTXValue').textContent = beamTX + '°';
+      document.getElementById('beamRXValue').textContent = beamRX + '°';
+      document.getElementById('distValue').textContent = distance + ' м';
+      document.getElementById('waveValue').textContent = wavelength.toFixed(2) + ' м';
+      document.getElementById('energyValue').textContent = energyPercent + '%';
+
+      const buildHeightM = parseFloat(document.getElementById('buildHeight').value);
+      document.getElementById('buildHeightVal').textContent = buildHeightM;
+
+      const treeHeightM = parseFloat(document.getElementById('treeHeight').value);
+      document.getElementById('treeHeightVal').textContent = treeHeightM;
+
+      const vScale = VISUAL_LENGTH / distance;
+
+      const avgHeight = (realHeightTX + realHeightRX) / 2;
+      visualGroundY = -avgHeight * vScale; 
+
+      gridHelper.position.y = visualGroundY;
+
+      txSphere.position.set(txFixedX, 0.5 * (realHeightTX - realHeightRX) * vScale, 0);
+      rxSphere.position.set(rxFixedX, 0.5 * (realHeightRX - realHeightTX) * vScale, 0);
+
+      const d = distance;
+      const lambda = wavelength;
+      const a1 = (d + lambda / 2) / 2;
+      const c = d / 2;
+      const b1 = Math.sqrt(Math.max(0, a1 * a1 - c * c));
+
+      const midpoint = new THREE.Vector3(0, 0, 0);
+      const dir = new THREE.Vector3().subVectors(rxSphere.position, txSphere.position).normalize(); 
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+
+      fresnelMesh.position.copy(midpoint);
+      fresnelMesh.quaternion.copy(quat);
+      fresnelMesh.scale.set(b1 * vScale, b1 * vScale, a1 * vScale);
+
+      const newGeo = buildEffectiveGeometry(d, lambda, beamTX, beamRX, energyPercent);
+      effectiveMesh.geometry.dispose();
+      effectiveMesh.geometry = newGeo;
+      effectiveMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      effectiveMesh.position.copy(txSphere.position); 
+      effectiveMesh.scale.set(vScale, vScale, vScale);
+
+      const hasTree = document.getElementById('checkTree').checked;
+      treeInstancedMesh.visible = hasTree;
+      document.getElementById('treeCountBlock').style.opacity = hasTree ? '1' : '0.3';
+      document.getElementById('treeCountBlock').style.pointerEvents = hasTree ? 'auto' : 'none';
+      if (hasTree) {
+        updateForest();
+        treeInstancedMesh.position.y = visualGroundY; 
+        const tScale = (treeHeightM * vScale) / 6.75;
+        treeInstancedMesh.scale.set(tScale, tScale, tScale);
+      }
+
+      const hasBuild = document.getElementById('checkBuild').checked;
+      buildingMesh.visible = hasBuild; 
+      document.getElementById('buildSizeBlock').style.opacity = hasBuild ? '1' : '0.3';
+      document.getElementById('buildSizeBlock').style.pointerEvents = hasBuild ? 'auto' : 'none';
+      if (hasBuild) {
+        const realWidth = 15; 
+        const realDepth = 15; 
+        buildingMesh.position.y = visualGroundY;
+        buildingMesh.scale.set(realWidth * vScale, buildHeightM * vScale, realDepth * vScale);
+      }
+      
+      const hasRain = document.getElementById('checkRain').checked;
+      rainSystem.visible = hasRain;
+      document.getElementById('rainIntensityBlock').style.opacity = hasRain ? '1' : '0.3';
+      document.getElementById('rainIntensityBlock').style.pointerEvents = hasRain ? 'auto' : 'none';
+
+      updateLinkBudget();
+    }
+
+    const inputs = [
+      'beamTX', 'beamRX', 'distance', 'wavelength', 'energyPercent', 
+      'checkTree', 'treeCount', 'treeHeight', 'checkBuild', 'buildHeight', 'checkRain', 'rainIntensity'
+    ];
+    
+    inputs.forEach(id => {
+      document.getElementById(id).addEventListener('input', updateScene);
+    });
+
+    updateScene();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      if (rainSystem.visible) {
+        const positions = rainSystem.geometry.attributes.position.array;
+        const intensity = parseFloat(document.getElementById('rainIntensity').value);
+        const fallSpeed = 0.1 + (intensity / 100) * 0.3;
+        for(let i = 1; i < rainCount * 3; i += 3) {
+          positions[i] -= fallSpeed;
+          if (positions[i] < -12) positions[i] = 12;
+        }
+        rainSystem.geometry.attributes.position.needsUpdate = true;
+      }
+      
+      updateLinkBudget(); 
+      orbitControls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
