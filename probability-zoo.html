@@ -28,6 +28,9 @@
     --clay-dark: #8a3f22;
     --chimera: #7a4f8c;
     --chimera-dark: #5b3968;
+    --phantom: #5c6b8a;
+    --phantom-dark: #3d4a63;
+    --phantom-glow: #aab4cc;
     --grid-line: rgba(28,58,49,0.07);
     --grid-line-strong: rgba(28,58,49,0.18);
     --shadow: rgba(30,45,38,0.12);
@@ -94,6 +97,42 @@
   .modal-box p{ margin: 0 0 14px; font-size: 0.97rem; color: var(--paper); }
   .modal-box p:last-of-type{ margin-bottom: 0; }
 
+  /* ---------- ПРИМАРИ: віджет сингулярного розподілу ---------- */
+  .phantom-widget{ position:relative; }
+  .phantom-controls{
+    display:grid; grid-template-columns: 1fr 1fr; gap:20px;
+    background: var(--panel-2); border:1px solid var(--grid-line-strong); border-radius:10px;
+    padding:16px 18px; margin-bottom:18px;
+  }
+  @media (max-width:700px){ .phantom-controls{ grid-template-columns:1fr; } }
+  .phantom-checkbox-row{ grid-column: 1/-1; display:flex; align-items:center; gap:8px; font-size:0.88rem; color:var(--paper-dim); }
+  .phantom-checkbox-row input{ width:16px; height:16px; accent-color: var(--phantom-dark); }
+  .phantom-n-label{ font-family: var(--font-mono); font-size:0.75rem; color: var(--paper-dim); text-align:center; margin-top:4px; }
+  .phantom-n-label .inf{ color: var(--phantom-dark); font-weight:700; font-size:1.1em; }
+  .phantom-chart-title{ font-family: var(--font-mono); font-size:0.8rem; color: var(--paper-dim); margin: 18px 0 6px; }
+  .phantom-canvas-wrap{ background: var(--panel); border:1px solid var(--grid-line-strong); border-radius:10px; padding:8px; }
+  canvas.phantom-canvas{ width:100%; height:220px; display:block; border-radius:6px; }
+  .phantom-callout{
+    margin-top:14px; padding:14px 16px; border-radius:10px;
+    background: linear-gradient(135deg, var(--panel-2), var(--panel));
+    border:1.5px dashed var(--phantom-dark); font-size:0.93rem; color: var(--paper);
+    display:none;
+  }
+  .phantom-callout.show{ display:block; animation: phantomBurstIn 0.6s cubic-bezier(.2,1.4,.4,1); }
+  .phantom-callout.twist{ border-color: var(--brass-dark); }
+  .phantom-callout.twist.show{ animation: phantomFadeIn 0.4s ease; }
+  @keyframes phantomFadeIn{ from{ opacity:0; transform: translateY(-4px); } to{ opacity:1; transform: translateY(0); } }
+  @keyframes phantomBurstIn{ 0%{ opacity:0; transform: scale(0.85) translateY(6px); } 60%{ opacity:1; transform: scale(1.02) translateY(0); } 100%{ opacity:1; transform: scale(1) translateY(0); } }
+  .phantom-canvas-wrap.dissolving canvas{ filter: blur(0.3px); }
+  .phantom-canvas-wrap{ position:relative; }
+  .phantom-infinity-mark{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.6);
+    font-family: var(--font-display); font-weight:700; font-size:2.6rem; color: var(--phantom-dark);
+    opacity:0; pointer-events:none; text-shadow: 0 0 18px var(--phantom-glow);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .phantom-infinity-mark.show{ opacity:0.85; transform:translate(-50%,-50%) scale(1); }
+
   /* ---------- CATEGORY TABS ---------- */
   .tabs{ display:flex; justify-content:center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
   .tab-btn{
@@ -112,6 +151,190 @@
   .tab-btn.active[data-cat="discrete"]{ background: linear-gradient(180deg, var(--clay), var(--clay-dark)); border-color: var(--clay-dark); color: #fff5ee; }
   .tab-btn.active[data-cat="continuous"]{ background: linear-gradient(180deg, var(--moss), var(--moss-dark)); border-color: var(--moss-dark); color: #f2fbee; }
   .tab-btn.active[data-cat="chimera"]{ background: linear-gradient(180deg, var(--chimera), var(--chimera-dark)); border-color: var(--chimera-dark); color: #faf3fb; }
+  .tab-btn.active[data-cat="phantom"]{ background: linear-gradient(180deg, var(--phantom), var(--phantom-dark)); border-color: var(--phantom-dark); color: #f3f5fa; }
+
+  /* ---------- МУЗЕЙНІ ТАБЛИЧКИ-СТЕНДИ (заміна табів) ---------- */
+  .sign-post{
+    background:none; border:none; cursor:pointer; padding:0;
+    display:flex; flex-direction:column; align-items:center;
+    font-family: inherit; transition: transform 0.18s ease;
+  }
+  .sign-post:hover{ transform: translateY(-2px); }
+  .sign-board{
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    min-width:128px; padding:10px 14px 9px; border-radius: 8px 8px 3px 3px;
+    background: var(--panel); border:1.5px solid var(--grid-line-strong);
+    box-shadow: 0 3px 6px var(--shadow);
+    transition: all 0.18s ease;
+  }
+  .sign-latin{ font-family: var(--font-display); font-style:italic; font-weight:600; font-size:0.98rem; color: var(--paper); }
+  .sign-common{ font-family: var(--font-mono); font-size:0.68rem; color: var(--paper-dim); letter-spacing:0.01em; }
+  .sign-stick{ width:4px; height:15px; background: var(--brass-dark); border-radius:0 0 2px 2px; }
+  .sign-post.active[data-cat="discrete"] .sign-board{ background: linear-gradient(180deg, var(--clay), var(--clay-dark)); border-color: var(--clay-dark); }
+  .sign-post.active[data-cat="continuous"] .sign-board{ background: linear-gradient(180deg, var(--moss), var(--moss-dark)); border-color: var(--moss-dark); }
+  .sign-post.active[data-cat="chimera"] .sign-board{ background: linear-gradient(180deg, var(--chimera), var(--chimera-dark)); border-color: var(--chimera-dark); }
+  .sign-post.active[data-cat="phantom"] .sign-board{ background: linear-gradient(180deg, var(--phantom), var(--phantom-dark)); border-color: var(--phantom-dark); }
+  .sign-post.active .sign-latin{ color: #fff; }
+  .sign-post.active .sign-common{ color: rgba(255,255,255,0.85); }
+
+  /* ---------- ТАБЛИЧКИ ЗОН (4 стилі, з TablesExamles) ---------- */
+  .placard-reading{
+    display:flex; justify-content:center; margin: 4px auto 26px;
+  }
+  .placard{
+    text-align: center;
+    padding: 14px 22px;
+    max-width: 460px;
+    width: 100%;
+    position: relative;
+    overflow: visible;
+    font-size: 0.92rem;
+  }
+
+  /* ===== Вольєр (discrete) — музейна на ніжці, з довгою тінню ===== */
+  .placard-wrapper-museum{
+    position: relative;
+    max-width: 460px;
+    width: 100%;
+    margin: 0 0 48px;
+  }
+  .placard-museum{
+    background: #fcf8f0;
+    border: 3px solid var(--clay-dark);
+    border-radius: 4px 4px 0 0;
+    color: #3d3224;
+    font-style: normal;
+    font-family: var(--font-body);
+    transform: rotate(0.5deg);
+    padding-bottom: 12px;
+    position: relative;
+    z-index: 2;
+  }
+  .placard-museum::before{
+    content: ''; position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
+    width: 6px; height: 30px; background: var(--clay-dark); border-radius: 2px;
+  }
+  .placard-museum::after{
+    content: ''; position: absolute; bottom: -44px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 14px; background: var(--clay-dark); border-radius: 50%;
+  }
+  .museum-floor-shadow{
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.09); border-radius: 4px 4px 0 0; pointer-events: none; z-index: 1;
+    transform-origin: 50% calc(100% + 34px);
+    transform: rotate(0.5deg) skewX(-67deg) scaleY(0.55);
+    filter: blur(5px);
+  }
+  .museum-floor-shadow::before{
+    content: ''; position: absolute; bottom: -44px; left: 50%; transform: translateX(-50%);
+    width: 6px; height: 44px; background: rgba(0,0,0,0.09);
+  }
+
+  /* ===== Акваріум (continuous) — з ґвинтиками ===== */
+  .placard-screws{
+    background: #e8e4dc;
+    border: 4px solid var(--moss-dark);
+    border-radius: 8px;
+    padding: 18px 24px;
+    color: #1f2a2a;
+    font-style: normal;
+    font-family: var(--font-body);
+    box-shadow: 0 0 0 2px var(--moss) inset, 0 4px 8px rgba(0,0,0,0.1);
+  }
+  .screw{
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #8a9a9a, #4a5a5a);
+    box-shadow: inset 0 0 0 2px #2a3a3a, 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .screw::after{
+    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 10px; height: 10px;
+    background:
+      linear-gradient(180deg, transparent 3px, #2a3a3a 3px, #2a3a3a 7px, transparent 7px),
+      linear-gradient(90deg, transparent 3px, #2a3a3a 3px, #2a3a3a 7px, transparent 7px);
+    border-radius: 1px;
+  }
+  .screw-tl{ top: 10px; left: 10px; transform: rotate(47deg); }
+  .screw-tr{ top: 10px; right: 10px; transform: rotate(37deg); }
+  .screw-bl{ bottom: 10px; left: 10px; transform: rotate(57deg); }
+  .screw-br{ bottom: 10px; right: 10px; transform: rotate(67deg); }
+
+  /* ===== Симбіонтарій (chimera) — на скотчі ===== */
+  .placard-scotch-wrapper{ position: relative; padding: 0; background: transparent; box-shadow: none; }
+  .paper-rough{
+    background: #ffffff;
+    padding: 18px 26px;
+    color: #2e261a;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+    font-style: italic;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transform: rotate(-0.8deg);
+    border-radius: 2px;
+    position: relative;
+    z-index: 1;
+    clip-path: polygon(
+      0% 2%,  3% 0%,  7% 3%, 12% 1%, 18% 4%, 24% 1%, 30% 3%, 36% 0%,
+      42% 2%, 48% 1%, 54% 3%, 60% 0%, 66% 2%, 72% 1%, 78% 4%, 84% 0%,
+      90% 2%, 96% 1%, 100% 3%, 98% 8%, 100% 14%, 97% 20%, 100% 26%,
+      98% 32%, 100% 38%, 97% 44%, 100% 50%, 98% 56%, 100% 62%, 97% 68%,
+      100% 74%, 98% 80%, 100% 86%, 97% 92%, 100% 97%, 96% 100%,
+      90% 98%, 84% 100%, 78% 97%, 72% 100%, 66% 98%, 60% 100%,
+      54% 97%, 48% 100%, 42% 98%, 36% 100%, 30% 97%, 24% 100%,
+      18% 98%, 12% 100%, 7% 97%, 3% 100%, 0% 98%
+    );
+  }
+  .tape{
+    position: absolute; width: 48px; height: 20px;
+    background: rgba(210,215,210,0.65); border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(180,180,180,0.2);
+    pointer-events: none; z-index: 2; opacity: 0.8;
+  }
+  .tape-tl{ top: -6px; left: -17px; transform: rotate(-28deg); }
+  .tape-tr{ top: -6px; right: -17px; transform: rotate(22deg); }
+  .tape-bl{ bottom: -6px; left: -12px; transform: rotate(27deg); }
+  .tape-br{ bottom: -8px; right: -12px; transform: rotate(-22deg); }
+
+  /* ===== Спіритарій (phantom) — висяча ===== */
+  .placard-hanging{
+    background: #f4efe6;
+    border: 3px solid var(--phantom-dark);
+    border-radius: 0;
+    padding: 14px 24px 16px;
+    color: #111111;
+    font-family: 'Times New Roman', 'Georgia', serif;
+    font-style: normal;
+    font-size: 1.05rem;
+    transform: rotate(-2.5deg) translateY(18px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.15));
+    margin-top: 20px;
+  }
+  .placard-hanging::before{
+    content: ''; position: absolute; top: -48px; left: 0; width: 50%; height: 48px;
+    background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--phantom-glow) calc(50% - 1px), var(--phantom-glow) calc(50% + 1px), transparent calc(50% + 1px));
+    background-size: 100% 100%; background-repeat: no-repeat; pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08));
+  }
+  .placard-hanging::after{
+    content: ''; position: absolute; top: -48px; right: 0; width: 50%; height: 48px;
+    background: linear-gradient(to bottom left, transparent calc(50% - 1px), var(--phantom-glow) calc(50% - 1px), var(--phantom-glow) calc(50% + 1px), transparent calc(50% + 1px));
+    background-size: 100% 100%; background-repeat: no-repeat; pointer-events: none;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08));
+  }
+  .nail{
+    position: absolute; top: -54px; left: 50%; transform: translateX(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #c8b8a8, #6a5a4a);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(0,0,0,0.2);
+    border: 1.5px solid #4a3a2a;
+    z-index: 5; overflow: hidden;
+  }
+  .nail::after{
+    content: ''; position: absolute; inset: 2px; border-radius: 50%;
+    background: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 3px);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+  }
 
   /* ---------- SPECIES CHIPS ---------- */
   .species-rail{ display:flex; gap: 10px; overflow-x: auto; padding: 4px 4px 14px; margin-bottom: 22px; scrollbar-width: thin; }
@@ -163,6 +386,16 @@
   }
   .origin-btn:hover{ background: var(--brass-dark); color:#fff9ef; border-style:solid; }
 
+  .mode-toggle{ display:flex; gap:8px; margin-bottom:16px; }
+  .mode-btn{
+    flex:1; font-family: var(--font-mono); font-size:0.8rem; text-align:center;
+    background: var(--panel-2); border:1.5px solid var(--grid-line-strong); border-radius:10px;
+    padding:8px 6px; cursor:pointer; transition: all 0.15s ease; color: var(--paper-dim);
+  }
+  .mode-btn .hint{ display:block; font-size:0.72rem; opacity:0.75; margin-top:2px; }
+  .mode-btn.active{ background: linear-gradient(180deg, var(--chimera), var(--chimera-dark)); border-color: var(--chimera-dark); color:#fff; }
+  .mode-btn:hover:not(.active){ border-color: var(--chimera); }
+
   .formula-box{
     background: var(--ink); color: var(--chalk); border: 1px solid var(--brass-dark);
     border-radius: 10px; padding: 16px 14px; margin-bottom: 18px; overflow-x: auto; text-align:center;
@@ -183,6 +416,16 @@
   .readout{ font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-dim); text-align:center; margin-top: 10px; min-height: 1.2em; }
   .readout .hl{ color: var(--brass-dark); font-weight:600; }
   .chart-caption{ font-family: var(--font-mono); font-size: 0.74rem; color: var(--paper-dim); text-align:center; margin-top: 6px; font-style: italic; }
+
+  .pearson-warning{
+    margin-top: 10px; padding: 9px 14px; border-radius: 8px;
+    font-family: var(--font-body); font-size: 0.82rem; line-height: 1.45;
+    display: none;
+  }
+  .pearson-warning.show{ display: block; }
+  .pearson-warning.warn{ background: rgba(184,90,53,0.10); border: 1.5px solid var(--clay-dark); color: var(--paper); }
+  .pearson-warning.info{ background: rgba(63,122,55,0.09); border: 1.5px solid var(--moss-dark); color: var(--paper); }
+  .pearson-warning p{ margin: 2px 0; }
 
   details.dossier{ margin-top: 26px; border-top: 1px dashed var(--grid-line-strong); padding-top: 18px; position:relative; }
   details.dossier > summary{ cursor:pointer; list-style:none; font-family: var(--font-mono); font-weight:600; font-size: 0.92rem; color: var(--brass-dark); display:flex; align-items:center; gap:8px; user-select:none; }
@@ -212,6 +455,7 @@
   .example-card{ background: var(--panel-2); border-left: 3px solid var(--moss); border-radius: 8px; padding: 12px 14px; font-size: 0.92rem; color: var(--paper); }
   .tab-context-discrete .example-card{ border-left-color: var(--clay); }
   .tab-context-chimera .example-card{ border-left-color: var(--chimera); }
+  .tab-context-phantom .example-card{ border-left-color: var(--phantom); }
 
   .notes-list{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px; }
   .notes-list li{ position:relative; padding: 10px 14px 10px 34px; background: var(--panel-2); border-radius: 8px; font-size: 0.93rem; color: var(--paper); }
@@ -242,6 +486,426 @@
   :focus-visible{ outline: 2px solid var(--brass-dark); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce){ *{ transition: none !important; } }
 </style>
+<style>
+/* ===== Гостьовий експонат: оптичний більярд (свій ізольований стиль) ===== */
+.billiard-embed{
+    --bg:#eef1f5;
+    --panel:#ffffff;
+    --panel-2:#f3f5f8;
+    --line:#d7dce4;
+    --line-soft:#e3e7ed;
+    --text:#1a2230;
+    --text-dim:#5c6675;
+    --text-faint:#8b93a3;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --ray:#e2461f;
+    --trapped:#7c3aed;
+    --trapped-soft: rgba(124,58,237,0.55);
+  }
+.billiard-embed *{box-sizing:border-box;}
+.billiard-embed, .billiard-embed{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+.billiard-embed{padding:20px 20px 40px;}
+.billiard-embed .wrap{max-width:1180px;margin:0 auto;}
+.billiard-embed header{margin-bottom:18px;}
+.billiard-embed header h1{font-size:22px;font-weight:650;margin:0 0 4px;letter-spacing:.2px;}
+.billiard-embed header h1 .dim{color:var(--text-dim);font-weight:450;}
+.billiard-embed header p{margin:0;color:var(--text-dim);font-size:13.5px;line-height:1.55;max-width:780px;}
+.billiard-embed header p b{color:var(--text);}
+.billiard-embed .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+  }
+.billiard-embed .panel h2{
+    font-size:11px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--text-faint);margin:0 0 10px;font-weight:650;
+  }
+.billiard-embed .scene-row{ display:flex; justify-content:center; }
+.billiard-embed .scene-row .panel{ width:100%; max-width:460px; }
+.billiard-embed #sceneCanvas{
+    width:100%;height:auto;aspect-ratio:1/1;display:block;
+    border-radius:8px;background:#f7f8fa;border:1px solid var(--line-soft);
+  }
+.billiard-embed #histCanvas{
+    width:100%;height:auto;aspect-ratio:1000/420;display:block;
+    border-radius:8px;background:#f7f8fa;border:1px solid var(--line-soft);
+  }
+.billiard-embed .readout{
+    display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;
+    font-family:var(--mono);font-size:12.5px;color:var(--text-dim);
+  }
+.billiard-embed .readout b{color:var(--text);font-weight:600;}
+.billiard-embed .hist-stats{
+    display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:10px;
+    font-family:var(--mono);font-size:12px;color:var(--text-dim);
+  }
+.billiard-embed .hist-stats b{color:var(--text);}
+.billiard-embed .hist-note{margin-top:10px;font-size:12.5px;line-height:1.55;color:var(--text-dim);}
+.billiard-embed .hist-note b{color:var(--text);}
+.billiard-embed /* ---- main (visible) controls ---- */
+  .main-controls{
+    margin-top:16px;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:20px 30px;
+  }
+@media (max-width: 700px){
+.billiard-embed .main-controls{grid-template-columns:1fr;}
+}
+.billiard-embed .ctrl-label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;color:var(--text-dim);margin-bottom:6px;
+  }
+.billiard-embed .ctrl-label .val{font-family:var(--mono);color:var(--text);font-size:13.5px;font-weight:600;}
+.billiard-embed .ctrl-label .val.inf{color:var(--trapped);}
+.billiard-embed input[type=range]{
+    -webkit-appearance:none;width:100%;height:5px;border-radius:2px;
+    background:var(--line);outline:none;margin:0;
+  }
+.billiard-embed input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+    background:var(--text);cursor:pointer;border:3px solid var(--panel);
+    box-shadow:0 0 0 1px var(--line);
+  }
+.billiard-embed input[type=range]::-moz-range-thumb{
+    width:17px;height:17px;border-radius:50%;background:var(--text);
+    cursor:pointer;border:3px solid var(--panel);
+  }
+.billiard-embed #nSlider::-webkit-slider-thumb{ background: var(--trapped); }
+.billiard-embed #nSlider::-moz-range-thumb{ background: var(--trapped); }
+.billiard-embed .subnote{margin-top:6px;font-size:11px;line-height:1.4;color:var(--text-faint);}
+.billiard-embed /* ---- advanced (collapsed) controls ---- */
+  details.advanced{ margin-top:14px; }
+.billiard-embed details.advanced summary{
+    cursor:pointer;font-size:12px;color:var(--text-faint);user-select:none;
+    list-style:none;display:inline-flex;align-items:center;gap:6px;
+  }
+.billiard-embed details.advanced summary::-webkit-details-marker{ display:none; }
+.billiard-embed details.advanced summary::before{ content:"▸"; font-size:10px; }
+.billiard-embed details.advanced[open] summary::before{ content:"▾"; }
+.billiard-embed .adv-grid{
+    display:flex;flex-wrap:wrap;gap:16px 26px;margin-top:12px;
+    padding-top:12px;border-top:1px solid var(--line-soft);
+  }
+.billiard-embed .adv-ctrl{min-width:190px;flex:1 1 190px;}
+.billiard-embed .adv-ctrl .ctrl-label{font-size:11.5px;}
+.billiard-embed .adv-ctrl .val{font-size:12px;}
+.billiard-embed footer{margin-top:18px;font-size:11.5px;color:var(--text-faint);}
+</style>
+<style>
+/* ===== Гостьовий експонат: подвійний маятник (свій ізольований стиль) ===== */
+.pendulum-embed{
+    --bg:        #f6f3ec;
+    --bg-panel:  #fffdf8;
+    --ink:       #23241f;
+    --ink-soft:  #6b6a5f;
+    --line:      #ded8c6;
+    --accent:    #b5482e;   /* теракотово-кіноварний, для стробоскопа */
+    --accent-2:  #2a6f6f;   /* глибокий бірюзовий, для перерізу Пуанкаре */
+    --accent-3:  #c9a53b;   /* охра, для маятника/акцентів */
+    --trail:     rgba(35,36,31,0.10);
+    --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --serif: 'Fraunces', 'Iowan Old Style', 'Georgia', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+.pendulum-embed *{ box-sizing: border-box; }
+.pendulum-embed, .pendulum-embed{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+.pendulum-embed{
+    min-height:100vh;
+    padding: 28px clamp(14px, 3vw, 40px) 60px;
+  }
+.pendulum-embed .wrap{ max-width: 1320px; margin: 0 auto; }
+.pendulum-embed header.top{
+    display:flex; flex-direction:column; gap:6px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+  }
+.pendulum-embed .eyebrow{
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display:flex; align-items:center; gap:8px;
+  }
+.pendulum-embed .eyebrow::before{
+    content:"";
+    width:7px; height:7px; border-radius:50%;
+    background: var(--accent);
+    display:inline-block;
+    box-shadow: 0 0 0 3px rgba(181,72,46,0.15);
+  }
+.pendulum-embed h1{
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(24px, 3vw, 34px);
+    margin: 2px 0 4px;
+    letter-spacing: -0.01em;
+  }
+.pendulum-embed h1 em{ font-style: italic; color: var(--accent); font-weight:500;}
+.pendulum-embed .subtitle{
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    max-width: 900px;
+    line-height:1.5;
+  }
+.pendulum-embed .grid{
+    display:grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 20px;
+    align-items:start;
+  }
+@media (max-width: 980px){
+.pendulum-embed .grid{ grid-template-columns: 1fr; }
+}
+.pendulum-embed .panel{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px 18px 16px;
+    position: relative;
+  }
+.pendulum-embed .panel h2{
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap:10px;
+  }
+.pendulum-embed .panel h2 .tag{
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+.pendulum-embed canvas{ display:block; width:100%; border-radius: 3px; background: #fbf9f3; }
+.pendulum-embed #pendulumCanvas{ background: #fbf9f3; cursor: default; }
+.pendulum-embed /* ---- controls row ---- */
+  .controls{
+    display:flex; flex-wrap:wrap; gap: 10px 18px;
+    margin-top: 14px;
+    align-items:center;
+    font-size: 13px;
+  }
+.pendulum-embed .ctrl-group{
+    display:flex; align-items:center; gap:8px;
+  }
+.pendulum-embed .ctrl-group label{
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space:nowrap;
+  }
+.pendulum-embed input[type=range]{
+    -webkit-appearance:none;
+    width: 92px; height:3px;
+    background: var(--line);
+    border-radius:2px; outline:none;
+  }
+.pendulum-embed input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:13px; height:13px; border-radius:50%;
+    background: var(--accent);
+    cursor:pointer;
+    border: 2px solid var(--bg-panel);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+.pendulum-embed .val{
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink);
+    min-width: 34px;
+    display:inline-block;
+  }
+.pendulum-embed button{
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--bg-panel);
+    cursor:pointer;
+    transition: transform .08s ease, opacity .15s ease;
+  }
+.pendulum-embed button:hover{ opacity:.85; }
+.pendulum-embed button:active{ transform: scale(0.97); }
+.pendulum-embed button.ghost{
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-weight:500;
+  }
+.pendulum-embed button.ghost:hover{ border-color: var(--ink); opacity:1; background: rgba(0,0,0,0.03);}
+.pendulum-embed button.preset{
+    background: var(--bg-panel);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-weight: 500;
+    font-size: 12px;
+    text-align:left;
+    padding: 9px 12px;
+  }
+.pendulum-embed button.preset:hover{ border-color: var(--accent); background: #fff9f0; }
+.pendulum-embed button.preset .p-name{ display:block; font-weight:700; font-family:var(--serif); font-size:13px; margin-bottom:2px;}
+.pendulum-embed button.preset .p-desc{ display:block; color: var(--ink-soft); font-size:11px; line-height:1.35; font-weight:400;}
+.pendulum-embed button.preset.chaotic{ border-color: rgba(181,72,46,0.4); }
+.pendulum-embed button.preset.chaotic .p-name{ color: var(--accent); }
+.pendulum-embed .presets-row{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+@media (max-width: 640px){
+.pendulum-embed .presets-row{ grid-template-columns: 1fr 1fr; }
+}
+.pendulum-embed .mode-toggle{
+    display:flex; gap:6px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 3px;
+  }
+.pendulum-embed .mode-toggle button{
+    border-radius: 16px;
+    padding: 6px 13px;
+    font-size: 12px;
+    background: transparent;
+    color: var(--ink-soft);
+    border: none;
+    font-weight:600;
+  }
+.pendulum-embed .mode-toggle button.active{
+    background: var(--ink);
+    color: var(--bg-panel);
+  }
+.pendulum-embed .mode-toggle button:not(.active):hover{ opacity:1; color: var(--ink); background: rgba(0,0,0,0.05);}
+.pendulum-embed .status-line{
+    display:flex; flex-wrap:wrap; gap: 14px 20px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+.pendulum-embed .status-line b{ color: var(--ink); font-weight:700; }
+.pendulum-embed .var-select{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+.pendulum-embed .var-select button{
+    background: var(--bg-panel);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    font-family: var(--mono);
+    padding: 8px 4px;
+    font-weight:600;
+  }
+.pendulum-embed .var-select button.active{
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg-panel);
+  }
+.pendulum-embed .var-select button:not(.active):hover{ border-color: var(--ink); }
+.pendulum-embed .section-mode{
+    display:flex; gap:8px; margin: 12px 0 2px;
+    flex-wrap: wrap;
+  }
+.pendulum-embed .radio-pill{
+    display:flex; align-items:center; gap:6px;
+    font-size: 12.5px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    cursor:pointer;
+    background: var(--bg-panel);
+    transition: border-color .15s ease, background .15s ease;
+    flex: 1;
+    min-width: 180px;
+  }
+.pendulum-embed .radio-pill:hover{ border-color: var(--ink); }
+.pendulum-embed .radio-pill.active{
+    border-color: var(--accent);
+    background: #fff6ee;
+  }
+.pendulum-embed .radio-pill input{ accent-color: var(--accent); }
+.pendulum-embed .radio-pill .pill-txt b{ display:block; font-size:12.5px; }
+.pendulum-embed .radio-pill .pill-txt span{ display:block; font-size:10.5px; color: var(--ink-soft); line-height:1.3; }
+.pendulum-embed .stat-box{
+    display:grid;
+    grid-template-columns: repeat(3,1fr);
+    gap:10px;
+    margin-top: 12px;
+  }
+.pendulum-embed .stat{
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 9px 10px;
+  }
+.pendulum-embed .stat .k{ font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+.pendulum-embed .stat .v{ font-family:var(--serif); font-size: 18px; font-weight:700; margin-top:2px; }
+.pendulum-embed .callout{
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    background: #fdf6ec;
+    border: 1px solid #eadfc4;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #4a4433;
+  }
+.pendulum-embed .callout.singular{
+    background: #fdf0ec;
+    border-color: #f0c9bd;
+    color: #6b2f1e;
+  }
+.pendulum-embed .callout b{ color: var(--accent); }
+.pendulum-embed .callout.singular b{ color: var(--accent); }
+.pendulum-embed .legend{
+    display:flex; gap:16px; flex-wrap:wrap;
+    font-size: 11.5px; color: var(--ink-soft);
+    margin-top:8px;
+  }
+.pendulum-embed .legend .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
+.pendulum-embed footer.note{
+    margin-top: 26px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height:1.6;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+.pendulum-embed footer.note b{ color: var(--ink); }
+.pendulum-embed code{
+    font-family: var(--mono);
+    background: #eeeadb;
+    padding: 1px 5px;
+    border-radius:3px;
+    font-size: 0.92em;
+  }
+</style>
 </head>
 <body>
 
@@ -251,11 +915,8 @@
     <button class="help-btn" id="helpBtn">❓ Як цим користуватись</button>
   </div>
 
-  <div class="tabs">
-    <button class="tab-btn" data-cat="discrete">🦔 Дискретні</button>
-    <button class="tab-btn" data-cat="continuous">🐫 Неперервні</button>
-    <button class="tab-btn" data-cat="chimera">🦄 Хімери</button>
-  </div>
+  <div class="tabs" id="tabsContainer"></div>
+  <div class="placard-reading" id="placardReading"></div>
 
   <div class="species-rail" id="speciesRail"></div>
 
@@ -263,20 +924,21 @@
 
   <main class="specimen-card" id="card"></main>
 
-  <footer class="foot">Пілотна версія v0.7 — 28 мешканців у зоопарку. Кандидати на майбутнє: більше хімер, розподіл Пуассона-Дірихле та інші екзотичні звірі — пишіть, кого ще додати.</footer>
+  <footer class="foot">Пілотна версія v0.9 — 32 мешканці у чотирьох зонах, плюс Лабораторія ГМО ім. К. Пірсона в Акваріумі. Спіритарій поповнився двома гостьовими експонатами: оптичний більярд і дивний атрактор подвійного маятника — обидва зі своєю фізичною симуляцією в реальному часі.</footer>
 
 </div>
 
 <div class="modal-overlay" id="welcomeOverlay">
   <div class="modal-box">
     <button class="modal-close" id="welcomeClose">✕</button>
-    
+    <div class="modal-eyebrow">🎪 Ласкаво просимо</div>
     <h2>Зоопарк розподілів імовірностей</h2>
-    <p>Це інтерактивний довідник з мешканців теорії ймовірностей — все честно, з формулами, але з історіями.</p>
-    <p><strong>Три вольєри</strong> нагорі: 🦔 Дискретні, 🐫 Неперервні, 🦄 Хімери (мішані розподіли — атом плюс неперервна крива в одному звірі). Обери вольєр, а потім — конкретного мешканця з ряду карток під ним.</p>
-    <p>На кожній картці рухай повзунки — графік ізначення параметрів в спойлері «Досьє натураліста» оновлюються на льоту. Не забудь заглянути в <strong>«🔗 Родинні зв’язки»</strong> — там мешканці посилаються один на одного, і можна клікнути прямо на ім’я родича, щоб перестрибнути до нього. А де є кнопка <strong>«🧬 Походження видів»</strong> — обов’язково натисни: там пояснено, як один розподіл перетворюється на інший.</p>
-       <img src="normrasp.png" alt="Нормальний розподіл" class="welcome-image" onerror="this.style.display='none'">
-    <button class="origin-btn" id="welcomeStartBtn" style="margin-top:16px;">Поїхали →</button>
+    <p>Це інтерактивний довідник з мешканців теорії ймовірностей — без занудства, зате з формулами, повзунками та історіями просто з дикої природи IT та фізики.</p>
+    <p><strong>Чотири зони</strong> нагорі, кожна зі своєю табличкою: <strong>Вольєр</strong> <i>Atomorostrata</i> (дискретні), <strong>Акваріум</strong> <i>Continuiflora</i> (неперервні), <strong>Симбіонтарій</strong> <i>Symbiota</i> (мішані розподіли — атом плюс неперервна крива в одному організмі) і <strong>Спіритарій</strong> <i>Incorporea</i> (сингулярні розподіли — ні дискретні, ні неперервні, справжні примари теорії ймовірностей). Обери зону, а потім — конкретного мешканця з ряду карток під нею. В Акваріумі шукай і окрему <strong>Лабораторію ГМО ім. д-ра К. Пірсона</strong> — там розподіли виводять, а не просто спостерігають. А в Спіритарії, крім згортки Бернуллі, чекають два гостьові експонати з живою фізичною симуляцією — оптичний більярд і дивний атрактор маятника.</p>
+    <p>На кожній картці рухай повзунки — графік і всі цифри в «Досьє натураліста» оновлюються на льоту. Не забудь заглянути в <strong>«🔗 Родинні зв’язки»</strong> — там мешканці посилаються один на одного, і можна клікнути прямо на ім’я родича, щоб перестрибнути до нього. А де є кнопка <strong>«🧬 Походження видів»</strong> — обов’язково натисни: там пояснено, як один розподіл перетворюється на інший.</p>
+    <p>Про всяк випадок — ще один погляд на найпопулярнішого мешканця:</p>
+    <img src="normrasp.png" alt="Нормальний розподіл" class="welcome-image" onerror="this.style.display='none'">
+    <button class="origin-btn" id="welcomeStartBtn" style="margin-top:16px;">Гаразд, до звірів! →</button>
   </div>
 </div>
 
@@ -1028,7 +1690,7 @@ const DISTRIBUTIONS = {
   chi: {
     id: "chi", category: "continuous", emoji: "🦕",
     name: "Розподіл Хі (без квадрата)", sciName: "Chi vulgaris extinctus",
-    tagline: "Кістяк динозавра в цьому музеї: сам розподіл ти в підручниках майже не зустрінеш, зате два його прямі нащадки (Релей і Максвелл) працюють щодня.",
+    tagline: "Довгий час вид вважався вимерлим, поки не з'ясувалося, що він мешкає в просторах довільної розмірності k. Нащадки: Максвелл (k=3), Релей (k=2).",
     support: "x \\in (0,\\ +\\infty)",
     pdfTex: "f(x)=\\dfrac{2^{1-k/2}}{\\Gamma(k/2)}\\,x^{k-1}e^{-x^2/2}",
     cdfTex: "F(x)=\\dfrac{\\gamma(k/2,\\,x^2/2)}{\\Gamma(k/2)}",
@@ -1271,31 +1933,87 @@ const DISTRIBUTIONS = {
     ]
   },
 
+  pearson_lab: {
+    id: "pearson_lab", category: "continuous", emoji: "🧬", isLab: true,
+    name: "Лабораторія ГМО ім. д-ра К. Пірсона", sciName: "Pearsonia systema",
+    params: [],
+    tagline: "«Виводимо нові розподіли з 1895 року.» Одне диференціальне рівняння, п'ять «генів» (коефіцієнтів a₀, a₁, b₀, b₁, b₂) — і залежно від їхнього співвідношення на світ з'являється Нормальний, Гамма, Бета, Стьюдента чи ще з десяток рідкісних ліній.",
+    support: "\\dfrac{d\\ln f}{dx} = \\dfrac{-(a_0+a_1x)}{b_0+b_1x+b_2x^2}",
+    pdfTex: "\\dfrac{f'(x)}{f(x)} = \\dfrac{-(a_0+a_1x)}{b_0+b_1x+b_2x^2}",
+    examples: [
+      "Історично — розподіл частот у біометрії (Пірсон вирощував цю систему саме на даних про крабів і равликів, звідки й «генетична» метафора).",
+      "У сучасній статистиці — підбір «типу Пірсона» під емпіричні дані, коли жоден стандартний розподіл не пасує ідеально."
+    ],
+    notes: [
+      "«Гени» — це рівно п'ять чисел: a₀, a₁ (чисельник) і b₀, b₁, b₂ (знаменник). Корені квадратного тричлена b₀+b₁x+b₂x² (дійсні чи комплексні, однакового чи різних знаків) визначають, яка саме «лінія» виведеться — а числа a₀, a₁ у чисельнику доводять асиметрію чи симетрію результату.",
+      "Карл Пірсон опублікував систему 1895 року, намагаючись описати асиметричні біологічні дані, які Нормальний розподіл описував погано. Вийшло значно більше, ніж він планував.",
+      "Не всі 12 ліній однаково відомі: частина (0, I, III, VII, X) — це популярні мешканці цього ж зоопарку під іншими іменами (перевірено чисельним інтегруванням рівняння — збігається з точністю до 0.3%), а частина (IV, VIII, IX, XI) — рідкісні, ілюстративні лінії без готової картки."
+    ],
+    pearsonTypes: [
+      { num:"0", name:"Нормальний", cond:"b₁=b₂=0 — квадратичний знаменник зникає геть", genes:{a0:0,a1:1,b0:1,b1:0,b2:0}, link:"normal", note:"Межовий випадок — рівняння спрощується до прямої лінії, звідки й береться класичний дзвін." },
+      { num:"I", name:"Бета (узагальнена)", cond:"b₀+b₁x+b₂x² має два дійсні корені різних знаків", genes:{a0:-1,a1:3,b0:0,b1:1,b2:-1}, link:"beta", note:"Скінченний носій з обох боків — Beta(2,3) на (0,1)." },
+      { num:"II", name:"Симетрична Бета", cond:"окремий випадок Типу I за умови a₀/a₁ = -½ (симетрія)", genes:{a0:-1.5,a1:3,b0:0,b1:1,b2:-1}, link:"beta", note:"Той самий вольєр, просто дзеркально симетрична лінія — Beta(2.5, 2.5)." },
+      { num:"III", name:"Гамма", cond:"b₂=0, b₁≠0 — квадратичний член зникає", genes:{a0:-3,a1:1,b0:0,b1:1.5,b2:0}, link:"gamma", note:"Gamma(k=3, θ=1.5) — перевірено числовим інтегруванням, збіг до 0.3%." },
+      { num:"IV", name:"Тип IV (ілюстративний)", cond:"немає дійсних коренів, a₀≠0 — асиметрична форма", genes:{a0:1,a1:1,b0:2,b1:1,b2:1}, link:null, note:"Неявний вигляд густини, без елементарної формули — генетично нестабільна лінія, у нашому зоопарку поки не прижилася окремою карткою." },
+      { num:"V", name:"Обернена Гамма", cond:"b₀=b₁=0 — кратний корінь у нулі", genes:{a0:-2,a1:4,b0:0,b1:0,b2:1}, link:null, note:"InverseGamma(α=3, β=2) — перевірено, збіг до 0.1%. Кандидат на майбутнє поповнення вольєра." },
+      { num:"VI", name:"Бета-прим / F-розподіл", cond:"два дійсні корені одного знаку", genes:{a0:-2,a1:3,b0:0,b1:1,b2:1}, link:null, note:"BetaPrime(3,2) — перевірено, збіг до 0.05%. Родич дисперсійного аналізу (ANOVA)." },
+      { num:"VII", name:"Стьюдента (t)", cond:"немає дійсних коренів, a₀=0 — симетрична форма Типу IV", genes:{a0:0,a1:1,b0:0.833,b1:0,b2:0.167}, link:"student_t", note:"t-розподіл із ν=5 — перевірено, точний збіг." },
+      { num:"VIII", name:"Тип VIII (ілюстративний)", cond:"межовий випадок між I і III", genes:{a0:-2,a1:1,b0:1,b1:1,b2:0}, link:null, note:"Рідкісна перехідна лінія, без усталеної назви." },
+      { num:"IX", name:"Тип IX (ілюстративний)", cond:"межовий випадок між I і VII", genes:{a0:0.5,a1:0.5,b0:1,b1:0.5,b2:0.25}, link:null, note:"Ще одна перехідна лінія, малознайома навіть фахівцям." },
+      { num:"X", name:"Експоненційний", cond:"частковий межовий випадок Типу III при k→1", genes:{a0:0,a1:1,b0:0,b1:1,b2:0}, link:"exponential", note:"Exponential(λ=1) — перевірено, точний збіг. Найпростіша ГМО-лінія з усього виводка." },
+      { num:"XI", name:"Тип XI (ілюстративний)", cond:"межовий випадок між IV і VI", genes:{a0:-1,a1:2,b0:1,b1:2,b2:0.5}, link:null, note:"Останній із дванадцяти — настільки рідкісний, що навіть каталоги не завжди його згадують." }
+    ]
+  },
+
   /* ======================= ХІМЕРИ (мішані розподіли) ======================= */
   queue: {
     id: "queue", category: "chimera", emoji: "🛒",
     name: "Очікування в черзі", sciName: "Exponentia interrupta",
-    tagline: "Суміш атома в нулі («черги нема — це щастя») та Експоненційного розподілу («черга є — чекай, скільки Бог пошле»).",
-    mixtureFormulaTex: "f(x)=p_0\\,\\delta(x)\\;+\\;(1-p_0)\\,\\lambda e^{-\\lambda x}\\cdot[x>0]",
+    tagline: "Суміш атома в нулі («черги нема — це щастя») та неперервної частини, коли черга є. АЗС чи супермаркет — обирай перемикачем нижче, обслуговування там влаштоване по-різному.",
+    toggle: {
+      key: "mode", default: "exp",
+      options: [
+        { value:"exp", label:"⛽ Заправка", hint:"обслуговування ~однакове" },
+        { value:"erlang", label:"🛒 Супермаркет", hint:"кошики різні — Ерланг" }
+      ]
+    },
+    mixtureFormulaTex: p => p.mode==="erlang"
+      ? "f(x)=p_0\\,\\delta(x)\\;+\\;(1-p_0)\\,\\dfrac{\\lambda^n x^{n-1}e^{-\\lambda x}}{(n-1)!}\\cdot[x>0]"
+      : "f(x)=p_0\\,\\delta(x)\\;+\\;(1-p_0)\\,\\lambda e^{-\\lambda x}\\cdot[x>0]",
     xUnit: " хв",
     params: [
       { key:"p0", label:"p₀ — шанс на нульове очікування", min:0, max:0.9, step:0.01, default:0.3 },
-      { key:"lambda", label:"λ — інтенсивність обслуговування", min:0.3, max:3, step:0.1, default:1 }
+      { key:"lambda", label:"λ — швидкість обслуговування (на етап)", min:0.5, max:3, step:0.1, default:1 },
+      { key:"n", label:"n — «розмір кошика» (етапів обслуговування)", min:1, max:5, step:1, default:3, showIf: p=>p.mode==="erlang" }
     ],
     getAtoms: p => [ { x:0, p:p.p0, label:"без черги" } ],
-    continuousPdf: (x,p) => x<=0 ? 0 : p.lambda*Math.exp(-p.lambda*x),
-    domain: [0, 17],
-    yMaxDensity: 3.1, probAxisMax: 0.99,
-    yMaxDensity: 3.2,
-    meanFn: p => (1-p.p0)*(1/p.lambda),
-    varFn: p => { const ex2 = (1-p.p0)*(2/(p.lambda**2)); const m = (1-p.p0)*(1/p.lambda); return ex2 - m*m; },
+    continuousPdf: (x,p) => {
+      if (p.mode === "erlang"){
+        const n = Math.max(1, Math.round(p.n||3));
+        return x<=0 ? 0 : Math.pow(p.lambda,n)*Math.pow(x,n-1)*Math.exp(-p.lambda*x)/gammaFn(n);
+      }
+      return x<=0 ? 0 : p.lambda*Math.exp(-p.lambda*x);
+    },
+    domain: [0, 30],
+    yMaxDensity: 3.2, probAxisMax: 0.99,
+    meanFn: p => {
+      const n = p.mode==="erlang" ? Math.max(1,Math.round(p.n||3)) : 1;
+      return (1-p.p0)*(n/p.lambda);
+    },
+    varFn: p => {
+      const n = p.mode==="erlang" ? Math.max(1,Math.round(p.n||3)) : 1;
+      const meanCont = n/p.lambda, ex2Cont = n/(p.lambda**2) + meanCont*meanCont;
+      const m = (1-p.p0)*meanCont;
+      const ex2 = (1-p.p0)*ex2Cont;
+      return ex2 - m*m;
+    },
     examples: [
-      "Прийшов у супермаркет о 23:58 — і жодного покупця перед тобою: миттєве обслуговування, x=0.",
-      "Прийшов у розпал акції на новий iPhone — доведеться почекати, і час очікування вже підкоряється Експоненційному закону."
+      "Заправка: хтось заливає повний бак, хтось на 200 грн — час обслуговування приблизно однаковий і випадковий, без пам'яті. Класичний Експоненційний.",
+      "Супермаркет: у когось одна пляшечка води, у когось повний візок на тиждень — обслуговування складається з багатьох дрібних однакових етапів (скан кожного товару), тому природно лягає на Ерланга (детальніше — на картці {{erlang:Ерланга}}, там саме про черги)."
     ],
     notes: [
-      "Це не «зіпсований Експоненційний», а чесна суміш: з імовірністю p₀ ти взагалі не чекаєш (атом у нулі), а з імовірністю (1-p₀) чекаєш за Експоненційним законом. Густина такої тварини — наполовину стовпчик, наполовину крива, тому в жоден підручник вона акуратно не влазить.",
-      "Схожий трюк ховається за кожним разом, коли статистики міряють «час до події, яка могла й не статися взагалі» — час простою обладнання, час до повторного звернення в підтримку тощо."
+      "Це не «зіпсований Експоненційний», а чесна суміш: з імовірністю p₀ ти взагалі не чекаєш (атом у нулі), а з імовірністю (1-p₀) чекаєш за обраним законом. Густина такої тварини — наполовину стовпчик, наполовину крива, тому в жоден підручник вона акуратно не влазить.",
+      "Перемикач тут не просто прикраса: Експоненційний передбачає, що обслуговування «без пам'яті» (не має значення, скільки вже возишся біля каси), а Ерланг явно каже — довше возишся, якщо кошик більший, і це набагато чесніше для супермаркету."
     ]
   },
 
@@ -1425,6 +2143,59 @@ const DISTRIBUTIONS = {
       "Форма Бети тут обрана не випадково: на відміну від Нормальної, вона живе рівно на відрізку [0,1] і не вимагає жодного «обрізання хвостів» — кухоль просто фізично не може вміщати більше або менше.",
       "Чесний претендент на звання «найлогічніший розподіл зоопарку»: атом у крайній точці тут має цілком фізичне пояснення (переливається через край), а не є штучним припущенням моделі."
     ]
+  },
+
+  /* ======================= ПРИМАРИ (сингулярні розподіли) ======================= */
+
+  singular: {
+    id: "singular", category: "phantom", emoji: "👻",
+    name: "Сингулярний розподіл (згортка Бернуллі)", sciName: "Bernoullia singularis",
+    params: [],
+    tagline: "Уяви: генератор випадкових чисел навчився видавати нулі й одиниці в нескінченній кількості — але чесно каже, що монетка нечесна (p проти 1-p). Склавши ці біти в двійковий дріб 0.b₁b₂b₃…, отримуєш число з дивною вдачею: у нього є функція розподілу, що безперервно повзе вгору, але немає густини — жодна точка не має ваги. Ні дискретний, ні неперервний. Справжній примар.",
+    support: "x \\in [0,\\,1]",
+    pdfTex: "X=\\displaystyle\\sum_{i=1}^{\\infty}\\dfrac{B_i}{2^{i}},\\quad B_i\\sim\\mathrm{Bernoulli}(p)\\ \\text{незалежні}",
+    examples: [],
+    notes: [
+      "Носій цього розподілу — це ВСЯ пряма [0,1] (на відміну від класичної множини Кантора, де середини викидаються) — просто ймовірність «розподілена» нерівномірно по ній так, що жодна точка (і жоден інтервал додатної міри Лебега) не отримує додатної густини.",
+      "При p=0.5 сингулярність зникає без жодного натяку на неї — дивись плот-твіст під графіками."
+    ],
+    relations: [
+      "При p=0.5 вироджується у звичайнісінький {{uniform_continuous:Рівномірний}} розподіл на [0,1] — сингулярність випаровується миттєво.",
+      "«Чортові сходи» (функція розподілу) — родич функції Мінковського «?(x)» і множини Кантора, хоч і не тотожні їм."
+    ]
+  },
+
+  billiard: {
+    id: "billiard", category: "phantom", emoji: "🔺", isEmbeddedWidget: true, params: [],
+    name: "Оптичний більярд (три дзеркала)", sciName: "Speculum cantorianum",
+    tagline: "Щоб одразу «порахувати» аналогію: видалення середньої третини відрізка [0,1] у геометрії Кантора — це рівно те саме, що видалення кутів вильоту, при яких промінь одразу залишає систему після першого кроку, минаючи решту циліндрів.",
+    examples: [],
+    notes: [
+      "Решта двох бокових інтервалів кутів — це промені, що влучили в сусідні дзеркала. На наступному кроці з них знову «видаляється» середня частина.",
+      "У границі N→∞ отримуємо чистий ізоморфізм між динамікою променя і класичною Канторовою множиною — тільки замість «трійкового дробу» тут кут вильоту α."
+    ],
+    relations: [
+      "Той самий тип сингулярності, що й у {{singular:Згортки Бернуллі}} — тільки народжується не з підкидання монетки, а з геометрії відбиттів."
+    ]
+  },
+
+  pendulum: {
+    id: "pendulum", category: "phantom", emoji: "🌀", isEmbeddedWidget: true, params: [],
+    name: "Дивний атрактор подвійного маятника", sciName: "Attractor discors",
+    tagline: "В ідеальному подвійному маятнику (без тертя, E=const) система хаотична, але на перерізі Пуанкаре траєкторія замальовує цілі області — розподіл там абсолютно неперервний, зі звичайною гладкою густиною.",
+    examples: [],
+    notes: [
+      "Маятник із дисипацією (тертя) і підкачкою (зовнішня сила) може «впіймати» дивний атрактор із фрактальною структурою. На перерізі Пуанкаре він утворює структуру, подібну до Канторової множини, міра якої — сингулярно неперервна.",
+      "Це не дискретний розподіл: хаотична траєкторія ніколи не повертається в ту саму точку, а сам атрактор складається з незліченної (континуальної) множини траєкторних ниток — тому ймовірність застати маятник у конкретній геометричній точці строго дорівнює нулю (жодних точкових атомів).",
+      "Але ця міра сингулярна: усі ці незліченні переплетені нитки мають нульову площу (нульову міру Лебега) на площині перерізу. Усі 100% імовірності динамічної системи неперервно «розмазані» по множині, яка з погляду класичної геометрії не займає на площині жодного простору."
+    ],
+    relations: [
+      "Той самий тип сингулярності, що й у {{singular:Згортки Бернуллі}} та {{billiard:оптичного більярда}} — тільки тут вона народжується з дисипативного хаосу, а не з комбінаторики."
+    ],
+    geekSpoiler: {
+      title: "🤓 Спойлер для гіків: як це порахувати строго",
+      body: "Щоб строго описати сингулярний розподіл на дивному атракторі без довгого емпіричного підрахунку окремих точок (як у нашому симуляторі), математична фізика пропонує три фундаментальні шляхи: теорію нестійких періодичних орбіт (UPO), де інваріантна міра збирається як зважена сума по нескінченному жорсткому «скелету» замкнутих нестійких траєкторій атрактора; операторний підхід (оператор Перрона — Фробеніуса), який перекладає задачу на мову функціонального аналізу і шукає розподіл як інваріантну нерухому точку (власний вектор) при еволюції хмар імовірності; і термодинамічний формалізм, що будує міру на основі глибокої аналогії зі статистичною механікою Гіббса через максимізацію функціонала динамічної ентропії."
+    }
   }
 
 };
@@ -1439,21 +2210,89 @@ function initParams(dist){
   if (!state.params[dist.id]){
     const p = {};
     dist.params.forEach(pr => p[pr.key] = pr.default);
+    if (dist.toggle) p[dist.toggle.key] = dist.toggle.default;
     state.params[dist.id] = p;
   }
 }
 
 /* ======================= РЕНДЕР: ТАБИ ТА ЧІПИ ======================= */
 
+const CATEGORY_INFO = {
+  discrete: { latin: "Atomorostrata", common: "Вольєр (дискретні)",
+    placard: "«Фотографувати дозволено, але безглуздо: неперервна частина відсутня.»" },
+  continuous: { latin: "Continuiflora", common: "Акваріум (неперервні)",
+    placard: "«Не намагайтеся впіймати окрему точку. Ймовірність зустрічі з нею дорівнює нулю.»" },
+  chimera: { latin: "Symbiota", common: "Симбіонтарій (мішані)",
+    placard: "«Не є окремим видом. Симбіоз дискретного і неперервного ймовірнісного життя.»" },
+  phantom: { latin: "Incorporea", common: "Спіритарій (сингулярні)",
+    placard: "«Відвідувачі часто стверджують, що тут нікого немає. Адміністрація нагадує: це частина експозиції.»" }
+};
+
 function renderTabs(){
-  document.querySelectorAll(".tab-btn").forEach(btn=>{
+  const container = document.getElementById("tabsContainer");
+  if (container.children.length === 0){
+    Object.keys(CATEGORY_INFO).forEach(cat=>{
+      const info = CATEGORY_INFO[cat];
+      const btn = document.createElement("button");
+      btn.className = "sign-post";
+      btn.dataset.cat = cat;
+      btn.innerHTML = `
+        <span class="sign-board">
+          <span class="sign-latin">${info.latin}</span>
+          <span class="sign-common">${info.common}</span>
+        </span>
+        <span class="sign-stick"></span>
+      `;
+      btn.onclick = () => {
+        state.category = cat;
+        const firstOfCat = Object.values(DISTRIBUTIONS).find(d=>d.category===cat);
+        selectDistribution(firstOfCat.id);
+      };
+      container.appendChild(btn);
+    });
+  }
+  document.querySelectorAll(".sign-post").forEach(btn=>{
     btn.classList.toggle("active", btn.dataset.cat === state.category);
-    btn.onclick = () => {
-      state.category = btn.dataset.cat;
-      const firstOfCat = Object.values(DISTRIBUTIONS).find(d=>d.category===state.category);
-      selectDistribution(firstOfCat.id);
-    };
   });
+  const placard = document.getElementById("placardReading");
+  if (placard) placard.innerHTML = renderPlacard(state.category);
+}
+
+function renderPlacard(cat){
+  const text = CATEGORY_INFO[cat].placard;
+  if (cat === "discrete"){
+    return `
+      <div class="placard-wrapper-museum">
+        <div class="museum-floor-shadow"></div>
+        <div class="placard placard-museum">${text}</div>
+      </div>`;
+  }
+  if (cat === "continuous"){
+    return `
+      <div class="placard placard-screws">
+        ${text}
+        <span class="screw screw-tl"></span>
+        <span class="screw screw-tr"></span>
+        <span class="screw screw-bl"></span>
+        <span class="screw screw-br"></span>
+      </div>`;
+  }
+  if (cat === "chimera"){
+    return `
+      <div class="placard placard-scotch-wrapper">
+        <div class="paper-rough">${text}</div>
+        <span class="tape tape-tl"></span>
+        <span class="tape tape-tr"></span>
+        <span class="tape tape-bl"></span>
+        <span class="tape tape-br"></span>
+      </div>`;
+  }
+  // phantom
+  return `
+    <div class="placard placard-hanging">
+      ${text}
+      <span class="nail"></span>
+    </div>`;
 }
 
 function renderChips(){
@@ -1557,6 +2396,13 @@ function renderCard(){
   const card = document.getElementById("card");
   card.className = "specimen-card tab-context-" + dist.category;
 
+  if (dist.category === "phantom"){
+    if (dist.id === "billiard"){ renderBilliardCard(dist); return; }
+    if (dist.id === "pendulum"){ renderPendulumCard(dist); return; }
+    renderPhantomCard(dist); return;
+  }
+  if (dist.isLab){ renderPearsonLabCard(dist); return; }
+
   const isChimera = dist.category === "chimera";
   const hasOrigin = dist.originStories && dist.originStories.length;
   const hasRelations = dist.relations && dist.relations.length;
@@ -1573,6 +2419,7 @@ function renderCard(){
         </div>
         <p class="tagline">${dist.tagline}</p>
         ${hasOrigin ? `<button class="origin-btn" id="originBtn">🧬 Походження видів</button>` : ""}
+        ${dist.toggle ? `<div class="mode-toggle" id="modeToggle"></div>` : ""}
         <div class="formula-box" id="pdfFormula"></div>
         ${isChimera ? "" : `<div class="support-line" id="supportLine"></div>`}
         <div id="paramsHost"></div>
@@ -1603,8 +2450,22 @@ function renderCard(){
     <ul class="notes-list" id="notesList"></ul>
   `;
 
-  renderMath(document.getElementById("pdfFormula"), isChimera ? dist.mixtureFormulaTex : dist.pdfTex, true);
+  renderMath(document.getElementById("pdfFormula"), isChimera ? (typeof dist.mixtureFormulaTex==="function" ? dist.mixtureFormulaTex(params) : dist.mixtureFormulaTex) : dist.pdfTex, true);
   if (!isChimera) renderMath(document.getElementById("supportLine"), dist.support, false);
+
+  if (dist.toggle){
+    const toggleHost = document.getElementById("modeToggle");
+    dist.toggle.options.forEach(opt=>{
+      const btn = document.createElement("button");
+      btn.className = "mode-btn" + (params[dist.toggle.key]===opt.value ? " active" : "");
+      btn.innerHTML = `${opt.label}<span class="hint">${opt.hint}</span>`;
+      btn.onclick = () => {
+        params[dist.toggle.key] = opt.value;
+        renderCard();
+      };
+      toggleHost.appendChild(btn);
+    });
+  }
 
   if (hasOrigin){
     document.getElementById("originBtn").addEventListener("click", ()=> openOriginModal(dist.id));
@@ -1623,7 +2484,7 @@ function renderCard(){
 
   // повзунки
   const host = document.getElementById("paramsHost");
-  dist.params.forEach(pr=>{
+  dist.params.filter(pr => !pr.showIf || pr.showIf(params)).forEach(pr=>{
     const row = document.createElement("div");
     row.className = "param-row";
     row.innerHTML = `
@@ -1955,6 +2816,2239 @@ function drawChimeraChart(dist, params){
 
   canvas._chartData = { kind:"chimera", xMin, xMax, padL, padT, plotW, plotH, dist, params, atoms, continuousWeight, yMaxDensity };
 }
+
+/* ======================= ПРИМАРИ: віджет сингулярного розподілу ======================= */
+
+const phantomState = { N: 6, p: 0.6, autoscale: true, animating: false, depthOverride: null, scaleOverride: null, fadeOverride: null, dissolved: false, flatMode: false };
+let phantomParticles = [];
+let phantomLoopHandle = null;
+let phantomTrembleAlpha = 1;
+let phantomLastTrembleUpdate = 0;
+let phantomAnimToken = 0;
+
+// Ефекти, що залежать від N (до ∞): згасання з N=12, тремтіння з N=15.
+// Це навмисно НЕ пов'язано з піксельним обрізанням рекурсії (воно стабілізується
+// вже на depth~11-12 і далі візуально нічого не змінює) — тут суто драматургічний
+// натяк, що зі зростанням N густина в кожній точці стає все менш "реальною".
+function phantomVisualParams(N){
+  let fade = 1;
+  if (N >= 12) fade = Math.max(0.12, 1 - (N-11)*0.18);
+  let tremble = N >= 15 ? Math.min(1, (N-14)/2) : 0;
+  return { fade, tremble };
+}
+
+function phantomSpawnFirework(canvas){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  phantomParticles = [];
+  const n = 110;
+  for(let i=0;i<n;i++){
+    phantomParticles.push({
+      x: w*0.1 + Math.random()*w*0.8,
+      y: h - 14 - Math.random()*8,
+      vx: (Math.random()-0.5)*30,
+      vy: -(55+Math.random()*110),
+      life: 0,
+      maxLife: 800+Math.random()*800,
+      size: 0.6+Math.random()*1.1, // дрібний Канторів пил, а не кульки
+      emoji: false
+    });
+  }
+  // пара емодзі-примар, що летять разом із пилом
+  for(let i=0;i<2;i++){
+    phantomParticles.push({
+      x: w*(0.3+0.4*Math.random()),
+      y: h-16,
+      vx: (Math.random()-0.5)*14,
+      vy: -(45+Math.random()*35),
+      life: 0,
+      maxLife: 1500+Math.random()*400,
+      size: 13+Math.random()*4,
+      emoji: true
+    });
+  }
+}
+
+function phantomStepParticles(dt){
+  phantomParticles.forEach(pt=>{
+    pt.life += dt;
+    pt.x += pt.vx*dt/1000;
+    pt.y += pt.vy*dt/1000;
+    pt.vy += 30*dt/1000;
+  });
+  phantomParticles = phantomParticles.filter(pt => pt.life < pt.maxLife);
+}
+
+function phantomDrawParticles(ctx){
+  phantomParticles.forEach(pt=>{
+    const t = Math.min(pt.life/pt.maxLife, 1);
+    const alpha = (1-t)*0.8;
+    if (alpha<=0) return;
+    ctx.globalAlpha = alpha;
+    if (pt.emoji){
+      ctx.font = `${pt.size}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("👻", pt.x, pt.y);
+      return;
+    }
+    ctx.fillStyle = getCss("--phantom-glow");
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size*(1+t*1.4), 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function phantomDrawHalo(ctx, w, h, now){
+  const pulse = 0.5+0.5*Math.sin(now/1600);
+  const r = Math.max(w,h)*0.55;
+  const grad = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,r);
+  const a1 = (0.05+0.05*pulse).toFixed(3);
+  grad.addColorStop(0, `rgba(170,180,204,${a1})`);
+  grad.addColorStop(1, `rgba(170,180,204,0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,w,h);
+}
+
+function renderPearsonLabCard(dist){
+  const card = document.getElementById("card");
+  card.innerHTML = `
+    <div class="medallion-row">
+      <div class="medallion">${dist.emoji}</div>
+      <div class="name-block">
+        <div class="sci-name">${dist.sciName}</div>
+        <h2>${dist.name}</h2>
+      </div>
+    </div>
+    <p class="tagline">${dist.tagline}</p>
+    <div class="formula-box" id="pdfFormula"></div>
+
+    <div class="param-label"><span>Обери готову генетичну лінію (0–XI)</span></div>
+    <select id="pearsonSelect" style="width:100%; padding:8px; margin-bottom:16px; border-radius:8px; border:1.5px solid var(--grid-line-strong); background:var(--panel); color:var(--paper); font-family:var(--font-mono); font-size:0.85rem;"></select>
+
+    <div class="card-grid" style="margin-top:0;">
+      <div class="card-left">
+        <div class="section-title" style="margin-top:0;">🧬 Лего-конструктор генів</div>
+        <p style="font-size:0.85rem; color:var(--paper-dim); margin:-6px 0 14px;">Рухай повзунки — і дивись, як міняється вид у реальному часі (рівняння розв'язується наново на кожен рух, методом Рунге — Кутти 4-го порядку).</p>
+        <div id="pearsonGenesHost"></div>
+      </div>
+      <div class="card-right chart-panel">
+        <div class="chart-wrap"><canvas id="pearsonCanvas"></canvas></div>
+        <div class="pearson-warning" id="pearsonWarning"></div>
+        <div class="readout" id="pearsonReadout">Це — унормована для показу густина поточного «геному».</div>
+      </div>
+    </div>
+
+    <div class="phantom-callout show" id="pearsonInfo" style="border-color:var(--moss-dark);"></div>
+
+    <div class="section-title">🧭 Де зустрічається в дикій природі</div>
+    <div class="examples-row" id="examplesRow"></div>
+
+    <div class="section-title">📎 Польові нотатки</div>
+    <ul class="notes-list" id="notesList"></ul>
+  `;
+
+  renderMath(document.getElementById("pdfFormula"), dist.pdfTex, true);
+
+  const exRow = document.getElementById("examplesRow");
+  dist.examples.forEach(ex=>{ const div=document.createElement("div"); div.className="example-card"; div.textContent=ex; exRow.appendChild(div); });
+  const notesList = document.getElementById("notesList");
+  dist.notes.forEach(n=>{ const li=document.createElement("li"); li.textContent=n; notesList.appendChild(li); });
+
+  // --- гени: 5 повзунків a0,a1,b0,b1,b2 ---
+  const geneDefs = [
+    { key:"a0", label:"a₀ — зсув (чисельник)", min:-4, max:4, step:0.05 },
+    { key:"a1", label:"a₁ — нахил (чисельник)", min:-4, max:4, step:0.05 },
+    { key:"b0", label:"b₀ — вільний член (знаменник)", min:-3, max:3, step:0.05 },
+    { key:"b1", label:"b₁ — лінійний член (знаменник)", min:-3, max:3, step:0.05 },
+    { key:"b2", label:"b₂ — квадратичний член (знаменник)", min:-2, max:2, step:0.02 }
+  ];
+  let genes = { ...dist.pearsonTypes[0].genes };
+
+  const genesHost = document.getElementById("pearsonGenesHost");
+  geneDefs.forEach(g=>{
+    const row = document.createElement("div");
+    row.className = "param-row";
+    row.innerHTML = `
+      <div class="param-label"><span>${g.label}</span><span class="val" id="pearson-val-${g.key}">${fmt(genes[g.key],2)}</span></div>
+      <input type="range" id="pearson-slider-${g.key}" min="${g.min}" max="${g.max}" step="${g.step}" value="${genes[g.key]}">
+    `;
+    genesHost.appendChild(row);
+    row.querySelector("input").addEventListener("input",(e)=>{
+      genes[g.key] = parseFloat(e.target.value);
+      document.getElementById(`pearson-val-${g.key}`).textContent = fmt(genes[g.key],2);
+      drawPearsonChart(genes);
+    });
+  });
+
+  function setGenes(newGenes){
+    genes = { ...newGenes };
+    geneDefs.forEach(g=>{
+      const slider = document.getElementById(`pearson-slider-${g.key}`);
+      slider.value = genes[g.key];
+      document.getElementById(`pearson-val-${g.key}`).textContent = fmt(genes[g.key],2);
+    });
+    drawPearsonChart(genes);
+  }
+
+  const select = document.getElementById("pearsonSelect");
+  dist.pearsonTypes.forEach((t,i)=>{
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `Тип ${t.num} — ${t.name}`;
+    select.appendChild(opt);
+  });
+
+  function showType(i){
+    const t = dist.pearsonTypes[i];
+    setGenes(t.genes);
+    const info = document.getElementById("pearsonInfo");
+    const linkHtml = t.link ? parseRelationTemplate(`Живе в цьому ж зоопарку: {{${t.link}:перейти на картку}}.`) : `<span style="opacity:0.7">Ще не прижилася в нашому зоопарку окремою карткою.</span>`;
+    info.innerHTML = `
+      <b>Тип ${t.num} — ${t.name}</b><br>
+      <span style="font-family:var(--font-mono); font-size:0.85rem; color:var(--paper-dim);">Гени: a₀=${t.genes.a0}, a₁=${t.genes.a1}, b₀=${t.genes.b0}, b₁=${t.genes.b1}, b₂=${t.genes.b2}</span><br>
+      <span style="font-family:var(--font-mono); font-size:0.85rem; color:var(--paper-dim);">Умова: ${t.cond}</span><br><br>
+      ${t.note}<br><br>
+      ${linkHtml}
+    `;
+    attachXrefHandlers(info);
+  }
+  select.addEventListener("change", (e)=> showType(parseInt(e.target.value)));
+  showType(0);
+  window.addEventListener("resize", ()=>{ if (document.getElementById("pearsonCanvas")) drawPearsonChart(genes); });
+}
+
+// Аналізує геном (a0,a1,b0,b1,b2) АНАЛІТИЧНО, без чисельного інтегрування:
+// — знаходить корені знаменника b0+b1x+b2x^2 (полюси рівняння),
+// — визначає, яка гілка дійсної прямої відповідає моді (нулю чисельника a0+a1x) —
+//   саме там і лежить справжній носій густини,
+// — перевіряє поведінку на нескінченних кінцях цієї гілки (спадає / зростає / важкий хвіст).
+// Це прибирає головну причину "розламаних" кривих: раніше x0 і межі підбирались
+// емпіричним перебором кандидатів, і RK4 міг випадково стартувати не в тій гілці
+// або впертися в полюс, який насправді був межею носія в інший бік.
+function pearsonClassify(a0,a1,b0,b1,b2){
+  const EPS = 1e-7;
+  const hasMode = Math.abs(a1) > EPS;
+  const mode = hasMode ? -a0/a1 : null;
+  const quadratic = Math.abs(b2) > EPS;
+  let roots = [];
+  if (quadratic){
+    const disc = b1*b1 - 4*b2*b0;
+    if (disc > EPS){
+      const sq = Math.sqrt(disc);
+      roots = [(-b1-sq)/(2*b2), (-b1+sq)/(2*b2)].sort((x,y)=>x-y);
+    }
+  } else if (Math.abs(b1) > EPS){
+    roots = [-b0/b1];
+  }
+
+  const warnings = [];
+  let lo, hi, anchor;
+
+  if (roots.length === 2){
+    const [r1,r2] = roots;
+    if (hasMode && mode > r1+EPS && mode < r2-EPS){ lo=r1; hi=r2; anchor=mode; }
+    else if (hasMode && mode <= r1+EPS){ lo=-Infinity; hi=r1; anchor=Math.min(mode, r1-1); }
+    else if (hasMode && mode >= r2-EPS){ lo=r2; hi=Infinity; anchor=Math.max(mode, r2+1); }
+    else { lo=r2; hi=Infinity; anchor=r2+1; warnings.push('ambiguousBranch'); }
+  } else if (roots.length === 1){
+    const r = roots[0];
+    if (hasMode && mode > r+EPS){ lo=r; hi=Infinity; anchor=mode; }
+    else if (hasMode && mode < r-EPS){ lo=-Infinity; hi=r; anchor=mode; }
+    else { lo=r; hi=Infinity; anchor=r+1; if(!hasMode) warnings.push('ambiguousBranch'); }
+  } else {
+    lo=-Infinity; hi=Infinity; anchor = hasMode ? mode : 0;
+    if (!hasMode && Math.abs(a0) < EPS) warnings.push('flatDensity');
+  }
+  if (!isFinite(anchor)) anchor = 0;
+
+  // поведінка на нескінченних кінцях: степеневий хвіст (квадратичний знаменник),
+  // експоненційний (лінійний знаменник) або гаусів (сталий знаменник)
+  function decaysPlus(){
+    if (quadratic) return (a1/b2) > EPS;
+    if (roots.length === 1) return (-a1/b1) < -EPS;
+    return (Math.abs(b1)<EPS && Math.abs(b2)<EPS) ? (a1/b0) > EPS : false;
+  }
+  function decaysMinus(){
+    if (quadratic) return (a1/b2) > EPS;
+    if (roots.length === 1) return (-a1/b1) > EPS;
+    return (Math.abs(b1)<EPS && Math.abs(b2)<EPS) ? (a1/b0) > EPS : false;
+  }
+  const heavyTail = quadratic && (a1/b2) > EPS && (a1/b2) <= 1+EPS;
+
+  if (hi === Infinity){
+    if (!decaysPlus()){ if(!warnings.includes('tailGrow')) warnings.push('tailGrow'); }
+    else if (heavyTail && !warnings.includes('tailHeavy')) warnings.push('tailHeavy');
+  }
+  if (lo === -Infinity){
+    if (!decaysMinus()){ if(!warnings.includes('tailGrow')) warnings.push('tailGrow'); }
+    else if (heavyTail && !warnings.includes('tailHeavy')) warnings.push('tailHeavy');
+  }
+
+  return { lo, hi, anchor, roots, warnings };
+}
+
+const PEARSON_WARNING_MSG = {
+  tailGrow: "⚠ За такого співвідношення генів «густина» не спадає до нуля на нескінченному кінці носія — вона зростає, і інтеграл розходиться. Це вже не коректний ймовірнісний розподіл, а лише формальний розв'язок рівняння. Спробуй змінити знак або величину a₁ відносно b₂ (чи b₁, чи b₀ — залежно від того, чи є в знаменника корені).",
+  tailHeavy: "ℹ Хвіст спадає повільно (за степеневим законом) — сама густина інтегровна, але дисперсія (а іноді й середнє) можуть виявитися нескінченними.",
+  ambiguousBranch: "ℹ Чисельник a₀+a₁x не має нуля в жодній із гілок (a₁≈0) — гілку для показу довелося обрати довільно, і вона може не відповідати жодному стандартному типу Пірсона.",
+  flatDensity: "⚠ І a₀, і a₁ близькі до нуля — логарифмічна похідна густини всюди ≈0. Розподіл вироджений: рівномірний на нескінченному носії, тобто не інтегровний."
+};
+
+// Обчислює межі малювання: якщо носій обмежений з одного чи обох боків коренями
+// знаменника — беремо саме ці межі (з мікроскопічним відступом від полюса), а не
+// довільне симетричне вікно. Якщо бік нескінченний — заглядаємо на фіксовану
+// глибину від якоря, а далі (в drawPearsonChart) відсікаємо порожній "хвіст".
+function pearsonPlotBounds(lo, hi, anchor){
+  const HALF_UNBOUNDED = 15;
+  const INSET_FRAC = 0.004;
+  let xMin, xMax;
+  if (isFinite(lo) && isFinite(hi)){
+    const eps = Math.max((hi-lo)*INSET_FRAC, 1e-6);
+    xMin = lo+eps; xMax = hi-eps;
+  } else if (isFinite(lo)){
+    xMin = lo + Math.max(HALF_UNBOUNDED*INSET_FRAC, 1e-6);
+    xMax = anchor + HALF_UNBOUNDED;
+  } else if (isFinite(hi)){
+    xMax = hi - Math.max(HALF_UNBOUNDED*INSET_FRAC, 1e-6);
+    xMin = anchor - HALF_UNBOUNDED;
+  } else {
+    xMin = anchor - HALF_UNBOUNDED; xMax = anchor + HALF_UNBOUNDED;
+  }
+  return { xMin, xMax };
+}
+
+// Розв'язує dy/dx = -(a0+a1 x)/(b0+b1 x+b2 x^2) * y методом Рунге—Кутти 4-го порядку
+// від стартової точки x0 (y(x0)=1), в обидва боки, до заданих меж або до природної межі носія
+// Адаптивний RK4: підрозбиває крок, якщо локальна логарифмічна похідна велика
+// (ознака гострого піку чи близькості до кореня знаменника) — без цього фіксований крок
+// давав розриви й "провали" біля коренів b0+b1x+b2x^2 при довільних (не лише пресетних) генах.
+function pearsonSolveODE(a0,a1,b0,b1,b2, x0, xMin, xMax, steps){
+  const dx = (xMax-xMin)/steps;
+  const xs = new Array(steps+1), ys = new Array(steps+1).fill(0);
+  for(let i=0;i<=steps;i++) xs[i] = xMin+i*dx;
+  let i0 = Math.round((x0-xMin)/dx);
+  i0 = Math.max(0, Math.min(steps, i0));
+  ys[i0] = 1;
+
+  function deriv(x,y){ const den=b0+b1*x+b2*x*x; if(Math.abs(den)<1e-9) return null; return -(a0+a1*x)/den*y; }
+  function rk4step(x,y,h){
+    const k1=deriv(x,y); if(k1===null) return null;
+    const k2=deriv(x+h/2,y+h/2*k1); if(k2===null) return null;
+    const k3=deriv(x+h/2,y+h/2*k2); if(k3===null) return null;
+    const k4=deriv(x+h,y+h*k3); if(k4===null) return null;
+    const ny = y+h/6*(k1+2*k2+2*k3+k4);
+    if (!isFinite(ny) || ny<0 || ny>1e10) return null;
+    return ny;
+  }
+  const MAX_LN_STEP = 0.12, MAX_SUBDIV = 256;
+  function advance(x,y,h){
+    const rate = deriv(x,y);
+    if (rate===null || y<=1e-300) return rk4step(x,y,h);
+    const lnStep = Math.abs(rate/y*h);
+    const nSub = Math.min(MAX_SUBDIV, Math.max(1, Math.ceil(lnStep/MAX_LN_STEP)));
+    let cx=x, cy=y;
+    const subH = h/nSub;
+    for(let s=0;s<nSub;s++){
+      const ny = rk4step(cx,cy,subH);
+      if (ny===null) return null;
+      cx += subH; cy = ny;
+    }
+    return cy;
+  }
+
+  for(let i=i0;i<steps;i++){ const ny=advance(xs[i],ys[i],dx); if(ny===null) break; ys[i+1]=ny; }
+  for(let i=i0;i>0;i--){ const ny=advance(xs[i],ys[i],-dx); if(ny===null) break; ys[i-1]=ny; }
+  return { xs, ys };
+}
+
+function drawPearsonChart(genes){
+  const canvas = document.getElementById("pearsonCanvas");
+  if (!canvas) return;
+  const { a0,a1,b0,b1,b2 } = genes;
+
+  // Аналітично визначаємо правильну гілку (носій), стартову точку x0 = anchor
+  // та можливі попередження про некоректність (замість підбору навмання).
+  const cls = pearsonClassify(a0,a1,b0,b1,b2);
+  const { xMin: solveMin, xMax: solveMax } = pearsonPlotBounds(cls.lo, cls.hi, cls.anchor);
+  const { xs, ys } = pearsonSolveODE(a0,a1,b0,b1,b2, cls.anchor, solveMin, solveMax, 1200);
+
+  // На обмежених (скінченних) кінцях носія завжди показуємо його цілком.
+  // Відсікаємо мізерний "хвіст" лише з нескінченного боку — там, де крива
+  // справді йде в нескінченність і показувати її всю немає сенсу.
+  let peak = 0;
+  for (const y of ys) if (y>peak) peak = y;
+  let lo = 0, hi = xs.length-1;
+  const thresh = peak*0.003;
+  if (!isFinite(cls.hi)){
+    for(let i=xs.length-1;i>=0;i--){ if (ys[i]>thresh){ hi=i; break; } }
+    const pad = Math.max(2, Math.round((hi-lo)*0.06));
+    hi = Math.min(xs.length-1, hi+pad);
+  }
+  if (!isFinite(cls.lo)){
+    for(let i=0;i<xs.length;i++){ if (ys[i]>thresh){ lo=i; break; } }
+    const pad = Math.max(2, Math.round((hi-lo)*0.06));
+    lo = Math.max(0, lo-pad);
+  }
+  if (hi<=lo){ lo=0; hi=xs.length-1; }
+  const xMin = xs[lo], xMax = xs[hi];
+
+  const warnBox = document.getElementById("pearsonWarning");
+  if (warnBox){
+    if (cls.warnings.length){
+      const severe = cls.warnings.some(w=>w==='tailGrow'||w==='flatDensity');
+      warnBox.className = "pearson-warning show " + (severe ? "warn" : "info");
+      warnBox.innerHTML = cls.warnings.map(w=>`<p>${PEARSON_WARNING_MSG[w]}</p>`).join("");
+    } else {
+      warnBox.className = "pearson-warning";
+      warnBox.innerHTML = "";
+    }
+  }
+
+  const wrap = canvas.parentElement;
+  const cssW = wrap.clientWidth - 20;
+  const cssH = Math.max(wrap.clientHeight - 20, 300);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  canvas.style.width = cssW+"px"; canvas.style.height = cssH+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padL=46, padR=16, padT=16, padB=30;
+  const plotW=cssW-padL-padR, plotH=cssH-padT-padB;
+  drawGrid(ctx, padL, padT, plotW, plotH);
+
+  // нормуємо (трапеції) на видимому вікні, щоб площа під кривою ~1
+  let area = 0;
+  for(let i=lo;i<hi;i++){ area += (ys[i]+ys[i+1])/2 * (xs[i+1]-xs[i]); }
+  const norm = area>1e-9 ? 1/area : 1;
+  let dispPeak = 0;
+  for(let i=lo;i<=hi;i++) dispPeak = Math.max(dispPeak, ys[i]*norm);
+  const maxVal = Math.max(dispPeak*1.08, 1e-6);
+
+  function toPx(x){ return padL + (x-xMin)/(xMax-xMin)*plotW; }
+  function toPy(y){ return padT + plotH - Math.min(y,maxVal)/maxVal*plotH; }
+
+  ctx.fillStyle = getCss("--paper-dim");
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  const spanW = xMax-xMin;
+  const tickDigits = spanW < 0.5 ? 3 : (spanW < 3 ? 2 : 1);
+  for(let i=0;i<=5;i++){ const x = xMin+(xMax-xMin)*i/5; ctx.fillText(fmt(x,tickDigits), toPx(x), padT+plotH+16); }
+  ctx.textAlign = "right";
+  ctx.fillText(fmt(maxVal,2), padL-8, padT+10);
+  ctx.fillText("0", padL-8, padT+plotH+4);
+
+  ctx.beginPath();
+  ctx.moveTo(toPx(xs[lo]), toPy(0));
+  for(let i=lo;i<=hi;i++) ctx.lineTo(toPx(xs[i]), toPy(ys[i]*norm));
+  ctx.lineTo(toPx(xs[hi]), toPy(0));
+  ctx.closePath();
+  ctx.fillStyle = getCss("--moss") + "2e";
+  ctx.fill();
+
+  ctx.beginPath();
+  let started=false;
+  for(let i=lo;i<=hi;i++){
+    const px=toPx(xs[i]), py=toPy(ys[i]*norm);
+    if(!started){ ctx.moveTo(px,py); started=true; } else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle = getCss("--moss-dark");
+  ctx.lineWidth = 2.4;
+  ctx.stroke();
+
+  const readout = document.getElementById("pearsonReadout");
+  if (readout) readout.innerHTML = `Ефективна ділянка: x ∈ [${fmt(xMin,2)}, ${fmt(xMax,2)}] &nbsp;·&nbsp; пік густини ≈ <span class="hl">${fmt(dispPeak,3)}</span>`;
+}
+
+function renderPhantomCard(dist){
+  const card = document.getElementById("card");
+  const hasRelations = dist.relations && dist.relations.length;
+  const hasExamples = dist.examples && dist.examples.length;
+
+  card.innerHTML = `
+    <div class="medallion-row">
+      <div class="medallion">${dist.emoji}</div>
+      <div class="name-block">
+        <div class="sci-name">${dist.sciName}</div>
+        <h2>${dist.name}</h2>
+      </div>
+    </div>
+    <p class="tagline">${dist.tagline}</p>
+    <div class="formula-box" id="pdfFormula"></div>
+    <div class="support-line" id="supportLine"></div>
+
+    <div class="phantom-widget">
+      <div class="phantom-controls">
+        <div>
+          <div class="param-label"><span>N — кількість згенерованих бітів (підкидань монетки)</span><span class="val" id="phantom-val-N">6</span></div>
+          <input type="range" id="phantom-slider-N" min="1" max="17" step="1" value="6">
+          <div class="phantom-n-label" id="phantom-n-caption"></div>
+        </div>
+        <div>
+          <div class="param-label"><span>p — шанс «одиниці» на кожному кроці</span><span class="val" id="phantom-val-p">0.60</span></div>
+          <input type="range" id="phantom-slider-p" min="0" max="1" step="0.01" value="0.6">
+          <div class="phantom-n-label">E[X] = <b id="phantom-mean">—</b> &nbsp;·&nbsp; D[X] = <b id="phantom-var">—</b> (існують, навіть без густини!)</div>
+        </div>
+        <div class="phantom-checkbox-row">
+          <input type="checkbox" id="phantom-autoscale" checked>
+          <label for="phantom-autoscale">Автомасштабування висоти (інакше гребінець швидко стає невидимим)</label>
+        </div>
+      </div>
+
+      <div class="phantom-callout twist" id="phantom-twist-callout"></div>
+
+      <div class="phantom-chart-title">Дискретні ймовірності P(X_N = x)</div>
+      <div class="phantom-canvas-wrap" id="phantom-needles-wrap">
+        <canvas class="phantom-canvas" id="phantom-canvas-needles"></canvas>
+        <div class="phantom-infinity-mark" id="phantom-infinity-mark">N → ∞</div>
+      </div>
+      <audio id="phantom-pop-sound" src="pop.mp3" preload="auto"></audio>
+
+      <div class="phantom-chart-title">Функція розподілу F(x) — «Чортові сходи»</div>
+      <div class="phantom-canvas-wrap">
+        <canvas class="phantom-canvas" id="phantom-canvas-cdf"></canvas>
+      </div>
+
+      <div class="phantom-callout" id="phantom-infinity-callout"></div>
+    </div>
+
+    ${hasRelations ? `
+    <div class="section-title relations-section-title">🔗 Родинні зв’язки</div>
+    <div class="relations-section" id="relationsBox"></div>
+    ` : ""}
+
+    ${hasExamples ? `
+    <div class="section-title">🧭 Де зустрічається в дикій природі</div>
+    <div class="examples-row" id="examplesRow"></div>
+    ` : ""}
+
+    <div class="section-title">📎 Польові нотатки</div>
+    <ul class="notes-list" id="notesList"></ul>
+  `;
+
+  renderMath(document.getElementById("pdfFormula"), dist.pdfTex, true);
+  renderMath(document.getElementById("supportLine"), dist.support, false);
+
+  if (hasRelations){
+    const box = document.getElementById("relationsBox");
+    dist.relations.forEach(text=>{
+      const p = document.createElement("p");
+      p.className = "relation-item";
+      p.innerHTML = parseRelationTemplate(text);
+      box.appendChild(p);
+    });
+    attachXrefHandlers(box);
+  }
+
+  const exRow = document.getElementById("examplesRow");
+  if (exRow) dist.examples.forEach(ex=>{ const div=document.createElement("div"); div.className="example-card"; div.textContent=ex; exRow.appendChild(div); });
+  const notesList = document.getElementById("notesList");
+  dist.notes.forEach(n=>{ const li=document.createElement("li"); li.textContent=n; notesList.appendChild(li); });
+
+  initPhantomWidget();
+}
+
+// Рекурсивний обхід дерева "монеток": замість перебору 2^N листків обрізаємо
+// гілку, щойно вона стає вужчою за 1 піксель — тому N=∞ рахується миттєво.
+function phantomWalk(depth, maxDepth, p, pixelWidth, visitLeaf){
+  function recurse(x0, x1, prob, d){
+    const pxWidth = (x1-x0)*pixelWidth;
+    if (d >= maxDepth || pxWidth < 1){ visitLeaf(x0, x1, prob); return; }
+    const xm = (x0+x1)/2;
+    recurse(x0, xm, prob*(1-p), d+1);
+    recurse(xm, x1, prob*p, d+1);
+  }
+  recurse(0, 1, 1, 0);
+}
+
+function phantomDrawNeedles(canvas, maxDepth, p, autoscale, scaleOverride, now){
+  const wrap = canvas.parentElement;
+  const cssW = wrap.clientWidth - 16;
+  const cssH = 220;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  canvas.style.width = cssW+"px"; canvas.style.height = cssH+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padL=36, padR=10, padT=10, padB=22;
+  const plotW=cssW-padL-padR, plotH=cssH-padT-padB;
+
+  ctx.strokeStyle = getCss("--grid-line"); ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){ const x=padL+plotW*i/10; ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,padT+plotH); ctx.stroke(); }
+
+  ctx.fillStyle = getCss("--paper-dim");
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("0", padL, padT+plotH+14);
+  ctx.fillText("1", padL+plotW, padT+plotH+14);
+  ctx.fillText("x", padL+plotW/2, padT+plotH+14);
+
+  if (phantomState.dissolved){
+    phantomDrawHalo(ctx, cssW, cssH, now||performance.now());
+    phantomDrawParticles(ctx);
+    return 0;
+  }
+
+  if (phantomState.flatMode){
+    const lineY = padT + plotH*0.15;
+    ctx.strokeStyle = getCss("--phantom-dark");
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = phantomState.fadeOverride !== null ? phantomState.fadeOverride : 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, lineY);
+    ctx.lineTo(padL+plotW, lineY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = getCss("--phantom-dark");
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("f(x) = 1", padL+8, lineY-8);
+    return 0;
+  }
+
+  let leaves = [];
+  let maxP = 0;
+  phantomWalk(0, maxDepth, p, plotW, (x0,x1,prob)=>{ leaves.push([x0,x1,prob]); if (prob>maxP) maxP=prob; });
+
+  let scale;
+  if (scaleOverride !== null) scale = scaleOverride;
+  else if (autoscale) scale = maxP>0 ? plotH/maxP : plotH;
+  else scale = plotH; // «чесна» абсолютна шкала: імовірність 1.0 = вся висота
+
+  const { fade, tremble } = phantomVisualParams(phantomState.N);
+  // тремор тепер суто по прозорості (мерехтіння), без зсуву координат
+  const trembleFlicker = tremble > 0 ? (1 - tremble*0.5*(1-phantomTrembleAlpha)) : 1;
+  const effectiveFade = (phantomState.fadeOverride !== null ? phantomState.fadeOverride : fade) * trembleFlicker;
+
+  ctx.strokeStyle = getCss("--phantom-dark");
+  const avgLeafWidth = plotW/Math.max(leaves.length,1);
+  ctx.lineWidth = Math.max(1, avgLeafWidth*0.5);
+  leaves.forEach(([x0,x1,prob])=>{
+    const cx = padL + ((x0+x1)/2)*plotW;
+    const barH = Math.min(prob*scale, plotH);
+    const softAlpha = barH < 0.6 ? Math.max(barH/0.6, 0.05) : 1;
+    ctx.globalAlpha = softAlpha*effectiveFade;
+    ctx.beginPath();
+    ctx.moveTo(cx, padT+plotH);
+    ctx.lineTo(cx, padT+plotH-barH);
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+
+  return leaves.length;
+}
+
+function phantomDrawCdf(canvas, maxDepth, p){
+  const wrap = canvas.parentElement;
+  const cssW = wrap.clientWidth - 16;
+  const cssH = 220;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  canvas.style.width = cssW+"px"; canvas.style.height = cssH+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const padL=36, padR=10, padT=10, padB=22;
+  const plotW=cssW-padL-padR, plotH=cssH-padT-padB;
+
+  ctx.strokeStyle = getCss("--grid-line"); ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){ const x=padL+plotW*i/10; ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,padT+plotH); ctx.stroke(); }
+
+  let cum = 0;
+  let lastX = padL, lastY = padT+plotH;
+  ctx.strokeStyle = getCss("--brass-dark");
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  phantomWalk(0, maxDepth, p, plotW, (x0,x1,prob)=>{
+    cum += prob;
+    const nextX = padL + x1*plotW;
+    const nextY = padT + plotH - cum*plotH;
+    ctx.lineTo(nextX, lastY);
+    ctx.lineTo(nextX, nextY);
+    lastX = nextX; lastY = nextY;
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = getCss("--paper-dim");
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("0", padL, padT+plotH+14);
+  ctx.fillText("1", padL+plotW, padT+plotH+14);
+  ctx.textAlign = "right";
+  ctx.fillText("1.0", padL-2, padT+8);
+}
+
+function phantomRedraw(now){
+  now = now || performance.now();
+  const N = phantomState.N;
+  const p = phantomState.p;
+  const depth = phantomState.depthOverride !== null ? phantomState.depthOverride : N;
+  const needlesCanvas = document.getElementById("phantom-canvas-needles");
+  const cdfCanvas = document.getElementById("phantom-canvas-cdf");
+  if (!needlesCanvas || !cdfCanvas) return;
+  const leafCount = phantomDrawNeedles(needlesCanvas, depth, p, phantomState.autoscale, phantomState.scaleOverride, now);
+  phantomDrawCdf(cdfCanvas, depth, p);
+
+  const nCaption = document.getElementById("phantom-n-caption");
+  if (nCaption){
+    if (phantomState.dissolved){
+      nCaption.innerHTML = `Густина остаточно розсипалась у Канторів пил`;
+    } else if (phantomState.flatMode){
+      nCaption.innerHTML = `Нескінченно багато бітів, та жодної драми — просто рівномірний розподіл`;
+    } else if (N>=15){
+      nCaption.innerHTML = `Гребінець уже тремтить — імовірність окремої послідовності стає непристойно малою`;
+    } else {
+      nCaption.innerHTML = `${N} бітів = 2^${N} = <b>${Math.pow(2,N)}</b> можливих послідовностей монетки`;
+    }
+  }
+
+  const mean = p, varr = p*(1-p)/3;
+  const meanEl = document.getElementById("phantom-mean"); if (meanEl) meanEl.textContent = fmt(mean,3);
+  const varEl = document.getElementById("phantom-var"); if (varEl) varEl.textContent = fmt(varr,4);
+
+  const twist = document.getElementById("phantom-twist-callout");
+  if (twist){
+    if (Math.abs(p-0.5) < 0.021){
+      twist.classList.add("show");
+      twist.innerHTML = "🎭 <b>Плот-твіст:</b> рівно при p=0.5 жодного фрактала нема. Гребінець стає ідеально рівним (усі гілочки однакової висоти), а «Чортові сходи» — чесною діагональною прямою F(x)=x. Це вже не примар, а звичайнісінький Рівномірний розподіл, намальований чесними монетками. Зсунь p хоч на йоту — і сингулярність миттю повертається.";
+    } else {
+      twist.classList.remove("show");
+    }
+  }
+}
+
+function phantomSetInfinityCallout(show, flat){
+  const el = document.getElementById("phantom-infinity-callout");
+  if (!el) return;
+  if (show){
+    el.classList.add("show");
+    el.innerHTML = flat
+      ? "🎭 <b>N→∞ при p=0.5:</b> тут узагалі немає примари. Гребінець не розсипається в пил, а спокійно вирівнюється в горизонтальну лінію f(x)=1 — це і є густина звичайного Рівномірного розподілу. Єдина точка на всьому повзунку p, де нескінченність не лякає."
+      : "👻 <b>N→∞:</b> густина ймовірності в кожній окремій точці тепер точнісінько 0 — саме це ти й побачив: гребінець розсипався у <b>Канторів пил</b>. Уся ймовірність (=1) нікуди не зникла: вона розподілена по незліченній множині точок, кожна з яких сама по собі має шанс рівно 0. Крива «Чортових сходів» унизу від цього не постраждала — вона й далі рівно та сама, просто зі сходинками, яких уже не розгледіти оком.";
+  } else {
+    el.classList.remove("show");
+  }
+}
+
+// Єдиний анімаційний цикл: живить і тремор (N=15-16), і фінальний "дух примари" на ∞.
+// Не працює постійно даремно — вимикається сам, щойно ефекти не потрібні.
+function phantomAnimFrame(now){
+  if (!document.getElementById("phantom-canvas-needles")){ phantomLoopHandle = null; return; }
+  if (now - phantomLastTrembleUpdate > 1000/5){
+    phantomLastTrembleUpdate = now;
+    phantomTrembleAlpha = 0.15 + Math.random()*0.85; // випадкова яскравість на кожен "такт" 5 Гц
+  }
+  if (phantomState.dissolved) phantomStepParticles(16);
+  phantomRedraw(now);
+
+  const { tremble } = phantomVisualParams(phantomState.N);
+  const needsLoop = phantomState.dissolved || (tremble > 0 && !phantomState.flatMode) || phantomState.animating;
+  if (needsLoop) phantomLoopHandle = requestAnimationFrame(phantomAnimFrame);
+  else phantomLoopHandle = null;
+}
+
+function phantomEnsureLoop(){
+  if (phantomLoopHandle === null) phantomLoopHandle = requestAnimationFrame(phantomAnimFrame);
+}
+
+function phantomPlayPop(){
+  const audio = document.getElementById("phantom-pop-sound");
+  if (!audio) return;
+  try{ audio.currentTime = 0; audio.play().catch(()=>{}); }catch(e){}
+}
+
+function phantomShowInfinityMark(show){
+  const mark = document.getElementById("phantom-infinity-mark");
+  if (mark) mark.classList.toggle("show", show);
+}
+
+function phantomResetToFinite(){
+  phantomAnimToken++;
+  phantomState.animating = false;
+  phantomState.dissolved = false;
+  phantomState.flatMode = false;
+  phantomState.depthOverride = null;
+  phantomState.scaleOverride = null;
+  phantomState.fadeOverride = null;
+  phantomParticles = [];
+  document.getElementById("phantom-needles-wrap")?.classList.remove("dissolving");
+  phantomSetInfinityCallout(false);
+  phantomShowInfinityMark(false);
+}
+
+function phantomRunInfinityAnimation(){
+  if (phantomState.animating || phantomState.dissolved || phantomState.flatMode) return;
+  const isFlat = Math.abs(phantomState.p - 0.5) < 1e-6;
+  phantomState.animating = true;
+  const myToken = ++phantomAnimToken;
+  phantomSetInfinityCallout(false);
+  const wrap = document.getElementById("phantom-needles-wrap");
+  if (wrap) wrap.classList.add("dissolving");
+  phantomEnsureLoop();
+
+  // При p=0.5 немає сингулярності — тому й ефект інший: гребінець спокійно
+  // вирівнюється у пряму лінію (справжня густина), а не розсипається в Канторів пил.
+  // У решти випадків — швидке "гасіння" й феєрверк примарних часточок замість голок.
+  const duration = isFlat ? 950 : 850;
+  const t0 = performance.now();
+  function frame(now){
+    if (myToken !== phantomAnimToken) return; // слайдер уже змінили — цей запуск застарів
+    const t = Math.min((now-t0)/duration, 1);
+    phantomState.fadeOverride = isFlat ? 1 : 1-t; // пряму лінію не гасимо, а одразу проявляємо
+    if (isFlat) phantomState.flatMode = t > 0.15; // трохи затримки перед появою прямої, для контрасту
+    phantomRedraw(now);
+    if (t >= 1){
+      phantomState.fadeOverride = null;
+      phantomState.animating = false;
+      phantomPlayPop();
+      phantomShowInfinityMark(true);
+      if (isFlat){
+        phantomState.flatMode = true;
+        phantomSetInfinityCallout(true, true);
+      } else {
+        phantomState.dissolved = true;
+        if (wrap) wrap.classList.remove("dissolving");
+        const canvas = document.getElementById("phantom-canvas-needles");
+        if (canvas) phantomSpawnFirework(canvas);
+        phantomSetInfinityCallout(true, false);
+        phantomEnsureLoop();
+      }
+      if (wrap) wrap.classList.remove("dissolving");
+    } else {
+      requestAnimationFrame(frame);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function initPhantomWidget(){
+  const sliderN = document.getElementById("phantom-slider-N");
+  const sliderP = document.getElementById("phantom-slider-p");
+  const checkboxAuto = document.getElementById("phantom-autoscale");
+  const valN = document.getElementById("phantom-val-N");
+  const valP = document.getElementById("phantom-val-p");
+
+  sliderN.value = phantomState.N;
+  sliderP.value = phantomState.p;
+  checkboxAuto.checked = phantomState.autoscale;
+
+  sliderN.addEventListener("input", (e)=>{
+    const v = parseInt(e.target.value);
+    phantomState.N = v;
+    phantomResetToFinite();
+    valN.innerHTML = v>=17 ? `<span class="inf">∞</span>` : v;
+    if (v>=17){ phantomRunInfinityAnimation(); }
+    else {
+      const { tremble } = phantomVisualParams(v);
+      if (tremble>0) phantomEnsureLoop(); else phantomRedraw();
+    }
+  });
+
+  sliderP.addEventListener("input", (e)=>{
+    let v = parseFloat(e.target.value);
+    if (Math.abs(v-0.5) < 0.025){ v = 0.5; e.target.value = "0.5"; } // магнітне притягання до p=0.5
+    phantomState.p = v;
+    valP.textContent = fmt(v,2);
+    phantomRedraw();
+  });
+
+  checkboxAuto.addEventListener("change", (e)=>{
+    phantomState.autoscale = e.target.checked;
+    phantomRedraw();
+  });
+
+  valN.innerHTML = phantomState.N>=17 ? `<span class="inf">∞</span>` : phantomState.N;
+  valP.textContent = fmt(phantomState.p,2);
+  phantomRedraw();
+}
+
+window.addEventListener("resize", ()=>{ if (DISTRIBUTIONS[state.distId] && DISTRIBUTIONS[state.distId].category==="phantom") phantomRedraw(); });
+
+
+/* ======================= ГРАФІК: ІНТЕРАКЦІЯ КУРСОРОМ ======================= */
+
+
+/* ======================= ГОСТЬОВІ ЕКСПОНАТИ: ВБУДОВАНІ СИМУЛЯЦІЇ ======================= */
+
+function renderBilliardCard(dist){
+  const card = document.getElementById("card");
+  card.className = "specimen-card tab-context-phantom";
+  const hasRelations = dist.relations && dist.relations.length;
+  card.innerHTML = `
+    <div class="medallion-row">
+      <div class="medallion">${dist.emoji}</div>
+      <div class="name-block">
+        <div class="sci-name">${dist.sciName}</div>
+        <h2>${dist.name}</h2>
+      </div>
+    </div>
+    <p class="tagline">${dist.tagline}</p>
+
+    <div class="billiard-embed">
+
+<div class="wrap">
+
+  <header>
+    <h1>Три циліндричні дзеркала <span class="dim">— квазістаціонарний розподіл</span></h1>
+    <p>Джерело світить із центра рівномірно в усіх напрямках α. Кожен промінь відбивається від
+       трьох опуклих циліндрів. Розглядаємо <b>тільки ті промені, що ще не вилетіли після N
+       відбиттів</b> — і будуємо густину ймовірності їхнього початкового кута α. Рухайте N: густина
+       дедалі більше дробиться на голки і в границі N→∞ стає сингулярною — зосередженою на множині
+       нульової міри (репелері), хоча зазор між дзеркалами лишається звичайним, скінченним.</p>
+  </header>
+
+  <div class="scene-row">
+    <div class="panel">
+      <h2>Сцена</h2>
+      <canvas id="sceneCanvas" width="600" height="600"></canvas>
+      <div class="readout" id="readout"></div>
+      <div style="margin-top:12px;">
+        <div class="ctrl-label"><span>Кут променя α</span><span class="val" id="alphaVal"></span></div>
+        <input type="range" id="alphaSlider" min="-180" max="180" step="0.1" value="0"
+               title="Клацніть на повзунок і рухайте ← → для точного кроку 0.1°">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h2>Густина P( α | промінь ще в пастці після N відбиттів )</h2>
+    <canvas id="histCanvas" width="2000" height="840"></canvas>
+    <div class="hist-stats" id="histStats"></div>
+    <div style="margin-top:12px;">
+      <div class="ctrl-label"><span>Число відбиттів N</span><span class="val" id="nVal"></span></div>
+      <input type="range" id="nSlider" min="1" max="28" step="1" value="6">
+    </div>
+    <div class="hist-note">
+      Стовпці однакової висоти — тривіально, бо α спершу рівномірний, а умовний розподіл
+      рівномірної величини на будь-якій підмножині завжди рівномірний <i>на ній</i>; уся фізика
+      тут — у формі й розмірі самої підмножини. Справжня кількість острівців росте як 2<sup>N</sup>
+      необмежено, а кожен наступний удвічі вужчий за попередній — тому щойно острівець стає тонший
+      за піксель екрана, він малюється <b>напівпрозорим</b> (частка від справжньої частоти
+      трапляння в межах цього пікселя), а не зникає різко. Повністю порожньою картина стає лише в
+      крайньому положенні N→∞ — де це вже не густина, а сингулярна міра на канторовій множині.
+    </div>
+  </div>
+
+  <details class="advanced" style="margin-top:16px;">
+    <summary>Розширені налаштування</summary>
+    <div class="adv-grid">
+      <div class="adv-ctrl">
+        <div class="ctrl-label"><span>Зазор між дзеркалами</span><span class="val" id="gapVal"></span></div>
+        <input type="range" id="gapSlider" min="1" max="250" step="1" value="15">
+        <div class="subnote">Будь-яке значення тут фізично звичайне — сингулярність народжується не тут.</div>
+      </div>
+    </div>
+  </details>
+
+  <footer>Геометрія: 3 диски радіусом R=55, центри на 60°, 180°, 300° (зазор — на 0°, 120°, 240°). Роздільність = 3200 семплів, внутрішня межа відбиттів = 1200 — захардкоджено. Слайдер N лише перерізає вже готовий масив за порогом — тому рухається миттєво.</footer>
+</div>
+
+
+    </div>
+
+    <div class="section-title">📎 Польові нотатки</div>
+    <ul class="notes-list" id="notesListEmbed"></ul>
+    ${hasRelations ? `
+    <div class="section-title relations-section-title">🔗 Родинні зв\u2019язки</div>
+    <div class="relations-section" id="relationsBoxEmbed"></div>
+    ` : ""}
+  `;
+  const notesList = document.getElementById("notesListEmbed");
+  dist.notes.forEach(n=>{ const li=document.createElement("li"); li.textContent=n; notesList.appendChild(li); });
+  if (hasRelations){
+    const relBox = document.getElementById("relationsBoxEmbed");
+    dist.relations.forEach(text=>{ const p=document.createElement("p"); p.className="relation-item"; p.innerHTML=parseRelationTemplate(text); relBox.appendChild(p); });
+    attachXrefHandlers(relBox);
+  }
+  initBilliardWidget();
+}
+
+function renderPendulumCard(dist){
+  const card = document.getElementById("card");
+  card.className = "specimen-card tab-context-phantom";
+  const hasRelations = dist.relations && dist.relations.length;
+  card.innerHTML = `
+    <div class="medallion-row">
+      <div class="medallion">${dist.emoji}</div>
+      <div class="name-block">
+        <div class="sci-name">${dist.sciName}</div>
+        <h2>${dist.name}</h2>
+      </div>
+    </div>
+    <p class="tagline">${dist.tagline}</p>
+
+    <div class="pendulum-embed">
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">Лекція · Сингулярні розподіли й фрактальна геометрія хаосу</div>
+    <h1>Подвійний маятник як генератор <em>сингулярної</em> функції розподілу</h1>
+    <p class="subtitle">
+      Дисипативний подвійний маятник з коливною точкою підвісу (накачка енергії ззовні) переходить у хаотичний режим.
+      Нижній грузик неперервно рухається в фазовому просторі, але якщо фіксувати його координату лише у
+      вибрані моменти часу (стробоскоп або переріз Пуанкаре) — назбирана емпірична функція розподілу
+      <code>F(y)</code> перестає бути гладкою. Вона росте на канторовій множині нульової міри: неперервна,
+      але без густини.
+    </p>
+  </header>
+
+  <div class="grid">
+
+    <div class="panel">
+      <h2>Реальний рух та фазовий портрет атрактора <span class="tag">подвійний маятник & θ₂–ω₂</span></h2>
+      <canvas id="pendulumCanvas" width="760" height="560"></canvas>
+
+      <div class="controls">
+        <div class="ctrl-group">
+          <label>m₁/m₂</label>
+          <input type="range" id="mRatio" min="0.3" max="3" step="0.05" value="1">
+          <span class="val" id="mRatioVal">1.00</span>
+        </div>
+        <div class="ctrl-group">
+          <label>l₁/l₂</label>
+          <input type="range" id="lRatio" min="0.3" max="3" step="0.05" value="1">
+          <span class="val" id="lRatioVal">1.00</span>
+        </div>
+        <div class="ctrl-group">
+          <label>Тертя γ</label>
+          <input type="range" id="damping" min="0" max="0.8" step="0.01" value="0.12">
+          <span class="val" id="dampingVal">0.12</span>
+        </div>
+        <div class="ctrl-group">
+          <label>Накачка A</label>
+          <input type="range" id="drive" min="0" max="2.2" step="0.02" value="1.15">
+          <span class="val" id="driveVal">1.15</span>
+        </div>
+        <div class="ctrl-group">
+          <label>Частота Ω</label>
+          <input type="range" id="freq" min="0.4" max="3.5" step="0.02" value="2.0">
+          <span class="val" id="freqVal">2.00</span>
+        </div>
+        <div class="ctrl-group">
+          <label>Швидкість</label>
+          <input type="range" id="speed" min="1" max="8" step="1" value="8">
+          <span class="val" id="speedVal">×8</span>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:2px;">
+        <button id="playBtn">⏸ Пауза</button>
+        <button class="ghost" id="resetBtn">↺ Новий запуск</button>
+        <button class="ghost" id="clearStatsBtn">✕ Очистити статистику</button>
+        <button class="ghost" id="addPointsBtn" style="border-color: var(--accent); color: var(--accent); font-weight: 600;">⚡ Додати +500 точок</button>
+        <div class="mode-toggle" style="margin-left:auto;">
+          <button id="trailToggle" class="active">Слід руху</button>
+          <button id="pointsToggle" class="active">Атрактор</button>
+        </div>
+      </div>
+
+      <div class="presets-row">
+        <button class="preset" id="presetRegular">
+          <span class="p-name">① Регулярний</span>
+          <span class="p-desc">Малі коливання, слабкий хаос. Переріз збирається у гладкі криві — інваріантні тори KAM.</span>
+        </button>
+        <button class="preset" id="presetTransition">
+          <span class="p-name">② Перехідний</span>
+          <span class="p-desc">Тори руйнуються. З'являються острівці регулярності серед хаотичного моря.</span>
+        </button>
+        <button class="preset chaotic" id="presetChaos">
+          <span class="p-name">③ Хаос — дивний атрактор</span>
+          <span class="p-desc">Система в режимі розвиненого хаосу. Переріз Пуанкаре — фрактал, F(y) сингулярна.</span>
+        </button>
+      </div>
+
+      <div class="status-line" id="statusLine">
+        <span>t = <b id="tVal">0.0</b> с</span>
+        <span>Ляпунов-показник (оцінка) ≈ <b id="lyapVal">–</b></span>
+        <span>Режим: <b id="regimeVal">—</b></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Емпірична функція розподілу <span class="tag">F(y) = i / N</span></h2>
+
+      <div style="font-size:12px; color:var(--ink-soft); margin-bottom:8px;">Змінна для вибірки F(y):</div>
+      <div class="var-select" id="varSelect">
+        <button data-v="y2" class="active">y₂ (верт.)</button>
+        <button data-v="x2">x₂ (гор.)</button>
+        <button data-v="th2">θ₂ (кут)</button>
+        <button data-v="w2">ω₂ (швидк)</button>
+        <button data-v="y1">y₁</button>
+        <button data-v="x1">x₁</button>
+        <button data-v="th1">θ₁</button>
+        <button data-v="w1">ω₁</button>
+      </div>
+
+      <div class="section-mode" id="sectionMode">
+        <label class="radio-pill" data-mode="strobe">
+          <input type="radio" name="secmode">
+          <span class="pill-txt">
+            <b>Стробоскоп</b>
+            <span>Фіксація раз за період зовнішньої сили (підвіс у верхній точці)</span>
+          </span>
+        </label>
+        <label class="radio-pill active" data-mode="poincare">
+          <input type="radio" name="secmode" checked>
+          <span class="pill-txt">
+            <b>Переріз Пуанкаре</b>
+            <span>Фіксація коли θ₁ перетинає 0 (верхній маятник вертикальний, рух вправо)</span>
+          </span>
+        </label>
+      </div>
+
+      <canvas id="cdfCanvas" width="620" height="330"></canvas>
+
+      <div class="legend">
+        <span><span class="dot" style="background:var(--accent)"></span>Наростання F(y)</span>
+        <span><span class="dot" style="background:var(--ink-soft)"></span>Гістограма guстини</span>
+      </div>
+
+      <div class="stat-box">
+        <div class="stat">
+          <div class="k">Точок N</div>
+          <div class="v" id="statN">0</div>
+        </div>
+        <div class="stat">
+          <div class="k">Кор. розмірність (оцінка)</div>
+          <div class="v" id="statDim">—</div>
+        </div>
+        <div class="stat">
+          <div class="k">Макс. стрибок F</div>
+          <div class="v" id="statJump">—</div>
+        </div>
+      </div>
+
+      <div class="callout" id="mainCallout">
+        Система накопичує точки перерізу. Спостерігайте, як «сходинки» на графіку F(y) стають дедалі
+        дрібнішими та численнішими — але не зникають.
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="note">
+    <b>Як читати графік F(y):</b> кожна нова точка перерізу додає одну «сходинку» висотою 1/N.
+    Якщо переріз збирається на гладкій кривій (регулярний режим), точки densely заповнюють інтервали — і F(y) виглядає
+    гладкою вже за кілька тисяч кадрів. Якщо ж атрактор <b>дивний</b> (хаотичний режим), точки перерізу лежать
+    на канторовій множині — множині нульової довжини, але потужності континууму. Тоді F(y) — це так звана
+    <b>сингулярна функція</b> (на кшталт функції Кантора, «чортові сходи»): вона неперервна й монотонно зростає
+    від 0 до 1, але F′(y) = 0 майже всюди. Уся «маса ймовірності» зосереджена на множині міри нуль.
+  </footer>
+
+</div>
+
+
+    </div>
+
+    ${dist.geekSpoiler ? `
+    <details class="dossier" id="geekDossier">
+      <summary>${dist.geekSpoiler.title}</summary>
+      <p style="margin-top:14px; font-size:0.94rem; color:var(--paper);">${dist.geekSpoiler.body}</p>
+    </details>
+    ` : ""}
+
+    <div class="section-title">📎 Польові нотатки</div>
+    <ul class="notes-list" id="notesListEmbed2"></ul>
+    ${hasRelations ? `
+    <div class="section-title relations-section-title">🔗 Родинні зв\u2019язки</div>
+    <div class="relations-section" id="relationsBoxEmbed2"></div>
+    ` : ""}
+  `;
+  const notesList = document.getElementById("notesListEmbed2");
+  dist.notes.forEach(n=>{ const li=document.createElement("li"); li.textContent=n; notesList.appendChild(li); });
+  if (hasRelations){
+    const relBox = document.getElementById("relationsBoxEmbed2");
+    dist.relations.forEach(text=>{ const p=document.createElement("p"); p.className="relation-item"; p.innerHTML=parseRelationTemplate(text); relBox.appendChild(p); });
+    attachXrefHandlers(relBox);
+  }
+  initPendulumWidget();
+}
+
+
+function initBilliardWidget(){
+"use strict";
+
+const R = 55;
+const MIRROR_ANGLES = [60, 180, 300];
+const GAP_CENTERS   = [0, 120, 240];
+const EPS = 1e-9;
+
+const S = {
+  gap: 15,
+  N: 6,             // conditioning threshold, derived from nSlider position
+  resolution: 16000, // hardcoded — several samples per histogram pixel for alpha blending
+  hardCap: 1200,    // hardcoded — practical stand-in for infinity
+  alpha: 0,
+  showBurst: true,  // always on
+  mirrors: null,
+  bounceCounts: null // Int32Array; value === hardCap means "not escaped within hardCap" (practical infinity)
+};
+
+// ---------- physics ----------
+function buildMirrors(gap){
+  const L = (gap + 2*R) / Math.sqrt(3);
+  const mirrors = MIRROR_ANGLES.map(a=>{
+    const rad = a*Math.PI/180;
+    return {x:L*Math.cos(rad), y:L*Math.sin(rad), r:R};
+  });
+  mirrors.L = L;
+  mirrors.extent = L + R;
+  return mirrors;
+}
+
+function intersectCircle(ox,oy,dx,dy,cx,cy,r){
+  const rx = ox-cx, ry = oy-cy;
+  const b = rx*dx + ry*dy;
+  const c = rx*rx + ry*ry - r*r;
+  const disc = b*b - c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  const t1 = -b - sq, t2 = -b + sq;
+  if (t1 > EPS) return t1;
+  if (t2 > EPS) return t2;
+  return null;
+}
+
+// returns actual bounce count on escape, or hardCap sentinel if not escaped within hardCap
+function bounceCountToEscape(alphaDeg, mirrors, hardCap){
+  let px=0, py=0;
+  let rad = alphaDeg*Math.PI/180;
+  let dx = Math.cos(rad), dy = Math.sin(rad);
+  for (let b=0; b<hardCap; b++){
+    let bestT = Infinity, bestM = -1;
+    for (let i=0;i<3;i++){
+      const m = mirrors[i];
+      const t = intersectCircle(px,py,dx,dy,m.x,m.y,m.r);
+      if (t!==null && t<bestT){ bestT=t; bestM=i; }
+    }
+    if (bestM === -1) return b;
+    const hx = px+dx*bestT, hy = py+dy*bestT;
+    const m = mirrors[bestM];
+    let nx = hx-m.x, ny = hy-m.y;
+    const nlen = Math.hypot(nx,ny); nx/=nlen; ny/=nlen;
+    const dot = dx*nx+dy*ny;
+    dx = dx-2*dot*nx; dy = dy-2*dot*ny;
+    px = hx+dx*1e-6; py = hy+dy*1e-6;
+  }
+  return hardCap;
+}
+
+// full path trace for the single demo ray (scene illustration only)
+function traceRayPath(alphaDeg, mirrors, maxBounces){
+  let px=0, py=0;
+  let rad = alphaDeg*Math.PI/180;
+  let dx = Math.cos(rad), dy = Math.sin(rad);
+  const path = [{x:0,y:0}];
+  for (let b=0; b<maxBounces; b++){
+    let bestT = Infinity, bestM = -1;
+    for (let i=0;i<3;i++){
+      const m = mirrors[i];
+      const t = intersectCircle(px,py,dx,dy,m.x,m.y,m.r);
+      if (t!==null && t<bestT){ bestT=t; bestM=i; }
+    }
+    if (bestM === -1) return { escaped:true, bounces:b, path, dirx:dx, diry:dy };
+    const hx = px+dx*bestT, hy = py+dy*bestT;
+    const m = mirrors[bestM];
+    let nx = hx-m.x, ny = hy-m.y;
+    const nlen = Math.hypot(nx,ny); nx/=nlen; ny/=nlen;
+    const dot = dx*nx+dy*ny;
+    dx = dx-2*dot*nx; dy = dy-2*dot*ny;
+    px = hx+dx*1e-6; py = hy+dy*1e-6;
+    path.push({x:hx,y:hy});
+  }
+  return { escaped:false, bounces:maxBounces, path, dirx:dx, diry:dy };
+}
+
+function recomputeBounceCounts(){
+  S.mirrors = buildMirrors(S.gap);
+  const n = S.resolution;
+  const arr = new Int32Array(n);
+  for (let i=0;i<n;i++){
+    const a = -180 + i*360/n;
+    arr[i] = bounceCountToEscape(a, S.mirrors, S.hardCap);
+  }
+  S.bounceCounts = arr;
+}
+
+// ---------- log-scale N slider mapping ----------
+const N_SLIDER_MAX = 1000;
+function sliderToN(p){
+  const nMin = 1, nMax = S.hardCap;
+  const t = p / N_SLIDER_MAX;
+  return Math.max(1, Math.round(Math.exp(Math.log(nMin) + (Math.log(nMax)-Math.log(nMin))*t)));
+}
+
+// ---------- canvas setup ----------
+function setupCanvas(canvas, cssW, cssH){
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW*dpr);
+  canvas.height = Math.round(cssH*dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
+}
+
+const sceneCanvas = document.getElementById('sceneCanvas');
+const histCanvas  = document.getElementById('histCanvas');
+let sceneCtx, histCtx, sceneCssW=600, sceneCssH=600, histCssW=1100, histCssH=825;
+
+function resizeCanvases(){
+  sceneCssW = sceneCanvas.clientWidth || 600;
+  sceneCssH = sceneCanvas.clientHeight || sceneCssW;
+  sceneCtx = setupCanvas(sceneCanvas, sceneCssW, sceneCssH);
+
+  histCssW = histCanvas.clientWidth || 1100;
+  histCssH = histCanvas.clientHeight || Math.round(histCssW*0.75);
+  histCtx = setupCanvas(histCanvas, histCssW, histCssH);
+}
+
+// ---------- scene rendering ----------
+function drawScene(){
+  const ctx = sceneCtx;
+  const W = sceneCssW, H = sceneCssH;
+  const cx = W/2, cy = H/2;
+  const extent = S.mirrors.extent;
+  const scale = (Math.min(W,H)/2 * 0.9) / (extent + 40);
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#f7f8fa';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = 'rgba(30,40,55,0.06)';
+  const step = 22;
+  for (let x=step/2; x<W; x+=step){
+    for (let y=step/2; y<H; y+=step){
+      ctx.beginPath(); ctx.arc(x,y,1.1,0,7); ctx.fill();
+    }
+  }
+
+  function toScreen(wx,wy){ return [cx + wx*scale, cy - wy*scale]; }
+
+  // gap tick marks (neutral, no target highlighting anymore)
+  for (let i=0;i<3;i++){
+    const rad = GAP_CENTERS[i]*Math.PI/180;
+    const rIn = (extent+15)*scale, rOut = (extent+30)*scale;
+    const [x1,y1] = [cx + Math.cos(rad)*rIn, cy - Math.sin(rad)*rIn];
+    const [x2,y2] = [cx + Math.cos(rad)*rOut, cy - Math.sin(rad)*rOut];
+    ctx.strokeStyle = 'rgba(90,100,120,0.28)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+
+  // "still trapped at N" starburst
+  if (S.showBurst && S.bounceCounts){
+    const n = S.resolution;
+    const burstLen = (extent*0.55);
+    ctx.lineWidth = Math.max(1, 1.6*scale*0.02);
+    ctx.strokeStyle = 'rgba(124,58,237,0.55)';
+    const step2 = Math.max(1, Math.floor(n/2000)); // subsample for very high resolution
+    ctx.beginPath();
+    for (let i=0;i<n;i+=step2){
+      if (S.bounceCounts[i] < S.N) continue;
+      const a = -180 + i*360/n;
+      const rad = a*Math.PI/180;
+      const [x1,y1] = toScreen(0,0);
+      const [x2,y2] = toScreen(Math.cos(rad)*burstLen, Math.sin(rad)*burstLen);
+      ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    }
+    ctx.stroke();
+  }
+
+  // mirrors — flat cylinder cross-section
+  S.mirrors.forEach(m=>{
+    const [sx,sy] = toScreen(m.x, m.y);
+    const rr = m.r*scale;
+    const grad = ctx.createRadialGradient(sx,sy,rr*0.1, sx,sy,rr);
+    grad.addColorStop(0, '#c7d0dd');
+    grad.addColorStop(1, '#7c8ba1');
+    ctx.beginPath(); ctx.arc(sx,sy,rr,0,Math.PI*2);
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#4c5a6e'; ctx.stroke();
+  });
+
+  // single demo ray (from advanced alpha slider)
+  const res = traceRayPath(S.alpha, S.mirrors, Math.min(400, S.hardCap));
+
+  const [sx0,sy0] = toScreen(0,0);
+  const glow = ctx.createRadialGradient(sx0,sy0,0,sx0,sy0,14);
+  glow.addColorStop(0,'rgba(226,70,31,0.55)');
+  glow.addColorStop(1,'rgba(226,70,31,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(sx0,sy0,14,0,7); ctx.fill();
+  ctx.fillStyle = '#e2461f';
+  ctx.beginPath(); ctx.arc(sx0,sy0,3.4,0,7); ctx.fill();
+
+  const pts = res.path.map(p=>toScreen(p.x,p.y));
+  if (res.escaped){
+    const last = res.path[res.path.length-1];
+    const far = {x:last.x + res.dirx*500, y:last.y + res.diry*500};
+    pts.push(toScreen(far.x, far.y));
+  }
+
+  ctx.save();
+  if (!res.escaped){ ctx.setLineDash([6,5]); }
+  ctx.strokeStyle = res.escaped ? 'rgba(226,70,31,0.22)' : 'rgba(124,58,237,0.22)';
+  ctx.lineWidth = 7; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=> i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.stroke();
+  ctx.strokeStyle = res.escaped ? '#e2461f' : '#7c3aed';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=> i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#b5541f';
+  for (let i=1;i<res.path.length;i++){
+    const [x,y] = toScreen(res.path[i].x, res.path[i].y);
+    ctx.beginPath(); ctx.arc(x,y,2.6,0,7); ctx.fill();
+  }
+
+  ctx.strokeStyle = 'rgba(60,70,90,0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx,cy, (extent+40)*scale, 0, 7); ctx.stroke();
+
+  updateReadout(res);
+}
+
+function updateReadout(res){
+  const el = document.getElementById('readout');
+  const stillTrapped = !res.escaped || res.bounces >= S.N;
+  el.innerHTML = `
+    <span>демо-промінь: відбиттів до виходу — <b>${res.escaped ? res.bounces : '≥'+S.hardCap}</b></span>
+    <span>за умовою N=${S.N}: <b style="color:${stillTrapped?'#7c3aed':'#1a2230'}">${stillTrapped ? 'ще в пастці' : 'уже вийшов'}</b></span>
+  `;
+}
+
+// ---------- histogram: P(alpha | bounceCount >= N) ----------
+function drawHistogram(){
+  const ctx = histCtx;
+  const W = histCssW, H = histCssH;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#f7f8fa';
+  ctx.fillRect(0,0,W,H);
+
+  const marginL = 8, marginR = 8, marginT = 16, marginB = 26;
+  const plotW = W - marginL - marginR;
+  const barTop = marginT;
+  const barBottom = H - marginB;
+  const barH = barBottom - barTop;
+
+  const n = S.resolution;
+  const bc = S.bounceCounts;
+
+  ctx.strokeStyle = 'rgba(60,70,90,0.10)';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#8b93a3';
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center';
+  for (let d=-180; d<=180; d+=30){
+    const x = marginL + plotW*((d+180)/360);
+    ctx.beginPath(); ctx.moveTo(x, marginT); ctx.lineTo(x, barBottom); ctx.stroke();
+    ctx.fillText(d+'°', x, H-8);
+  }
+
+  let trappedCount = 0;
+  for (let i=0;i<n;i++) if (bc[i] >= S.N) trappedCount++;
+
+  if (trappedCount > 0){
+    const pixelCols = Math.max(1, Math.floor(plotW));
+    for (let px=0; px<pixelCols; px++){
+      const iStart = Math.floor(px * n / pixelCols);
+      const iEnd   = Math.floor((px+1) * n / pixelCols);
+      const total = iEnd - iStart;
+      if (total <= 0) continue;
+      let count = 0;
+      for (let i=iStart; i<iEnd; i++) if (bc[i] >= S.N) count++;
+      if (count === 0) continue;
+      const frac = count / total; // fraction of this pixel's angular width still "trapped"
+      ctx.fillStyle = `rgba(124,58,237,${frac.toFixed(3)})`;
+      ctx.fillRect(marginL + px, barTop + barH*0.08, 1.6, barH*0.92);
+    }
+  } else {
+    const isInf = S.N >= S.hardCap;
+    ctx.fillStyle = '#7c3aed';
+    ctx.font = '600 13px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center';
+    ctx.fillText('розподіл став сингулярним' + (isInf ? ' (N → ∞)' : ''), marginL+plotW/2, barTop+barH/2-8);
+    ctx.fillStyle = '#8b93a3';
+    ctx.font = '11.5px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillText('носій стягнувся до множини нульової міри — зменшіть N, щоб побачити проміжну дискретну структуру', marginL+plotW/2, barTop+barH/2+12);
+  }
+
+  // marker: current alpha (from the scene's ray slider)
+  const mx = marginL + plotW*((S.alpha+180)/360);
+  ctx.strokeStyle = '#e2461f';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(mx, marginT-6); ctx.lineTo(mx, barBottom); ctx.stroke();
+  ctx.beginPath();
+  ctx.fillStyle = '#e2461f';
+  ctx.arc(mx, marginT-6, 5, 0, 7); ctx.fill();
+
+  updateHistStats(trappedCount);
+}
+
+function approxIslandsTheoretical(N){
+  // exact combinatorics for the "complete" (unpruned) symbolic dynamics of the 3-mirror
+  // repeller: 3 choices from the source, then 2 choices at every subsequent bounce.
+  const log10 = Math.log10(3) + Math.max(0,N-1)*Math.log10(2);
+  if (log10 < 15){
+    return Math.round(Math.pow(10, log10)).toLocaleString('uk-UA');
+  }
+  const exp = Math.floor(log10);
+  const mantissa = Math.pow(10, log10-exp);
+  return mantissa.toFixed(2) + '×10^' + exp;
+}
+
+function updateHistStats(trappedCount){
+  const n = S.resolution;
+  const bc = S.bounceCounts;
+  let islands=0, prev=false;
+  for (let i=0;i<n;i++){
+    const isT = bc[i] >= S.N;
+    if (isT && !prev) islands++;
+    prev = isT;
+  }
+  const pct = (100*trappedCount/n);
+  const el = document.getElementById('histStats');
+  el.innerHTML = `
+    <span>P(ще в пастці при N=${S.N}) = <b>${pct < 0.01 && pct>0 ? pct.toExponential(2) : pct.toFixed(3)}%</b></span>
+    <span>острівців спостережено: <b>${islands}</b></span>
+    <span>острівців теоретично (≈3·2<sup>N-1</sup>): <b>${approxIslandsTheoretical(S.N)}</b></span>
+    <span>зазор = <b>${S.gap}px</b></span>
+  `;
+}
+
+// ---------- wiring ----------
+function fullRedraw(){ drawScene(); drawHistogram(); }
+function nOnlyRedraw(){ drawScene(); drawHistogram(); } // cheap: no retrace, just re-threshold
+
+const gapSlider = document.getElementById('gapSlider');
+const nSlider = document.getElementById('nSlider');
+const alphaSlider = document.getElementById('alphaSlider');
+
+const N_SLIDER_INF = 28; // last position == symbolic infinity (uses hardCap internally)
+
+function sliderToN(p){
+  return (p >= N_SLIDER_INF) ? S.hardCap : p;
+}
+
+function fmt(v,d=0){ return Number(v).toFixed(d); }
+
+function updateNLabel(){
+  const el = document.getElementById('nVal');
+  if (+nSlider.value >= N_SLIDER_INF){
+    el.textContent = 'N → ∞';
+    el.classList.add('inf');
+  } else {
+    el.textContent = 'N = ' + S.N;
+    el.classList.remove('inf');
+  }
+}
+
+let gapDebounce = null;
+function scheduleHeavyRecompute(){
+  if (gapDebounce) clearTimeout(gapDebounce);
+  gapDebounce = setTimeout(()=>{
+    recomputeBounceCounts();
+    fullRedraw();
+  }, 70);
+}
+
+gapSlider.addEventListener('input', ()=>{
+  S.gap = +gapSlider.value;
+  document.getElementById('gapVal').textContent = S.gap + ' px';
+  scheduleHeavyRecompute();
+});
+
+nSlider.addEventListener('input', ()=>{
+  S.N = sliderToN(+nSlider.value);
+  updateNLabel();
+  nOnlyRedraw();
+});
+
+alphaSlider.addEventListener('input', ()=>{
+  S.alpha = +alphaSlider.value;
+  document.getElementById('alphaVal').textContent = fmt(S.alpha,1) + '°';
+  drawScene();
+  drawHistogram();
+});
+
+window.addEventListener('resize', ()=>{
+  if (!document.getElementById('sceneCanvas')) return;
+  resizeCanvases();
+  fullRedraw();
+});
+
+// ---------- init ----------
+function init(){
+  document.getElementById('gapVal').textContent = S.gap + ' px';
+  document.getElementById('alphaVal').textContent = fmt(S.alpha,1) + '°';
+
+  S.N = sliderToN(+nSlider.value);
+  updateNLabel();
+
+  resizeCanvases();
+  recomputeBounceCounts();
+  fullRedraw();
+}
+init();
+
+}
+
+
+
+function initPendulumWidget(){
+
+// ============================================================
+// ФІЗИКА: подвійний маятник з коливною точкою підвісу
+// ============================================================
+
+const state = {
+  m1:1, m2:1, l1:1, l2:1,
+  g: 9.81,
+  gamma: 0.12,
+  driveA: 1.15,
+  driveOmega: 2.0,
+  speed: 8,
+  t: 0,
+  theta1: 2.4, theta2: 0.6,
+  omega1: 0.0, omega2: 0.0,
+  playing: true,
+};
+
+function pivot(t){
+  const x = state.driveA * Math.sin(state.driveOmega * t);
+  const vx = state.driveA * state.driveOmega * Math.cos(state.driveOmega * t);
+  const ax = -state.driveA * state.driveOmega * state.driveOmega * Math.sin(state.driveOmega * t);
+  return {x, vx, ax};
+}
+
+function derivs(y, t){
+  const [th1, th2, w1, w2] = y;
+  const {m1,m2,l1,l2,g,gamma} = state;
+  const P = pivot(t);
+  const gEffX = P.ax;
+
+  const dTh = th1 - th2;
+  const M = m1 + m2;
+
+  const den1 = l1*(M - m2*Math.cos(dTh)*Math.cos(dTh));
+  const num1 = -m2*l1*w1*w1*Math.sin(dTh)*Math.cos(dTh)
+             + m2*g*Math.sin(th2)*Math.cos(dTh)
+             - m2*l2*w2*w2*Math.sin(dTh)
+             - M*g*Math.sin(th1)
+             - M*gEffX*Math.cos(th1);
+  const a1 = num1/den1 - gamma*w1;
+
+  const den2 = l2*(M - m2*Math.cos(dTh)*Math.cos(dTh));
+  const num2 = m2*l2*w2*w2*Math.sin(dTh)*Math.cos(dTh)
+             + M*g*Math.sin(th1)*Math.cos(dTh)
+             + M*l1*w1*w1*Math.sin(dTh)
+             - M*g*Math.sin(th2)
+             + M*gEffX*Math.cos(dTh)*Math.cos(th1);
+  const a2raw = num2/den2 - gamma*w2;
+
+  return [w1, w2, a1, a2raw];
+}
+
+function rk4Step(y, t, dt){
+  const k1 = derivs(y, t);
+  const y2 = y.map((v,i)=>v+dt/2*k1[i]);
+  const k2 = derivs(y2, t+dt/2);
+  const y3 = y.map((v,i)=>v+dt/2*k2[i]);
+  const k3 = derivs(y3, t+dt/2);
+  const y4 = y.map((v,i)=>v+dt*k3[i]);
+  const k4 = derivs(y4, t+dt);
+  return y.map((v,i)=> v + dt/6*(k1[i]+2*k2[i]+2*k3[i]+k4[i]));
+}
+
+let Y = [state.theta1, state.theta2, state.omega1, state.omega2];
+const DT = 1/240;
+
+function getCoords(t, Yv){
+  const P = pivot(t);
+  const [th1, th2, w1, w2] = Yv;
+  const {l1,l2} = state;
+  const x1 = P.x + l1*Math.sin(th1);
+  const y1 = -l1*Math.cos(th1);
+  const x2 = x1 + l2*Math.sin(th2);
+  const y2 = y1 - l2*Math.cos(th2);
+  const vx1 = P.vx + l1*Math.cos(th1)*w1;
+  const vy1 = l1*Math.sin(th1)*w1;
+  const vx2 = vx1 + l2*Math.cos(th2)*w2;
+  const vy2 = vy1 + l2*Math.sin(th2)*w2;
+  return {x1,y1,x2,y2,vx1,vy1,vx2,vy2};
+}
+
+// ============================================================
+// СЕКЦІЇ / СТРОБОСКОП (ЗБЕРЕЖЕННЯ ДАНИХ)
+// ============================================================
+const dataStore = {
+  x1:[], y1:[], x2:[], y2:[], vx1:[], vy1:[], vx2:[], vy2:[],
+  th1:[], th2:[], w1:[], w2:[]
+};
+let sectionMode = 'poincare';
+let flashTimer = 0;
+
+function recordPoint(t, Yv){
+  const c = getCoords(t, Yv);
+  for(const k in c){ dataStore[k].push(c[k]); }
+  dataStore.th1.push(Yv[0]);
+  dataStore.th2.push(Yv[1]);
+  dataStore.w1.push(Yv[2]);
+  dataStore.w2.push(Yv[3]);
+  flashTimer = 0.15;
+}
+
+function checkSections(prevT, t, prevY, Yv){
+  const w = state.driveOmega;
+  const phasePrev = ((w*prevT) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  const phaseNow  = ((w*t) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  const target = Math.PI/2;
+
+  if(sectionMode === 'strobe'){
+    let crossed = false;
+    if(phaseNow >= phasePrev){
+      crossed = (phasePrev < target && phaseNow >= target);
+    } else {
+      crossed = (phasePrev < target) || (phaseNow >= target);
+    }
+    if(crossed){
+      recordPoint(t, Yv);
+    }
+  } else {
+    const sinPrev = Math.sin(prevY[0]);
+    const sinNow  = Math.sin(Yv[0]);
+    if(sinPrev < 0 && sinNow >= 0 && Yv[2] > 0){
+      recordPoint(t, Yv);
+    }
+  }
+}
+
+// Миттєво "домальовує" хмару точок перерізу Пуанкаре: наперед прокручує ту саму
+// фізику (RK4, той самий DT) на копії стану — без торкання реального Y/state.t
+// і без рендеру кожного кадру — доки не назбирається targetCount точок або не
+// вичерпається ліміт кроків (щоб не підвісити вкладку на дуже регулярних режимах,
+// де переріз майже не перетинається). Видимий маятник після цього все одно
+// стартує з чистого початкового стану — прискорюємо лише накопичення статистики.
+function seedSectionPoints(targetCount){
+  const MAX_STEPS = 700000;
+  const SEED_DT = DT*4; // грубший крок лише для попереднього накопичення хмари: та сама
+                        // якісна форма атрактора, у ~4 рази швидше; реальна анімація й
+                        // надалі рахується повноточним DT і цього кроку не використовує
+  const TIME_BUDGET_MS = 400;
+  const t0 = performance.now();
+  let ySeed = Y.slice();
+  let tSeed = state.t;
+  let steps = 0;
+  while (dataStore.th1.length < targetCount && steps < MAX_STEPS){
+    const prevT = tSeed, prevY = ySeed;
+    ySeed = rk4Step(ySeed, tSeed, SEED_DT);
+    tSeed += SEED_DT;
+    checkSections(prevT, tSeed, prevY, ySeed);
+    steps++;
+    if ((steps & 4095) === 0 && performance.now()-t0 > TIME_BUDGET_MS) break;
+  }
+}
+
+// ============================================================
+// ЛЯПУНОВ
+// ============================================================
+let shadowY = null;
+let lyapSum = 0, lyapCount = 0;
+const LYAP_EPS = 1e-6;
+
+function lyapStep(t, dt){
+  if(!shadowY){
+    shadowY = Y.map((v,i)=> v + (i===0? LYAP_EPS: 0));
+    return;
+  }
+  shadowY = rk4Step(shadowY, t, dt);
+  const d = Math.sqrt(shadowY.reduce((s,v,i)=> s+(v-Y[i])**2, 0));
+  if(d > 0){
+    const growth = Math.log(d/LYAP_EPS);
+    lyapSum += growth;
+    lyapCount++;
+    const scale = LYAP_EPS/d;
+    shadowY = Y.map((v,i)=> v + (shadowY[i]-v)*scale);
+  }
+}
+
+function currentLyapEstimate(){
+  if(lyapCount < 5) return null;
+  return lyapSum/(lyapCount*DT);
+}
+
+// ============================================================
+// RENDER — ПОДВІЙНИЙ CANVAS (ФІЗИЧНИЙ + ФАЗОВИЙ ПРОСТІР)
+// ============================================================
+const pc = document.getElementById('pendulumCanvas');
+const pctx = pc.getContext('2d');
+let trailPts = [];
+const MAX_TRAIL = 2000;
+
+function pendulumToScreen(x, y, scale, cx, cy){
+  return { x: cx + x*scale, y: cy - y*scale };
+}
+
+function drawPendulum(){
+  const W = pc.width, H = pc.height;
+  pctx.clearRect(0,0,W,H);
+
+  // ---- ЛІВА ЧАСТИНА: ФІЗИЧНИЙ РУХ ----
+  const cx = 190; // центр лівої половини (380 / 2)
+  const cy = H * 0.38;
+  const totalLen = state.l1 + state.l2;
+  const scale = Math.min(380, H) / (2.4 * totalLen);
+
+  // Спеціальні текстові мітки на самому Canvas
+  pctx.fillStyle = 'var(--ink-soft)';
+  pctx.font = 'bold 11px var(--sans)';
+  pctx.fillText('ФІЗИЧНИЙ ПРОСТІР (Рух маятника)', 15, 25);
+  pctx.fillText('ФАЗОВИЙ ПРОСТІР (Атрактор θ₂ – ω₂)', 395, 25);
+
+  // Сітка лівої частини
+  pctx.strokeStyle = 'rgba(35,36,31,0.025)';
+  pctx.lineWidth = 1;
+  for(let gx=-3; gx<=3; gx++){
+    pctx.beginPath(); pctx.moveTo(cx+gx*scale*0.5, 0); pctx.lineTo(cx+gx*scale*0.5, H); pctx.stroke();
+  }
+
+  // Слід руху нижнього вантажу (в конфігураційному просторі)
+  if(showTrail && trailPts.length>1){
+    pctx.beginPath();
+    for(let i=0;i<trailPts.length;i++){
+      const s = pendulumToScreen(trailPts[i].x, trailPts[i].y, scale, cx, cy);
+      if(i===0) pctx.moveTo(s.x,s.y); else pctx.lineTo(s.x,s.y);
+    }
+    pctx.strokeStyle = 'rgba(35,36,31,0.09)';
+    pctx.lineWidth = 1;
+    pctx.stroke();
+  }
+
+  // Малювання самого маятника
+  const P = pivot(state.t);
+  const pivS = pendulumToScreen(P.x, 0, scale, cx, cy);
+  const c = getCoords(state.t, Y);
+  const b1 = pendulumToScreen(c.x1, c.y1, scale, cx, cy);
+  const b2 = pendulumToScreen(c.x2, c.y2, scale, cx, cy);
+
+  // Вісь треку підвісу
+  pctx.beginPath();
+  pctx.moveTo(cx - state.driveA*scale - 14, cy);
+  pctx.lineTo(cx + state.driveA*scale + 14, cy);
+  pctx.strokeStyle = 'rgba(201,165,59,0.3)';
+  pctx.lineWidth = 3; pctx.setLineDash([2,5]); pctx.stroke(); pctx.setLineDash([]);
+
+  // Штанги маятника
+  pctx.beginPath(); pctx.moveTo(pivS.x, pivS.y); pctx.lineTo(b1.x, b1.y); pctx.lineTo(b2.x, b2.y);
+  pctx.strokeStyle = '#23241f'; pctx.lineWidth = 2.4; pctx.lineJoin='round'; pctx.lineCap='round'; pctx.stroke();
+
+  // Шарніри та вантажі
+  pctx.beginPath(); pctx.arc(pivS.x, pivS.y, 4.5, 0, 7); pctx.fillStyle = '#c9a53b'; pctx.fill(); pctx.stroke();
+
+  const r1 = 6 + 4*Math.sqrt(state.m1);
+  pctx.beginPath(); pctx.arc(b1.x, b1.y, r1, 0, 7); pctx.fillStyle = '#eee7d6'; pctx.fill(); pctx.strokeStyle = '#23241f'; pctx.lineWidth=1.5; pctx.stroke();
+
+  const r2 = 6 + 4*Math.sqrt(state.m2);
+  pctx.beginPath(); pctx.arc(b2.x, b2.y, r2, 0, 7);
+  const grad = pctx.createRadialGradient(b2.x-2,b2.y-2,1, b2.x, b2.y, r2);
+  grad.addColorStop(0,'#e2694a'); grad.addColorStop(1,'#b5482e');
+  pctx.fillStyle = grad; pctx.fill(); pctx.stroke();
+
+  if(flashTimer>0){
+    pctx.beginPath(); pctx.arc(b2.x, b2.y, r2 + (0.15-flashTimer)*120, 0, 7);
+    pctx.strokeStyle = `rgba(181,72,46,${flashTimer/0.15})`; pctx.lineWidth = 1.5; pctx.stroke();
+  }
+
+
+  // ---- ПРАВА ЧАСТИНА: СПРАВЖНІЙ ФАЗОВИЙ ПРОСТІР (θ₂ - ω₂) ----
+  const psLeft = 380 + 35;
+  const psRight = 760 - 20;
+  const psTop = 45;
+  const psBottom = 560 - 45;
+  const psW = psRight - psLeft;
+  const psH = psBottom - psTop;
+  const axX = psLeft + psW / 2; // центр по горизонталі (θ=0)
+  const axY = psTop + psH / 2;    // центр по вертикалі   (ω=0)
+  const maxW = 14;               // Максимальна відображувана швидкість ω₂
+
+  // Лінія розподілу екранів
+  pctx.strokeStyle = 'var(--line)'; pctx.lineWidth = 1;
+  pctx.beginPath(); pctx.moveTo(380, 15); pctx.lineTo(380, H - 15); pctx.stroke();
+
+  // Осі координат фазового простору
+  pctx.strokeStyle = 'rgba(35,36,31,0.2)'; pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(axX, psTop); pctx.lineTo(axX, psBottom); // вертикальна вісь
+  pctx.moveTo(psLeft, axY); pctx.lineTo(psRight, axY); // горизонтальна вісь
+  pctx.stroke();
+
+  // Додаткові лінії сітки для швидкості
+  pctx.strokeStyle = 'rgba(35,36,31,0.04)';
+  [10, 5, -5, -10].forEach(wVal => {
+    const wY = axY - (wVal / maxW) * (psH / 2);
+    pctx.beginPath(); pctx.moveTo(psLeft, wY); pctx.lineTo(psRight, wY); pctx.stroke();
+    pctx.fillStyle = 'rgba(35,36,31,0.35)'; pctx.font = '9px monospace';
+    pctx.fillText((wVal > 0 ? '+' : '') + wVal, psLeft - 18, wY + 3);
+  });
+
+  // Підписи осей фазової площини
+  pctx.fillStyle = 'rgba(35,36,31,0.5)';
+  pctx.font = '10px ui-monospace, monospace';
+  pctx.fillText('-π', psLeft, axY + 13);
+  pctx.fillText('0', axX - 3, axY + 13);
+  pctx.fillText('+π', psRight - 14, axY + 13);
+  pctx.fillText('ω₂ (швидкість)', axX + 8, psTop + 10);
+  pctx.fillText('θ₂ (кут)', psRight - 45, axY - 6);
+
+  // Малювання точок «книжкового» дивного атрактора
+  if(showPoints){
+    const N = dataStore.th2.length;
+    const start = Math.max(0, N - 6000); // Відображаємо останні 6000 точок для плавності
+    for(let i=start; i<N; i++){
+      const th = dataStore.th2[i];
+      const w = dataStore.w2[i];
+
+      // Обов'язкове згортання кута в проміжок [-PI, PI] (циклічність обертів маятника)
+      const thWrapped = ((th + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+      // Проєкція на екранні координати фазового простору
+      const ptX = psLeft + ((thWrapped + Math.PI) / (2 * Math.PI)) * psW;
+      let wNorm = w / maxW;
+      if(wNorm > 1) wNorm = 1; if(wNorm < -1) wNorm = -1; // кліппінг за межами шкали
+      const ptY = axY - wNorm * (psH / 2);
+
+      const age = (i - start) / (N - start || 1);
+      pctx.beginPath();
+      pctx.arc(ptX, ptY, 1.4, 0, 7);
+
+      const col = sectionMode === 'strobe' ? '181,72,46' : '42,111,111';
+      pctx.fillStyle = `rgba(${col}, ${0.18 + 0.62 * age})`;
+      pctx.fill();
+    }
+  }
+}
+
+// ============================================================
+// CDF canvas (РЕНДЕР ФУНКЦІЇ РОЗПОДІЛУ)
+// ============================================================
+const cc = document.getElementById('cdfCanvas');
+const cctx = cc.getContext('2d');
+let activeVar = 'y2';
+
+function drawCDF(){
+  const W = cc.width, H = cc.height;
+  cctx.clearRect(0,0,W,H);
+
+  let arr = dataStore[activeVar];
+  const N = arr.length;
+  const padL = 46, padR = 18, padT = 16, padB = 30;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  cctx.fillStyle = '#fbf9f3';
+  cctx.fillRect(0,0,W,H);
+
+  cctx.strokeStyle = 'rgba(35,36,31,0.15)'; cctx.lineWidth = 1;
+  cctx.beginPath(); cctx.moveTo(padL, padT); cctx.lineTo(padL, padT+plotH); cctx.lineTo(padL+plotW, padT+plotH); cctx.stroke();
+
+  cctx.fillStyle = '#6b6a5f'; cctx.font = '10.5px monospace';
+  [0,0.5,1].forEach(v=>{
+    const yy = padT+plotH - v*plotH;
+    cctx.fillText(v.toFixed(1), 6, yy+3);
+    cctx.strokeStyle='rgba(35,36,31,0.06)'; cctx.beginPath(); cctx.moveTo(padL,yy); cctx.lineTo(padL+plotW,yy); cctx.stroke();
+  });
+
+  if(N < 2){
+    cctx.fillStyle = '#6b6a5f'; cctx.font = '12px sans-serif';
+    cctx.fillText('Накопичення точок для аналізу…', padL+16, padT+plotH/2);
+    return;
+  }
+
+  // Якщо обрано кутові координати, згортаємо їх для коректності графіка розподілу
+  if (activeVar === 'th1' || activeVar === 'th2') {
+    arr = arr.map(v => ((v + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
+  }
+
+  const sorted = arr.slice().sort((a,b)=>a-b);
+  const minV = sorted[0], maxV = sorted[N-1];
+  const range = (maxV-minV)||1;
+
+  cctx.fillStyle = '#6b6a5f';
+  cctx.fillText(minV.toFixed(2), padL, padT+plotH+18);
+  cctx.fillText(maxV.toFixed(2), padL+plotW-30, padT+plotH+18);
+
+  // Гістограма
+  const bins = 90;
+  const hist = new Array(bins).fill(0);
+  for(const v of arr){
+    let bi = Math.floor((v-minV)/range*bins);
+    if(bi>=bins) bi=bins-1; if(bi<0) bi=0;
+    hist[bi]++;
+  }
+  const maxH = Math.max(...hist)||1;
+  cctx.fillStyle = 'rgba(107,106,95,0.32)';
+  for(let i=0;i<bins;i++){
+    const bx = padL + i/bins*plotW;
+    const bw = plotW/bins;
+    const bh = hist[i]/maxH*plotH*0.9;
+    cctx.fillRect(bx, padT+plotH-bh, bw*0.9, bh);
+  }
+
+  // Крива інтегрального розподілу F(y)
+  const col = sectionMode==='strobe' ? '181,72,46' : '42,111,111';
+  cctx.strokeStyle = `rgb(${col})`; cctx.lineWidth = 1.8;
+  cctx.beginPath();
+  for(let i=0;i<N;i++){
+    const x = padL + (sorted[i]-minV)/range*plotW;
+    const yFrac = (i+1)/N;
+    const y = padT+plotH - yFrac*plotH;
+    if(i===0){ cctx.moveTo(padL, padT+plotH); cctx.lineTo(x, padT+plotH); }
+    cctx.lineTo(x, y);
+  }
+  cctx.lineTo(padL+plotW, padT);
+  cctx.stroke();
+
+  // Розрахунок максимального розриву (стрибка) ймовірності
+  let jump = 0;
+  {
+    let i=0;
+    while(i<N){
+      let j=i;
+      const eps = range*0.0015;
+      while(j<N && sorted[j]-sorted[i] < eps) j++;
+      const massHere = (j-i)/N;
+      if(massHere>jump) jump = massHere;
+      i=j;
+    }
+  }
+
+  document.getElementById('statN').textContent = N.toLocaleString('uk-UA');
+  document.getElementById('statJump').textContent = (jump*100).toFixed(1)+'%';
+  document.getElementById('statDim').textContent = estimateBoxDim(sorted, minV, maxV);
+}
+
+function estimateBoxDim(sorted, minV, maxV){
+  if(sorted.length < 200) return '—';
+  const range=(maxV-minV)||1;
+  const scales = [40,80,160,320];
+  const pts=[];
+  for(const s of scales){
+    const occ = new Set();
+    for(const v of sorted){
+      occ.add(Math.floor((v-minV)/range*s));
+    }
+    pts.push([Math.log(s), Math.log(occ.size)]);
+  }
+  const n=pts.length;
+  const sx=pts.reduce((a,p)=>a+p[0],0), sy=pts.reduce((a,p)=>a+p[1],0);
+  const sxy=pts.reduce((a,p)=>a+p[0]*p[1],0), sxx=pts.reduce((a,p)=>a+p[0]*p[0],0);
+  const slope = (n*sxy - sx*sy)/(n*sxx-sx*sx);
+  if(!isFinite(slope)) return '—';
+  return slope.toFixed(2);
+}
+
+// ============================================================
+// НАЛАШТУВАННЯ ІНТЕРФЕЙСУ УПРАВЛІННЯ
+// ============================================================
+let showTrail = true, showPoints = true;
+
+document.getElementById('trailToggle').addEventListener('click', function(){
+  showTrail = !showTrail; this.classList.toggle('active', showTrail);
+});
+document.getElementById('pointsToggle').addEventListener('click', function(){
+  showPoints = !showPoints; this.classList.toggle('active', showPoints);
+});
+
+function bindSlider(id, key, fmt){
+  const el = document.getElementById(id);
+  const out = document.getElementById(id+'Val');
+  el.addEventListener('input', ()=>{
+    const v = parseFloat(el.value);
+    if(key==='mRatio'){ state.m2=1; state.m1 = v; }
+    else if(key==='lRatio'){ state.l2=1; state.l1 = v; }
+    else if(key==='damping'){ state.gamma = v; }
+    else if(key==='drive'){ state.driveA = v; }
+    else if(key==='freq'){ state.driveOmega = v; }
+    else if(key==='speed'){ state.speed = v; }
+    out.textContent = fmt? fmt(v): v.toFixed(2);
+  });
+}
+bindSlider('mRatio','mRatio'); bindSlider('lRatio','lRatio'); bindSlider('damping','damping');
+bindSlider('drive','drive');   bindSlider('freq','freq');       bindSlider('speed','speed', v=>'×'+v);
+
+document.getElementById('playBtn').addEventListener('click', function(){
+  state.playing = !state.playing;
+  this.textContent = state.playing? '⏸ Пауза' : '▶ Продовжити';
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  state.theta1 = (Math.random()-0.5)*2 + 2.0; state.theta2 = (Math.random()-0.5)*2;
+  state.omega1 = 0; state.omega2 = 0; state.t = 0;
+  Y = [state.theta1, state.theta2, state.omega1, state.omega2];
+  trailPts = []; shadowY = null; lyapSum=0; lyapCount=0;
+});
+
+document.getElementById('clearStatsBtn').addEventListener('click', ()=>{
+  for(const k in dataStore) dataStore[k]=[];
+});
+
+// Кнопка прискорення розрахунку (+500 точок перерізу)
+document.getElementById('addPointsBtn').addEventListener('click', () => {
+  const currentCount = dataStore.th2.length;
+  const targetCount = currentCount + 500;
+  let iterations = 0;
+  const maxIterations = 2000000;
+
+  while (dataStore.th2.length < targetCount && iterations < maxIterations) {
+    const prevT = state.t;
+    const prevY = Y;
+    Y = rk4Step(Y, state.t, DT);
+    state.t += DT;
+    lyapStep(prevT, DT);
+    checkSections(prevT, state.t, prevY, Y);
+    iterations++;
+  }
+
+  const c = getCoords(state.t, Y);
+  trailPts.push({x:c.x2, y:c.y2});
+  if(trailPts.length > MAX_TRAIL) trailPts.shift();
+
+  document.getElementById('tVal').textContent = state.t.toFixed(1);
+  const ly = currentLyapEstimate();
+  document.getElementById('lyapVal').textContent = ly !== null ? ly.toFixed(3) : '—';
+  drawCDF();
+});
+
+document.querySelectorAll('#varSelect button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#varSelect button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); activeVar = btn.dataset.v;
+  });
+});
+
+document.querySelectorAll('#sectionMode .radio-pill').forEach(pill=>{
+  pill.addEventListener('click', ()=>{
+    document.querySelectorAll('#sectionMode .radio-pill').forEach(p=>p.classList.remove('active'));
+    pill.classList.add('active'); pill.querySelector('input').checked = true;
+    sectionMode = pill.dataset.mode;
+    for(const k in dataStore) dataStore[k]=[];
+    seedSectionPoints(2000);
+  });
+});
+
+// ---- ПРЕСЕТИ ДИНАМІЧНИХ РЕЖИМІВ ----
+function applyPreset(p){
+  document.getElementById('mRatio').value = p.mRatio; state.m1=p.mRatio; state.m2=1;
+  document.getElementById('mRatioVal').textContent = p.mRatio.toFixed(2);
+  document.getElementById('lRatio').value = p.lRatio; state.l1=p.lRatio; state.l2=1;
+  document.getElementById('lRatioVal').textContent = p.lRatio.toFixed(2);
+  document.getElementById('damping').value = p.gamma; state.gamma=p.gamma;
+  document.getElementById('dampingVal').textContent = p.gamma.toFixed(2);
+  document.getElementById('drive').value = p.driveA; state.driveA=p.driveA;
+  document.getElementById('driveVal').textContent = p.driveA.toFixed(2);
+  document.getElementById('freq').value = p.driveOmega; state.driveOmega=p.driveOmega;
+  document.getElementById('freqVal').textContent = p.driveOmega.toFixed(2);
+
+  state.theta1 = p.th1; state.theta2 = p.th2; state.omega1=0; state.omega2=0; state.t=0;
+  Y = [state.theta1, state.theta2, 0, 0]; trailPts = [];
+  for(const k in dataStore) dataStore[k]=[];
+  shadowY=null; lyapSum=0; lyapCount=0;
+  seedSectionPoints(2000);
+
+  document.getElementById('regimeVal').textContent = p.regimeLabel;
+  document.getElementById('mainCallout').textContent = p.callout;
+  document.getElementById('mainCallout').className = 'callout' + (p.singular? ' singular':'');
+}
+
+document.getElementById('presetRegular').addEventListener('click', ()=>{
+  applyPreset({
+    mRatio:1, lRatio:1, gamma:0.25, driveA:0.18, driveOmega:1.6, th1:0.35, th2:0.2,
+    regimeLabel:'регулярний (KAM-тор)', singular:false,
+    callout:'Слабка накачка й помітне тертя. Фазові точки утворюють гладкі, чітко замкнені еліптичні кола на площині (інваріантні тори). Функція F(y) плавна й передбачувана.'
+  });
+});
+
+document.getElementById('presetTransition').addEventListener('click', ()=>{
+  applyPreset({
+    mRatio:1.3, lRatio:0.8, gamma:0.14, driveA:0.7, driveOmega:1.9, th1:1.4, th2:0.5,
+    regimeLabel:'перехідний (руйнування торів)', singular:false,
+    callout:'Тори руйнуються. У фазовому просторі з’являється «хаотичне море», проте в ньому все ще плавають стабільні острівці регулярності. Функція розподілу покривається першими великими сходинками.'
+  });
+});
+
+document.getElementById('presetChaos').addEventListener('click', ()=>{
+  applyPreset({
+    mRatio:3.00, lRatio:1.55, gamma:0.80, driveA:1.42, driveOmega:2.82, th1:2.4, th2:0.6,
+    regimeLabel:'розвинений хаос — дивний атрактор', singular:true,
+    callout:'⚠ Максимальний хаос. Маятник здійснює непередбачувані петлі та повні оберти. Подивіться на фазову площину справа: точки вишикуються в тонкі паралельні фрактальні шари. Це і є чистокровний класичний дивний атрактор! Функція F(y) стає сингулярною («чортові сходи»).'
+  });
+});
+
+// ============================================================
+// ГОЛОВНИЙ ЦИКЛ СИМУЛЯЦІЇ (MAIN LOOP)
+// ============================================================
+let lastFrame = performance.now();
+let cdfDirty = 0;
+
+function loop(now){
+  if (!document.getElementById('pendulumCanvas')) return; // картку закрито — зупиняємо цикл назавжди
+  const rawDt = Math.min((now-lastFrame)/1000, 0.05);
+  lastFrame = now;
+
+  if(state.playing){
+    const steps = state.speed;
+    for(let s=0; s<steps; s++){
+      const prevT = state.t;
+      const prevY = Y;
+      Y = rk4Step(Y, state.t, DT);
+      state.t += DT;
+      lyapStep(prevT, DT);
+      checkSections(prevT, state.t, prevY, Y);
+    }
+    const c = getCoords(state.t, Y);
+    trailPts.push({x:c.x2, y:c.y2});
+    if(trailPts.length>MAX_TRAIL) trailPts.shift();
+
+    if(flashTimer>0) flashTimer = Math.max(0, flashTimer - rawDt);
+
+    document.getElementById('tVal').textContent = state.t.toFixed(1);
+    const ly = currentLyapEstimate();
+    document.getElementById('lyapVal').textContent = ly!==null? ly.toFixed(3) : '—';
+    if(ly!==null){
+      document.getElementById('regimeVal').textContent = ly>0.05 ? 'хаотичний (λ>0)' : (ly>-0.02? 'межовий' : 'регулярний (λ≤0)');
+    }
+  }
+
+  drawPendulum();
+
+  cdfDirty++;
+  if(cdfDirty>=6){
+    drawCDF(); cdfDirty=0;
+  }
+  requestAnimationFrame(loop);
+}
+
+// Ініціалізація стартового стану — одразу хаотичний режим (найкрасивіший атрактор)
+applyPreset({
+  mRatio:3.00, lRatio:1.55, gamma:0.80, driveA:1.42, driveOmega:2.82, th1:2.4, th2:0.6,
+  regimeLabel:'розвинений хаос — дивний атрактор', singular:true,
+  callout:'⚠ Максимальний хаос. Маятник здійснює непередбачувані петлі та повні оберти. Подивіться на фазову площину справа: точки вишикуються в тонкі паралельні фрактальні шари. Це і є чистокровний класичний дивний атрактор! Функція F(y) стає сингулярною («чортові сходи»).'
+});
+
+requestAnimationFrame(loop);
+
+}
+
 
 function attachChartInteraction(){
   const canvas = document.getElementById("chart");
