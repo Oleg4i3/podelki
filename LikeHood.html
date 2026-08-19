@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Симулятор: Функція Правдоподібності</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --muted-text: #aaa;
+            --panel-bg: rgba(30, 30, 30, 0.85);
+            --panel-border: #444;
+            --title-color: #4da6ff;
+            --accent-blue: #4da6ff;
+            --accent-red: #ff5252;
+            --accent-yellow: #ffeb3b;
+            --input-bg: #333;
+            --input-border: #555;
+            --input-text: #fff;
+            --btn-bg: #333;
+            --btn-border: #555;
+            --btn-text: #fff;
+            --btn-hover-text: #000;
+            --modal-bg: #222;
+            --modal-header-bg: #2a2a2a;
+            --modal-text: #ddd;
+            --scrollbar-track: #222;
+            --scrollbar-thumb: #555;
+            --scene-bg: #111111;
+            --wireframe-color: #ffffff;
+        }
+        body.light-theme {
+            --bg-color: #eef1f5;
+            --text-color: #1a1a1a;
+            --muted-text: #666;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --panel-border: #ccc;
+            --title-color: #1266c9;
+            --accent-blue: #1266c9;
+            --accent-red: #d32f2f;
+            --accent-yellow: #b8860b;
+            --input-bg: #fff;
+            --input-border: #bbb;
+            --input-text: #1a1a1a;
+            --btn-bg: #fff;
+            --btn-border: #bbb;
+            --btn-text: #1a1a1a;
+            --btn-hover-text: #fff;
+            --modal-bg: #ffffff;
+            --modal-header-bg: #f2f2f2;
+            --modal-text: #222;
+            --scrollbar-track: #eee;
+            --scrollbar-thumb: #bbb;
+            --scene-bg: #eef1f5;
+            --wireframe-color: #333333;
+        }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.25s, color 0.25s; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* UI Elements */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .panel { background: var(--panel-bg); backdrop-filter: blur(8px); border: 1px solid var(--panel-border); border-radius: 8px; padding: 15px; pointer-events: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.6); transition: background-color 0.25s, border-color 0.25s; }
+        
+        /* Header / Tooltips */
+        #header { position: absolute; top: 20px; left: 20px; width: 350px; max-height: 52vh; overflow-y: auto; overflow-x: hidden; }
+        h1 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--title-color); }
+        .stats { margin-top: 10px; font-size: 0.95rem; line-height: 1.5; }
+        .highlight { color: var(--accent-yellow); font-weight: bold; }
+        .highlight-blue { color: var(--accent-blue); font-weight: bold; }
+        .highlight-red { color: var(--accent-red); font-weight: bold; }
+
+        /* Controls */
+        #controls { position: absolute; bottom: 20px; left: 20px; width: 350px; }
+        .slider-group { margin-bottom: 15px; }
+        .slider-group label { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; color: var(--text-color); }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent-blue); }
+        select#dist-select { background: var(--input-bg); color: var(--input-text); border: 1px solid var(--input-border); }
+
+        /* Legend */
+        #legend { position: absolute; bottom: 20px; right: 20px; width: 260px; }
+        .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.9rem; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .legend-swatch { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
+        /* Modal Buttons */
+        #modal-buttons { position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; pointer-events: auto; }
+        button { background: var(--btn-bg); color: var(--btn-text); border: 1px solid var(--btn-border); padding: 10px 15px; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: bold; }
+        button:hover { background: var(--accent-blue); color: var(--btn-hover-text); border-color: var(--accent-blue); }
+        #theme-toggle { padding: 10px 12px; font-size: 1.1rem; }
+
+        /* Modals */
+        .modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 900px; max-height: 85vh; overflow-y: auto; z-index: 100; pointer-events: auto; background: var(--modal-bg); border: 1px solid var(--panel-border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); transition: background-color 0.25s, border-color 0.25s; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); padding: 15px 20px; background: var(--modal-header-bg); border-radius: 10px 10px 0 0; position: sticky; top: 0; z-index: 10; }
+        .modal-header h2 { margin: 0; color: var(--title-color); font-size: 1.5rem; }
+        .close-btn { background: none; border: none; font-size: 1.8rem; line-height: 1; margin: 0; padding: 0; color: var(--muted-text); cursor: pointer; }
+        .close-btn:hover { background: none; color: var(--text-color); border: none; }
+        .modal-content { padding: 20px; font-size: 1.05rem; line-height: 1.6; color: var(--modal-text); }
+        
+        .modal-content h3 { color: var(--text-color); border-bottom: 1px solid var(--panel-border); padding-bottom: 5px; margin-top: 25px; }
+        .modal-content ul { padding-left: 20px; }
+        .modal-content li { margin-bottom: 8px; }
+        .modal-content blockquote { border-left: 4px solid var(--accent-blue); margin: 0; padding: 10px 15px; background: var(--modal-header-bg); border-radius: 0 6px 6px 0; }
+        #dist-note-text { white-space: pre-line; }
+        
+        /* Backdrop */
+        #backdrop { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); pointer-events: auto; z-index: 99; backdrop-filter: blur(3px); }
+        
+        /* Scrollbar for modal */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-blue); }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div id="header" class="panel">
+            <h1 id="dist-title">Експоненційний розподіл</h1>
+            <div id="formula-display" style="font-size: 0.95rem; color: var(--muted-text);">$$f(x; \lambda) = \lambda e^{-\lambda x}$$</div>
+            <div class="stats">
+                <div>Фіксовані дані (<span id="data-sym1">x</span>): <span id="val-x" class="highlight-blue">2.00</span></div>
+                <div>Фіксований параметр (<span id="param-sym1">λ</span>): <span id="val-l" class="highlight-red">1.00</span></div>
+                <hr style="border-color: var(--panel-border); margin: 10px 0;">
+                <div>Максимум правдоподібності (MLE):</div>
+                <div>При <span id="data-sym2">x</span> = <span id="mle-x">2.00</span>, найкраще <span class="highlight"><span id="param-sym2">λ</span> = <span id="mle-l">0.50</span></span></div>
+            </div>
+        </div>
+
+        <div id="controls" class="panel">
+            <div class="slider-group">
+                <label><span>Розподіл</span></label>
+                <select id="dist-select" style="width:100%; padding:7px; border-radius:4px; font-weight:bold;">
+                    <option value="exponential" selected>Експоненційний</option>
+                    <option value="uniform">Рівномірний неперервний</option>
+                    <option value="binomial">Біноміальний (дискретний)</option>
+                    <option value="beta1">Бета з одним параметром</option>
+                    <option value="normal_mu">Нормальний — змінне μ</option>
+                    <option value="normal_sigma">Нормальний — змінне σ</option>
+                </select>
+            </div>
+            <div class="slider-group">
+                <label><span>Дані (<span id="data-sym3">x</span>) - Синя площина</span> <span id="lbl-x" class="highlight-blue">2.00</span></label>
+                <input type="range" id="slider-x" min="0.2" max="5" step="0.05" value="2.00">
+                <div id="hint-x" style="font-size: 0.8rem; color: var(--muted-text); margin-top: 4px;">Формує переріз правдоподібності L(λ)</div>
+            </div>
+            <div class="slider-group">
+                <label><span>Параметр (<span id="param-sym3">λ</span>) - Червона площина</span> <span id="lbl-l" class="highlight-red">1.00</span></label>
+                <input type="range" id="slider-l" min="0.1" max="5" step="0.05" value="1.00">
+                <div id="hint-l" style="font-size: 0.8rem; color: var(--muted-text); margin-top: 4px;">Формує переріз густини ймовірності f(x)</div>
+            </div>
+        </div>
+
+        <div id="modal-buttons">
+            <button id="theme-toggle" onclick="toggleTheme()" title="Перемкнути тему">🌙</button>
+            <button onclick="openModal('modal-example')">Опис сцени</button>
+            <button onclick="openModal('modal-theory')">Теорія: Правдоподібність</button>
+        </div>
+
+        <div id="legend" class="panel">
+            <div class="legend-item"><span class="legend-swatch" style="background:#ff5252;"></span><span>Червона — густина розподілу ймовірності f(x; θ)</span></div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#4da6ff;"></span><span>Синя — функція правдоподібності L(θ | x)</span></div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#ffeb3b;"></span><span>Жовта точка — максимум правдоподібності (MLE)</span></div>
+        </div>
+    </div>
+
+    <div id="backdrop" onclick="closeModals()"></div>
+
+    <div id="modal-example" class="panel modal">
+        <div class="modal-header">
+            <h2>Про цей симулятор</h2>
+            <button class="close-btn" onclick="closeModals()">&times;</button>
+        </div>
+        <div class="modal-content">
+            <div id="modal-dynamic-content"></div>
+            <p><em>Керування:</em> Використовуйте повзунки, щоб рухати площини і спостерігати, як криві "ковзають" по рельєфу поверхні. Ліва кнопка миші обертає камеру, права — переміщує, коліщатко — наближає.</p>
+            <div id="dist-note-block">
+                <h3 id="dist-note-title">Особливість цього розподілу</h3>
+                <p id="dist-note-text"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-theory" class="panel modal">
+        <div class="modal-header">
+            <h2>Теоретична довідка: функція правдоподібності</h2>
+            <button class="close-btn" onclick="closeModals()">&times;</button>
+        </div>
+        <div class="modal-content">
+            <h3>1. Строге означення</h3>
+            <p>Нехай \(X\) — випадкова величина (наші дані) з функцією густини ймовірності \(f(x; \theta)\), де \(\theta\) — невідомий параметр. Якщо ми спостерігали конкретне значення даних \(x\), <strong>функція правдоподібності</strong> \(L(\theta | x)\) визначається як:</p>
+            $$L(\theta | x) = f(x; \theta)$$
+            <p>Математично це той самий вираз, але змінюється перспектива:</p>
+            <ul>
+                <li>У <strong>густині ймовірності</strong> \(f(x; \theta)\): Параметр \(\theta\) фіксований, а \(x\) змінюється. Визначає ймовірність (або щільність) отримати різні дані при відомому параметрі.</li>
+                <li>У <strong>функції правдоподібності</strong> \(L(\theta | x)\): Дані \(x\) фіксовані (вже отримані), а \(\theta\) змінюється. Визначає, наскільки правдоподібним є параметр \(\theta\) для пояснення цих конкретних даних.</li>
+            </ul>
+
+            <h3>2. Концептуальні властивості</h3>
+            <p><strong>Чи є вона ймовірністю? Ні.</strong> Ймовірність відноситься до майбутніх подій (даних), які ще не сталися. Правдоподібність відноситься до гіпотез (параметрів) щодо подій, які вже відбулися. Ми кажемо: «Це значення параметра має високу правдоподібність», а не «Ймовірність параметра дорівнює...».</p>
+            <p><strong>Чи є вона розподілом ймовірності? Ні.</strong> Сума (або інтеграл) функції правдоподібності по всьому простору параметрів не дорівнює 1: \(\int L(\theta | x) \, d\theta \neq 1\). Наприклад, для дискретного випадку (вибір монети з 0, 1 або 2 гербами) сума правдоподібностей склала 1.5. Вона не підкоряється аксіомам ймовірності.</p>
+
+            <h3>3. Геометрична інтерпретація (3D)</h3>
+            <p>Якщо розглядати \(f(x; \theta)\) як функцію двох змінних, вона утворює тривимірну поверхню. Густина ймовірності та функція правдоподібності — це <strong>дві ортогональні проєкції (перерізи)</strong> одного й того самого математичного об'єкта:</p>
+            <ul>
+                <li>Переріз уздовж осі \(x\) (фіксуємо \(\theta\)) формує густину ймовірності.</li>
+                <li>Переріз уздовж осі \(\theta\) (фіксуємо \(x\)) формує функцію правдоподібності.</li>
+            </ul>
+
+            <h3>4. Метод максимальної правдоподібності (MLE)</h3>
+            <p>Локальний максимум на перерізі правдоподібності (жовта точка в симуляторі) має колосальне значення. Це <strong>Оцінка Максимальної Правдоподібності (MLE)</strong>. Вона вказує на значення параметра \(\hat{\theta}\), яке робить отримані дані найбільш "очікуваними".</p>
+            <p>В експоненційному розподілі \(f(x; \lambda) = \lambda e^{-\lambda x}\), щоб знайти максимум, ми беремо похідну функції правдоподібності по \(\lambda\) і прирівнюємо її до нуля:</p>
+            $$ \frac{\partial}{\partial \lambda} (\lambda e^{-\lambda x}) = 1 \cdot e^{-\lambda x} - \lambda x e^{-\lambda x} = e^{-\lambda x} (1 - \lambda x) = 0 $$
+            <p>Оскільки \(e^{-\lambda x} > 0\), залишається \(1 - \lambda x = 0\), звідки:</p>
+            $$ \hat{\lambda}_{MLE} = \frac{1}{x} $$
+            <p>Саме цю закономірність демонструє симулятор: вершина "пагорба" завжди знаходиться у точці \(\lambda = 1/x\). У спадному меню доступні й інші розподіли — для рівномірного максимум лежить на межі розриву (похідна там не визначена), для дискретного біноміального поверхня взагалі складається з окремих "стрічок", а не гладкого рельєфу.</p>
+
+            <h3>5. Фізичний зміст інтеграла та Байєсівський підхід</h3>
+            <p>У класичній статистиці площа під кривою правдоподібності не має фізичного змісту — важлива лише точка максимуму. Однак у <strong>Байєсівській статистиці</strong> цей інтеграл відіграє ключову роль у теоремі Байєса:</p>
+            $$P(\theta | x) = \frac{L(\theta | x) P(\theta)}{\int L(\theta | x) P(\theta) \, d\theta}$$
+            <p>Тут інтеграл (знаменник) виступає <em>константою нормування</em> (маргінальною ймовірністю даних). Він "стягує" недобудований розподіл функції правдоподібності (з урахуванням апріорних знань) до площі, що дорівнює 1, перетворюючи її на справжній апостеріорний розподіл ймовірності параметра.</p>
+        </div>
+    </div>
+
+    <script>
+        function openModal(id) {
+            document.getElementById('backdrop').style.display = 'block';
+            document.getElementById(id).style.display = 'block';
+        }
+        function closeModals() {
+            document.getElementById('backdrop').style.display = 'none';
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        }
+        function toggleTheme() {
+            const isLight = document.body.classList.toggle('light-theme');
+            document.getElementById('theme-toggle').textContent = isLight ? '☀️' : '🌙';
+            window.dispatchEvent(new CustomEvent('themechange', { detail: { isLight } }));
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. Setup Scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(7, 5, 8);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(2.5, 0.5, 2.5);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        
+        const fillLight = new THREE.DirectionalLight(0xaaccff, 0.3);
+        fillLight.position.set(-5, 3, -5);
+        scene.add(fillLight);
+
+        // Axes (X=Red, Y=Green, Z=Blue)
+        let axesHelper = new THREE.AxesHelper(6);
+        scene.add(axesHelper);
+
+        // ==================== Distribution configurations ====================
+        function binomPMF(k, n, p) {
+            if (k < 0 || k > n) return 0;
+            let c = 1;
+            for (let i = 0; i < k; i++) { c *= (n - i) / (i + 1); }
+            return c * Math.pow(p, k) * Math.pow(1 - p, n - k);
+        }
+
+        const DISTRIBUTIONS = {
+            exponential: {
+                title: 'Експоненційний розподіл',
+                formula: '$$f(x; \\lambda) = \\lambda e^{-\\lambda x}$$',
+                xSym: 'x', thetaSym: 'λ',
+                xMin: 0.2, xMax: 5, xStep: 0.05, xDefault: 2, xDiscrete: false,
+                thetaMin: 0.1, thetaMax: 5, thetaStep: 0.05, thetaDefault: 1,
+                scale: 2.5,
+                pdf: (x, theta) => theta * Math.exp(-theta * x),
+                mle: (x) => 1 / x,
+                hintX: 'Формує переріз правдоподібності L(λ)',
+                hintL: 'Формує переріз густини ймовірності f(x)',
+                note: 'Класичний гладкий асиметричний "пагорб": похідна плавно обнуляється в єдиній точці λ̂=1/x.'
+            },
+            uniform: {
+                title: 'Рівномірний розподіл U(0, θ)',
+                formula: '$$f(x; \\theta) = \\frac{1}{\\theta}, \\quad 0 \\le x \\le \\theta$$',
+                xSym: 'x', thetaSym: 'θ',
+                xMin: 0.2, xMax: 5, xStep: 0.05, xDefault: 2, xDiscrete: false,
+                thetaMin: 0.2, thetaMax: 5, thetaStep: 0.05, thetaDefault: 3,
+                scale: 1.0,
+                pdf: (x, theta) => (x <= theta) ? (1 / theta) : 0,
+                mle: (x) => x,
+                hintX: 'Формує переріз L(θ) — розривний, зі стрибком при θ=x',
+                hintL: 'Формує переріз f(x) — плоска "полиця" висотою 1/θ',
+                note: 'Поверхня розривна вздовж діагоналі θ=x: щойно θ стає меншим за спостережене x, правдоподібність стрибком падає до нуля. Максимум лежить точно на межі розриву (θ̂=x) — похідна там не визначена, тож MLE знаходять не прирівнюванням похідної до нуля, а аналізом крайової точки області визначення.'
+            },
+            binomial: {
+                title: 'Біноміальний розподіл Bin(n=10, p)',
+                formula: '$$f(k; p) = \\binom{10}{k} p^k (1-p)^{10-k}$$',
+                xSym: 'k', thetaSym: 'p',
+                xMin: 0, xMax: 10, xStep: 1, xDefault: 3, xDiscrete: true,
+                thetaMin: 0.02, thetaMax: 0.98, thetaStep: 0.01, thetaDefault: 0.5,
+                scale: 12,
+                pdf: (k, p) => binomPMF(Math.round(k), 10, p),
+                mle: (k) => Math.round(k) / 10,
+                hintX: 'k — ціле число успіхів; проміжних значень не існує',
+                hintL: 'Формує переріз L(p) при фіксованому k',
+                note: 'Дані k дискретні: поверхня фактично складається з 11 окремих "стрічок" (по одній на кожне k=0..10), а не з гладкого рельєфу — між ними немає проміжних значень. Це наочна ілюстрація того, що правдоподібність — не густина: сума L по всіх можливих даних не мусить дорівнювати 1.\n\nСпробуйте виставити p, яке не кратне 0.1 (наприклад 0.35), і подивіться на червоний переріз f(k;p): оцінка p̂=k/n може набувати лише значень, кратних 1/n=0.1 (тут 0.0, 0.1, ..., 1.0), тож жодне k не поверне точно 0.35. Найімовірніші k (тут k=3 і k=4, з майже однаковою висотою — 25% і 24%) "оточують" справжнє p з обох боків, а не влучають у нього. Це похибка квантування MLE для дискретних даних: чим більше n, тим густіша сітка можливих оцінок і тим точніше мода наближається до істинного p.'
+            },
+            beta1: {
+                title: 'Бета-розподіл з одним параметром Beta(θ, 1)',
+                formula: '$$f(x; \\theta) = \\theta \\, x^{\\theta-1}, \\quad 0 < x < 1$$',
+                xSym: 'x', thetaSym: 'θ',
+                xMin: 0.05, xMax: 0.95, xStep: 0.01, xDefault: 0.7, xDiscrete: false,
+                thetaMin: 0.1, thetaMax: 5, thetaStep: 0.05, thetaDefault: 1.5,
+                scale: 1.0,
+                pdf: (x, theta) => theta * Math.pow(x, theta - 1),
+                mle: (x) => -1 / Math.log(x),
+                hintX: 'Формує переріз L(θ)',
+                hintL: 'Формує переріз f(x) на (0,1)',
+                note: 'Форма перерізу L(θ) якісно залежить від x: при x близько до 1 крива зростає без обмеження (максимум "тікає" до правої межі θ), а при малих x — це типовий спадний пагорб з максимумом θ̂=-1/ln(x). Одна й та сама поверхня показує дві принципово різні поведінки залежно від того, де саме ріже синя площина.'
+            },
+            normal_mu: {
+                title: 'Нормальний розподіл N(μ, σ=1) — змінне середнє',
+                formula: '$$f(x; \\mu) = \\frac{1}{\\sqrt{2\\pi}} e^{-(x-\\mu)^2/2}$$',
+                xSym: 'x', thetaSym: 'μ',
+                xMin: 0, xMax: 5, xStep: 0.05, xDefault: 2.5, xDiscrete: false,
+                thetaMin: 0, thetaMax: 5, thetaStep: 0.05, thetaDefault: 2.5,
+                scale: 14,
+                pdf: (x, theta) => (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-((x - theta) ** 2) / 2),
+                mle: (x) => x,
+                hintX: 'Формує переріз L(μ) — гаусіана',
+                hintL: 'Формує переріз f(x) — та сама гаусіана',
+                note: 'Найменш цікавий випадок (навмисно доданий "до кучі"): густина і правдоподібність — буквально одна й та сама функція Гаусса, лише розрізана в іншому напрямку. Поверхня симетрична відносно діагоналі x=μ, і жодного якісно нового ефекту (розриву, дискретності, зміни форми) тут немає.'
+            },
+            normal_sigma: {
+                title: 'Нормальний розподіл N(μ=2.5, σ) — змінне σ',
+                formula: '$$f(x; \\sigma) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-(x-2.5)^2/(2\\sigma^2)}$$',
+                xSym: 'x', thetaSym: 'σ',
+                xMin: 0, xMax: 5, xStep: 0.05, xDefault: 3.5, xDiscrete: false,
+                thetaMin: 0.15, thetaMax: 3, thetaStep: 0.02, thetaDefault: 1,
+                scale: 5,
+                pdf: (x, theta) => (1 / (theta * Math.sqrt(2 * Math.PI))) * Math.exp(-((x - 2.5) ** 2) / (2 * theta * theta)),
+                mle: (x) => Math.abs(x - 2.5),
+                hintX: 'Формує переріз L(σ) при фіксованому середньому μ=2.5',
+                hintL: 'Формує переріз f(x) — ширина дзвону залежить від σ',
+                note: 'На відміну від варіанту зі змінним μ, тут переріз L(σ) — вже НЕ гаусіана: це асиметричний пагорб, що прямує до нуля і при σ→0 (експонента "душить" зростання 1/σ), і при σ→∞. Максимум має закритий вигляд σ̂=|x-μ|. Це найближчий аналог до дисперсії вибірки — і геометрично зовсім інша форма, ніж симетричний дзвін варіанту зі змінним μ.'
+            }
+        };
+
+        let currentConfig = DISTRIBUTIONS.exponential;
+        const Y_CAP = 6.5; // захисне обмеження висоти, щоб жоден розподіл не "пробивав" сцену
+        const VISUAL_LEN = 5; // фіксована "довжина" обох горизонтальних осей на екрані, однакова для всіх розподілів
+
+        // Домени різних розподілів мають дуже різний масштаб (напр. p ∈ [0.02,0.98] проти k ∈ [0,10]).
+        // Щоб поверхня не виглядала сплющеною, реальне значення параметра переводимо у фіксовані "світові" координати.
+        function worldX(config, x) {
+            return (x - config.xMin) / (config.xMax - config.xMin) * VISUAL_LEN;
+        }
+        function worldTheta(config, theta) {
+            return (theta - config.thetaMin) / (config.thetaMax - config.thetaMin) * VISUAL_LEN;
+        }
+
+        function heightOf(config, x, theta) {
+            const raw = config.pdf(x, theta);
+            if (!isFinite(raw) || raw < 0) return 0;
+            return Math.min(raw * config.scale, Y_CAP);
+        }
+
+        // 2. Generate Surface (rebuilt per distribution)
+        function buildSurfaceGeometry(config) {
+            const geometry = new THREE.BufferGeometry();
+            const segments = 90;
+            const vertices = [];
+            const indices = [];
+
+            for (let i = 0; i <= segments; i++) {
+                let x = config.xMin + (i / segments) * (config.xMax - config.xMin);
+                let xEval = config.xDiscrete ? Math.round(x) : x;
+                let wx = worldX(config, x);
+                for (let j = 0; j <= segments; j++) {
+                    let theta = config.thetaMin + (j / segments) * (config.thetaMax - config.thetaMin);
+                    let wt = worldTheta(config, theta);
+                    let y = heightOf(config, xEval, theta);
+                    vertices.push(wx, y, wt);
+                }
+            }
+
+            for (let i = 0; i < segments; i++) {
+                for (let j = 0; j < segments; j++) {
+                    let a = i * (segments + 1) + j;
+                    let b = a + 1;
+                    let c = a + (segments + 1);
+                    let d = c + 1;
+                    indices.push(a, b, d);
+                    indices.push(a, d, c);
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // Solid material for surface
+        const surfaceMaterial = new THREE.MeshPhongMaterial({
+            color: 0x2277aa,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            shininess: 50
+        });
+        const surfaceMesh = new THREE.Mesh(buildSurfaceGeometry(currentConfig), surfaceMaterial);
+        scene.add(surfaceMesh);
+
+        // Wireframe overlay to emphasize 3D shape
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.15
+        });
+        const wireframeMesh = new THREE.Mesh(surfaceMesh.geometry, wireframeMaterial);
+        scene.add(wireframeMesh);
+
+        // React to light/dark theme toggle (button lives in a plain, non-module script)
+        window.addEventListener('themechange', (e) => {
+            const isLight = e.detail.isLight;
+            scene.background = new THREE.Color(isLight ? 0xeef1f5 : 0x111111);
+            wireframeMaterial.color.set(isLight ? 0x333333 : 0xffffff);
+        });
+
+        function rebuildSurface(config) {
+            const newGeom = buildSurfaceGeometry(config);
+            surfaceMesh.geometry.dispose();
+            surfaceMesh.geometry = newGeom;
+            wireframeMesh.geometry = newGeom;
+        }
+
+        function rebuildAxes() {
+            scene.remove(axesHelper);
+            axesHelper = new THREE.AxesHelper(VISUAL_LEN * 1.3);
+            scene.add(axesHelper);
+        }
+
+        // 3. Cutting Planes
+        const planeMaterialX = new THREE.MeshBasicMaterial({ color: 0x4da6ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const planeMaterialL = new THREE.MeshBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+
+        // Plane perpendicular to X axis (Likelihood cross section)
+        const planeMeshX = new THREE.Mesh(new THREE.PlaneGeometry(6, 8), planeMaterialX);
+        planeMeshX.rotation.y = Math.PI / 2;
+        scene.add(planeMeshX);
+
+        // Plane perpendicular to Z axis (PDF cross section)
+        const planeMeshL = new THREE.Mesh(new THREE.PlaneGeometry(6, 8), planeMaterialL);
+        scene.add(planeMeshL);
+
+        function rebuildPlanes() {
+            const width = VISUAL_LEN + 3;
+            const height = Y_CAP + 2;
+            planeMeshX.geometry.dispose();
+            planeMeshX.geometry = new THREE.PlaneGeometry(width, height);
+            planeMeshL.geometry.dispose();
+            planeMeshL.geometry = new THREE.PlaneGeometry(width, height);
+        }
+
+        // 4. Thick Lines (Tubes) for intersections
+        let likelihoodCurveMesh, pdfCurveMesh, maxPointMesh;
+
+        class LikelihoodCurve extends THREE.Curve {
+            constructor(fixedX, config) { super(); this.fixedX = fixedX; this.config = config; }
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                const config = this.config;
+                let theta = config.thetaMin + t * (config.thetaMax - config.thetaMin);
+                let xEval = config.xDiscrete ? Math.round(this.fixedX) : this.fixedX;
+                let y = heightOf(config, xEval, theta);
+                return optionalTarget.set(worldX(config, this.fixedX), y, worldTheta(config, theta));
+            }
+        }
+
+        class PDFCurve extends THREE.Curve {
+            constructor(fixedTheta, config) { super(); this.fixedTheta = fixedTheta; this.config = config; }
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                const config = this.config;
+                let x = config.xMin + t * (config.xMax - config.xMin);
+                let xEval = config.xDiscrete ? Math.round(x) : x;
+                let y = heightOf(config, xEval, this.fixedTheta);
+                return optionalTarget.set(worldX(config, x), y, worldTheta(config, this.fixedTheta));
+            }
+        }
+
+        const materialLikelihood = new THREE.MeshBasicMaterial({ color: 0x4da6ff });
+        const materialPDF = new THREE.MeshBasicMaterial({ color: 0xff5252 });
+
+        function updateLikelihoodLine(x_val, config) {
+            if (likelihoodCurveMesh) scene.remove(likelihoodCurveMesh);
+            const path = new LikelihoodCurve(x_val, config);
+            const geometry = new THREE.TubeGeometry(path, 100, 0.05, 8, false);
+            likelihoodCurveMesh = new THREE.Mesh(geometry, materialLikelihood);
+            scene.add(likelihoodCurveMesh);
+        }
+
+        function updatePDFLine(theta_val, config) {
+            if (pdfCurveMesh) scene.remove(pdfCurveMesh);
+            const path = new PDFCurve(theta_val, config);
+            const geometry = new THREE.TubeGeometry(path, 100, 0.05, 8, false);
+            pdfCurveMesh = new THREE.Mesh(geometry, materialPDF);
+            scene.add(pdfCurveMesh);
+        }
+
+        // Max Likelihood Point
+        const maxGeom = new THREE.SphereGeometry(0.12, 32, 32);
+        const maxMat = new THREE.MeshPhongMaterial({ color: 0xffeb3b, emissive: 0x444400, shininess: 100 });
+        maxPointMesh = new THREE.Mesh(maxGeom, maxMat);
+        scene.add(maxPointMesh);
+
+        function updateMaxPoint(x_val, config) {
+            let xEval = config.xDiscrete ? Math.round(x_val) : x_val;
+            let optimal_theta = config.mle(xEval);
+            if (!isFinite(optimal_theta)) optimal_theta = config.thetaMax;
+
+            let display_theta = Math.min(Math.max(optimal_theta, config.thetaMin), config.thetaMax);
+            let max_y = heightOf(config, xEval, display_theta);
+            maxPointMesh.position.set(worldX(config, x_val), max_y, worldTheta(config, display_theta));
+
+            document.getElementById('mle-x').innerText = config.xDiscrete ? xEval.toString() : x_val.toFixed(2);
+            document.getElementById('mle-l').innerText = display_theta.toFixed(2);
+        }
+
+        // 5. Update Loop & UI Listeners
+        const sliderX = document.getElementById('slider-x');
+        const sliderL = document.getElementById('slider-l');
+        const distSelect = document.getElementById('dist-select');
+
+        function applyDistributionUI(config) {
+            document.getElementById('dist-title').innerText = config.title;
+            document.getElementById('formula-display').innerHTML = config.formula;
+            document.getElementById('data-sym1').innerText = config.xSym;
+            document.getElementById('data-sym2').innerText = config.xSym;
+            document.getElementById('data-sym3').innerText = config.xSym;
+            document.getElementById('param-sym1').innerText = config.thetaSym;
+            document.getElementById('param-sym2').innerText = config.thetaSym;
+            document.getElementById('param-sym3').innerText = config.thetaSym;
+            document.getElementById('hint-x').innerText = config.hintX;
+            document.getElementById('hint-l').innerText = config.hintL;
+            document.getElementById('dist-note-text').innerText = config.note;
+
+            const sumOrArea = config.xDiscrete ? 'сума' : 'площа';
+            document.getElementById('modal-dynamic-content').innerHTML = `
+                <p>Перед вами 3D-поверхня, яка описує <strong>${config.title}</strong>. Вона побудована як функція двох змінних: даних \\(${config.xSym}\\) (вісь X) та параметра \\(${config.thetaSym}\\) (вісь Z).</p>
+                <ul>
+                    <li><span class="highlight-blue">Синя площина (дані \\(${config.xSym}\\) фіксовані)</span> — розрізає поверхню так, що лінія перетину утворює криву <strong>функції правдоподібності</strong> \\(L(${config.thetaSym} \\mid ${config.xSym})\\). Жовта сфера — точка максимуму (найбільш правдоподібне значення параметра для заданих даних).</li>
+                    <li><span class="highlight-red">Червона площина (параметр \\(${config.thetaSym}\\) фіксований)</span> — розрізає поверхню так, що лінія перетину утворює криву <strong>густини ймовірності</strong> \\(f(${config.xSym}; ${config.thetaSym})\\), ${sumOrArea} під якою завжди дорівнює 1.</li>
+                </ul>
+            `;
+
+            sliderX.min = config.xMin; sliderX.max = config.xMax; sliderX.step = config.xStep; sliderX.value = config.xDefault;
+            sliderL.min = config.thetaMin; sliderL.max = config.thetaMax; sliderL.step = config.thetaStep; sliderL.value = config.thetaDefault;
+
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([document.getElementById('formula-display'), document.getElementById('modal-dynamic-content')]);
+            }
+        }
+
+        function updateScene() {
+            const config = currentConfig;
+            const currentX = parseFloat(sliderX.value);
+            const currentTheta = parseFloat(sliderL.value);
+
+            const midX = (config.xMin + config.xMax) / 2;
+            const midTheta = (config.thetaMin + config.thetaMax) / 2;
+            const planeY = (Y_CAP / 2) + 1;
+            planeMeshX.position.set(worldX(config, currentX), planeY, worldTheta(config, midTheta));
+            planeMeshL.position.set(worldX(config, midX), planeY, worldTheta(config, currentTheta));
+
+            const xDisplay = config.xDiscrete ? Math.round(currentX).toString() : currentX.toFixed(2);
+            const thetaDisplay = currentTheta.toFixed(2);
+            document.getElementById('lbl-x').innerText = xDisplay;
+            document.getElementById('val-x').innerText = xDisplay;
+            document.getElementById('lbl-l').innerText = thetaDisplay;
+            document.getElementById('val-l').innerText = thetaDisplay;
+
+            updateLikelihoodLine(currentX, config);
+            updatePDFLine(currentTheta, config);
+            updateMaxPoint(currentX, config);
+        }
+
+        function switchDistribution(key) {
+            currentConfig = DISTRIBUTIONS[key];
+            applyDistributionUI(currentConfig);
+            rebuildSurface(currentConfig);
+            rebuildAxes();
+            rebuildPlanes();
+
+            camera.position.set(7, 5, 8);
+            controls.target.set(VISUAL_LEN / 2, 1, VISUAL_LEN / 2);
+            controls.update();
+
+            updateScene();
+        }
+
+        distSelect.addEventListener('change', () => switchDistribution(distSelect.value));
+        sliderX.addEventListener('input', updateScene);
+        sliderL.addEventListener('input', updateScene);
+
+        applyDistributionUI(currentConfig);
+        rebuildPlanes();
+        updateScene();
+
+        // 6. Render Loop
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
