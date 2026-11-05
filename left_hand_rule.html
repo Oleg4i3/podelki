@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Правило левой руки</title>
+<style>
+  html,body{margin:0;height:100%;background:#12161d;overflow:hidden;font-family:system-ui,sans-serif;color:#e8edf5}
+  #view{position:fixed;inset:0}
+  #labels{position:fixed;inset:0;pointer-events:none}
+  .lbl{font:700 20px system-ui,sans-serif;text-shadow:0 1px 4px #000,0 0 8px #000;white-space:nowrap}
+  #panel{position:fixed;left:8px;right:8px;bottom:8px;max-width:520px;margin:auto;
+    background:rgba(20,26,36,.88);border:1px solid #2c3647;border-radius:12px;padding:10px 14px;font-size:13px;backdrop-filter:blur(6px)}
+  #panel h1{font-size:14px;margin:0 0 6px;font-weight:600}
+  #panel p{margin:0 0 8px;line-height:1.35;color:#b8c3d4}
+  .row{display:grid;grid-template-columns:130px 1fr 40px;align-items:center;gap:8px;margin:3px 0}
+  .row input{width:100%}
+  .row span{text-align:right;color:#8fa0b8;font-variant-numeric:tabular-nums}
+  .b{color:#48d597}.i{color:#4aa8ff}.f{color:#ff5a4a}
+  button{background:#2a3547;color:#e8edf5;border:0;border-radius:8px;padding:6px 12px;margin-top:6px;cursor:pointer}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="labels"></div>
+<div id="panel">
+  <h1>Правило левой руки (ладонь — линии <span class="b">B</span>, пальцы — ток <span class="i">I</span>, большой — сила <span class="f">F</span>)</h1>
+  <p>Тяните мышью/пальцем — вращение камеры. Слайдерами меняйте поле и ток, рука поворачивается сама.</p>
+  <div class="row"><label class="b">B: азимут</label><input id="baz" type="range" min="0" max="360" value="0"><span id="vbaz"></span></div>
+  <div class="row"><label class="b">B: наклон</label><input id="bel" type="range" min="-89" max="89" value="0"><span id="vbel"></span></div>
+  <div class="row"><label class="i">I: поворот ⟂B</label><input id="iph" type="range" min="0" max="360" value="90"><span id="viph"></span></div>
+  <div class="row"><label class="i">I: угол к B</label><input id="ial" type="range" min="10" max="90" value="90"><span id="vial"></span></div>
+  <button id="reset">Сброс</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x12161d);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, .1, 100);
+camera.position.set(3.5, 2.2, 8);
+scene.add(camera);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+view.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer({element: document.getElementById('labels')});
+labelRenderer.setSize(innerWidth, innerHeight);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 4; controls.maxDistance = 16;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4658, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(2, 3, 4);
+camera.add(key);   // свет следует за камерой — любой ракурс освещён
+
+// ---------- рука (локально: пальцы +Y, ладонь смотрит в +Z, большой в -X = ЛЕВАЯ рука) ----------
+const skin = new THREE.MeshStandardMaterial({color:0xe6b08c, roughness:.55});
+const nailMat = new THREE.MeshStandardMaterial({color:0xf4d6c6, roughness:.3});
+const sleeveMat = new THREE.MeshStandardMaterial({color:0x2d4f86, roughness:.8, side:THREE.DoubleSide});
+
+function makeFinger(lengths, radii, curl, nail=true){
+  const root = new THREE.Group();
+  let parent = root;
+  lengths.forEach((l,i)=>{
+    const seg = new THREE.Group();
+    seg.rotation.x = curl;
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(radii[i+1], radii[i], l, 20).translate(0,l/2,0), skin);
+    cyl.scale.z = .88;
+    const joint = new THREE.Mesh(new THREE.SphereGeometry(radii[i+1], 20, 14).translate(0,l,0), skin);
+    joint.scale.z = .88;
+    seg.add(cyl, joint);
+    if(i===0) seg.position.y = 0;
+    parent.add(seg);
+    if(i===lengths.length-1 && nail){
+      const n = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), nailMat);
+      n.scale.set(radii[i+1]*.72, l*.38, .05);
+      n.position.set(0, l*.62, -radii[i+1]*.8);
+      seg.add(n);
+    }
+    const next = new THREE.Group();
+    next.position.y = l;
+    seg.add(next);
+    parent = next;
+  });
+  return root;
+}
+
+const hand = new THREE.Group();   // модель руки, ладонь по центру в начале координат
+const model = new THREE.Group();
+model.position.y = -.5;
+hand.add(model);
+
+// ладонь: контур + выдавливание со скруглением
+const s = new THREE.Shape();
+s.moveTo(-.34,-.25);
+s.bezierCurveTo(-.46,-.05,-.55,.1,-.52,.42);
+s.lineTo(-.5,1.0);
+s.lineTo(.5,.95);
+s.lineTo(.47,.5);
+s.bezierCurveTo(.47,.3,.4,0,.33,-.25);
+s.closePath();
+const palmGeo = new THREE.ExtrudeGeometry(s, {depth:.1, bevelEnabled:true, bevelThickness:.07, bevelSize:.06, bevelSegments:5, curveSegments:24});
+palmGeo.translate(0,0,-.05);
+model.add(new THREE.Mesh(palmGeo, skin));
+
+// бугор большого пальца
+const thenar = new THREE.Mesh(new THREE.SphereGeometry(.3, 24, 16), skin);
+thenar.scale.set(1, 1.25, .55);
+thenar.position.set(-.3, .15, .06);
+model.add(thenar);
+
+// четыре пальца (указательный … мизинец), сомкнуты, лёгкий изгиб
+[[-.38, .95, .12, .10],[-.13, 1.08, .125, .09],[.12, .98, .115, .10],[.36, .76, .10, .12]].forEach(([x,L,r,curl])=>{
+  const f = makeFinger([L*.45,L*.30,L*.25],[r,r*.93,r*.86,r*.76],curl);
+  f.position.set(x,.96,0);
+  model.add(f);
+});
+
+// большой палец — строго вдоль -X (направление силы)
+const thumb = makeFinger([.5,.42,.36],[.15,.13,.115,.1],.06);
+thumb.position.set(-.4,.2,0);
+thumb.rotation.z = Math.PI/2;
+model.add(thumb);
+
+// запястье, предплечье, рукав
+const wrist = new THREE.Mesh(new THREE.CylinderGeometry(.34,.30,1.6,28,1,true).translate(0,-1.0,0), skin);
+wrist.scale.z = .75;
+const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,1.6,28).translate(0,-1.0,0), skin);
+cap.scale.z = .75;
+const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(.42,.46,1.2,32,1,true).translate(0,-1.7,0), sleeveMat);
+sleeve.scale.z = .85;
+model.add(wrist, cap, sleeve);
+
+scene.add(hand);
+
+// ---------- стрелки ----------
+function makeArrow(color, text){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({color, emissive:color, emissiveIntensity:.4, roughness:.4});
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,1,16).translate(0,.5,0), mat);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(.11,.28,20).translate(0,.14,0), mat);
+  g.add(shaft, head);
+  const el = document.createElement('div');
+  el.className='lbl'; el.textContent=text; el.style.color='#'+color.toString(16).padStart(6,'0');
+  const lab = new CSS2DObject(el);
+  g.add(lab);
+  g.userData = {shaft, head, lab};
+  return g;
+}
+function setArrow(g, len){
+  const {shaft, head, lab} = g.userData;
+  shaft.scale.y = Math.max(len-.28, .01);
+  head.position.y = Math.max(len-.28, 0);
+  lab.position.set(0, len+.25, 0);
+}
+const C_B = 0x48d597, C_I = 0x4aa8ff, C_F = 0xff5a4a;
+
+// I — над ладонью, вдоль пальцев (локально +Y)
+const arrI = makeArrow(C_I, 'I');
+arrI.position.set(0, -.9, .55);
+setArrow(arrI, 2.7);
+hand.add(arrI);
+
+// F — от кончика большого, вдоль -X (локально)
+const arrF = makeArrow(C_F, 'F');
+arrF.rotation.z = Math.PI/2;
+arrF.position.set(-1.88, -.3, .05);
+hand.add(arrF);
+
+// ---------- поле B: сетка линий со стрелками ----------
+const bGroup = new THREE.Group();
+const pts = [];
+const coneGeo = new THREE.ConeGeometry(.07,.3,12);
+const coneMat = new THREE.MeshBasicMaterial({color:C_B});
+for(let gx=-2; gx<=2; gx++) for(let gz=-2; gz<=2; gz++){
+  const x = gx*.75, z = gz*.75;
+  pts.push(x,-3.2,z, x,3.2,z);
+  [-1.9, 1.8].forEach(y=>{
+    const c = new THREE.Mesh(coneGeo, coneMat);
+    c.position.set(x,y,z);
+    bGroup.add(c);
+  });
+}
+const lg = new THREE.BufferGeometry();
+lg.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+bGroup.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({color:C_B, transparent:true, opacity:.5})));
+const bEl = document.createElement('div');
+bEl.className='lbl'; bEl.textContent='B'; bEl.style.color='#48d597';
+const bLab = new CSS2DObject(bEl);
+bLab.position.set(0,3.5,0);
+bGroup.add(bLab);
+scene.add(bGroup);
+
+// ---------- логика ----------
+const $ = id => document.getElementById(id);
+const ids = ['baz','bel','iph','ial'];
+const DEF = {baz:0, bel:0, iph:90, ial:90};
+const rad = d => d*Math.PI/180;
+const targetQ = new THREE.Quaternion();
+const Y = new THREE.Vector3(0,1,0);
+
+function update(){
+  const az = rad(+$('baz').value), el = rad(+$('bel').value);
+  const ph = rad(+$('iph').value), al = rad(+$('ial').value);
+  ids.forEach(k => $('v'+k).textContent = $(k).value + '°');
+
+  // B (az=0 → вдоль -Z, т.е. «от зрителя к ладони»)
+  const B = new THREE.Vector3(Math.cos(el)*Math.sin(az), Math.sin(el), -Math.cos(el)*Math.cos(az)).normalize();
+  const up = Math.abs(B.y) > .99 ? new THREE.Vector3(1,0,0) : new THREE.Vector3(0,1,0);
+  const e1 = new THREE.Vector3().crossVectors(up, B).normalize();
+  const e2 = new THREE.Vector3().crossVectors(B, e1).normalize();
+  const p = e1.clone().multiplyScalar(Math.cos(ph)).add(e2.clone().multiplyScalar(Math.sin(ph)));
+
+  // I: угол al между I и B (90° — перпендикулярно)
+  const I = p.multiplyScalar(Math.sin(al)).add(B.clone().multiplyScalar(Math.cos(al))).normalize();
+
+  // составляющая B, перпендикулярная I, входит в ладонь
+  const Bp = B.clone().sub(I.clone().multiplyScalar(B.dot(I))).normalize();
+  const Zp = Bp.clone().negate();                // нормаль ладони = −B⊥
+  const Yp = I;                                  // пальцы = ток
+  const Xp = new THREE.Vector3().crossVectors(Yp, Zp).normalize(); // = −(I×B): большой смотрит в −X = I×B
+  targetQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Xp, Yp, Zp));
+
+  bGroup.quaternion.setFromUnitVectors(Y, B);
+  setArrow(arrF, .35 + 1.15*Math.sin(al));       // |F| ∝ sin α
+}
+ids.forEach(k => $(k).addEventListener('input', update));
+$('reset').onclick = () => { ids.forEach(k => $(k).value = DEF[k]); update(); };
+update();
+hand.quaternion.copy(targetQ);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+let last = performance.now();
+renderer.setAnimationLoop(() => {
+  const now = performance.now(), dt = Math.min((now-last)/1000, .1); last = now;
+  hand.quaternion.slerp(targetQ, 1-Math.exp(-dt*9));
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
