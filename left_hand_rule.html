@@ -70,8 +70,8 @@ const sh=new THREE.Shape();
 sh.moveTo(-2.4,4);sh.lineTo(-2.4,.3);sh.quadraticCurveTo(-2.4,-.9,-1.2,-.9);sh.lineTo(1.2,-.9);sh.quadraticCurveTo(2.4,-.9,2.4,.3);sh.lineTo(2.4,4);sh.lineTo(1.4,4);sh.lineTo(1.4,.5);sh.quadraticCurveTo(1.4,0,.9,0);sh.lineTo(-.9,0);sh.quadraticCurveTo(-1.4,0,-1.4,.5);sh.lineTo(-1.4,4);sh.closePath();
 const mg=new THREE.ExtrudeGeometry(sh,{depth:2.8,bevelEnabled:true,bevelSize:.08,bevelThickness:.08,bevelSegments:3,curveSegments:16});
 mg.translate(0,0,-1.4);mg.rotateX(Math.PI/2);{const m0=new THREE.Mesh(mg,mat(0x8a949c));m0.renderOrder=1;inner.add(m0);}
-[[-1.9,0xd64545],[1.9,0x3b6fd6]].forEach(([x,c])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(1.2,3.04,1.65),mat(c));b.position.set(x,0,3.25);b.renderOrder=1;inner.add(b);});
-const lN=label('N','#d64545'),lS=label('S','#3b6fd6');lN.position.set(-1.9,2,3.4);lS.position.set(1.9,2,3.4);lN.scale.set(1,1,1);lS.scale.set(1,1,1);inner.add(lN,lS);
+[[-1.9,0x3b6fd6],[1.9,0xd64545]].forEach(([x,c])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(1.2,3.04,1.65),mat(c));b.position.set(x,0,3.25);b.renderOrder=1;inner.add(b);});
+const lN=label('N','#3b6fd6'),lS=label('S','#d64545');lN.position.set(-1.9,2,3.4);lS.position.set(1.9,2,3.4);lN.scale.set(1,1,1);lS.scale.set(1,1,1);inner.add(lN,lS);
 
 function arrow(len,color,crossColor){
   const g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color});
@@ -116,13 +116,16 @@ function flow(t){
   else{const n=fcones.length,ln=[2*W,2*H,2*W,2*H],pr=4*W+4*H;fcones.forEach((c,i)=>{let s=((((t*.9/pr*sgn+i/n)%1)+1)%1)*pr,k=0;while(k<3&&s>ln[k]){s-=ln[k];k++;}
     c.position.lerpVectors(C[k],C[(k+1)%4],s/ln[k]);c.quaternion.setFromUnitVectors(Y,fd[k].clone().multiplyScalar(sgn));});}}
 function sideBtn(){document.getElementById('side').textContent='Сторона '+(hs+1);}
+//////////
 
-/* Рука: пальці +z, нормаль долоні +y, великий палець +x (ліва). Єдина гладка сітка шкіри, напівпрозора */
+/* Рука: вужча долоня, довші пальці з плавним входом, кісточки на тилі, лінії долоні */
 const hand=new THREE.Group();hand.rotation.order='YXZ';scene.add(hand);
-const skin=new THREE.MeshStandardMaterial({color:0xe6ac8c,roughness:.6,transparent:true,opacity:.55,depthWrite:false}),
+const skin=new THREE.MeshStandardMaterial({color:0xe95255,roughness:.62,metalness:0,transparent:true,opacity:.76,depthWrite:false}),
  pre=new THREE.MeshBasicMaterial({colorWrite:false,transparent:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}),
- nailM=new THREE.MeshStandardMaterial({color:0xff7777,roughness:.2,transparent:true,opacity:.85,depthWrite:false});
+ nailM=new THREE.MeshStandardMaterial({color:0xf2c2b2,roughness:.32,transparent:true,opacity:.9,depthWrite:false}),
+ creaseM=new THREE.MeshBasicMaterial({color:0xb87a58,transparent:true,opacity:.55,depthWrite:false});
 const HP=[],HI=[],nails=[],sg=Math.sign,pw=Math.pow,ex=Math.exp,dg=Math.PI/180;
+
 function itp(xs,ys,x){const n=xs.length;if(x<=xs[0])return ys[0];if(x>=xs[n-1])return ys[n-1];let i=0;while(x>xs[i+1])i++;
   const h=xs[i+1]-xs[i],t=(x-xs[i])/h,m=k=>{const a=Math.max(k-1,0),b=Math.min(k+1,n-1);return(ys[b]-ys[a])/(xs[b]-xs[a])*h;},t2=t*t,t3=t2*t;
   return(2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*m(i)+(-2*t3+3*t2)*ys[i+1]+(t3-t2)*m(i+1);}
@@ -133,41 +136,137 @@ function addRings(R){const M=R[0].length,N=R.length,b=HP.length/3;
   for(let i=0;i<N-1;i++)for(let j=0;j<M;j++){const j2=(j+1)%M,a=b+i*M+j,e=b+i*M+j2,c=b+(i+1)*M+j,d=b+(i+1)*M+j2;HI.push(a,e,c,e,d,c);}
   [0,N-1].forEach(k=>{const o=V(0,0,0);R[k].forEach(v=>o.add(v));o.multiplyScalar(1/M);const ci=HP.length/3;HP.push(o.x,o.y,o.z);
     for(let j=0;j<M;j++){const a=b+k*M+j,e=b+k*M+(j+1)%M;k?HI.push(a,e,ci):HI.push(e,a,ci);}});}
-function tube(path,rad,n){const R=[],fr=u=>{const T=path.getTangentAt(u),S=V(T.z,0,-T.x).normalize();return[path.getPointAt(u),T,S,T.clone().cross(S),rad(u)];};
-  for(let k=0;k<=24;k++){const[p,,S,U,r]=fr(k/24);R.push(sq(p,S,U,r,r*.92,n));}
+function tube(path,rad,segs,n){const R=[],fr=u=>{const T=path.getTangentAt(u);let S=V(T.z,0,-T.x);
+    if(S.lengthSq()<1e-9)S.set(1,0,0);S.normalize();return[path.getPointAt(u),T,S,T.clone().cross(S),rad(u)];};
+  for(let k=0;k<=segs;k++){const[p,,S,U,r]=fr(k/segs);R.push(sq(p,S,U,r,r*.92,n));}
   const[pe,T,S,U,r]=fr(1);
   for(let j=1;j<=7;j++){const a=j/7*Math.PI/2;R.push(sq(pe.clone().addScaledVector(T,r*Math.sin(a)),S,U,r*Math.cos(a),r*.92*Math.cos(a),n));}
   addRings(R);}
-// долоня + зап'ястя + передпліччя: перетини-«квадратні еліпси» з тенаром і гіпотенаром
-{const ZS=[-1.3,-1,-.7,-.45,-.12,.3,.52],A=[.37,.34,.31,.41,.49,.51,.5],B=[.25,.22,.185,.18,.165,.15,.13],NN=[2,2,2.1,2.4,2.7,2.8,2.8],R=[];
- for(let k=0;k<=40;k++){const z=-1.3+1.82*k/40,a=itp(ZS,A,z),b=itp(ZS,B,z),n=itp(ZS,NN,z),r=[];
-  for(let j=0;j<40;j++){const f=6.2831853*j/40,co=Math.cos(f),si=Math.sin(f),x=a*sg(co)*pw(Math.abs(co),2/n),yr=sg(si)*pw(Math.abs(si),2/n);
-   const y=yr>0?yr*(b*.92+.085*ex(-(((x-.27)/.22)**2+((z+.28)/.3)**2))+.045*ex(-(((x+.33)/.16)**2+((z+.12)/.3)**2))):yr*b*1.12;
-   r.push(V(x,y,z));}
-  R.push(r);}
- addRings(R);}
-// пальці: [x, z основи, розвід°, фаланги, радіус]
-let tipZ=1.7;
-[[.36,.55,2.5,.46,.27,.2,.113],[.12,.58,0,.5,.29,.2,.117],[-.12,.55,-2.5,.47,.28,.2,.108],[-.35,.47,-6,.36,.2,.17,.092]].forEach(([x,z,ang,l1,l2,l3,r0])=>{
-  const al=ang*dg,d=V(Math.sin(al),0,Math.cos(al)),Lp=l1+l2+l3,a=V(x,0,z).addScaledVector(d,-.12),b=V(x,0,z).addScaledVector(d,Lp),
-   u1=(l1+.12)/(Lp+.12),u2=(l1+l2+.12)/(Lp+.12),rad=u=>r0*(1-.2*u)*(1+.09*(ex(-(((u-u1)/.05)**2))+ex(-(((u-u2)/.05)**2))));
-  tube(new THREE.LineCurve3(a,b),rad,2.3);
-  const un=1-l3*.5/(Lp+.12),pn=a.clone().lerp(b,un);nails.push([pn.x,-(rad(un)*.92-.004),pn.z,rad(un)*.62,l3*.942,al]);
-  if(ang===0)tipZ=b.z+rad(1);});
-// великий палець (відведений уздовж +x)
-{const cu=new THREE.CatmullRomCurve3([V(.34,.03,-.52),V(.8,.04,-.27),V(1.08,.03,-.17),V(1.3,.03,-.13)]),
-  rad=u=>itp([0,.2,.45,.75,1],[.19,.15,.125,.108,.096],u)*(1+.08*ex(-(((u-.45)/.05)**2))+.07*ex(-(((u-.75)/.05)**2)));
- tube(cu,rad,2.3);const pn=cu.getPointAt(.86),T=cu.getTangentAt(.86);nails.push([pn.x,pn.y-(rad(.86)*.92-.004),pn.z,rad(.86)*.62,.24,Math.atan2(T.x,T.z)]);}
-const hg=new THREE.BufferGeometry();hg.setAttribute('position',new THREE.Float32BufferAttribute(HP,3));hg.setIndex(HI);hg.computeVertexNormals();
-// спершу невидимий прохід глибини (чиста напівпрозорість без накладання внутрішніх частин), далі кольоровий — обидва після магніту
-const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.renderOrder=3;hand.add(hm,hc);
-nails.forEach(([x,y,z,rx,l,a])=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),nailM);m.scale.set(rx,.018,l);m.position.set(x,y,z);m.rotation.y=a;m.renderOrder=4;hand.add(m);});
-const cuff=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.5,32,1,true),new THREE.MeshStandardMaterial({color:0x3b5a7a,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
-cuff.rotation.x=Math.PI/2;cuff.scale.set(.44,1,.31);cuff.position.z=-1.27;cuff.renderOrder=4;hand.add(cuff);
-const dot=(c,x,z)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(.08,14,14),new THREE.MeshBasicMaterial({color:c}));s.position.set(x,0,z);hand.add(s);};
-dot(0xffb000,.12,tipZ+.12);dot(0xe0245e,1.52,-.12);
-const pm=new THREE.Mesh(new THREE.RingGeometry(.1,.2,32),new THREE.MeshBasicMaterial({color:0x14a3c7,side:THREE.DoubleSide}));pm.rotation.x=-Math.PI/2;pm.position.set(0,.2,.1);hand.add(pm);
 
+/* долоня: вужча, з м'якшим фронтом — пальці виринають поступово */
+const _pz=[-1.35,-1.10,-.85,-.60,-.35,-.10,.15,.35,.50],
+      _pa=[ .220, .228, .245, .272, .300, .320, .330, .325, .310],
+      _pbd=[.112,.113,.118,.125,.132,.136,.135,.131,.126],
+      _pbp=[.112,.118,.124,.136,.144,.147,.145,.139,.130];
+{
+ const R=[],K=48,M=40;
+ for(let k=0;k<=K;k++){
+  const z=-1.35+1.85*k/K, a=itp(_pz,_pa,z), bd=itp(_pz,_pbd,z), bp=itp(_pz,_pbp,z), n=2.2, r=[];
+  for(let j=0;j<M;j++){
+   const f=6.2831853*j/M, co=Math.cos(f), si=Math.sin(f),
+         cx=sg(co)*pw(Math.abs(co),2/n), cy=sg(si)*pw(Math.abs(si),2/n);
+   const x=a*cx; let y;
+   if(si>=0){const w=Math.max(0,si); y=bp*cy
+     +.070*ex(-(((x-.20)/.15)**2+((z+.55)/.28)**2))*w
+     +.038*ex(-(((x+.21)/.13)**2+((z+.05)/.35)**2))*w
+     -.022*ex(-((x/.20)**2))*ex(-(((z+.05)/.50)**2));
+   } else { y=bd*cy*.985; }
+   r.push(V(x,y,z));
+  }
+  R.push(r);
+ }
+ // фронт: ширина тримається (супереліпс m=4), товщина спадає плавно (m≈2.6) — без «обрубання»
+ {const z0=.50,a0=.310,b0p=.130,b0d=.126,h=.28,N=16;
+  for(let c=1;c<=N;c++){
+   const u=c/(N+.4),
+         sw=Math.pow(Math.max(1-u**4,0),.25),
+         st=Math.pow(Math.max(1-Math.pow(u,2.6),0),.5),
+         z=z0+h*u,
+         a=Math.max(a0*sw,.010),
+         bp=Math.max(b0p*st,.008),
+         bd=Math.max(b0d*st,.008),
+         n=2.2, r=[];
+   for(let j=0;j<M;j++){
+    const f=6.2831853*j/M, co=Math.cos(f), si=Math.sin(f),
+          cx=sg(co)*pw(Math.abs(co),2/n), cy=sg(si)*pw(Math.abs(si),2/n);
+    r.push(V(a*cx,(si>=0?bp:bd)*cy,z));
+   }
+   R.push(r);
+  }}
+ addRings(R);
+}
+
+/* пальці: довші, розширена основа рівно на виході з долоні (u≈.38, z≈.67) */
+let midTip=null,thumbTip=null;
+[[ .195,.55, 3.5,[.30,.20,.15],.096],
+ [ .065,.57,  .5,[.32,.22,.16],.102],
+ [-.065,.55,-3.0,[.30,.20,.15],.095],
+ [-.195,.50,-8.0,[.22,.15,.11],.082]]
+.forEach(([x,z,ang,L,r0])=>{
+ const al=ang*dg,d0=V(Math.sin(al),0,Math.cos(al)).normalize(),
+       stub=.26,Lall=[stub,L[0],L[1],L[2]],total=Lall.reduce((a,b)=>a+b,0);
+ let p=V(x,0,z).addScaledVector(d0,-stub),d=d0.clone(),acc=0;
+ const pts=[p.clone()],us=[];
+ for(let i=0;i<4;i++){
+  if(i>0)d.applyAxisAngle(d.clone().cross(Y).normalize(),[0,9,15,11][i]*dg);
+  p=p.clone().addScaledVector(d,Lall[i]);
+  pts.push(p.clone());acc+=Lall[i];us.push(acc/total);}
+ const curve=new THREE.CatmullRomCurve3(pts),
+       uPIP=us[1],uDIP=us[2],
+       rad=u=>r0*(1-.24*u)
+         *(1+.28*ex(-(((u-.38)/.14)**2)))               // розширення на виході з долоні
+         *(1+.10*ex(-(((u-uPIP)/.06)**2))+.08*ex(-(((u-uDIP)/.06)**2)));
+ tube(curve,rad,32,2.3);
+ const un=.92,pn=curve.getPointAt(un),T=curve.getTangentAt(un),
+       S=V(T.z,0,-T.x).normalize(),U=T.clone().cross(S),r=rad(un);
+ nails.push({p:pn.clone().addScaledVector(U,-(r*.92-.004)),S,U,T,rx:r*.62,l:L[2]*.95});
+ if(Math.abs(x-.065)<1e-6)midTip=pts[4].clone().addScaledVector(d,.09);});
+
+/* великий палець: ближче до інших, широка основа вростає в тенар */
+{
+ const thc=new THREE.CatmullRomCurve3([
+V(.10,-.02,-.08), V(.28,.02,-.02), V(.46,.05,.04), V(.60,.05,.10), V(.72,.03,.17)
+ ]),
+ rad=u=>itp([0,.25,.55,.8,1],[.165,.146,.126,.108,.094],u)
+   *(1+.09*ex(-(((u-.55)/.06)**2)))
+   *(1+.07*ex(-((u/.22)**2)));
+ tube(thc,rad,30,2.3);
+ const un=.93,pn=thc.getPointAt(un),T=thc.getTangentAt(un),
+       S=V(T.z,0,-T.x).normalize(),U=T.clone().cross(S),r=rad(un);
+ nails.push({p:pn.clone().addScaledVector(U,-(r*.92-.004)),S,U,T,rx:r*.62,l:.16});
+ thumbTip=thc.getPointAt(1).addScaledVector(thc.getTangentAt(1),.08);}
+
+const hg=new THREE.BufferGeometry();hg.setAttribute('position',new THREE.Float32BufferAttribute(HP,3));hg.setIndex(HI);hg.computeVertexNormals();
+const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.renderOrder=3;hand.add(hm,hc);
+
+/* кісточки на тилі — 4 підняті горби над основою пальців */
+const knuckleY=(x,z)=>{const a=itp(_pz,_pa,z),bp=itp(_pz,_pbp,z);
+  const cx=Math.min(Math.abs(x)/a,.9);
+  return bp*Math.sqrt(1-cx*cx)-.018;};
+[[.195,.48,.040],[.065,.50,.043],[-.065,.48,.040],[-.195,.44,.035]].forEach(([x,z,r])=>{
+  const k=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),skin);
+  k.scale.set(r*1.3,r*.85,r*1.2);
+  k.position.set(x,knuckleY(x,z),z);
+  k.renderOrder=3;hand.add(k);
+});
+
+/* лінії долоні (серця, голови, життя) */
+const palmSurf=(x,z)=>{const a=itp(_pz,_pa,z),bd=itp(_pz,_pbd,z);
+  const cx=Math.min(Math.abs(x)/a,.95);
+  return -bd*Math.sqrt(1-cx*cx)-.006;};
+function crease(pts){
+  for(let i=0;i<pts.length-1;i++){
+    const [x1,z1]=pts[i],[x2,z2]=pts[i+1];
+    const p1=V(x1,palmSurf(x1,z1),z1),p2=V(x2,palmSurf(x2,z2),z2),d=p2.clone().sub(p1);
+    const g=new THREE.Mesh(new THREE.CylinderGeometry(.005,.005,d.length(),6),creaseM);
+    g.position.copy(p1).add(p2).multiplyScalar(.5);
+    g.quaternion.setFromUnitVectors(Y,d.clone().normalize());
+    g.renderOrder=5;hand.add(g);
+  }
+}
+crease([[-.14,.22],[-.04,.19],[.08,.16],[.17,.14]]);  // лінія серця
+crease([[-.13,.06],[.02,.04],[.15,.03]]);             // лінія голови
+crease([[.14,.25],[.08,.13],[.02,.00],[-.04,-.10]]);  // лінія життя
+
+const nb=new THREE.Matrix4();
+nails.forEach(n=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),nailM);
+  m.scale.set(n.rx,.016,n.l);nb.makeBasis(n.S,n.U,n.T);m.quaternion.setFromRotationMatrix(nb);
+  m.position.copy(n.p);m.renderOrder=4;hand.add(m);});
+const cuff=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.5,32,1,true),new THREE.MeshStandardMaterial({color:0x3b5a7a,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
+cuff.rotation.x=Math.PI/2;cuff.scale.set(.30,1,.20);cuff.position.z=-1.32;cuff.renderOrder=4;hand.add(cuff);
+const dot=(c,p)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(.08,16,16),new THREE.MeshBasicMaterial({color:c}));s.position.copy(p);hand.add(s);};
+dot(0xffb000,midTip);dot(0xe0245e,thumbTip);
+const pm=new THREE.Mesh(new THREE.RingGeometry(.09,.18,32),new THREE.MeshBasicMaterial({color:0x14a3c7,side:THREE.DoubleSide}));pm.rotation.x=-Math.PI/2;pm.position.set(0,.17,.05);hand.add(pm);
 /* Стрілки сили */
 const fa=[0,1,2,3].map(()=>{const a=arrow(1.1,0xe0245e);a.visible=false;scene.add(a);return a;});
 
