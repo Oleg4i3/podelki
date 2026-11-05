@@ -1,260 +1,213 @@
-<!doctype html>
-<html lang="ru">
+<!DOCTYPE html>
+<html lang="uk">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Правило левой руки</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Правило лівої руки</title>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;height:100%;background:#12161d;overflow:hidden;font-family:system-ui,sans-serif;color:#e8edf5}
-  #view{position:fixed;inset:0}
-  #labels{position:fixed;inset:0;pointer-events:none}
-  .lbl{font:700 20px system-ui,sans-serif;text-shadow:0 1px 4px #000,0 0 8px #000;white-space:nowrap}
-  #panel{position:fixed;left:8px;right:8px;bottom:8px;max-width:520px;margin:auto;
-    background:rgba(20,26,36,.88);border:1px solid #2c3647;border-radius:12px;padding:10px 14px;font-size:13px;backdrop-filter:blur(6px)}
-  #panel h1{font-size:14px;margin:0 0 6px;font-weight:600}
-  #panel p{margin:0 0 8px;line-height:1.35;color:#b8c3d4}
-  .row{display:grid;grid-template-columns:130px 1fr 40px;align-items:center;gap:8px;margin:3px 0}
-  .row input{width:100%}
-  .row span{text-align:right;color:#8fa0b8;font-variant-numeric:tabular-nums}
-  .b{color:#48d597}.i{color:#4aa8ff}.f{color:#ff5a4a}
-  button{background:#2a3547;color:#e8edf5;border:0;border-radius:8px;padding:6px 12px;margin-top:6px;cursor:pointer}
+:root{--bg:#e8edf1;--panel:rgba(255,255,255,.9);--ink:#14212b;--mut:#51606c;--line:#b9c4cd;--btn:#14212b;--btnink:#fff;--ok:#12805a;--bad:#8a3b12;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a22;--panel:rgba(20,32,42,.9);--ink:#e6eef3;--mut:#9fb0bc;--line:#2c4150;--btn:#e6eef3;--btnink:#0f1a22;--ok:#3ddc97;--bad:#ffb27a}}
+:root[data-theme="dark"]{--bg:#0f1a22;--panel:rgba(20,32,42,.9);--ink:#e6eef3;--mut:#9fb0bc;--line:#2c4150;--btn:#e6eef3;--btnink:#0f1a22;--ok:#3ddc97;--bad:#ffb27a}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"Onest",system-ui,sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#top{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);padding:10px 12px;pointer-events:none;text-align:center}
+#st{display:inline-block;padding:7px 14px;border-radius:999px;background:var(--panel);font-weight:600;font-size:14px;border:2px solid var(--line)}
+#st.ok{border-color:var(--ok);color:var(--ok)}
+#hint{margin-top:6px;font-size:12px;color:var(--mut)}.chk{font-size:13px;display:flex;align-items:center;gap:6px}#st.zero{border-color:var(--bad);color:var(--bad)}
+#panel{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);backdrop-filter:blur(8px)}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+button{font:inherit;font-size:13px;color:var(--ink);background:transparent;border:0;padding:8px 11px;cursor:pointer}
+.seg button.on{background:var(--btn);color:var(--btnink)}
+button.solo{border:1px solid var(--line);border-radius:10px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+.sl{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0}
+.sl span{width:54px;color:var(--mut)}.sl input{flex:1}.sl output{width:40px;text-align:right}
 </style>
-<script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
-"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
-</script>
 </head>
 <body>
-<div id="view"></div>
-<div id="labels"></div>
+<div id="top"><div id="st">…</div><div id="hint">Лінії поля входять у долоню, пальці — за струмом, відігнутий великий — сила Ампера. Блакитне коло — долоня, жовта крапка — струм, рожева — сила.</div></div>
 <div id="panel">
-  <h1>Правило левой руки (ладонь — линии <span class="b">B</span>, пальцы — ток <span class="i">I</span>, большой — сила <span class="f">F</span>)</h1>
-  <p>Тяните мышью/пальцем — вращение камеры. Слайдерами меняйте поле и ток, рука поворачивается сама.</p>
-  <div class="row"><label class="b">B: азимут</label><input id="baz" type="range" min="0" max="360" value="0"><span id="vbaz"></span></div>
-  <div class="row"><label class="b">B: наклон</label><input id="bel" type="range" min="-89" max="89" value="0"><span id="vbel"></span></div>
-  <div class="row"><label class="i">I: поворот ⟂B</label><input id="iph" type="range" min="0" max="360" value="90"><span id="viph"></span></div>
-  <div class="row"><label class="i">I: угол к B</label><input id="ial" type="range" min="10" max="90" value="90"><span id="vial"></span></div>
-  <button id="reset">Сброс</button>
+  <div class="row">
+    <div class="seg" id="mode"><button data-m="scene" class="on">Сцена</button><button data-m="magnet">Магніт</button><button data-m="cond">Провідник</button><button data-m="hand">Рука</button></div><label class="chk"><input type="checkbox" id="showMag" checked> Показати магніт</label>
+  </div>
+  <div class="row">
+    <div class="seg" id="type"><button data-t="wire" class="on">Прямий</button><button data-t="frame">Рамка</button></div>
+    <button class="solo" id="pol">Змінити полюси</button>
+    <button class="solo" id="side" hidden>Сторона 1</button>
+  </div>
+  <label class="sl"><span>Рука X</span><input id="hx" type="range" min="-180" max="180" value="0"><output></output></label>
+  <label class="sl"><span>Рука Y</span><input id="hy" type="range" min="-180" max="180" value="0"><output></output></label>
+  <label class="sl"><span>Рука Z</span><input id="hz" type="range" min="-180" max="180" value="0"><output></output></label>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const css=getComputedStyle(document.documentElement);
+const R=new THREE.WebGLRenderer({antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+document.body.prepend(R.domElement);
+const cv=R.domElement, scene=new THREE.Scene();
+scene.background=new THREE.Color(css.getPropertyValue('--bg').trim()||'#0f1a22');
+const cam=new THREE.PerspectiveCamera(45,1,.1,100);
+let th=.7,ph=1.15,dist=9.5;
+function placeCam(){cam.position.set(dist*Math.sin(ph)*Math.sin(th),dist*Math.cos(ph),dist*Math.sin(ph)*Math.cos(th));cam.lookAt(0,0,0);}
+scene.add(new THREE.AmbientLight(0xffffff,.7));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(4,8,6);scene.add(dl);
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();dist=w<h?12:9.5;placeCam();}
+addEventListener('resize',resize);
 
-<script type="module">
-import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+const Y=new THREE.Vector3(0,1,0);
+function label(t,color){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle=color;x.font='bold 96px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(t,64,70);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));s.scale.set(.6,.6,1);s.renderOrder=5;return s;}
 
-const view = document.getElementById('view');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x12161d);
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, .1, 100);
-camera.position.set(3.5, 2.2, 8);
-scene.add(camera);
+/* Магніт: поле всередині проміжку B = +x (від N до S) */
+const mag=new THREE.Group();scene.add(mag);
+const inner=new THREE.Group();inner.position.z=-2;mag.add(inner);
+const mat=c=>new THREE.MeshStandardMaterial({color:c,metalness:.4,roughness:.45,transparent:true,opacity:.72,depthWrite:false});
+// широкий підковоподібний магніт: профіль у площині XZ, видавлений по Y
+const sh=new THREE.Shape();
+sh.moveTo(-2.4,4);sh.lineTo(-2.4,.3);sh.quadraticCurveTo(-2.4,-.9,-1.2,-.9);sh.lineTo(1.2,-.9);sh.quadraticCurveTo(2.4,-.9,2.4,.3);sh.lineTo(2.4,4);sh.lineTo(1.4,4);sh.lineTo(1.4,.5);sh.quadraticCurveTo(1.4,0,.9,0);sh.lineTo(-.9,0);sh.quadraticCurveTo(-1.4,0,-1.4,.5);sh.lineTo(-1.4,4);sh.closePath();
+const mg=new THREE.ExtrudeGeometry(sh,{depth:2.8,bevelEnabled:true,bevelSize:.08,bevelThickness:.08,bevelSegments:3,curveSegments:16});
+mg.translate(0,0,-1.4);mg.rotateX(Math.PI/2);{const m0=new THREE.Mesh(mg,mat(0x8a949c));m0.renderOrder=1;inner.add(m0);}
+[[-1.9,0xd64545],[1.9,0x3b6fd6]].forEach(([x,c])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(1.2,3.04,1.65),mat(c));b.position.set(x,0,3.25);b.renderOrder=1;inner.add(b);});
+const lN=label('N','#d64545'),lS=label('S','#3b6fd6');lN.position.set(-1.9,2,3.4);lS.position.set(1.9,2,3.4);lN.scale.set(1,1,1);lS.scale.set(1,1,1);inner.add(lN,lS);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.setSize(innerWidth, innerHeight);
-view.appendChild(renderer.domElement);
+function arrow(len,color,crossColor){
+  const g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color});
+  const sh=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,len-.3,8),m);sh.position.y=-.15;g.add(sh);
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(.13,.3,18),m);cone.position.y=len/2-.15;g.add(cone);
+  if(crossColor){const cm=new THREE.MeshBasicMaterial({color:crossColor}),by=len/2-.3-.009;
+    [[.25,.012,.03],[.03,.012,.25]].forEach(d=>{const b=new THREE.Mesh(new THREE.BoxGeometry(...d),cm);b.position.y=by;g.add(b);});}
+  return g;}
+for(const y of [-1,-.4,.4,1])for(const z of [-1.2,0,1.2]){
+  const a=arrow(2.4,0x0b7fa5,0x06222e);a.rotation.z=-Math.PI/2;a.position.set(0,y,z);mag.add(a);}
 
-const labelRenderer = new CSS2DRenderer({element: document.getElementById('labels')});
-labelRenderer.setSize(innerWidth, innerHeight);
+/* Провідник / рамка */
+const cond=new THREE.Group();scene.add(cond);
+const cu=new THREE.MeshStandardMaterial({color:0xb87333,metalness:.6,roughness:.35});
+const amber=new THREE.MeshStandardMaterial({color:0xe08a00,emissive:0x6b3d00});
+function bar(a,b){const d=b.clone().sub(a),m=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,d.length(),10),cu);m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(Y,d.clone().normalize());return m;}
+function cone(p,d){const m=new THREE.Mesh(new THREE.ConeGeometry(.12,.3,14),amber);m.position.copy(p);m.userData.d=d.clone();return m;}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const wireG=new THREE.Group(),frameG=new THREE.Group();cond.add(wireG,frameG);
+wireG.add(bar(V(0,0,-1.3),V(0,0,1.3)));
+const cones=[0,1,2,3,4,5].map(()=>cone(V(0,0,0),V(0,0,1)));
+const W=.6,H=.5,C=[V(-W,-H,0),V(W,-H,0),V(W,H,0),V(-W,H,0)];
+for(let i=0;i<4;i++)frameG.add(bar(C[i],C[(i+1)%4]));
+const fd=[V(1,0,0),V(0,1,0),V(-1,0,0),V(0,-1,0)];
+const fcones=[0,1,2,3,4,5,6,7,8,9].map(()=>cone(V(0,0,0),V(0,1,0)));
+// конуси струму на кутах, щоб не збігалися з рукою
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.minDistance = 4; controls.maxDistance = 16;
+cones.concat(fcones).forEach(c=>cond.add(c));
+const plus=label('+','#d64545'),minus=label('−','#3b6fd6');cond.add(plus,minus);
+const sidesW=[{m:V(0,0,0),d:V(0,0,1)}];
+const sidesF=C.map((c,i)=>({m:c.clone().add(C[(i+1)%4]).multiplyScalar(.5),d:fd[i]}));
+let type='wire',sgn=1,hs=0,sides=sidesW;
+function setType(t){type=t;sides=t==='wire'?sidesW:sidesF;hs=0;wireG.visible=t==='wire';frameG.visible=t==='frame';
+  cones.forEach(c=>c.visible=t==='wire');fcones.forEach(c=>c.visible=t==='frame');
+  document.getElementById('side').hidden=t==='wire';sideBtn();refreshCur();}
+function refreshCur(){
+  
+  if(type==='wire'){plus.position.set(0,.3,-1.4*sgn);minus.position.set(0,.3,1.4*sgn);}
+  else{plus.position.set(-sgn*(W+.25),-H-.3,0);minus.position.set(sgn*(W+.25),-H-.3,0);}}
+function flow(t){
+  if(type==='wire'){const n=cones.length,L=2.6;cones.forEach((c,i)=>{const u=(((t*.9/L*sgn+i/n)%1)+1)%1;c.position.set(0,0,-1.3+u*L);c.quaternion.setFromUnitVectors(Y,V(0,0,sgn));c.scale.setScalar(Math.min(1,u/.1,(1-u)/.1));});}
+  else{const n=fcones.length,ln=[2*W,2*H,2*W,2*H],pr=4*W+4*H;fcones.forEach((c,i)=>{let s=((((t*.9/pr*sgn+i/n)%1)+1)%1)*pr,k=0;while(k<3&&s>ln[k]){s-=ln[k];k++;}
+    c.position.lerpVectors(C[k],C[(k+1)%4],s/ln[k]);c.quaternion.setFromUnitVectors(Y,fd[k].clone().multiplyScalar(sgn));});}}
+function sideBtn(){document.getElementById('side').textContent='Сторона '+(hs+1);}
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4658, 1.0));
-const key = new THREE.DirectionalLight(0xffffff, 1.6);
-key.position.set(2, 3, 4);
-camera.add(key);   // свет следует за камерой — любой ракурс освещён
+/* Рука: пальці +z, нормаль долоні +y, великий палець +x (ліва). Єдина гладка сітка шкіри, напівпрозора */
+const hand=new THREE.Group();hand.rotation.order='YXZ';scene.add(hand);
+const skin=new THREE.MeshStandardMaterial({color:0xe6ac8c,roughness:.6,transparent:true,opacity:.55,depthWrite:false}),
+ pre=new THREE.MeshBasicMaterial({colorWrite:false,transparent:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}),
+ nailM=new THREE.MeshStandardMaterial({color:0xf8e3dc,roughness:.2,transparent:true,opacity:.85,depthWrite:false});
+const HP=[],HI=[],nails=[],sg=Math.sign,pw=Math.pow,ex=Math.exp,dg=Math.PI/180;
+function itp(xs,ys,x){const n=xs.length;if(x<=xs[0])return ys[0];if(x>=xs[n-1])return ys[n-1];let i=0;while(x>xs[i+1])i++;
+  const h=xs[i+1]-xs[i],t=(x-xs[i])/h,m=k=>{const a=Math.max(k-1,0),b=Math.min(k+1,n-1);return(ys[b]-ys[a])/(xs[b]-xs[a])*h;},t2=t*t,t3=t2*t;
+  return(2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*m(i)+(-2*t3+3*t2)*ys[i+1]+(t3-t2)*m(i+1);}
+function sq(c,S,U,rx,ry,n){const r=[];for(let j=0;j<40;j++){const f=6.2831853*j/40,co=Math.cos(f),si=Math.sin(f);
+  r.push(c.clone().addScaledVector(S,rx*sg(co)*pw(Math.abs(co),2/n)).addScaledVector(U,ry*sg(si)*pw(Math.abs(si),2/n)));}return r;}
+function addRings(R){const M=R[0].length,N=R.length,b=HP.length/3;
+  R.forEach(r=>r.forEach(v=>HP.push(v.x,v.y,v.z)));
+  for(let i=0;i<N-1;i++)for(let j=0;j<M;j++){const j2=(j+1)%M,a=b+i*M+j,e=b+i*M+j2,c=b+(i+1)*M+j,d=b+(i+1)*M+j2;HI.push(a,e,c,e,d,c);}
+  [0,N-1].forEach(k=>{const o=V(0,0,0);R[k].forEach(v=>o.add(v));o.multiplyScalar(1/M);const ci=HP.length/3;HP.push(o.x,o.y,o.z);
+    for(let j=0;j<M;j++){const a=b+k*M+j,e=b+k*M+(j+1)%M;k?HI.push(a,e,ci):HI.push(e,a,ci);}});}
+function tube(path,rad,n){const R=[],fr=u=>{const T=path.getTangentAt(u),S=V(T.z,0,-T.x).normalize();return[path.getPointAt(u),T,S,T.clone().cross(S),rad(u)];};
+  for(let k=0;k<=24;k++){const[p,,S,U,r]=fr(k/24);R.push(sq(p,S,U,r,r*.92,n));}
+  const[pe,T,S,U,r]=fr(1);
+  for(let j=1;j<=7;j++){const a=j/7*Math.PI/2;R.push(sq(pe.clone().addScaledVector(T,r*Math.sin(a)),S,U,r*Math.cos(a),r*.92*Math.cos(a),n));}
+  addRings(R);}
+// долоня + зап'ястя + передпліччя: перетини-«квадратні еліпси» з тенаром і гіпотенаром
+{const ZS=[-1.3,-1,-.7,-.45,-.12,.3,.52],A=[.37,.34,.31,.41,.49,.51,.5],B=[.25,.22,.185,.18,.165,.15,.13],NN=[2,2,2.1,2.4,2.7,2.8,2.8],R=[];
+ for(let k=0;k<=40;k++){const z=-1.3+1.82*k/40,a=itp(ZS,A,z),b=itp(ZS,B,z),n=itp(ZS,NN,z),r=[];
+  for(let j=0;j<40;j++){const f=6.2831853*j/40,co=Math.cos(f),si=Math.sin(f),x=a*sg(co)*pw(Math.abs(co),2/n),yr=sg(si)*pw(Math.abs(si),2/n);
+   const y=yr>0?yr*(b*.92+.085*ex(-(((x-.27)/.22)**2+((z+.28)/.3)**2))+.045*ex(-(((x+.33)/.16)**2+((z+.12)/.3)**2))):yr*b*1.12;
+   r.push(V(x,y,z));}
+  R.push(r);}
+ addRings(R);}
+// пальці: [x, z основи, розвід°, фаланги, радіус]
+let tipZ=1.7;
+[[.36,.55,2.5,.46,.27,.2,.113],[.12,.58,0,.5,.29,.2,.117],[-.12,.55,-2.5,.47,.28,.2,.108],[-.35,.47,-6,.36,.2,.17,.092]].forEach(([x,z,ang,l1,l2,l3,r0])=>{
+  const al=ang*dg,d=V(Math.sin(al),0,Math.cos(al)),Lp=l1+l2+l3,a=V(x,0,z).addScaledVector(d,-.12),b=V(x,0,z).addScaledVector(d,Lp),
+   u1=(l1+.12)/(Lp+.12),u2=(l1+l2+.12)/(Lp+.12),rad=u=>r0*(1-.2*u)*(1+.09*(ex(-(((u-u1)/.05)**2))+ex(-(((u-u2)/.05)**2))));
+  tube(new THREE.LineCurve3(a,b),rad,2.3);
+  const un=1-l3*.5/(Lp+.12),pn=a.clone().lerp(b,un);nails.push([pn.x,-(rad(un)*.92-.004),pn.z,rad(un)*.62,l3*.42,al]);
+  if(ang===0)tipZ=b.z+rad(1);});
+// великий палець (відведений уздовж +x)
+{const cu=new THREE.CatmullRomCurve3([V(.34,.03,-.52),V(.8,.04,-.27),V(1.08,.03,-.17),V(1.3,.03,-.13)]),
+  rad=u=>itp([0,.2,.45,.75,1],[.19,.15,.125,.108,.096],u)*(1+.08*ex(-(((u-.45)/.05)**2))+.07*ex(-(((u-.75)/.05)**2)));
+ tube(cu,rad,2.3);const pn=cu.getPointAt(.86),T=cu.getTangentAt(.86);nails.push([pn.x,pn.y-(rad(.86)*.92-.004),pn.z,rad(.86)*.62,.14,Math.atan2(T.x,T.z)]);}
+const hg=new THREE.BufferGeometry();hg.setAttribute('position',new THREE.Float32BufferAttribute(HP,3));hg.setIndex(HI);hg.computeVertexNormals();
+// спершу невидимий прохід глибини (чиста напівпрозорість без накладання внутрішніх частин), далі кольоровий — обидва після магніту
+const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.renderOrder=3;hand.add(hm,hc);
+nails.forEach(([x,y,z,rx,l,a])=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),nailM);m.scale.set(rx,.018,l);m.position.set(x,y,z);m.rotation.y=a;m.renderOrder=4;hand.add(m);});
+const cuff=new THREE.Mesh(new THREE.CylinderGeometry(1,1,.5,32,1,true),new THREE.MeshStandardMaterial({color:0x3b5a7a,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
+cuff.rotation.x=Math.PI/2;cuff.scale.set(.44,1,.31);cuff.position.z=-1.27;cuff.renderOrder=4;hand.add(cuff);
+const dot=(c,x,z)=>{const s=new THREE.Mesh(new THREE.SphereGeometry(.08,14,14),new THREE.MeshBasicMaterial({color:c}));s.position.set(x,0,z);hand.add(s);};
+dot(0xffb000,.12,tipZ+.12);dot(0xe0245e,1.52,-.12);
+const pm=new THREE.Mesh(new THREE.RingGeometry(.1,.2,32),new THREE.MeshBasicMaterial({color:0x14a3c7,side:THREE.DoubleSide}));pm.rotation.x=-Math.PI/2;pm.position.set(0,.2,.1);hand.add(pm);
 
-// ---------- рука (локально: пальцы +Y, ладонь смотрит в +Z, большой в -X = ЛЕВАЯ рука) ----------
-const skin = new THREE.MeshStandardMaterial({color:0xe6b08c, roughness:.55});
-const nailMat = new THREE.MeshStandardMaterial({color:0xf4d6c6, roughness:.3});
-const sleeveMat = new THREE.MeshStandardMaterial({color:0x2d4f86, roughness:.8, side:THREE.DoubleSide});
+/* Стрілки сили */
+const fa=[0,1,2,3].map(()=>{const a=arrow(1.1,0xe0245e);a.visible=false;scene.add(a);return a;});
 
-function makeFinger(lengths, radii, curl, nail=true){
-  const root = new THREE.Group();
-  let parent = root;
-  lengths.forEach((l,i)=>{
-    const seg = new THREE.Group();
-    seg.rotation.x = curl;
-    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(radii[i+1], radii[i], l, 20).translate(0,l/2,0), skin);
-    cyl.scale.z = .88;
-    const joint = new THREE.Mesh(new THREE.SphereGeometry(radii[i+1], 20, 14).translate(0,l,0), skin);
-    joint.scale.z = .88;
-    seg.add(cyl, joint);
-    if(i===0) seg.position.y = 0;
-    parent.add(seg);
-    if(i===lengths.length-1 && nail){
-      const n = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), nailMat);
-      n.scale.set(radii[i+1]*.72, l*.38, .05);
-      n.position.set(0, l*.62, -radii[i+1]*.8);
-      seg.add(n);
-    }
-    const next = new THREE.Group();
-    next.position.y = l;
-    seg.add(next);
-    parent = next;
-  });
-  return root;
-}
+/* Управління */
+const D=Math.PI/180;let mode='scene',drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
+  if(mode==='scene'){th-=dx*.008;ph=Math.min(3,Math.max(.15,ph-dy*.008));placeCam();return;}
+  const r=V(1,0,0).applyQuaternion(cam.quaternion),u=V(0,1,0).applyQuaternion(cam.quaternion),
+  dq=new THREE.Quaternion().setFromAxisAngle(u,dx*.01).premultiply(new THREE.Quaternion().setFromAxisAngle(r,dy*.01));
+  if(mode==='hand'){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(sl[0].value*D,sl[1].value*D,sl[2].value*D,'YXZ')).premultiply(dq),e=new THREE.Euler().setFromQuaternion(q,'YXZ');
+    [e.x,e.y,e.z].forEach((v,i)=>{sl[i].value=v/D;sl[i].oninput();});return;}
+  (mode==='magnet'?mag:cond).quaternion.premultiply(dq);});
+cv.addEventListener('wheel',e=>{dist=Math.min(25,Math.max(5,dist+e.deltaY*.01));placeCam();e.preventDefault();},{passive:false});
+function seg(id,attr,fn){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr]);});}
+seg('mode','m',v=>mode=v);seg('type','t',setType);
+document.getElementById('pol').onclick=()=>{sgn=-sgn;refreshCur();};
+document.getElementById('showMag').onchange=e=>inner.visible=e.target.checked;
+document.getElementById('side').onclick=()=>{hs=(hs+1)%4;sideBtn();};
+const sl=['hx','hy','hz'].map(id=>{const i=document.getElementById(id),o=i.nextElementSibling;i.step=.1;const f=()=>o.textContent=i.value+'°';i.oninput=f;f();return i;});
 
-const hand = new THREE.Group();   // модель руки, ладонь по центру в начале координат
-const model = new THREE.Group();
-model.position.y = -.5;
-hand.add(model);
-
-// ладонь: контур + выдавливание со скруглением
-const s = new THREE.Shape();
-s.moveTo(-.34,-.25);
-s.bezierCurveTo(-.46,-.05,-.55,.1,-.52,.42);
-s.lineTo(-.5,1.0);
-s.lineTo(.5,.95);
-s.lineTo(.47,.5);
-s.bezierCurveTo(.47,.3,.4,0,.33,-.25);
-s.closePath();
-const palmGeo = new THREE.ExtrudeGeometry(s, {depth:.1, bevelEnabled:true, bevelThickness:.07, bevelSize:.06, bevelSegments:5, curveSegments:24});
-palmGeo.translate(0,0,-.05);
-model.add(new THREE.Mesh(palmGeo, skin));
-
-// бугор большого пальца
-const thenar = new THREE.Mesh(new THREE.SphereGeometry(.3, 24, 16), skin);
-thenar.scale.set(1, 1.25, .55);
-thenar.position.set(-.3, .15, .06);
-model.add(thenar);
-
-// четыре пальца (указательный … мизинец), сомкнуты, лёгкий изгиб
-[[-.38, .95, .12, .10],[-.13, 1.08, .125, .09],[.12, .98, .115, .10],[.36, .76, .10, .12]].forEach(([x,L,r,curl])=>{
-  const f = makeFinger([L*.45,L*.30,L*.25],[r,r*.93,r*.86,r*.76],curl);
-  f.position.set(x,.96,0);
-  model.add(f);
-});
-
-// большой палец — строго вдоль -X (направление силы)
-const thumb = makeFinger([.5,.42,.36],[.15,.13,.115,.1],.06);
-thumb.position.set(-.4,.2,0);
-thumb.rotation.z = Math.PI/2;
-model.add(thumb);
-
-// запястье, предплечье, рукав
-const wrist = new THREE.Mesh(new THREE.CylinderGeometry(.34,.30,1.6,28,1,true).translate(0,-1.0,0), skin);
-wrist.scale.z = .75;
-const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,1.6,28).translate(0,-1.0,0), skin);
-cap.scale.z = .75;
-const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(.42,.46,1.2,32,1,true).translate(0,-1.7,0), sleeveMat);
-sleeve.scale.z = .85;
-model.add(wrist, cap, sleeve);
-
-scene.add(hand);
-
-// ---------- стрелки ----------
-function makeArrow(color, text){
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({color, emissive:color, emissiveIntensity:.4, roughness:.4});
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,1,16).translate(0,.5,0), mat);
-  const head = new THREE.Mesh(new THREE.ConeGeometry(.11,.28,20).translate(0,.14,0), mat);
-  g.add(shaft, head);
-  const el = document.createElement('div');
-  el.className='lbl'; el.textContent=text; el.style.color='#'+color.toString(16).padStart(6,'0');
-  const lab = new CSS2DObject(el);
-  g.add(lab);
-  g.userData = {shaft, head, lab};
-  return g;
-}
-function setArrow(g, len){
-  const {shaft, head, lab} = g.userData;
-  shaft.scale.y = Math.max(len-.28, .01);
-  head.position.y = Math.max(len-.28, 0);
-  lab.position.set(0, len+.25, 0);
-}
-const C_B = 0x48d597, C_I = 0x4aa8ff, C_F = 0xff5a4a;
-
-// I — над ладонью, вдоль пальцев (локально +Y)
-const arrI = makeArrow(C_I, 'I');
-arrI.position.set(0, -.9, .55);
-setArrow(arrI, 2.7);
-hand.add(arrI);
-
-// F — от кончика большого, вдоль -X (локально)
-const arrF = makeArrow(C_F, 'F');
-arrF.rotation.z = Math.PI/2;
-arrF.position.set(-1.88, -.3, .05);
-hand.add(arrF);
-
-// ---------- поле B: сетка линий со стрелками ----------
-const bGroup = new THREE.Group();
-const pts = [];
-const coneGeo = new THREE.ConeGeometry(.07,.3,12);
-const coneMat = new THREE.MeshBasicMaterial({color:C_B});
-for(let gx=-2; gx<=2; gx++) for(let gz=-2; gz<=2; gz++){
-  const x = gx*.75, z = gz*.75;
-  pts.push(x,-3.2,z, x,3.2,z);
-  [-1.9, 1.8].forEach(y=>{
-    const c = new THREE.Mesh(coneGeo, coneMat);
-    c.position.set(x,y,z);
-    bGroup.add(c);
-  });
-}
-const lg = new THREE.BufferGeometry();
-lg.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
-bGroup.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({color:C_B, transparent:true, opacity:.5})));
-const bEl = document.createElement('div');
-bEl.className='lbl'; bEl.textContent='B'; bEl.style.color='#48d597';
-const bLab = new CSS2DObject(bEl);
-bLab.position.set(0,3.5,0);
-bGroup.add(bLab);
-scene.add(bGroup);
-
-// ---------- логика ----------
-const $ = id => document.getElementById(id);
-const ids = ['baz','bel','iph','ial'];
-const DEF = {baz:0, bel:0, iph:90, ial:90};
-const rad = d => d*Math.PI/180;
-const targetQ = new THREE.Quaternion();
-const Y = new THREE.Vector3(0,1,0);
-
+/* Фізика: F = I × B, перевірка руки */
+const TOL=20,MIN=.2,st=document.getElementById('st'),ang=(a,b)=>Math.acos(Math.max(-1,Math.min(1,a.dot(b))))*180/Math.PI;
 function update(){
-  const az = rad(+$('baz').value), el = rad(+$('bel').value);
-  const ph = rad(+$('iph').value), al = rad(+$('ial').value);
-  ids.forEach(k => $('v'+k).textContent = $(k).value + '°');
-
-  // B (az=0 → вдоль -Z, т.е. «от зрителя к ладони»)
-  const B = new THREE.Vector3(Math.cos(el)*Math.sin(az), Math.sin(el), -Math.cos(el)*Math.cos(az)).normalize();
-  const up = Math.abs(B.y) > .99 ? new THREE.Vector3(1,0,0) : new THREE.Vector3(0,1,0);
-  const e1 = new THREE.Vector3().crossVectors(up, B).normalize();
-  const e2 = new THREE.Vector3().crossVectors(B, e1).normalize();
-  const p = e1.clone().multiplyScalar(Math.cos(ph)).add(e2.clone().multiplyScalar(Math.sin(ph)));
-
-  // I: угол al между I и B (90° — перпендикулярно)
-  const I = p.multiplyScalar(Math.sin(al)).add(B.clone().multiplyScalar(Math.cos(al))).normalize();
-
-  // составляющая B, перпендикулярная I, входит в ладонь
-  const Bp = B.clone().sub(I.clone().multiplyScalar(B.dot(I))).normalize();
-  const Zp = Bp.clone().negate();                // нормаль ладони = −B⊥
-  const Yp = I;                                  // пальцы = ток
-  const Xp = new THREE.Vector3().crossVectors(Yp, Zp).normalize(); // = −(I×B): большой смотрит в −X = I×B
-  targetQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Xp, Yp, Zp));
-
-  bGroup.quaternion.setFromUnitVectors(Y, B);
-  setArrow(arrF, .35 + 1.15*Math.sin(al));       // |F| ∝ sin α
+  const B=V(1,0,0).applyQuaternion(mag.quaternion);
+  hand.rotation.set(sl[0].value*Math.PI/180,sl[1].value*Math.PI/180,sl[2].value*Math.PI/180);
+  const S=sides.map(s=>{const I=s.d.clone().applyQuaternion(cond.quaternion).multiplyScalar(sgn),F=I.clone().cross(B);return{I,F,s:F.length(),p:s.m.clone().applyQuaternion(cond.quaternion)};});
+  const c=S[hs];hand.position.copy(c.p).addScaledVector(V(0,1,0).applyQuaternion(hand.quaternion),-.34);
+  let ok=false,zero=false,txt;
+  if(c.s<MIN){txt=(type==='frame'?'На цій стороні с':'С')+'ила відсутня: струм паралельний полю (F = 0)';zero=true;}
+  else{const f=V(0,0,1).applyQuaternion(hand.quaternion),t=V(1,0,0).applyQuaternion(hand.quaternion),Fh=c.F.clone().normalize();
+    const a1=ang(f,c.I),a2=ang(t,Fh);ok=a1<TOL&&a2<TOL;
+    txt=ok?'Правильно: F = I × B':`Поверніть руку · пальці/струм ${a1.toFixed(0)}° · палець/сила ${a2.toFixed(0)}°`;}
+  st.textContent=txt;st.classList.toggle('ok',ok);st.classList.toggle('zero',zero);
+  skin.emissive.set(ok?0x16a870:0x000000);skin.emissiveIntensity=.45;
+  fa.forEach((a,i)=>{const s=S[i],on=ok&&s&&s.s>=MIN;a.visible=!!on;if(on){const d=s.F.clone().normalize();a.quaternion.setFromUnitVectors(Y,d);a.position.copy(s.p).addScaledVector(d,.65);}});
 }
-ids.forEach(k => $(k).addEventListener('input', update));
-$('reset').onclick = () => { ids.forEach(k => $(k).value = DEF[k]); update(); };
-update();
-hand.quaternion.copy(targetQ);
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
-});
-
-let last = performance.now();
-renderer.setAnimationLoop(() => {
-  const now = performance.now(), dt = Math.min((now-last)/1000, .1); last = now;
-  hand.quaternion.slerp(targetQ, 1-Math.exp(-dt*9));
-  controls.update();
-  renderer.render(scene, camera);
-  labelRenderer.render(scene, camera);
-});
+setType('wire');resize();
+(function loop(t=0){update();flow(t/1000);R.render(scene,cam);requestAnimationFrame(loop);})();
 </script>
 </body>
 </html>
