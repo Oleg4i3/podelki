@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Правило лівої руки</title>
+<title>Правило лівої руки · Свердлик</title>
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#e8edf1;--panel:rgba(255,255,255,.9);--ink:#14212b;--mut:#51606c;--line:#b9c4cd;--btn:#14212b;--btnink:#fff;--ok:#12805a;--bad:#8a3b12;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -11,11 +11,11 @@
 :root[data-theme="dark"]{--bg:#0f1a22;--panel:rgba(20,32,42,.9);--ink:#e6eef3;--mut:#9fb0bc;--line:#2c4150;--btn:#e6eef3;--btnink:#0f1a22;--ok:#3ddc97;--bad:#ffb27a}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"Onest",system-ui,sans-serif;overflow:hidden}
 canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
-#top{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);padding:10px 12px;pointer-events:none;text-align:center}
+#top{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 48px);padding:6px 12px;pointer-events:none;text-align:center}
 #st{display:inline-block;padding:7px 14px;border-radius:999px;background:var(--panel);font-weight:600;font-size:14px;border:2px solid var(--line)}
 #st.ok{border-color:var(--ok);color:var(--ok)}
 #hint{margin-top:6px;font-size:12px;color:var(--mut)}.chk{font-size:13px;display:flex;align-items:center;gap:6px}#st.zero{border-color:var(--bad);color:var(--bad)}
-#panel{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);backdrop-filter:blur(8px)}
+[hidden]{display:none!important}#tabs{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 6px);background:var(--panel);z-index:5}#panel,#px{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);backdrop-filter:blur(8px)}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 button{font:inherit;font-size:13px;color:var(--ink);background:transparent;border:0;padding:8px 11px;cursor:pointer}
@@ -27,7 +27,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--ok);outline-off
 </style>
 </head>
 <body>
-<div id="top"><div id="st">…</div><div id="hint">Лінії поля входять у долоню, пальці — за струмом, відігнутий великий — сила Ампера. Блакитне коло — долоня, жовта крапка — струм, рожева — сила.</div></div>
+<div id="tabs" class="seg"><button data-n="1" class="on">1 Рука</button><button data-n="2">2 Задача</button><button data-n="3">3 Свердлик</button><button data-n="4">4 Індукція</button></div>
+<div id="top"><div id="st">…</div><div id="hint">Крутіть руку так, щоб лінії поля входили у долоню, пальці — за струмом, відігнутий великий — сила Ампера. Блакитне коло — долоня, жовта кулька — напрям струму, рожева — сили.</div></div>
 <div id="panel">
   <div class="row">
     <div class="seg" id="mode"><button data-m="scene" class="on">Сцена</button><button data-m="magnet">Магніт</button><button data-m="cond">Провідник</button><button data-m="hand">Рука</button></div><label class="chk"><input type="checkbox" id="showMag" checked> Показати магніт</label>
@@ -157,8 +158,8 @@ const _pz=[-1.35,-1.10,-.85,-.60,-.35,-.10,.15,.35,.50],
          cx=sg(co)*pw(Math.abs(co),2/n), cy=sg(si)*pw(Math.abs(si),2/n);
    const x=a*cx; let y;
    if(si>=0){const w=Math.max(0,si); y=bp*cy
-     +.070*ex(-(((x-.20)/.15)**2+((z+.55)/.28)**2))*w
-     +.038*ex(-(((x+.21)/.13)**2+((z+.05)/.35)**2))*w
+     +.100*ex(-(((x-.21)/.17)**2+((z+.14)/.30)**2))*w
+     +.050*ex(-(((x+.21)/.14)**2+((z+.05)/.35)**2))*w
      -.022*ex(-((x/.20)**2))*ex(-(((z+.05)/.50)**2));
    } else { y=bd*cy*.985; }
    r.push(V(x,y,z));
@@ -198,33 +199,32 @@ let midTip=null,thumbTip=null;
  let p=V(x,0,z).addScaledVector(d0,-stub),d=d0.clone(),acc=0;
  const pts=[p.clone()],us=[];
  for(let i=0;i<4;i++){
-  if(i>0)d.applyAxisAngle(d.clone().cross(Y).normalize(),[0,9,15,11][i]*dg);
+  if(i>0)d.applyAxisAngle(d.clone().cross(Y).normalize(),[0,11,18,13][i]*dg);
   p=p.clone().addScaledVector(d,Lall[i]);
   pts.push(p.clone());acc+=Lall[i];us.push(acc/total);}
  const curve=new THREE.CatmullRomCurve3(pts),
        uPIP=us[1],uDIP=us[2],
        rad=u=>r0*(1-.24*u)
          *(1+.28*ex(-(((u-.38)/.14)**2)))               // розширення на виході з долоні
-         *(1+.10*ex(-(((u-uPIP)/.06)**2))+.08*ex(-(((u-uDIP)/.06)**2)));
+         *(1+.20*ex(-(((u-uPIP)/.05)**2))+.15*ex(-(((u-uDIP)/.05)**2)));
  tube(curve,rad,32,2.3);
  const un=.92,pn=curve.getPointAt(un),T=curve.getTangentAt(un),
        S=V(T.z,0,-T.x).normalize(),U=T.clone().cross(S),r=rad(un);
  nails.push({p:pn.clone().addScaledVector(U,-(r*.92-.004)),S,U,T,rx:r*.62,l:L[2]*.95});
- if(Math.abs(x-.065)<1e-6)midTip=pts[4].clone().addScaledVector(d,.09);});
+ if(Math.abs(x-.065)<1e-6)midTip=pts[4].clone().addScaledVector(d,.03);});
 
 /* великий палець: ближче до інших, широка основа вростає в тенар */
 {
  const thc=new THREE.CatmullRomCurve3([
-V(.10,-.02,-.08), V(.28,.02,-.02), V(.46,.05,.04), V(.60,.05,.10), V(.72,.03,.17)
+V(.10,-.02,-.08), V(.28,.02,-.02), V(.46,.06,.05), V(.60,.11,.12), V(.71,.17,.18)
  ]),
- rad=u=>itp([0,.25,.55,.8,1],[.165,.146,.126,.108,.094],u)
-   *(1+.09*ex(-(((u-.55)/.06)**2)))
-   *(1+.07*ex(-((u/.22)**2)));
+ rad=u=>itp([0,.2,.4,.55,.72,.88,1],[.165,.140,.112,.102,.114,.106,.094],u)
+   *(1+.05*ex(-((u/.2)**2)));
  tube(thc,rad,30,2.3);
  const un=.93,pn=thc.getPointAt(un),T=thc.getTangentAt(un),
        S=V(T.z,0,-T.x).normalize(),U=T.clone().cross(S),r=rad(un);
  nails.push({p:pn.clone().addScaledVector(U,-(r*.92-.004)),S,U,T,rx:r*.62,l:.16});
- thumbTip=thc.getPointAt(1).addScaledVector(thc.getTangentAt(1),.08);}
+ thumbTip=thc.getPointAt(1).addScaledVector(thc.getTangentAt(1),.075);}
 
 const hg=new THREE.BufferGeometry();hg.setAttribute('position',new THREE.Float32BufferAttribute(HP,3));hg.setIndex(HI);hg.computeVertexNormals();
 const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.renderOrder=3;hand.add(hm,hc);
@@ -232,10 +232,10 @@ const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.r
 /* кісточки на тилі — 4 підняті горби над основою пальців */
 const knuckleY=(x,z)=>{const a=itp(_pz,_pa,z),bp=itp(_pz,_pbp,z);
   const cx=Math.min(Math.abs(x)/a,.9);
-  return bp*Math.sqrt(1-cx*cx)-.018;};
+  return -itp(_pz,_pbd,z)*Math.sqrt(1-cx*cx)+.018;};
 [[.195,.48,.040],[.065,.50,.043],[-.065,.48,.040],[-.195,.44,.035]].forEach(([x,z,r])=>{
   const k=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),skin);
-  k.scale.set(r*1.3,r*.85,r*1.2);
+  k.scale.set(r*1.4,r*1.05,r*1.3);
   k.position.set(x,knuckleY(x,z),z);
   k.renderOrder=3;hand.add(k);
 });
@@ -243,7 +243,7 @@ const knuckleY=(x,z)=>{const a=itp(_pz,_pa,z),bp=itp(_pz,_pbp,z);
 /* лінії долоні (серця, голови, життя) */
 const palmSurf=(x,z)=>{const a=itp(_pz,_pa,z),bd=itp(_pz,_pbd,z);
   const cx=Math.min(Math.abs(x)/a,.95);
-  return -bd*Math.sqrt(1-cx*cx)-.006;};
+  const w=Math.sqrt(1-cx*cx),bp=itp(_pz,_pbp,z);return bp*Math.pow(w,.909)+(.100*ex(-(((x-.21)/.17)**2+((z+.14)/.30)**2))+.05*ex(-(((x+.21)/.14)**2+((z+.05)/.35)**2))-.022*ex(-((x/.20)**2))*ex(-(((z+.05)/.50)**2)))*w+.008;};
 function crease(pts){
   for(let i=0;i<pts.length-1;i++){
     const [x1,z1]=pts[i],[x2,z2]=pts[i+1];
@@ -307,6 +307,200 @@ function update(){
 }
 setType('wire');resize();
 (function loop(t=0){update();flow(t/1000);R.render(scene,cam);requestAnimationFrame(loop);})();
+</script>
+<script>
+/* ===== Вкладки 2 і 3 ===== */
+let TAB=1;const o_update=update,o_flow=flow,hint=document.getElementById('hint'),H0=hint.innerHTML;
+const px=document.createElement('div');px.id='px';px.hidden=true;document.body.appendChild(px);
+const AX=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].map(a=>V(...a)),AN=['+X','−X','+Y','−Y','+Z','−Z'],nm=v=>AN[AX.findIndex(a=>a.distanceTo(v)<.01)];
+const gz=new THREE.Group();gz.position.set(-3.6,-1.8,0);scene.add(gz);
+[[0xd64545,'X',V(1,0,0)],[0x2fa84f,'Y',V(0,1,0)],[0x3b6fd6,'Z',V(0,0,1)]].forEach(([c,n,d])=>{const a=arrow(1.4,c);a.quaternion.setFromUnitVectors(Y,d);a.position.copy(d).multiplyScalar(.7);gz.add(a);
+  const l=label(n,'#'+c.toString(16).padStart(6,'0'));l.position.copy(d).multiplyScalar(1.6);l.scale.set(.5,.5,1);gz.add(l);});
+/* --- вкладка 2: задача --- */
+let T={};
+function newTask(){
+  const par=Math.random()<.25,b=AX[Math.random()*6|0];let i;
+  if(par)i=b.clone().multiplyScalar(Math.random()<.5?1:-1);else do{i=AX[Math.random()*6|0]}while(Math.abs(i.dot(b))>.5);
+  const f=par?null:i.clone().cross(b),u=par?'F':'BIF'[Math.random()*3|0];
+  T={b,i,f,u,done:false};
+  mag.quaternion.setFromUnitVectors(V(1,0,0),b);cond.quaternion.setFromUnitVectors(V(0,0,1),i);sgn=1;setType('wire');
+  const kn=['B','I','F'].filter(x=>x!==u).map(x=>x+' → '+nm({B:b,I:i,F:f}[x]));
+  const what={B:'напрям B (від N до S)',I:'напрям струму I',F:'напрям сили F (або «сила відсутня»)'}[u];
+  st.className='';st.textContent='Дано: '+kn.join(', ')+'. Знайти: '+what;hint.textContent='Оберіть відповідь кнопками. Осі показані кольоровими стрілками.';
+  view(false);
+}
+function view(all){
+  const {b,i,f,u}=T;mag.visible=all||u!=='B';cond.visible=all||u!=='I';
+  const sf=!!f&&(all||u!=='F');fa[0].visible=sf;if(sf){fa[0].quaternion.setFromUnitVectors(Y,f);fa[0].position.copy(f).multiplyScalar(.65);}
+  const ch=document.getElementById('ch');hand.visible=!!(ch&&ch.checked&&f);
+  if(hand.visible){const y=i.clone().cross(f);hand.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,y,i));hand.position.copy(y).multiplyScalar(-.34);}
+  skin.emissive.set(0x16a870);skin.emissiveIntensity=.45;
+}
+function answer(v){
+  if(T.done)return;const tg={B:T.b,I:T.i,F:T.f}[T.u],ok=v?(tg&&v.distanceTo(tg)<.01):!tg;
+  st.className=ok?'ok':'zero';
+  if(ok){T.done=true;st.textContent='Правильно!'+(tg?' '+nm(tg):' Сила відсутня: I ∥ B');view(true);}else st.textContent='Невірно, спробуйте ще раз';
+}
+function buildP2(){
+  px.innerHTML='<div class="row seg" id="ab" style="border:0;gap:6px">'+AN.map((n,k)=>`<button class="solo" data-k="${k}">${n}</button>`).join('')+'<button class="solo" data-k="n">Сила відсутня</button></div>'+
+  '<div class="row"><button class="solo" id="nt">Нова задача</button><button class="solo" id="sh">Показати відповідь</button><label class="chk"><input type="checkbox" id="ch"> Додати руку</label></div>';
+  px.querySelectorAll('#ab button').forEach(b=>b.onclick=()=>answer(b.dataset.k==='n'?null:AX[+b.dataset.k]));
+  document.getElementById('nt').onclick=newTask;
+  document.getElementById('sh').onclick=()=>{T.done=true;view(true);const tg={B:T.b,I:T.i,F:T.f}[T.u];st.className='ok';st.textContent='Відповідь: '+(tg?nm(tg):'сила відсутня (I ∥ B)');};
+  document.getElementById('ch').onchange=()=>view(T.done);
+  newTask();
+}
+/* --- вкладка 3: свердлик --- */
+const t3=new THREE.Group();scene.add(t3);let m3='wire',pol=1,hel=1,hmesh=null;
+const wr=new THREE.Group(),sol=new THREE.Group();t3.add(wr,sol);
+wr.add(bar(V(0,-2.6,0),V(0,2.6,0)));
+const bl=new THREE.MeshStandardMaterial({color:0x0b7fa5}),rc=[];
+for(const y of[-1.2,0,1.2])for(const r of[1.1,1.9]){const t=new THREE.Mesh(new THREE.TorusGeometry(r,.012,6,64),new THREE.MeshBasicMaterial({color:0x0b7fa5}));t.rotation.x=Math.PI/2;t.position.y=y;wr.add(t);
+  for(let k=0;k<3;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(.1,.26,12),bl);wr.add(c);rc.push({c,y,r,k});}}
+const wc=[0,1,2,3,4].map(()=>{const c=cone(V(0,0,0),V(0,1,0));wr.add(c);return c;});
+class HC extends THREE.Curve{constructor(h){super();this.h=h}getPoint(u,o=new THREE.Vector3()){const a=6.2831853*7*u;return o.set(-1.7+3.4*u,.8*Math.cos(a),this.h*.8*Math.sin(a));}}
+let hlx=new HC(1);const sc=[...Array(28)].map(()=>{const c=cone(V(0,0,0),V(0,1,0));sol.add(c);return c;});
+const bA=[.5,-.5].map(z=>{const a=arrow(2.4,0x0b7fa5);a.position.set(0,0,z);sol.add(a);return a;});
+const pl3=label('+','#d64545'),mi3=label('−','#3b6fd6');t3.add(pl3,mi3);
+const gm=(()=>{const g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color:0x9aa7b0,metalness:.6,roughness:.3});
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,1.6,12),m));
+  const tp=new THREE.Mesh(new THREE.ConeGeometry(.07,.25,12),m);tp.position.y=.92;g.add(tp);
+  const hd=new THREE.Mesh(new THREE.BoxGeometry(.9,.1,.1),new THREE.MeshStandardMaterial({color:0x8a4b1f}));hd.position.y=-.8;g.add(hd);
+  const bl2=new THREE.Mesh(new THREE.SphereGeometry(.1,12,12),new THREE.MeshBasicMaterial({color:0xe0245e}));bl2.position.set(.45,-.8,0);g.add(bl2);
+  class TH extends THREE.Curve{getPoint(u,o=new THREE.Vector3()){const a=6.2831853*5*u;return o.set(.1*Math.sin(a),.15+.65*u,.1*Math.cos(a));}}
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new TH(),120,.022,6),m));
+  t3.add(g);return g;})();
+function rebuild(){
+  if(hmesh){sol.remove(hmesh);hmesh.geometry.dispose();}hlx=new HC(hel);hmesh=new THREE.Mesh(new THREE.TubeGeometry(hlx,240,.04,8),cu);sol.add(hmesh);
+  wr.visible=m3==='wire';sol.visible=m3==='sol';const bx=pol*hel;
+  bA.forEach(a=>a.quaternion.setFromUnitVectors(Y,V(bx,0,0)));
+  if(m3==='wire'){pl3.position.set(0,2.8*pol,0);mi3.position.set(0,-2.8*pol,0);}
+  else{pl3.position.copy(hlx.getPoint(pol>0?0:1)).add(V(pol>0?-.3:.3,.3,0));mi3.position.copy(hlx.getPoint(pol>0?1:0)).add(V(pol>0?.3:-.3,.3,0));}
+  st.className='ok';
+  st.textContent=m3==='wire'?`Струм ${pol>0?'вгору':'вниз'}. Гвинт іде за струмом, ручка крутиться за B (проти годинникової, якщо струм спрямований на вас).`:
+   `${hel>0?'Правий':'Лівий'} хелікс, струм у витках дає B → ${bx>0?'праворуч (+X)':'ліворуч (−X)'}. Звідти, куди йде B (полюс N), струм у витках видно проти годинникової.`;
+  hint.textContent='Гвинт: поступальний рух — вздовж струму (прямий провідник) або вздовж B (соленоїд); обертання ручки — напрям B (прямий) або струму у витках (соленоїд).';
+  document.getElementById('h3').hidden=m3==='wire';
+}
+function tick3(t){
+  const d=m3==='wire'?V(0,pol,0):V(pol*hel,0,0),a=((t*.3)%1)-.5;
+  gm.position.copy(d).multiplyScalar(a*1.6);if(m3==='wire')gm.position.x+=.6;
+  gm.quaternion.setFromAxisAngle(d,a*6.2831853*3).multiply(new THREE.Quaternion().setFromUnitVectors(Y,d));
+  if(m3==='wire'){wc.forEach((c,i)=>{const u=(((t*.15*pol+i/5)%1)+1)%1;c.position.set(0,-2.4+4.8*u,0);c.quaternion.setFromUnitVectors(Y,V(0,pol,0));});
+    rc.forEach(o=>{const p=-pol*t*.5+o.k*2.0944+o.y,x=Math.cos(p)*o.r,z=Math.sin(p)*o.r;o.c.position.set(x,o.y,z);o.c.quaternion.setFromUnitVectors(Y,V(Math.sin(p)*pol*-1*-1*-1,0,Math.cos(p)*pol).multiplyScalar(-1).normalize());});}
+  else sc.forEach((c,i)=>{const u=(((t*.04*pol+i/28)%1)+1)%1;c.position.copy(hlx.getPoint(u));c.quaternion.setFromUnitVectors(Y,hlx.getTangent(u).multiplyScalar(pol));});
+}
+function buildP3(){
+  px.innerHTML='<div class="row"><div class="seg" id="k3"><button data-k="wire" class="on">Прямий струм</button><button data-k="sol">Соленоїд</button></div></div><div class="row"><button class="solo" id="p3">Змінити струм</button><button class="solo" id="h3" hidden>Обмотка: права</button></div>';
+  document.querySelectorAll('#k3 button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#k3 button').forEach(x=>x.classList.remove('on'));b.classList.add('on');m3=b.dataset.k;rebuild();});
+  document.getElementById('p3').onclick=()=>{pol=-pol;rebuild();};
+  document.getElementById('h3').onclick=e=>{hel=-hel;e.target.textContent='Обмотка: '+(hel>0?'права':'ліва');rebuild();};
+  rebuild();
+}
+/* --- перемикач вкладок --- */
+function setTab(n){TAB=n;mode='scene';document.getElementById('panel').hidden=n!=1;px.hidden=n==1;gz.visible=n==2;t3.visible=n==3;st.className='';
+  if(n==1){mag.visible=cond.visible=true;mag.quaternion.identity();cond.quaternion.identity();sgn=1;hand.visible=true;skin.emissiveIntensity=.45;document.querySelector('#type button').click();hint.innerHTML=H0;}
+  else{hand.visible=false;fa.forEach(a=>a.visible=false);mag.visible=cond.visible=(n==2);}
+  if(n==2)buildP2();if(n==3)buildP3();}
+update=function(){if(TAB==1)o_update();};
+flow=function(t){TAB<3?o_flow(t):tick3(t);};
+document.querySelectorAll('#tabs button[data-n]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');setTab(+b.dataset.n);});
+t3.visible=false;gz.visible=false;
+</script>
+<script>
+/* ===== Вкладка 4: індукція ===== */
+const t4=new THREE.Group();t4.visible=false;scene.add(t4);
+let S4='a',ns=1,bs=1,vs=1,rv=0,rx=2.4,pa=0,th4=0,run=true,h4=false,wd=1,lt=0;
+const cB=0x0b7fa5,cF=0xe0245e,cV=0xe08a00;
+function onPath(P,s){const n=P.length,sg2=P.map((p,k)=>p.distanceTo(P[(k+1)%n])),L=sg2.reduce((a,b)=>a+b,0);let d=(((s%1)+1)%1)*L,k=0;while(k<n-1&&d>sg2[k]){d-=sg2[k];k++;}
+  const a=P[k],b=P[(k+1)%n];return{p:a.clone().lerp(b,d/sg2[k]),d:b.clone().sub(a).normalize()};}
+const mkc=(g,n)=>[...Array(n)].map(()=>{const c=cone(V(0,0,0),V(0,1,0));g.add(c);return c;});
+/* а) магніт і кільце */
+const ga=new THREE.Group();t4.add(ga);
+const mH=[-2.8,-1.6].map(x=>{const m=new THREE.Mesh(new THREE.BoxGeometry(1.2,.7,.7),new THREE.MeshStandardMaterial({color:0x888888}));m.position.x=x;ga.add(m);return m;});
+const mN=label('N','#3b6fd6'),mS=label('S','#d64545');ga.add(mN,mS);
+const ringG=new THREE.Group();ga.add(ringG);
+const rg=new THREE.Mesh(new THREE.TorusGeometry(1,.04,8,64),cu);rg.rotation.y=Math.PI/2;ringG.add(rg);
+const rcn=mkc(ringG,12),aI=arrow(1.1,cF);aI.position.y=.35;ringG.add(aI);
+/* лінії поля магніта (дипольна модель, рівний потік на лінію → густина ∝ |B|) */
+const fl=new THREE.Group();ga.add(fl);let flN=0,flM=null,hs4=false;const fcs=[];
+[5,7,9].forEach(k=>[0,1,2,3,4,5].forEach(j=>{const c=new THREE.Mesh(new THREE.ConeGeometry(.07,.2,10),new THREE.MeshBasicMaterial({color:0x0b7fa5}));c.userData={k,j};fl.add(c);fcs.push(c);}));
+function buildFL(){
+  if(flM){fl.remove(flM);flM.geometry.dispose();}
+  const P=[];
+  for(let k=1;k<=14;k++){const L=28/k;for(let j=0;j<6;j++){const al=j*Math.PI/3,ca=Math.cos(al),sa=Math.sin(al);let pr=null;
+    for(let i=0;i<=120;i++){const th=Math.PI*i/120,r=L*Math.sin(th)**2,x=-2.2+ns*r*Math.cos(th),rho=r*Math.sin(th),ok=r>=1.3&&rho<3.6&&x<5.4&&x>-6.5,q=ok?[x,rho*ca,rho*sa]:null;
+      if(q&&pr)P.push(...pr,...q);pr=q;}}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  flM=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x0b7fa5,transparent:true,opacity:.4}));fl.add(flM);
+  fcs.forEach(c=>{const{k,j}=c.userData,L=28/k,al=j*Math.PI/3,th=ns>0?.9:Math.PI-.9,sn=Math.sin(th),cs=Math.cos(th),r=L*sn*sn,dr=2*L*sn*cs,dx=ns*(dr*cs-r*sn),dp=dr*sn+r*cs,ca=Math.cos(al),sa=Math.sin(al);
+    c.position.set(-2.2+ns*r*cs,r*sn*ca,r*sn*sa);c.quaternion.setFromUnitVectors(Y,V(dx,dp*ca,dp*sa).normalize());});flN=ns;}
+buildFL();
+const gm4=gm.clone(true);gm4.position.set(0,-.35,0);gm4.visible=false;ringG.add(gm4);
+/* б, в) стрижень і рейки */
+const gb=new THREE.Group();t4.add(gb);
+const rod=new THREE.Group();gb.add(rod);rod.add(bar(V(0,0,-1.2),V(0,0,1.2)));
+const qp=label('+','#d64545'),qm=label('−','#3b6fd6'),aF=arrow(1,cF),aV=arrow(1,cV);rod.add(qp,qm,aF,aV);
+const rails=new THREE.Group();gb.add(rails);
+rails.add(bar(V(0,-1.3,1.2),V(0,1.5,1.2)),bar(V(0,-1.3,-1.2),V(0,1.5,-1.2)),bar(V(0,-1.3,-1.2),V(0,-1.3,1.2)));
+const lc=mkc(rails,14);
+/* г) обертова рамка */
+const gd=new THREE.Group();t4.add(gd);const frm=new THREE.Group();gd.add(frm);
+const FP=[V(0,-.7,.8),V(0,.7,.8),V(0,.7,-.8),V(0,-.7,-.8)];
+FP.forEach((p,k)=>frm.add(bar(p,FP[(k+1)%4])));frm.add(bar(V(0,-1.5,0),V(0,1.5,0)));
+const fcn=mkc(frm,12);
+function txt(){st.className='ok';const zd=-vs*bs,Z=zd>0?'+Z':'−Z';
+  if(S4==='a'){const bx=rv<0?-ns:ns;
+    st.textContent=rv===0?'Кільце нерухоме: потік не змінюється, струму немає.':`${rv<0?'Наближаємо':'Віддаляємо'} кільце: потік від магніта через нього ${rv<0?'зростає':'спадає'}. За Ленцем B′ ${rv<0?'проти':'вздовж'} B магніта (протидія зміні потоку, а не самому полю). Свердлик: B′ → ${bx>0?'+X':'−X'}, тож з боку магніта струм іде ${bx>0?'за':'проти'} годинникової. Кільце ${rv<0?'відштовхує':'притягує'} магніт.`;
+    hint.textContent='Тонкі лінії — поле магніта: що густіше, то сильніше; потік ∝ числу ліній крізь кільце. Рожева стрілка в кільці — індуковане B′.';}
+  else if(S4==='b'){st.textContent=`v ${vs>0?'вгору (+Y)':'вниз (−Y)'}, B → ${bs>0?'+X':'−X'}. Сила Лоренца на + заряд F = q·v×B → ${Z}. Ліва рука, як у вкладці 1: пальці по v, B у долоню, великий палець — F. Позитивні заряди збираються на кінці ${Z}, електрони — на протилежному; між кінцями ЕРС = B·l·v.`;
+    hint.textContent='Жовта стрілка — швидкість v, рожева — сила на позитивні заряди.';}
+  else if(S4==='c'){st.textContent=`Контур замкнений: струм у стрижні йде до ${Z} (сила Лоренца), далі по рейках. Рух ${vs>0?'вгору':'вниз'}: площа контуру ${vs>0?'зростає':'зменшується'}, потік змінюється. Сила Ампера на струм у стрижні спрямована проти v (рожева) — гальмує: це і є правило Ленца.`;
+    hint.textContent='Жовта стрілка — v, рожева — сила Ампера (гальмівна).';}
+  else{st.textContent='Рамка обертається в полі: ε = B·S·ω·sinθ. Двічі за оберт струм змінює напрям. Коли площина ⟂ B (θ = 0°, 180°), боки рухаються вздовж B: F = 0, струму немає — паралельний випадок з вкладки 2.';
+    hint.textContent='Конуси — напрям струму, їх розмір ∝ |sinθ|.';}}
+function ctl(){const c=document.getElementById('c4'),B=(i,t)=>`<button class="solo" id="${i}">${t}</button>`,g=i=>document.getElementById(i);
+  c.innerHTML={a:B('x1','← до магніта')+B('x2','Стоп')+B('x3','від магніта →')+B('xp','Змінити полюси')+'<label class="chk"><input type="checkbox" id="xg"> Додати свердлик</label>',
+   b:B('xv','Змінити v')+B('xp','Змінити полюси')+'<label class="chk"><input type="checkbox" id="xh"> Додати руку</label>',
+   d:B('xr','⏯ Пауза')+B('xw','Напрям обертання')+B('xp','Змінити полюси')}[S4==='c'?'b':S4];
+  if(g('x1')){g('x1').onclick=()=>{rv=-1;txt()};g('x2').onclick=()=>{rv=0;txt()};g('x3').onclick=()=>{rv=1;txt()};}
+  if(g('xv'))g('xv').onclick=()=>{vs=-vs;txt()};
+  if(g('xg')){g('xg').checked=hs4;g('xg').onchange=e=>hs4=e.target.checked;}
+  if(g('xh')){g('xh').checked=h4;g('xh').onchange=e=>h4=e.target.checked;}
+  if(g('xr'))g('xr').onclick=()=>run=!run;if(g('xw'))g('xw').onclick=()=>wd=-wd;
+  g('xp').onclick=()=>{S4==='a'?ns=-ns:bs=-bs;txt()};}
+function buildP4(){
+  px.innerHTML='<div class="row"><div class="seg" id="s4">'+[['a','а Кільце'],['b','б Стрижень'],['c','в Рейки'],['d','г Рамка']].map(([k,n])=>`<button data-s="${k}"${k===S4?' class="on"':''}>${n}</button>`).join('')+'</div></div><div class="row" id="c4"></div>';
+  document.querySelectorAll('#s4 button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#s4 button').forEach(x=>x.classList.remove('on'));b.classList.add('on');S4=b.dataset.s;rv=0;rx=2.4;ctl();txt();});
+  ctl();txt();}
+function tick4(t){
+  const dt=Math.min(.05,Math.max(0,t-lt));lt=t;pa+=dt*.35;
+  ga.visible=S4==='a';gb.visible=S4==='b'||S4==='c';gd.visible=S4==='d';mag.visible=S4!=='a';rails.visible=S4==='c';
+  mag.quaternion.setFromAxisAngle(Y,bs>0?0:Math.PI);hand.visible=false;
+  if(S4==='a'){
+    rx+=rv*dt;if(rx<-.2||rx>4.2){rx=Math.min(4.2,Math.max(-.2,rx));rv=0;txt();}ringG.position.x=rx;
+    mH[1].material.color.set(ns>0?0x3b6fd6:0xd64545);mH[0].material.color.set(ns>0?0xd64545:0x3b6fd6);
+    mN.position.set(ns>0?-1.6:-2.8,.7,0);mS.position.set(ns>0?-2.8:-1.6,.7,0);
+    const Is=rv<0?-ns:ns,on=rv!==0;if(flN!==ns)buildFL();aI.visible=on;aI.quaternion.setFromUnitVectors(Y,V(Is,0,0));
+    rcn.forEach((c,i)=>{const f=pa*Is*6+i*.5236;c.visible=on;c.position.set(0,Math.cos(f),Math.sin(f));c.quaternion.setFromUnitVectors(Y,V(0,-Math.sin(f),Math.cos(f)).multiplyScalar(Is));});
+    gm4.visible=hs4&&on;if(gm4.visible){const d=V(Is,0,0),a2=((pa*6/18.85)%1)-.5;gm4.position.set(0,-.35,0).addScaledVector(d,a2*1.2);gm4.quaternion.setFromAxisAngle(d,pa*6).multiply(new THREE.Quaternion().setFromUnitVectors(Y,d));}
+  }else if(S4==='b'||S4==='c'){
+    const u=(t*.25)%1,y=vs>0?-1+2*u:1-2*u,zd=-vs*bs,c=S4==='c';rod.position.y=y;
+    qp.visible=qm.visible=!c;qp.position.set(0,.3,zd*1.45);qm.position.set(0,.3,-zd*1.45);
+    aV.position.set(0,vs*.9,0);aV.quaternion.setFromUnitVectors(Y,V(0,vs,0));
+    if(c){aF.visible=true;aF.position.set(0,-vs*.8,0);aF.quaternion.setFromUnitVectors(Y,V(0,-vs,0));
+      const P=[V(0,y,-zd*1.2),V(0,y,zd*1.2),V(0,-1.3,zd*1.2),V(0,-1.3,-zd*1.2)];
+      lc.forEach((k,i)=>{const o=onPath(P,pa+i/14);k.position.copy(o.p);k.quaternion.setFromUnitVectors(Y,o.d);});}
+    else{aF.visible=true;aF.position.set(0,0,zd*1.75);aF.quaternion.setFromUnitVectors(Y,V(0,0,zd));}
+    if(h4){const f=V(0,0,zd),v=V(0,vs,0),yy=v.clone().cross(f);hand.visible=true;hand.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f,yy,v));
+      hand.position.copy(rod.position).addScaledVector(yy,-.34);skin.emissive.set(0x16a870);}
+  }else{
+    if(run)th4+=dt*1.4*wd;frm.rotation.y=th4;const sn=Math.sin(th4),s=-bs*wd*sn,P=s>=0?FP:FP.slice().reverse();
+    fcn.forEach((k,i)=>{const o=onPath(P,pa+i/12);k.position.copy(o.p);k.quaternion.setFromUnitVectors(Y,o.d);k.visible=run&&Math.abs(sn)>.08;k.scale.setScalar(Math.abs(sn));});
+  }
+}
+const _s3=setTab;setTab=function(n){_s3(n);t4.visible=n===4;if(n===4){buildP4();}};
+flow=function(t){TAB<3?o_flow(t):TAB==3?tick3(t):tick4(t);};
 </script>
 </body>
 </html>
