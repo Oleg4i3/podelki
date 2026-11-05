@@ -121,7 +121,7 @@ function sideBtn(){document.getElementById('side').textContent='Сторона '
 const hand=new THREE.Group();hand.rotation.order='YXZ';scene.add(hand);
 const skin=new THREE.MeshStandardMaterial({color:0xe6ac8c,roughness:.6,transparent:true,opacity:.55,depthWrite:false}),
  pre=new THREE.MeshBasicMaterial({colorWrite:false,transparent:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}),
- nailM=new THREE.MeshStandardMaterial({color:0xf8e3dc,roughness:.2,transparent:true,opacity:.85,depthWrite:false});
+ nailM=new THREE.MeshStandardMaterial({color:0xff7777,roughness:.2,transparent:true,opacity:.85,depthWrite:false});
 const HP=[],HI=[],nails=[],sg=Math.sign,pw=Math.pow,ex=Math.exp,dg=Math.PI/180;
 function itp(xs,ys,x){const n=xs.length;if(x<=xs[0])return ys[0];if(x>=xs[n-1])return ys[n-1];let i=0;while(x>xs[i+1])i++;
   const h=xs[i+1]-xs[i],t=(x-xs[i])/h,m=k=>{const a=Math.max(k-1,0),b=Math.min(k+1,n-1);return(ys[b]-ys[a])/(xs[b]-xs[a])*h;},t2=t*t,t3=t2*t;
@@ -152,12 +152,12 @@ let tipZ=1.7;
   const al=ang*dg,d=V(Math.sin(al),0,Math.cos(al)),Lp=l1+l2+l3,a=V(x,0,z).addScaledVector(d,-.12),b=V(x,0,z).addScaledVector(d,Lp),
    u1=(l1+.12)/(Lp+.12),u2=(l1+l2+.12)/(Lp+.12),rad=u=>r0*(1-.2*u)*(1+.09*(ex(-(((u-u1)/.05)**2))+ex(-(((u-u2)/.05)**2))));
   tube(new THREE.LineCurve3(a,b),rad,2.3);
-  const un=1-l3*.5/(Lp+.12),pn=a.clone().lerp(b,un);nails.push([pn.x,-(rad(un)*.92-.004),pn.z,rad(un)*.62,l3*.42,al]);
+  const un=1-l3*.5/(Lp+.12),pn=a.clone().lerp(b,un);nails.push([pn.x,-(rad(un)*.92-.004),pn.z,rad(un)*.62,l3*.942,al]);
   if(ang===0)tipZ=b.z+rad(1);});
 // великий палець (відведений уздовж +x)
 {const cu=new THREE.CatmullRomCurve3([V(.34,.03,-.52),V(.8,.04,-.27),V(1.08,.03,-.17),V(1.3,.03,-.13)]),
   rad=u=>itp([0,.2,.45,.75,1],[.19,.15,.125,.108,.096],u)*(1+.08*ex(-(((u-.45)/.05)**2))+.07*ex(-(((u-.75)/.05)**2)));
- tube(cu,rad,2.3);const pn=cu.getPointAt(.86),T=cu.getTangentAt(.86);nails.push([pn.x,pn.y-(rad(.86)*.92-.004),pn.z,rad(.86)*.62,.14,Math.atan2(T.x,T.z)]);}
+ tube(cu,rad,2.3);const pn=cu.getPointAt(.86),T=cu.getTangentAt(.86);nails.push([pn.x,pn.y-(rad(.86)*.92-.004),pn.z,rad(.86)*.62,.24,Math.atan2(T.x,T.z)]);}
 const hg=new THREE.BufferGeometry();hg.setAttribute('position',new THREE.Float32BufferAttribute(HP,3));hg.setIndex(HI);hg.computeVertexNormals();
 // спершу невидимий прохід глибини (чиста напівпрозорість без накладання внутрішніх частин), далі кольоровий — обидва після магніту
 const hm=new THREE.Mesh(hg,pre),hc=new THREE.Mesh(hg,skin);hm.renderOrder=2;hc.renderOrder=3;hand.add(hm,hc);
