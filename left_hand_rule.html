@@ -24,10 +24,11 @@ button.solo{border:1px solid var(--line);border-radius:10px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
 .sl{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0}
 .sl span{width:54px;color:var(--mut)}.sl input{flex:1}.sl output{width:40px;text-align:right}
+#ph5{inset:auto;right:10px;top:50%;bottom:auto;left:auto;transform:translateY(-42%);width:190px;height:250px;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;z-index:4}@media (max-width:700px){#ph5{width:150px;height:200px;top:auto;bottom:230px;transform:none}}
 </style>
 </head>
 <body>
-<div id="tabs" class="seg"><button data-n="1" class="on">1 Рука</button><button data-n="2">2 Задача</button><button data-n="3">3 Свердлик</button><button data-n="4">4 Індукція</button></div>
+<div id="tabs" class="seg"><button data-n="1" class="on">1 Рука</button><button data-n="2">2 Задача</button><button data-n="3">3 Свердлик</button><button data-n="4">4 Індукція</button><button data-n="5">5 Мотор</button></div>
 <div id="top"><div id="st">…</div><div id="hint">Крутіть руку так, щоб лінії поля входили у долоню, пальці — за струмом, відігнутий великий — сила Ампера. Блакитне коло — долоня, жовта кулька — напрям струму, рожева — сили.</div></div>
 <div id="panel">
   <div class="row">
@@ -397,6 +398,176 @@ function tick4(t){
 }
 const _s3=setTab;setTab=function(n){_s3(n);t4.visible=n===4;if(n===4){buildP4();}};
 flow=function(t){TAB<3?o_flow(t):TAB==3?tick3(t):tick4(t);};
+</script>
+<script>
+/* ===== Вкладка 5: мотор — рамка зі струмом у полі, пара сил, колектор / суцільні кільця / ротор-магніт ===== */
+(function(){
+const t5=new THREE.Group();t5.visible=false;t5.position.y=.6;scene.add(t5);
+const K=9.4,G=1,J=1.5,OM=3,DEAD=.07,Y0=-1.75,RED=0x8a1d1d,BLUE=0x1d3f8a;   // момент, тертя, інерція, частота мережі, «мертва» зона колектора
+const M={rot:'frame',ac:false,on:true,bs:1,phi:.6,w:0,t:0,I:0,pa:0,two:false,dl:Math.PI/2,Iz:0,paz:0};
+const rotG=new THREE.Group();t5.add(rotG);
+const two=m=>{m.side=THREE.DoubleSide;return m;},metal=c=>two(new THREE.MeshStandardMaterial({color:c,metalness:.6,roughness:.35}));
+const gray=new THREE.MeshStandardMaterial({color:0x9aa7b0,metalness:.6,roughness:.3}),dark=two(new THREE.MeshStandardMaterial({color:0x2b3238,roughness:.8}));
+const axl=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,2.74,12),gray);axl.position.y=-.27;rotG.add(axl);
+/* рамка (як у вкладці 4г), знизу розімкнена: кінці йдуть до колектора / кілець */
+const fr=new THREE.Group();rotG.add(fr);
+const c1=V(0,-.7,.8),c2=V(0,.7,.8),c3=V(0,.7,-.8),c4=V(0,-.7,-.8);
+fr.add(bar(c1,c2),bar(c2,c3),bar(c3,c4));
+const pln=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.4),new THREE.MeshBasicMaterial({color:0xe0a000,transparent:true,opacity:.13,side:THREE.DoubleSide,depthWrite:false}));pln.rotation.y=Math.PI/2;fr.add(pln);
+const PD=[V(0,Y0+.15,.2),c1,c2,c3,c4,V(0,Y0+.15,-.2)],PA=[V(0,Y0+.11,.23),c1,c2,c3,c4,V(0,Y0+.11,-.09)];
+const ldD=new THREE.Group(),ldA=new THREE.Group();fr.add(ldD,ldA);
+ldD.add(bar(PD[0],c1),bar(c4,PD[5]));ldA.add(bar(PA[0],c1),bar(c4,PA[5]));
+const fc5=mkc(fr,12);
+/* колектор: два півкільця (щілина — в площині, перпендикулярній до рамки) */
+const mHA=metal(0xc58a4a),mHB=metal(0xc58a4a);
+const cmD=new THREE.Group();cmD.position.y=Y0;rotG.add(cmD);
+cmD.add(new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.3,28,1,false,-Math.PI/2+.1,Math.PI-.2),mHA),new THREE.Mesh(new THREE.CylinderGeometry(.27,.27,.3,28,1,false,Math.PI/2+.1,Math.PI-.2),mHB),new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,.28,20),dark));
+/* суцільні кільця: зовнішнє кільце і внутрішній диск (одне в середині іншого), між ними ізолятор */
+const lat=(r0,r1,h)=>new THREE.LatheGeometry([[r0,-h/2],[r1,-h/2],[r1,h/2],[r0,h/2],[r0,-h/2]].map(p=>new THREE.Vector2(p[0],p[1])),36);
+const mRo=metal(0xc58a4a),mRi=metal(0xc58a4a);
+const cmA=new THREE.Group();cmA.position.y=Y0;rotG.add(cmA);
+cmA.add(new THREE.Mesh(lat(.19,.27,.22),mRo),new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.22,32),mRi),new THREE.Mesh(lat(.13,.19,.22),dark));
+/* ротор-магніт: N синій, S червоний (як у вкладці 1) */
+const mg5=new THREE.Group();rotG.add(mg5);
+const nh=new THREE.Mesh(new THREE.BoxGeometry(.7,.3,.3),new THREE.MeshStandardMaterial({color:0x3b6fd6,metalness:.3,roughness:.5})),sh2=new THREE.Mesh(new THREE.BoxGeometry(.7,.3,.3),new THREE.MeshStandardMaterial({color:0xd64545,metalness:.3,roughness:.5}));
+nh.position.x=.35;sh2.position.x=-.35;mg5.add(nh,sh2);
+const lN5=label('N','#3b6fd6'),lS5=label('S','#d64545');lN5.position.set(.5,.42,0);lS5.position.set(-.5,.42,0);lN5.scale.set(.55,.55,1);lS5.scale.set(.55,.55,1);mg5.add(lN5,lS5);
+/* нерухомі щітки */
+const brD=new THREE.Group(),brA=new THREE.Group();t5.add(brD,brA);
+[[.37,Y0,0,.2,.2,.12],[-.37,Y0,0,.2,.2,.12]].forEach(([x,y,z,a,b,c])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(a,b,c),dark);m.position.set(x,y,z);brD.add(m);});
+[[.23,Y0-.26,0,.1,.3,.1],[-.06,Y0-.26,0,.08,.3,.08]].forEach(([x,y,z,a,b,c])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(a,b,c),dark);m.position.set(x,y,z);brA.add(m);});
+/* джерело: батарейка або «~» */
+const src=new THREE.Group();src.position.set(0,-2.7,0);t5.add(src);
+const bat=new THREE.Group();src.add(bat);bat.add(new THREE.Mesh(new THREE.BoxGeometry(1,.36,.36),dark));
+const bp=new THREE.Mesh(new THREE.BoxGeometry(.3,.37,.37),new THREE.MeshStandardMaterial({color:0xd64545})),bm=new THREE.Mesh(new THREE.BoxGeometry(.3,.37,.37),new THREE.MeshStandardMaterial({color:0x3b6fd6}));bat.add(bp,bm);
+const acs=new THREE.Group();src.add(acs);acs.add(new THREE.Mesh(new THREE.TorusGeometry(.3,.035,10,32),gray),bar(V(.3,0,0),V(.5,.18,0)),bar(V(-.3,0,0),V(-.5,.18,0)));
+const tl=label('~','#51606c');tl.scale.set(.6,.6,1);acs.add(tl);
+const sp=(t,c)=>{const s=label(t,c);s.scale.set(.5,.5,1);t5.add(s);return s;};
+const pR=sp('+','#d64545'),mR=sp('−','#3b6fd6'),pL=sp('+','#d64545'),mL=sp('−','#3b6fd6');
+[pR,mR].forEach(s=>s.position.set(.78,-2.45,0));[pL,mL].forEach(s=>s.position.set(-.78,-2.45,0));
+/* дроти до джерела */
+const wDC=new THREE.Group(),wAC=new THREE.Group(),wM=new THREE.Group();t5.add(wDC,wAC,wM);
+wDC.add(bar(V(.37,Y0-.1,0),V(.5,-2.52,0)),bar(V(-.37,Y0-.1,0),V(-.5,-2.52,0)));
+wAC.add(bar(V(.23,Y0-.41,0),V(.5,-2.52,0)),bar(V(-.06,Y0-.41,0),V(-.5,-2.52,0)));
+wM.add(bar(V(.5,-2.52,0),V(1.2,-.97,0)),bar(V(-.5,-2.52,0),V(-1.2,-.97,0)),bar(V(1.2,.97,0),V(1.2,1.4,0)),bar(V(1.2,1.4,0),V(-1.2,1.4,0)),bar(V(-1.2,1.4,0),V(-1.2,.97,0)));
+/* статор для ротора-магніта: дві нерухомі котушки, поле вздовж X */
+const st5=new THREE.Group();t5.add(st5);
+[-1.2,1.2].forEach(x=>{const c=new THREE.Mesh(new THREE.TorusGeometry(.95,.08,10,48),cu);c.rotation.y=Math.PI/2;c.position.x=x;st5.add(c);});
+const sc5=[];[-1.2,1.2].forEach(x=>{for(let i=0;i<10;i++){const c=cone(V(0,0,0),V(0,1,0));st5.add(c);sc5.push({c,x,i});}});
+const P1=[[0,.5,.5],[0,.5,-.5],[0,-.5,.5],[0,-.5,-.5]],P2=[[.5,.5,.5],[-.5,.5,-.5],[.5,-.5,-.5],[-.5,-.5,.5]];
+const bf5=P1.map(p=>{const a=arrow(1.6,0x0b7fa5,0x06222e);a.position.set(...p);st5.add(a);return a;});
+/* друга пара обмоток (фаза B), перпендикулярна першій (вздовж z); додатний струм B дає поле вздовж −z */
+const stz=new THREE.Group();t5.add(stz);
+const mCB=new THREE.MeshStandardMaterial({color:0x8a5fd6,metalness:.5,roughness:.4});
+[-1.2,1.2].forEach(z=>{const c=new THREE.Mesh(new THREE.TorusGeometry(.95,.08,10,48),mCB);c.position.z=z;stz.add(c);});
+const scz=[];[-1.2,1.2].forEach(z=>{for(let i=0;i<10;i++){const c=cone(V(0,0,0),V(0,1,0));stz.add(c);scz.push({c,z,i});}});
+const src2=new THREE.Group();src2.position.set(0,-2.7,-1.9);t5.add(src2);
+src2.add(new THREE.Mesh(new THREE.TorusGeometry(.3,.035,10,32),mCB),bar(V(.3,0,0),V(.5,.18,0)),bar(V(-.3,0,0),V(-.5,.18,0)));
+const tl2=label('~','#8a5fd6');tl2.scale.set(.6,.6,1);src2.add(tl2);
+const lA=label('A','#b8741a'),lB=label('B','#8a5fd6');lA.scale.set(.5,.5,1);lB.scale.set(.5,.5,1);lA.position.set(0,-2.28,0);lB.position.set(0,-2.28,-1.9);t5.add(lA,lB);
+const wB=new THREE.Group();t5.add(wB);
+wB.add(bar(V(.5,-2.52,-1.9),V(0,-.97,-1.2)),bar(V(-.5,-2.52,-1.9),V(0,-.97,1.2)),bar(V(0,.97,1.2),V(0,1.6,1.2)),bar(V(0,1.6,1.2),V(0,1.6,-1.2)),bar(V(0,1.6,-1.2),V(0,.97,-1.2)));
+/* пара сил */
+const fa5=[0,1].map(()=>{const a=arrow(1.1,cF);a.visible=false;t5.add(a);return a;});
+function along(P,u){const n=P.length-1,sg=[];let L=0;for(let k=0;k<n;k++){const l=P[k].distanceTo(P[k+1]);sg.push(l);L+=l;}let d=u*L,k=0;while(k<n-1&&d>sg[k]){d-=sg[k];k++;}return{p:P[k].clone().lerp(P[k+1],d/sg[k]),d:P[k+1].clone().sub(P[k]).normalize()};}
+function applyMode(){const f=M.rot==='frame',a=M.ac;
+  fr.visible=f;mg5.visible=!f;cmD.visible=f&&!a;cmA.visible=f&&a;ldD.visible=!a;ldA.visible=a;
+  brD.visible=f&&!a;brA.visible=f&&a;wDC.visible=f&&!a;wAC.visible=f&&a;wM.visible=!f;st5.visible=!f;bat.visible=!a;acs.visible=a;const tw=M.two&&!f&&a;stz.visible=tw;src2.visible=tw;wB.visible=tw;lA.visible=tw;lB.visible=tw;}
+/* ---- динаміка: M = ΣF×r із F = I×B (рамка) або m×B (магніт) ---- */
+function kick(){
+  if(M.rot==='magnet'&&!M.ac)return;
+  if(M.ac&&M.two&&M.rot==='magnet'){M.phi=OM*M.t-M.bs*Math.PI/2-Math.asin(G*OM/K);M.w=OM;}   // обертове поле: ротор «захоплюється» полем
+  else if(M.ac){const es=M.rot==='frame'?M.bs:-M.bs,c=Math.max(-1,Math.min(1,2*G*OM/(K*es)));M.phi=OM*M.t+es*Math.acos(c);M.w=OM;}   // фазу беремо стійку: ротор «захоплюється» мережею
+  else M.w=3*M.bs;}
+let lt5=0;
+function tick5(t){
+  const dt=Math.min(.05,Math.max(0,t-lt5));lt5=t;
+  const f=M.rot==='frame',a=M.ac,on=M.on?1:0,n=Math.max(1,Math.ceil(dt/.004)),h=dt/n;let I=0,Iz=0;
+  for(let i=0;i<n;i++){
+    M.t+=h;const s=Math.sin(M.phi);let tau;
+    if(f){I=a?on*Math.sin(OM*M.t):on*(Math.abs(s)<DEAD?0:(s>0?1:-1));tau=M.bs*K*I*s;}
+    else{I=on*(a?Math.sin(OM*M.t):1);Iz=(M.two&&a)?on*Math.sin(OM*M.t-M.dl):0;tau=-K*M.bs*(s*I-Math.cos(M.phi)*Iz);}
+    M.w+=h*(tau-G*M.w)/J;M.phi+=h*M.w;}
+  M.phi=((M.phi%6.2831853)+6.2831853)%6.2831853;M.I=I;M.Iz=Iz;
+  const aI=Math.abs(I),sg=Math.sign(I)||1,scl=Math.min(1,aI*1.3),cur=f?I:M.bs*I;M.pa+=dt*.35*cur;
+  rotG.rotation.y=M.phi;
+  mag.visible=f;mag.position.y=.6;mag.quaternion.setFromAxisAngle(Y,M.bs>0?0:Math.PI);
+  if(f){const P=a?PA:PD;
+    fc5.forEach((c,i)=>{const u=(((M.pa+i/12)%1)+1)%1,o=along(P,u);c.position.copy(o.p);c.quaternion.setFromUnitVectors(Y,o.d.multiplyScalar(sg));c.visible=aI>.05;c.scale.setScalar(Math.min(1,u/.08,(1-u)/.08)*scl);});
+    const eA=I>0?RED:BLUE,eB=I>0?BLUE:RED,ei=aI>.05?.8*scl:0;
+    mHA.emissive.set(eA);mHB.emissive.set(eB);mHA.emissiveIntensity=mHB.emissiveIntensity=ei;
+    mRo.emissive.set(eA);mRi.emissive.set(eB);mRo.emissiveIntensity=mRi.emissiveIntensity=ei;
+  }else sc5.forEach(o=>{const fa=6.2831853*(M.pa+o.i/10);o.c.position.set(o.x,.95*Math.cos(fa),.95*Math.sin(fa));
+    o.c.quaternion.setFromUnitVectors(Y,V(0,-Math.sin(fa),Math.cos(fa)).multiplyScalar(Math.sign(cur)||1));o.c.visible=Math.abs(cur)>.05;o.c.scale.setScalar(Math.min(1,Math.abs(cur)*1.3));});
+  const tw=M.two&&!f&&a,b=M.bs*I,bz=-M.bs*M.Iz,Bm=Math.hypot(b,bz);M.paz+=dt*.35*bz;
+  bf5.forEach((x,i)=>{x.position.set(...(tw?P2:P1)[i]);x.visible=!f&&Bm>.05;x.quaternion.setFromUnitVectors(Y,V(b/(Bm||1),0,bz/(Bm||1)));x.scale.setScalar(Math.min(1,.2+.8*Bm));});
+  if(tw)scz.forEach(o=>{const fa=6.2831853*(M.paz+o.i/10);o.c.position.set(.95*Math.cos(fa),.95*Math.sin(fa),o.z);o.c.quaternion.setFromUnitVectors(Y,V(-Math.sin(fa),Math.cos(fa),0).multiplyScalar(Math.sign(bz)||1));o.c.visible=Math.abs(bz)>.05;o.c.scale.setScalar(Math.min(1,Math.abs(bz)*1.3));});
+  ph.style.display=(!f&&a)?'block':'none';if(!f&&a)drawPh(tw);
+  /* полярність джерела */
+  const psrc=f?1:M.bs,sP=psrc*(a?Math.sign(I):1),show=a?aI>.1:true,pos=sP>0;
+  bp.position.x=pos?.35:-.35;bm.position.x=pos?-.35:.35;
+  pR.visible=show&&pos;mL.visible=show&&pos;mR.visible=show&&!pos;pL.visible=show&&!pos;
+  /* пара сил */
+  const s=Math.sin(M.phi),c=Math.cos(M.phi);
+  const ar=f?[[V(.8*s,0,.8*c),V(0,0,-I*M.bs)],[V(-.8*s,0,-.8*c),V(0,0,I*M.bs)]]:[[V(.7*c,0,-.7*s),V(b,0,bz)],[V(-.7*c,0,.7*s),V(-b,0,-bz)]];
+  ar.forEach(([p,F],i)=>{const x=fa5[i],m=F.length();x.visible=m>.15;if(x.visible){const d=F.clone().normalize(),k=Math.min(1,.5+.5*m);x.scale.setScalar(k);x.quaternion.setFromUnitVectors(Y,d);x.position.copy(p).addScaledVector(d,.1+.55*k);}});
+}
+/* ---- діаграма «синус + косинус → обертовий вектор» (справа) ---- */
+const ph=document.createElement('canvas');ph.id='ph5';ph.style.display='none';document.body.appendChild(ph);
+const pcx=ph.getContext('2d');let pcol=null,pfr=0;
+function drawPh(tw){
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=ph.clientWidth||190,H=ph.clientHeight||250;
+  if(ph.width!==Math.round(W*dpr)){ph.width=Math.round(W*dpr);ph.height=Math.round(H*dpr);}
+  if(!pcol||pfr++%90===0){const cs=getComputedStyle(document.documentElement),g=k=>cs.getPropertyValue(k).trim();pcol={ink:g('--ink')||'#14212b',mut:g('--mut')||'#51606c',line:g('--line')||'#b9c4cd'};}
+  const c=pcx,on=M.on?1:0,ang=OM*M.t,ia=on*Math.sin(ang),ib=tw?on*Math.sin(ang-M.dl):0,cA='#e08a00',cB='#8a5fd6',cR='#0b7fa5';
+  c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);c.font='11px system-ui,sans-serif';c.textAlign='center';c.lineWidth=1;
+  c.fillStyle=pcol.mut;c.fillText(tw?'поле = струм A (→) + струм B (↑)':'одна обмотка: поле пульсує',W/2,15);
+  const cx=W/2,cy=82,R=Math.min(56,W*.3),L=R*1.18;
+  c.strokeStyle=pcol.line;c.beginPath();c.arc(cx,cy,R,0,6.2832);c.stroke();
+  c.strokeStyle=cA;c.beginPath();c.moveTo(cx-L,cy);c.lineTo(cx+L,cy);c.stroke();c.strokeStyle=cB;c.beginPath();c.moveTo(cx,cy+L);c.lineTo(cx,cy-L);c.stroke();
+  c.fillStyle=cA;c.fillText('A',cx+L+7,cy+4);c.fillStyle=cB;c.fillText('B',cx,cy-L-4);
+  const px_=cx+R*ia,py_=cy-R*ib;
+  c.setLineDash([3,3]);c.strokeStyle=pcol.mut;c.beginPath();c.moveTo(px_,py_);c.lineTo(px_,cy);c.moveTo(px_,py_);c.lineTo(cx,py_);c.stroke();c.setLineDash([]);
+  c.fillStyle=cA;c.beginPath();c.arc(px_,cy,3.5,0,6.2832);c.fill();if(tw){c.fillStyle=cB;c.beginPath();c.arc(cx,py_,3.5,0,6.2832);c.fill();}
+  const vl=Math.hypot(px_-cx,py_-cy);
+  if(vl>2){c.strokeStyle=cR;c.fillStyle=cR;c.lineWidth=2.5;c.beginPath();c.moveTo(cx,cy);c.lineTo(px_,py_);c.stroke();
+    const ux=(px_-cx)/vl,uy=(py_-cy)/vl;c.beginPath();c.moveTo(px_,py_);c.lineTo(px_-9*ux-4.5*uy,py_-9*uy+4.5*ux);c.lineTo(px_-9*ux+4.5*uy,py_-9*uy-4.5*ux);c.closePath();c.fill();c.lineWidth=1;}
+  const x0=12,x1=W-12,yc=H-48,am=26,N=60;
+  c.strokeStyle=pcol.line;c.beginPath();c.moveTo(x0,yc);c.lineTo(x1,yc);c.stroke();
+  [[cA,0,1],[cB,M.dl,tw]].forEach(([col,dl,vis])=>{if(!vis)return;c.strokeStyle=col;c.lineWidth=1.6;c.beginPath();
+    for(let k=0;k<=N;k++){const a_=ang-4*Math.PI*(1-k/N)-dl,y=yc-am*on*Math.sin(a_),x=x0+(x1-x0)*k/N;k?c.lineTo(x,y):c.moveTo(x,y);}c.stroke();
+    c.fillStyle=col;c.beginPath();c.arc(x1,yc-am*on*Math.sin(ang-dl),3.5,0,6.2832);c.fill();});
+  c.lineWidth=1;c.strokeStyle=pcol.mut;c.setLineDash([2,3]);c.beginPath();c.moveTo(x1,yc-am-4);c.lineTo(x1,yc+am+4);c.stroke();c.setLineDash([]);
+  c.fillStyle=pcol.mut;c.fillText('струми обмоток i(t) · зараз →',W/2,H-8);
+}
+/* ---- підписи й панель ---- */
+function txt5(){
+  const f=M.rot==='frame',a=M.ac;let s,h;
+  if(f&&!a){s='Постійний струм + колектор (два півкільця) зі щітками. Сили Ампера F = I×B на двох боках рамки — пара сил з моментом M = B·I·S·|sin θ|. У нейтралі (площина ⟂ B) щітки переходять з одного півкільця на інше, струм у рамці змінює напрям — і момент весь час одного знаку: рамка крутиться.';
+    h='Рожеві стрілки — пара сил, жовті конуси — струм. Півкільце, що торкається щітки «+», світиться червоним, «−» — синім.';}
+  else if(f&&a){s='Змінний струм + суцільні кільця (зовнішнє й внутрішнє, одне в середині іншого) зі щітками: контакти перекидати не треба — напрям струму змінює сама мережа. Момент M ∝ sin(ωt)·sin θ має сталий знак, лише коли рамка крутиться синхронно з мережею (1 оберт за період). Сам двигун не рушає — потрібен поштовх.';
+    h='Кільця й щітки не перемикаються: колір кілець — миттєва полярність джерела. «Розкрутити» дає ротору початковий поштовх.';}
+  else if(!a){s='Ротор — постійний магніт у нерухомих котушках з постійним струмом: поле стале, магніт лише повертається вздовж нього й, погойдавшись, зупиняється, як стрілка компаса. Щоб крутився, поле треба змінювати — змінним струмом.';
+    h='Рожеві стрілки — сили на полюси магніта (N — вздовж B, S — проти), блакитні — поле котушок.';}
+  else if(M.two){const dg=Math.round(M.dl*180/Math.PI);
+    s='Дві нерухомі обмотки під прямим кутом (A — вздовж x, B — вздовж z), струми зсунуті по фазі на '+dg+'°. '+(dg===90?'Струми sin і cos у квадратурі: їхні поля складаються у вектор сталої довжини, який обертається з кутовою швидкістю ω — обертове поле. Магніт-ротор просто йде за ним, ніякого поштовху не треба.':(dg===0||dg===180?'Струми співпадають по фазі (або в протифазі) — вектор поля не обертається, а пульсує вздовж прямої; ротор ледве тримає синхронність.':'Вектор поля описує еліпс — поле обертове лише частково; найкраще кругове при зсуві 90°.'));
+    h='Праворуч: проєкції вектора на осі A і B — це миттєві струми. Блакитні стрілки — результуюче поле, рожеві — пара сил на полюсах.';}
+  else{s='Ротор-магніт у змінному полі нерухомих котушок: ковзних контактів немає взагалі. Поле B(t) міняє знак, а пара сил на полюсах (N — вздовж B, S — проти) тягне магніт за собою; обертання синхронне з мережею, стартує з поштовху.';
+    h='Блакитні стрілки — поле котушок B(t), рожеві — пара сил на полюсах магніта. Обмотка нерухома, тож ні кілець, ні щіток не потрібно.';}
+  st.className='ok';st.textContent=(M.on?'':'Живлення вимкнено — ротор лише гальмується тертям. ')+s;hint.textContent=h;}
+function buildP5(){
+  px.innerHTML='<div class="row"><div class="seg" id="r5"><button data-r="frame">Рамка</button><button data-r="magnet">Ротор-магніт</button></div><div class="seg" id="a5"><button data-a="dc">Постійний струм</button><button data-a="ac">Змінний струм</button></div></div><div class="row"><button class="solo" id="p5"></button><button class="solo" id="k5">Розкрутити</button><button class="solo" id="b5">Змінити полюси</button><label class="chk" id="c2"><input type="checkbox" id="x2"> Перпендикулярні обмотки статора</label></div><label class="sl" id="s2"><span style="width:auto">Зсув фаз між обмотками</span><input id="d2" type="range" min="0" max="180" step="5" value="90"><output id="o2">90°</output></label>';
+  const g=id=>document.getElementById(id),sync=()=>{
+    px.querySelectorAll('#r5 button').forEach(b=>b.classList.toggle('on',b.dataset.r===M.rot));
+    px.querySelectorAll('#a5 button').forEach(b=>b.classList.toggle('on',(b.dataset.a==='ac')===M.ac));
+    g('p5').textContent=M.on?'⏻ Вимкнути':'⏻ Увімкнути';g('k5').hidden=M.rot==='magnet'&&!M.ac;const m2=M.rot==='magnet'&&M.ac;g('c2').style.display=m2?'':'none';g('x2').checked=M.two;g('s2').style.display=(m2&&M.two)?'':'none';g('d2').value=Math.round(M.dl*180/Math.PI);g('o2').textContent=g('d2').value+'°';applyMode();txt5();};
+  px.querySelectorAll('#r5 button').forEach(b=>b.onclick=()=>{M.rot=b.dataset.r;if(M.ac)kick();sync();});
+  px.querySelectorAll('#a5 button').forEach(b=>b.onclick=()=>{M.ac=b.dataset.a==='ac';if(M.ac&&M.on)kick();sync();});
+  g('p5').onclick=()=>{M.on=!M.on;sync();};g('k5').onclick=()=>{kick();};g('x2').onchange=e=>{M.two=e.target.checked;if(M.two&&M.on)kick();sync();};g('d2').oninput=e=>{M.dl=e.target.value*Math.PI/180;g('o2').textContent=e.target.value+'°';txt5();};g('b5').onclick=()=>{M.bs=-M.bs;if(M.ac)kick();txt5();};
+  sync();}
+const _s4=setTab;setTab=function(n){_s4(n);t5.visible=n===5;if(n!==5){mag.position.y=0;ph.style.display='none';}if(n===5){lt5=performance.now()/1000;buildP5();}};
+flow=function(t){TAB<3?o_flow(t):TAB==3?tick3(t):TAB==4?tick4(t):tick5(t);};
+})();
 </script>
 </body>
 </html>
